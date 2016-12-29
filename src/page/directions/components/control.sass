@@ -1,0 +1,30 @@
+body.directions
+    #mapControl
+        position: absolute
+        width: 80%
+        left: 10%
+        top: -2000px
+        z-index: 9999
+        transition: .5s all ease
+        background: rgba(255, 255, 255, 0.9)
+        border: none
+        box-shadow: 1px 2px 5px #ccc
+        &.active
+            top: 20% !important
+        @media screen and (min-width: 576px)
+            width: 60%
+            left: 20%
+
+        @media screen and (min-width: 768px)
+            width: 50%
+            left: 25%
+
+        .card-header
+            background: linear-gradient(#6C91E4 0%, #142C79 100%)
+        input
+            background: transparent
+        input, button
+            border-radius: 0
+
+    .pac-container.pac-logo
+        z-index: 9999

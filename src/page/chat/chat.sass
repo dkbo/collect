@@ -1,0 +1,38 @@
+body.chat
+    background: url('../../images/chatRoom.jpg')
+    background-size: cover
+    overflow: hidden
+#chat
+    padding: 0
+    margin-top: -10px
+    overflow: hidden
+    #chatBox
+        position: relative
+        margin: 0
+        border-radius: 0
+        border: none
+        overflow: hidden
+        background: transparent
+        .card-header
+            background: linear-gradient(#6C91E4 0%, #142C79 100%)
+            color: white
+        .card-block
+            overflow-y: auto
+            border: none
+            -ms-overflow-style: -ms-autohiding-scrollbar
+            -webkit-overflow-scrolling: touch
+            &::-webkit-scrollbar
+                -webkit-appearance: none
+                width: 4px
+                height: 10px
+
+            &::-webkit-scrollbar-thumb
+                border-radius: 8px
+                background-color: #435a9c
+        pre
+            margin-bottom: 0
+        ul
+            list-style-type: none
+            padding: 0
+            li
+                margin-bottom: 10px

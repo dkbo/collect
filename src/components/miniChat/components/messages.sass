@@ -1,0 +1,42 @@
+#miniChat
+    li
+        margin-bottom: 10px
+        opacity: 0
+        transition: .2s all ease
+        &.messagesOther
+            figure
+                margin-right: 5px
+            figure, .messagesBox
+                float: left
+        &.messagesSelf
+            figure
+                margin-left: 5px
+            figure, .messagesBox
+                float: right
+            .messagesName
+                text-align: right
+        figure
+            width: 50px
+            height: 50px
+            border-radius: 50%
+            margin: 0
+            overflow: hidden
+            img
+                width: 100%
+                height: 100%
+        .messagesBox
+            max-width: 80%
+            .messagename
+                color: #222152
+            .messagesContent
+                padding: 5px
+                background: rgba(66, 123, 158, 0.7)
+                color: #eaf1f9
+            .messageVideo
+                box-shadow: 1px 1px 5px black
+                width: 200px
+                @media screen and (min-width: 557px) and (max-width: 767px)
+                    width: 400px
+
+
+

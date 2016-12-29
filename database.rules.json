@@ -1,0 +1,16 @@
+//firebase ChatRoom 資料庫規則檔
+{
+  "rules": {
+    "messages": {
+      ".read": true,
+    	".write": "auth != null",
+      ".indexOn": "timestamp"
+    },
+    "members": {
+      ".read": true,
+    	"$uid": {
+        ".write": "$uid === auth.uid"
+      }
+    }
+  }
+}

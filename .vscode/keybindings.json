@@ -1,0 +1,17 @@
+// 將您的按鍵組合放入此檔案中以覆寫預設值
+[
+{
+    "key": "f2",
+    "command": "HookyQR.beautifyFile",
+    "when": "editorFocus"
+},
+{
+    "key": "f3",
+    "command": "csscomb.execute",
+    "when": "editorFocus"
+},
+{   "key": "f4",
+    "command": "editor.action.trimTrailingWhitespace",
+    "when": "editorTextFocus && !editorReadonly"
+}
+]

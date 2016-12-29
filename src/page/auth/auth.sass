@@ -1,0 +1,61 @@
+$social-color-github: gray
+$social-color-facebook: #3b5998
+$social-color-google: #dd4b39
+$boxBg: #AAB2BD
+
+
+=social($bg)
+  background: $bg
+  width: 80px
+  height: 80px
+  border-radius: 100%
+  overflow: hidden
+  font-size: 30px
+  color: white
+  border: none
+  margin: 10px
+  transition: .5s all ease
+  cursor: pointer
+  text-shadow: 1px 1px 3px darken($bg, 50%)
+  box-shadow: 0px 0px 0px 5px darken($bg, 10%) inset, 0px 0px 0px 10px darken($bg, 15%) inset
+  &:hover
+    transform: scale(1.2)
+    background: darken($bg, 15%)
+
+body.auth
+  background-color: lighten($boxBg, 25%)
+  #loginBox
+    position: absolute
+    height: 300px
+    top: calc(50% - 150px)
+    left: calc(50% - 180px)
+    h1
+      margin: 0
+    #login
+      position: relative
+      max-width: 600px
+      margin: auto
+      padding: 50px 30px
+      &:before, &:after
+        content: ""
+        position: absolute
+        left: 0px
+        width: 100%
+        height: 30px
+
+      &:before
+        top: 0px
+        box-shadow: 0 14px 14px -12px $boxBg
+
+      &:after
+        bottom: 0px
+        box-shadow: 0 -14px 14px -12px $boxBg
+
+
+      #github
+        +social($social-color-github)
+      #facebook
+        +social($social-color-facebook)
+      #google
+        +social($social-color-google)
+

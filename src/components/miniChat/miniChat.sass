@@ -1,0 +1,46 @@
+#miniChat
+    position: fixed
+    width: 100%
+    bottom: 0
+    transition: .3s all ease
+    z-index: 9999
+    background: rgba(255, 255, 255, 0.8)
+
+    @media screen and (min-width: 768px)
+        width: 400px
+    #miniChatBox
+        position: relative
+        margin: 0
+        border: none
+        background: transparent
+        @media screen and (max-width: 767px)
+            border: none
+        .card-header
+            background: linear-gradient(#6C91E4 0%, #142C79 100%)
+            color: white
+            cursor: pointer
+            text-align: center
+            border: none !important
+            &:hover
+                background: linear-gradient(#446abf 0%, #0c1329 100%)
+            @media screen and (max-width: 767px)
+                border: none
+        .card-block
+            overflow-y: auto
+            height: 400px
+            border: none
+            -ms-overflow-style: -ms-autohiding-scrollbar
+            -webkit-overflow-scrolling: touch
+            &::-webkit-scrollbar
+                -webkit-appearance: none
+                width: 4px
+                height: 10px
+
+            &::-webkit-scrollbar-thumb
+                border-radius: 8px
+                background-color: #435a9c
+        ul
+            list-style-type: none
+            padding: 0
+            li
+                margin-bottom: 10px

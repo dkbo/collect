@@ -1,0 +1,42 @@
+body.rpg
+  #rpgChatBox
+    background: rgba(37, 69, 168, 0.77)
+    transition: opacity .5s
+    width: 90%
+    height: 8.1rem
+    position: absolute
+    bottom: 1rem
+    left: 50%
+    margin-left: -45%
+    border-radius: 1rem
+    border: solid
+    color : white
+    font-size : 1.2em
+    padding: .5em
+    z-index : 2
+    mark
+      background: #712068
+      color: white
+    code
+      background: #26266D
+      color: #D8CBCB
+    a
+      color : #23FF2B
+      text-decoration : underline
+    kbd,mark,code
+      padding: 0 .2em
+      border-radius: .2em
+    kbd
+      background: #211F1F
+    p
+      margin: 0
+      line-height : 1
+    ul
+      li
+        border : solid transparent
+        cursor : pointer
+    @media (min-width: 720px)
+      height: 10.5rem
+      font-size : 2rem
+.chatHide
+  opacity: 0
