@@ -12,7 +12,6 @@ export default class Chat extends Component {
 		}
 		this.handleClick = ::this.handleClick
 		this.resizeMiniChatBoxHeight = ::this.resizeMiniChatBoxHeight
-		this.userOnlineLog = ::this.userOnlineLog
 	}
 	componentWillMount() {
 		firebase.chatDB.ref(".info/connected").on("value", this.connected)
@@ -20,7 +19,6 @@ export default class Chat extends Component {
 	componentDidMount() {
 		window.addEventListener('resize', this.resizeMiniChatBoxHeight, false)
 		this.resizeMiniChatBoxHeight()
-		firebase.chatDB.ref("members").on("child_changed", this.userOnlineLog)
 		this.refs.messageBlock.scrollTop = this.refs.messageBlockUl.clientHeight
 
 	}
@@ -41,15 +39,6 @@ export default class Chat extends Component {
 			null
 		} else {
 			null
-		}
-	}
-	userOnlineLog(snap) {
-		const {onlineState, displayName} = snap.val()
-		console.log(222);
-		if(onlineState) {
-			console.log(displayName + '上線了')
-		} else {
-			console.log(displayName + '下陷了')
 		}
 	}
 	getUser() {
