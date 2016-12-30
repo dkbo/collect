@@ -1,17 +1,46 @@
 import React, { Component, PropTypes } from 'react';
 import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
-import * as CounterActions from '../actions';
+import * as actions from '../actions';
 
 import Nav from '../components/nav/'
 
 class App extends Component {
+  constructor(props) {
+    super(props)
+
+    this.userOnlineLog = ::this.userOnlineLog
+  }
+  componentWillMount() {
+    if(this.getUser()) {
+      const {uid} = this.getUser()
+      const ref = firebase.chatDB.ref(`members/${uid}/onlineState`)
+      ref.set(true)
+      ref.onDisconnect().set(false)
+    }
+  }
   componentDidMount() {
     this.chatMessageOn(this.props.add_message)
+    this.memberOnlineOn()
+
   }
   componentWillUnmount() {
     this.chatMessageOff(this.props.add_message)
-
+    this.memberOnlineOff()
+  }
+  /**
+   * 當 會員 線上狀態改變時，發送訊息
+   * @returns {void}
+   */
+  memberOnlineOn() {
+    firebase.chatDB.ref("members").on("child_changed", this.userOnlineLog)
+  }
+  /**
+   * 停止偵測會員狀態
+   * @returns {void}
+   */
+  memberOnlineOff() {
+    firebase.chatDB.ref("members").off("child_changed", this.userOnlineLog)
   }
   /**
    * 當 Firebase 資料庫於 messages 底下有新筆資料時，執行方法
@@ -36,6 +65,14 @@ class App extends Component {
   getUser() {
     return firebase.chatAH.currentUser;
   }
+  userOnlineLog(snap) {
+		const {onlineState, displayName} = snap.val()
+		if(onlineState) {
+			console.log(displayName + '上線了')
+		} else {
+			console.log(displayName + '下線了')
+		}
+	}
   render() {
     const chatMessageOn = this.chatMessageOn
     const chatMessageOff = this.chatMessageOff
@@ -84,7 +121,7 @@ const mapStateToProps = state => {
  * @returns {any} Reducers 方法綁定在 Props 裡
  */
 const mapDispatchToProps = dispatch => {
-  return bindActionCreators(CounterActions, dispatch);
+  return bindActionCreators(actions, dispatch);
 }
 
 

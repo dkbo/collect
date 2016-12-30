@@ -1,17 +1,24 @@
+$buttonWidth: 50px
+
 #miniChat
     .control
-        input.form-control
-            border: none
-            border-radius: 0
+        height: 36px
+        position: relative
+        input
             background: rgb(66, 123, 158)
             color: #eaf1f9
+            width: calc(100% - #{$buttonWidth * 2})
             &::placeholder
                 color: #eaf1f9
-        .input-group-btn
-            button
-                background: linear-gradient(#6C91E4 0%, #142C79 100%)
-                border: none
-                border-radius: 0
-                color: white
-                &:hover
-                    background: linear-gradient(#446abf 0%, #0c1329 100%)
+        button
+            background: linear-gradient(#6C91E4 0%, #142C79 100%)
+            color: white
+            width: $buttonWidth
+            margin: 0
+            &:hover
+                background: linear-gradient(#446abf 0%, #0c1329 100%)
+        input, button
+            float: left
+            height: 100%
+            border: none
+            border-radius: 0

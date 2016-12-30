@@ -5,12 +5,10 @@ import './control.sass'
 export default class Control extends miniControl {
 	render() {
 	    return (
-			<div id='control' className='input-group has-success'>
+			<div className='control'>
 				<input className='form-control' ref='message' type="text" placeholder='message' onKeyDown={this.handleKeyDown}/>
-				<div className="input-group-btn">
-					<button className='btn' type='button' title='發送' onClick={this.SendMessage}><i className="fa fa-paper-plane"></i></button>
-					<button className='btn' type='button' title='清除' onClick={this.props.clear_message}><i className="fa fa-eraser"></i></button>
-				</div>
+				<button className='btn' type='button' title='發送' onClick={this.SendMessage}><i className="fa fa-paper-plane"></i></button>
+				<button className='btn' type='button' title='清除' onClick={this.props.clear_message}><i className="fa fa-eraser"></i></button>
 			</div>
 	      )
 	}

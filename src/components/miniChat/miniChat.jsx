@@ -12,6 +12,7 @@ export default class Chat extends Component {
 		}
 		this.handleClick = ::this.handleClick
 		this.resizeMiniChatBoxHeight = ::this.resizeMiniChatBoxHeight
+		this.userOnlineLog = ::this.userOnlineLog
 	}
 	componentWillMount() {
 		firebase.chatDB.ref(".info/connected").on("value", this.connected)
@@ -19,7 +20,9 @@ export default class Chat extends Component {
 	componentDidMount() {
 		window.addEventListener('resize', this.resizeMiniChatBoxHeight, false)
 		this.resizeMiniChatBoxHeight()
+		firebase.chatDB.ref("members").on("child_changed", this.userOnlineLog)
 		this.refs.messageBlock.scrollTop = this.refs.messageBlockUl.clientHeight
+
 	}
 	shouldComponentUpdate(props, state) {
 		return props.chat !== this.props.chat || props.miniChat !== this.props.miniChat || this.state !== state
@@ -29,24 +32,34 @@ export default class Chat extends Component {
 	}
 	componentWillUnmount() {
 		firebase.chatDB.ref(".info/connected").off("value", this.connected)
+		firebase.chatDB.ref("members").off("child_changed", this.userOnlineLog)
 		window.removeEventListener('resize', this.resizeMiniChatBoxHeight, false)
 
 	}
 	connected(snap) {
 		if (snap.val() === true) {
-			console.log('connected');
+			null
 		} else {
-			console.log('disconnected');
+			null
+		}
+	}
+	userOnlineLog(snap) {
+		const {onlineState, displayName} = snap.val()
+		console.log(222);
+		if(onlineState) {
+			console.log(displayName + '上線了')
+		} else {
+			console.log(displayName + '下陷了')
 		}
 	}
 	getUser() {
-		return firebase.chatAH.currentUser;
+		return firebase.chatAH.currentUser
 	}
 	handleClick() {
 		this.props.toggle_minichat(this.props.chat.size)
 	}
 	resizeMiniChatBoxHeight() {
-		const controlHeight = document.getElementById('control').offsetHeight
+		const controlHeight = 36
 		let {height, bottom} = ''
 		if(window.innerWidth < 768) {
 			height = window.innerHeight - this.refs.miniChatHeader.offsetHeight - controlHeight

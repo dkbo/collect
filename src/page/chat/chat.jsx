@@ -27,13 +27,12 @@ export default class Chat extends Component {
 		window.removeEventListener('resize', this.resizeChatBoxHeight, false)
 		firebase.chatDB.ref(".info/connected").off("value", this.connected);
 		document.body.className = ''
-		console.log('Exit Count')
 	}
 	connected(snap) {
 		if (snap.val() === true) {
-			console.log('connected');
+			null
 		} else {
-			console.log('disconnected');
+			null
 		}
 	}
 	/**
@@ -41,7 +40,8 @@ export default class Chat extends Component {
 	 * @return {void}
 	 */
 	resizeChatBoxHeight() {
-		const chatBoxHeight = window.innerHeight - document.getElementById('navTop').clientHeight - document.getElementById('control').clientHeight + 'px'
+		const controlHeight = 36
+		const chatBoxHeight = window.innerHeight - document.getElementById('navTop').clientHeight - controlHeight + 'px'
 		this.refs.messageBlock.style.height = chatBoxHeight
 	}
 

@@ -12,8 +12,8 @@
   ```
   下載開發模組
   ```
-    cd collect<br/>
-    npm install<br/>
+    cd collect
+    npm install
   ```
   下載完成後就可以執行
   ```

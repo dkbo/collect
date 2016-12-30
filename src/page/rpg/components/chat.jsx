@@ -8,9 +8,9 @@ export default class Chat extends Component {
 	shouldComponentUpdate(nextProps){
 		return nextProps.npc.messageCount !== this.props.npc.messageCount
 	}
-	render({ npcName, npcMessage, isChat } = this.props.npc) {
+	render({ npcName, npcMessage} = this.props.npc) {
 		return(
-      <div id="rpgChatBox" className={isChat ? null : 'chatHide'}>
+      <div id="rpgChatBox" ref='rpgChatBox'>
         {npcName} : {typeof npcMessage  === 'object' ? npcMessage.toJS() : npcMessage}
       </div>
     )

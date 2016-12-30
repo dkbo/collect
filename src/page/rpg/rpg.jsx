@@ -57,7 +57,7 @@ export default class Rpg extends Component {
 				<Sence {...this.props} senceImg={'second'}/>
 				<Player {...this.props} rAF={this.requestAFrame} cAF={this.cancelAFrame}/>
 				<Sence {...this.props} senceImg={'first'}/>
-				<Chat npc={this.props.npc} />
+				{this.props.npc.isChat ? <Chat npc={this.props.npc} /> : null }
 				<MiniChat {...this.props} miniChatStyle={{left: 0}}/>
 			</main>
 		)

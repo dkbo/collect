@@ -54,7 +54,8 @@ export default class Main extends Component {
 		firebase.chatAH.signInWithPopup(provider)
 			.then(result => {
 				const {uid, displayName, photoURL} = result.user
-				firebase.chatDB.ref('members/' + uid).set({ displayName, photoURL })
+				const onlineState = true
+				firebase.chatDB.ref('members/' + uid).set({ displayName, photoURL, onlineState })
 				currentHistory.push('/chat')
 			}).catch(error => {
 				console.log(error);

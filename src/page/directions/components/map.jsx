@@ -159,7 +159,6 @@ export default class Map extends Component {
     }
   }
   render() {
-    console.log(1);
     return (
       <div>
         <div id="map" ref='map'></div>
