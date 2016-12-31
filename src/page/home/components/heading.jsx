@@ -17,22 +17,34 @@ const highlight = `/**
 	</div>
 </div>
 <div className="col col-md-6">
-	<div className='h1'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
-	<hr/>
-	<div className='h2'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
-	<hr/>
-	<div className='h3'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
-	<hr/>
-	<div className='h4'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
-	<hr/>
-	<div className='h5'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
-	<hr/>
-	<div className='h6'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+	<div className='hidden-md-down'>
+		<div className='h1 '><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+		<hr />
+	</div>
+	<div>
+		<div className='h2'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+		<hr/>
+	</div>
+	<div className='hidden-sm-down'>
+		<div className='h3'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+		<hr/>
+	</div>
+	<div className='hidden-sm-down'>
+		<div className='h4'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+		<hr/>
+	</div>
+	<div className='hidden-sm-down'>
+		<div className='h5'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+		<hr/>
+	</div>
+	<div className='hidden-sm-down'>
+		<div className='h6'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+	</div>
 </div>`
 
 
 const Heading = () => (
-	<div className="card">
+	<div>
 		<h2 className="card-header">這是單調的首頁</h2>
 		<div className="card-block row">
 			<div className="col col-md-6">
@@ -42,27 +54,27 @@ const Heading = () => (
 			</div>
 			<div className="col col-md-6">
 				<div className='hidden-md-down'>
-					<div className='h1 '><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+					<div className='h1 '><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
 					<hr />
 				</div>
 				<div>
-					<div className='h2'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+					<div className='h2'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
 					<hr/>
 				</div>
 				<div className='hidden-sm-down'>
-					<div className='h3'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+					<div className='h3'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
 					<hr/>
 				</div>
 				<div className='hidden-sm-down'>
-					<div className='h4'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+					<div className='h4'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
 					<hr/>
 				</div>
 				<div className='hidden-sm-down'>
-					<div className='h5'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+					<div className='h5'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
 					<hr/>
 				</div>
 				<div className='hidden-sm-down'>
-					<div className='h6'><a href="https://github.com/dkbo"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
+					<div className='h6'><a href="https://github.com/dkbo/collect"><i className="fa fa-github"></i></a>大家好我是<code>DKBO</code></div>
 				</div>
 			</div>
 		</div>

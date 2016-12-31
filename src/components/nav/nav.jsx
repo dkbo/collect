@@ -67,7 +67,7 @@ export default class Nav extends Component {
         </ul>
         <div className='float-xs-right'>
           {user ? <div className="btn"><img className='rounded' src={user.photoURL} alt=""/></div> : null}
-          {user ? <div className="btn" onClick={this.logout} >登出</div> : <div className="btn" onClick={this.login} >登入</div>}
+          {user ? <div className="btn" onClick={this.logout} ><i className="fa fa-sign-out"></i></div> : <div className="btn" onClick={this.login} ><i className="fa fa-sign-out"></i></div>}
         </div>
       </nav>
     )

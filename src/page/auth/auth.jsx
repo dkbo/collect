@@ -25,7 +25,7 @@ export default class Main extends Component {
 	 * @return {void}
 	 */
 	authGoogle() {
-		var provider = new firebase.auth.GoogleAuthProvider();
+		const provider = new firebase.auth.GoogleAuthProvider();
 		provider.addScope('https://www.googleapis.com/auth/plus.login');
 		this.firebaseAuth(provider)
 	}
@@ -34,7 +34,7 @@ export default class Main extends Component {
 	 * @return {void}
 	 */
 	authFacebook() {
-		var provider = new firebase.auth.FacebookAuthProvider();
+		const provider = new firebase.auth.FacebookAuthProvider();
 		this.firebaseAuth(provider)
 	}
 	/**
@@ -42,7 +42,7 @@ export default class Main extends Component {
 	 * @return {void}
 	 */
 	authGithub() {
-		var provider = new firebase.auth.GithubAuthProvider();
+		const provider = new firebase.auth.GithubAuthProvider();
 		this.firebaseAuth(provider)
 	}
 	/**
@@ -58,6 +58,7 @@ export default class Main extends Component {
 				firebase.chatDB.ref('members/' + uid).set({ displayName, photoURL, onlineState })
 				currentHistory.push('/chat')
 			}).catch(error => {
+				alert('登入失敗')
 				console.log(error);
 			});
 	}

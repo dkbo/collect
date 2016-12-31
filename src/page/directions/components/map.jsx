@@ -144,7 +144,7 @@ export default class Map extends Component {
   }
 
   resizeMapBoxHeight() {
-		const mapBoxHeight = window.innerHeight - document.getElementById('navTop').clientHeight + 'px'
+		const mapBoxHeight = window.innerHeight - 40 + 'px'
     this.refs.map.style.height = mapBoxHeight
     this.refs.panel.style.height = mapBoxHeight
 	}
