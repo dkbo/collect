@@ -1,33 +1,6 @@
 import React from 'react'
-
-import Highlight  from 'react-syntax-highlighter'
-import { monokai } from 'react-syntax-highlighter/dist/styles';
-
 import direction_pc from '../../../images/direction_pc.jpg'
 
-
-
-const rpgRAF = `//一開始就跑 requestAFrame
-var requestAFrame =
-  return window.requestAnimationFrame ||
-    window.webkitRequestAnimationFrame ||
-    window.mozRequestAnimationFrame ||
-    window.oRequestAnimationFrame ||
-    function(callback) {
-      window.setTimeout(callback, 1000 / 60)
-    }
-
-function moveAframe() {
-  //當左鍵按下才執行，也就是說當方向鍵都沒按的情況下，就不會執行任何動作
-  if(keyDownLeft) {
-    //setLeftMove()
-  }
-}
-
-//定時執行 moveAframe()
-requestAFrame(moveAframe)
-`
-const rpgCodepen = 'http://codepen.io/dkbo/pen/vOvWox?editors=0010'
 const aboutFirebase = () => (
     <div>
         <div className="h2 card-header">關於 Firebase</div>
@@ -37,11 +10,10 @@ const aboutFirebase = () => (
                 在跨平台方面也變得相對容易。
             </p>
             <p className="card-text">
-                目前這網頁只用即時資料庫跟授權管理的部分，剛好看到有人用 google map 做生活聊天室，自己來稍微玩一下，不過很陽春就是了
+                目前這網頁只用即時資料庫跟授權管理的部分，剛好看到有人用 google map 做生活聊天室，自己也稍微玩一下，也做個衛星定位及多人聊天室不過很陽春就是了!
             </p>
         </div>
-        <img className="card-img-top" src={direction_pc} style={{width: '100%'}} />
-        <Highlight showLineNumbers language='javascript' style={monokai}>{rpgRAF}</Highlight>
+        <img className="card-img-bottom" src={direction_pc} style={{width: '100%'}} />
     </div>
 )
 
