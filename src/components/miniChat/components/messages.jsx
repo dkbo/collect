@@ -19,17 +19,17 @@ export default class Messages extends Component {
         img.src = this.props.photoURL
 	}
     transVideo() {
-        switch(this.props.type) {
+        switch(this.props.obj.type) {
             case 'youtube':
                 return (
                         <iframe
                             className='embed-responsive-item'
-                            src={`https://www.youtube.com/embed/${this.props.message}`}
+                            src={`https://www.youtube.com/embed/${this.props.obj.message}`}
                             frameBorder="0" allowFullScreen
                         />
                 )
             default:
-                return this.props.message
+                return this.props.obj.message
         }
     }
 	render() {
