@@ -22,8 +22,6 @@ export default class Map extends Component {
     this.DeleteMarkers = ::this.DeleteMarkers
     this.toggleDirectionsBox = ::this.toggleDirectionsBox
     this.setGeoMarkers = ::this.setGeoMarkers
-
-    moment.locale('zh-TW');
   }
   componentWillMount() {
     window.addEventListener('resize', this.resizeMapBoxHeight, false)

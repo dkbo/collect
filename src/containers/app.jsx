@@ -1,17 +1,18 @@
-import React, { Component, PropTypes } from 'react';
-import { bindActionCreators } from 'redux';
-import { connect } from 'react-redux';
-import * as actions from '../actions';
+import React, { Component, PropTypes } from 'react'
+import { bindActionCreators } from 'redux'
+import { connect } from 'react-redux'
+import * as actions from '../actions'
+import moment from 'moment'
 
 import Nav from '../components/nav/'
 
 class App extends Component {
   constructor(props) {
     super(props)
-
     this.userOnlineLog = ::this.userOnlineLog
   }
   componentWillMount() {
+    moment.locale('zh-TW');
     if(this.getUser()) {
       const {uid} = this.getUser()
       const ref = firebase.chatDB.ref(`members/${uid}/onlineState`)
