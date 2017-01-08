@@ -15,11 +15,14 @@ const rootReducer = combineReducers({
   routing,
 });
 
+const middleware = [rootReducer]
+if(process.env.NODE_ENV !== 'production') {
+  middleware.push(window.devToolsExtension && window.devToolsExtension())
+}
 export const configureStore = (initialState) => {
   const store = createStoreWithMiddleware(
-    rootReducer,
+    ...middleware,
     initialState,
-    window.devToolsExtension && window.devToolsExtension()
   );
 
   if (module.hot) {

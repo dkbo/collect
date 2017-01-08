@@ -8,10 +8,10 @@ const navItem = [
     to: '/',
     title: '首頁'
   },
-  // {
-  //   to: '/card',
-  //   title: 'Card模板'
-  // },
+  {
+    to: '/resume',
+    title: 'e履歷'
+  },
   {
     to: '/rpgroom',
     title: '遊戲室'

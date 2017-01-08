@@ -1,11 +1,33 @@
-*
-    -ms-overflow-style: -ms-autohiding-scrollbar
-    -webkit-overflow-scrolling: touch
-    &::-webkit-scrollbar
-        -webkit-appearance: none
-        width: 4px
-        height: 10px
+/*!
+ * Bootstrap v4.0.0-alpha.5 (https://getbootstrap.com)
+ * Copyright 2011-2016 The Bootstrap Authors
+ * Copyright 2011-2016 Twitter, Inc.
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
+ */
+// Core variables and mixins
+@import "../node_modules/bootstrap/scss/custom";
+@import "../node_modules/bootstrap/scss/variables";
+@import "../node_modules/bootstrap/scss/mixins";
 
-    &::-webkit-scrollbar-thumb
-        border-radius: 8px
-        background-color: #435a9c
+// Reset and dependencies
+@import "../node_modules/bootstrap/scss/normalize";
+@import "../node_modules/bootstrap/scss/print";
+
+// Core CSS
+@import "../node_modules/bootstrap/scss/reboot";
+@import "../node_modules/bootstrap/scss/type";
+@import "../node_modules/bootstrap/scss/images";
+@import "../node_modules/bootstrap/scss/code";
+@import "../node_modules/bootstrap/scss/grid";
+@import "../node_modules/bootstrap/scss/forms";
+@import "../node_modules/bootstrap/scss/buttons";
+
+// Components
+@import "../node_modules/bootstrap/scss/nav";
+@import "../node_modules/bootstrap/scss/navbar";
+@import "../node_modules/bootstrap/scss/card";
+@import "../node_modules/bootstrap/scss/media";
+@import "../node_modules/bootstrap/scss/responsive-embed";
+
+// Utility classes
+@import "../node_modules/bootstrap/scss/utilities";

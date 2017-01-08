@@ -63,7 +63,10 @@ export default class Chat extends Component {
 							<Messages
 								key={key}
 								className={obj.uid === this.getUser().uid ? 'clearfix messagesSelf' : 'clearfix messagesOther'}
-								obj={obj}
+								photoURL={obj.photoURL}
+								displayName={obj.displayName}
+								message={obj.message}
+								type={obj.type}
 							/>
 						)}
 					</ul>

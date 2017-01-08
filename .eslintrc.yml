@@ -14,6 +14,7 @@
     jsx: true
 
   globals:
+    WordCloud: true
     firebase: true
     google: true
     process.env: true

@@ -4,6 +4,7 @@ import Card from '../page/card/'
 import Rpg from '../page/rpg/'
 import Auth from '../page/auth/'
 import Chat from '../page/chat/'
+import Resume from '../page/resume/'
 import Directions from '../page/directions/'
 import NotFoundPage from '../page/notFoundPage/'
 
@@ -61,6 +62,11 @@ export const routers = () => {
         title: 'directions',
         path: '/directions',
         component: Directions,
+      },
+      {
+        title: 'resume',
+        path: '/resume',
+        component: Resume,
       },
       {
         title: '404',

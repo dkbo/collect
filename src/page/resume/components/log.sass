@@ -1,0 +1,23 @@
+body.resume
+    .history
+        .log
+            width: 50%
+            position: relative
+            text-align: right
+            .stem
+                position: absolute
+                background: white
+                right: 0
+                height: 5px
+                transition: .5s all ease
+            section
+                padding-top: 10px
+                margin: 10px 50px 0 0
+                transition: .5s all ease
+            &:nth-child(even)
+                margin-left: 50%
+                text-align: left
+                .stem
+                    left: 0
+                section
+                    margin: 10px 0 0 50px
