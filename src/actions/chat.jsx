@@ -1,29 +1,22 @@
 import {ADD_MESSAGE, CLEAR_MESSAGE} from '../constants'
-/**
- * 把資料傳入 reducers => chat.jsx
- * @param {JSON} message 會員姓名、聊天訊息、頭像
- * @return {JSON} 把資料傳入 reducers
- */
-const add_message_thunk = message => {
-    return {
-        type: ADD_MESSAGE,
-        message,
-    }
-}
+
 /**
  * 在 firebase 資料庫找尋會員姓名及會員頭像連結
  * @param {any} snap firebase 傳輸的資料集
  * @return {function} 在 firebase 資料庫找尋會員姓名及會員頭像連結
  */
-export const add_message = snap => {
-    const message = snap.val()
-	return dispatch => {
-      firebase.chatDB.ref('members/' + message.uid)
-      .once('value', snap2 => {
-        message.displayName = snap2.val().displayName
-        message.photoURL = snap2.val().photoURL
-        dispatch(add_message_thunk(message))
-      })
+export const add_message = async snap => {
+    try {
+        const message = snap.val()
+        const value = await firebase.chatDB.ref('members/' + message.uid).once('value')
+        message.displayName = value.val().displayName
+        message.photoURL = value.val().photoURL
+        return {
+            type: ADD_MESSAGE,
+            message,
+        }
+    } catch(err) {
+        console.log(err);
     }
 }
 /**

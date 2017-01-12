@@ -1,6 +1,5 @@
 import { createStore, applyMiddleware, combineReducers, compose } from 'redux';
 import { routerReducer as routing, routerMiddleware } from 'react-router-redux'
-import thunk from 'redux-thunk';
 import promise from 'redux-promise';
 // import logger from 'redux-logger';
 import * as reducers from '../reducers';
@@ -8,7 +7,7 @@ import * as reducers from '../reducers';
 
 const createStoreWithMiddleware = compose(
   // applyMiddleware(thunk, promise, logger()),
-  applyMiddleware(thunk, promise, routerMiddleware(history))
+  applyMiddleware(promise, routerMiddleware(history))
 )(createStore);
 const rootReducer = combineReducers({
   ...reducers,
@@ -19,7 +18,7 @@ const middleware = [rootReducer]
 if(process.env.NODE_ENV !== 'production') {
   middleware.push(window.devToolsExtension && window.devToolsExtension())
 }
-export const configureStore = (initialState) => {
+export const configureStore = initialState => {
   const store = createStoreWithMiddleware(
     ...middleware,
     initialState,

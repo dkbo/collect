@@ -29,7 +29,7 @@ module.exports = {
 		return [autoprefixer({browsers: ['last 2 versions', 'IE 7']})]
 	},
 	devServer: {
-		contentBase: './public',
+		contentBase: './src',
 		// do not print bundle build stats
 		noInfo: true,
 		// enable HMR

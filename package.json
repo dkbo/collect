@@ -1,6 +1,6 @@
 {
   "name": "dkbo-collect",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "<p>本頁面主要放置過去及未來所開發網頁時所運用到的工具。</p>",
   "main": "''",
   "scripts": {
@@ -66,8 +66,6 @@
     "redux-immutable-to-js": "0.0.2",
     "redux-logger": "^2.7.0",
     "redux-promise": "^0.5.3",
-    "redux-promise-middleware": "^4.0.0",
-    "redux-thunk": "^2.1.0",
     "sass-loader": "^4.0.2",
     "style-loader": "0.13.1",
     "url-loader": "0.5.7",

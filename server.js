@@ -6,7 +6,7 @@ const config = require('./webpack.server.config')
 const compiler = webpack(config)
 
 const app = express()
-app.use(express.static('public'));
+app.use(express.static('docs'));
 
 app.use(WebpackDevMiddleware(compiler, {
   publicPath: config.output.publicPath,
