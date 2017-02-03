@@ -83,7 +83,7 @@ export default class Player extends Component {
 				this.props.npc.isChat ? this.closeChat() : null
 			}
 		}
-		this.aframe = this.props.rAF()(::this.isDraw)
+		this.aframe = this.props.rAF()(this.isDraw)
 	}
 	drawSenceAndPlayer(json, jsonSence){
 			this.props.pos(json)
@@ -196,16 +196,16 @@ export default class Player extends Component {
 		switch(e.keyCode) {
 			case 37:
 				this.isKeyUp("left")
-    		break
-    	case 38:
+    			break
+			case 38:
 				this.isKeyUp("up")
-    		break
-    	case 39:
+				break
+			case 39:
 				this.isKeyUp("right")
-    		break
-    	case 40:
+				break
+			case 40:
 				this.isKeyUp("down")
-    		break
+				break
 			default:
 				break
 		}
@@ -270,7 +270,10 @@ export default class Player extends Component {
 			this.drawSenceAndPlayer({spx, spy }, { mUp, mDw, mLf, mRf, msx, msy})
 	}
 	componentWillMount() {
-		window.addEventListener("resize", this.handleResize, false)
+		this.resize = Rx.Observable
+			.fromEvent(window, 'resize')
+			.debounceTime(300)
+			.subscribe(this.handleResize)
 		window.addEventListener("keydown", this.handleKeyDown, false)
 		window.addEventListener("keyup", this.handleKeyUp, false)
 		window.addEventListener("touchstart", this.moveAnimate, false)
@@ -299,7 +302,7 @@ export default class Player extends Component {
     	this.drawPlayer()
 	}
 	componentWillUnmount() {
-		window.removeEventListener("resize", this.handleResize, false)
+		this.resize.unsubscribe()
 		window.removeEventListener("keydown", this.handleKeyDown, false)
 		window.removeEventListener("keyup", this.handleKeyUp, false)
 		window.removeEventListener("touchstart", this.moveAnimate, false)

@@ -15,9 +15,12 @@ export default class Chat extends Component {
 	}
 	componentWillMount() {
 		firebase.chatDB.ref(".info/connected").on("value", this.connected)
+		this.resize = Rx.Observable
+			.fromEvent(window, 'resize')
+			.debounceTime(300)
+			.subscribe(this.resizeMiniChatBoxHeight)
 	}
 	componentDidMount() {
-		window.addEventListener('resize', this.resizeMiniChatBoxHeight, false)
 		this.resizeMiniChatBoxHeight()
 		this.refs.messageBlock.scrollTop = this.refs.messageBlockUl.clientHeight
 
@@ -31,7 +34,7 @@ export default class Chat extends Component {
 	componentWillUnmount() {
 		firebase.chatDB.ref(".info/connected").off("value", this.connected)
 		firebase.chatDB.ref("members").off("child_changed", this.userOnlineLog)
-		window.removeEventListener('resize', this.resizeMiniChatBoxHeight, false)
+		this.resize.unsubscribe()
 
 	}
 	connected(snap) {

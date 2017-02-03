@@ -17,6 +17,7 @@
     WordCloud: true
     firebase: true
     google: true
+    Rx: true
     process.env: true
     __DEV__: true
     __HASHPATH__: true

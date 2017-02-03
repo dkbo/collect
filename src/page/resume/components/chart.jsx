@@ -11,14 +11,16 @@ export default class Chart extends Component {
 		this.drawCircle2 = ::this.drawCircle2
 	}
 	componentWillMount() {
-		window.addEventListener('resize', this.handleResize, false)
+		this.resize = Rx.Observable.fromEvent(window, 'resize')
+			.debounceTime(600)
+			.subscribe(this.handleResize)
 	}
 	componentDidMount() {
 		this.ctx = this.refs.canvas.getContext('2d')
 		this.handleResize()
 	}
 	componentWillUnmount() {
-		window.removeEventListener('resize', this.handleResize, false)
+		this.resize.unsubscribe()
 	}
 	/**
 	 * 畫儀表圓形圖
@@ -85,12 +87,11 @@ export default class Chart extends Component {
 	 * @returns {void}
 	 */
 	handleResize(e, lineWidth = 6, size = this.getSize(), lineD = 4) {
-		clearTimeout(this.timeout)
 		this.refs.canvas.width = this.refs.canvas.height = this.getSize()
 		this.clearCircle(size)
 		this.drawText(this.props.textColor, this.props.text, size)
 		this.drawCircle('white', lineWidth + lineD, 1, size)
-		this.timeout = setTimeout(() => this.drawCircle2(this.props.color, lineWidth, this.props.percent, size - lineD), 200)
+		this.drawCircle2(this.props.color, lineWidth, this.props.percent, size - lineD)
 	}
 	/**
 	 * 取得當前畫布高寬

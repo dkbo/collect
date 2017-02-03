@@ -10,10 +10,14 @@ export default class Log extends Component {
 		}
 	}
 	componentDidMount() {
-		const logOpacity = 1
-		const stemWidth = '100px'
-		setTimeout(() => this.setState({stemWidth}), 1500)
-		setTimeout(() => this.setState({logOpacity}), 2100)
+		Rx.Observable.of('100px')
+			.delay(1500)
+			.take(1)
+			.subscribe(stemWidth => this.setState({stemWidth}))
+		Rx.Observable.of(1)
+			.delay(2100)
+			.take(1)
+			.subscribe(logOpacity => this.setState({logOpacity}))
 	}
 	render() {
 		return (

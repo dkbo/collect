@@ -26,7 +26,9 @@ export default class Map extends Component {
     moment.locale('zh-TW');
   }
   componentWillMount() {
-    window.addEventListener('resize', this.resizeMapBoxHeight, false)
+    this.resize = Rx.Observable.fromEvent(window, 'resize')
+			.debounceTime(300)
+			.subscribe(this.resizeMapBoxHeight)
     document.body.className = 'directions'
   }
   componentDidMount() {
@@ -35,7 +37,7 @@ export default class Map extends Component {
     this.calcRoute()
   }
   componentWillUnmount() {
-    window.removeEventListener('resize', this.resizeMapBoxHeight, false)
+    this.resize.unsubscribe()
     document.body.className = ''
     firebase.geoDB.ref('geolocation/').off('child_changed', this.setGeoMarkers)
     firebase.geoDB.ref('geolocation/').off('child_added', this.setGeoMarkers)

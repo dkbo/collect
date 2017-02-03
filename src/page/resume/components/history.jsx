@@ -11,8 +11,10 @@ export default class History extends Component {
 		}
 	}
 	componentDidMount() {
-		const middleLineHeight = '600px'
-		setTimeout(() => this.setState({middleLineHeight}), 500)
+		Rx.Observable.of('600px')
+			.delay(500)
+			.take(1)
+			.subscribe(middleLineHeight => this.setState({middleLineHeight}))
 	}
 	render() {
 		return (
