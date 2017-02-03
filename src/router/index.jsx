@@ -56,6 +56,7 @@ export const routers = () => {
         title: 'Auth',
         path: '/auth',
         component: Auth,
+        onEnter: null
         onEnter: unRequireAuth
       },
       {
