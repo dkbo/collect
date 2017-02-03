@@ -22,62 +22,53 @@ const unRequireAuth = (nextState, replace) => {
   }
 }
 
-export const routers = () => {
-  return {
-    path: '/',
-    component: App,
-    childRoutes: [
-      {
-        indexRoute: {
-          title: 'Home',
-          component: Home,
-          onEnter: null
-        }
-      },
-      {
-        title: 'BootStrap Card',
-        path: '/card',
-        component: Card,
-        onEnter: null
-      },
-      {
-        title: 'RPG Room',
-        path: '/rpgroom',
-        component: Rpg,
-        onEnter: null
-      },
-      {
-        title: 'Chat',
-        path: '/chat',
-        component: Chat,
-        onEnter: null
-      },
-      {
-        title: 'Auth',
-        path: '/auth',
-        component: Auth,
-        onEnter: null
-        onEnter: unRequireAuth
-      },
-      {
-        title: 'directions',
-        path: '/directions',
-        component: Directions,
-      },
-      {
-        title: 'resume',
-        path: '/resume',
-        component: Resume,
-      },
-      {
-        title: '404',
-        path: '/*',
-        component: NotFoundPage,
-        onEnter: null
+export const routers = {
+  path: '/',
+  component: App,
+  childRoutes: [
+    {
+      indexRoute: {
+        title: 'Home',
+        component: Home,
       }
-    ]
-  };
-};
+    },
+    {
+      title: 'BootStrap Card',
+      path: '/card',
+      component: Card,
+    },
+    {
+      title: 'RPG Room',
+      path: '/rpgroom',
+      component: Rpg,
+    },
+    {
+      title: 'Chat',
+      path: '/chat',
+      component: Chat,
+    },
+    {
+      title: 'Auth',
+      path: '/auth',
+      component: Auth,
+    },
+    {
+      title: 'directions',
+      path: '/directions',
+      component: Directions,
+    },
+    {
+      title: 'resume',
+      path: '/resume',
+      component: Resume,
+    },
+    {
+      title: '404',
+      path: '/*',
+      component: NotFoundPage,
+    }
+  ]
+}
 
 export default routers
 
