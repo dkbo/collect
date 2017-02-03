@@ -10,11 +10,11 @@ import NotFoundPage from '../page/notFoundPage/'
 
 const getUser = () => firebase.chatAH.currentUser
 
-const requireAuth = (nextState, replace) => {
-  if(!getUser()) {
-    replace('/auth')
-  }
-}
+// const requireAuth = (nextState, replace) => {
+//   if(!getUser()) {
+//     replace('/auth')
+//   }
+// }
 
 const unRequireAuth = (nextState, replace) => {
   if(getUser()) {
@@ -50,12 +50,13 @@ export const routers = () => {
         title: 'Chat',
         path: '/chat',
         component: Chat,
-        onEnter: requireAuth
+        onEnter: null
       },
       {
         title: 'Auth',
         path: '/auth',
         component: Auth,
+        onEnter: null
         onEnter: unRequireAuth
       },
       {

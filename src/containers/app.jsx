@@ -6,24 +6,32 @@ import * as actions from '../actions';
 import Nav from '../components/nav/'
 
 class App extends Component {
-  constructor(props) {
-    super(props)
-
-    this.userOnlineLog = ::this.userOnlineLog
-  }
   componentWillMount() {
-    if(this.getUser()) {
-      const {uid} = this.getUser()
-      const ref = firebase.chatDB.ref(`members/${uid}/onlineState`)
-      ref.set(true)
-      ref.onDisconnect().set(false)
-    }
+
+    firebase.chatDB.ref(".info/connected").on("value", this.connected)
   }
   componentDidMount() {
     this.chatMessageOn(this.props.add_message)
     this.memberOnlineOn()
-
   }
+  /**
+   * 當 會員 線上狀態改變時，發送訊息
+   * @param {any} snap firebase 連線數據
+   * @returns {void}
+   */
+  connected = snap => {
+    if (snap.val() === true) {
+      //連線後取消監聽 database 連線狀況避免 DOM render
+      firebase.chatDB.ref(".info/connected").off("value", this.connected)
+      if(this.getUser()) {
+        const {uid} = this.getUser()
+        const ref = firebase.chatDB.ref(`members/${uid}/onlineState`)
+        ref.set(true)
+        ref.onDisconnect().set(false)
+      }
+    }
+  }
+
   componentWillUnmount() {
     this.chatMessageOff(this.props.add_message)
     this.memberOnlineOff()
@@ -65,7 +73,7 @@ class App extends Component {
   getUser() {
     return firebase.chatAH.currentUser;
   }
-  userOnlineLog(snap) {
+  userOnlineLog = snap => {
 		const {onlineState, displayName} = snap.val()
 		if(onlineState) {
 			console.log(displayName + '上線了')
