@@ -1,3 +1,4 @@
+const path = require('path')
 const express = require('express')
 const webpack = require('webpack')
 const WebpackDevMiddleware = require('webpack-dev-middleware')
@@ -6,7 +7,11 @@ const config = require('./webpack.server.config')
 const compiler = webpack(config)
 
 const app = express()
-app.use(express.static('docs'));
+
+var router = express.Router()
+router.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'docs', 'index.html'));
+})
 
 app.use(WebpackDevMiddleware(compiler, {
   publicPath: config.output.publicPath,
@@ -17,13 +22,10 @@ app.use(WebpackDevMiddleware(compiler, {
 }))
 app.use(WebpackHotMiddleware(compiler))
 
-var router = express.Router()
-router.get('/', function (req, res) {
-  res.render('index', { message: 'Hey there!'});
-  // res.sendFile(path.join(__dirname, 'index.html'));
-})
 app.use(router)
 
-app.listen(8080, function () {
-  console.log('Listening on 8080')
+app.use(express.static(path.join(__dirname, 'docs')));
+
+app.listen(8080, () => {
+  console.log('已經開啟伺服器 http://localhost:8080')
 })

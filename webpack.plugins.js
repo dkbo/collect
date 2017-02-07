@@ -8,7 +8,7 @@ module.exports = [
 	}),
 	new webpack.HotModuleReplacementPlugin(),
 	new HtmlWebpackPlugin({
-			template: './src/index.jade',
+			template: './src/index.pug',
 	}),
 	new webpack.ProvidePlugin({
 		'Promise': 'es6-promise',

@@ -42,7 +42,7 @@ module.exports = [
 		allChunks: true
 	}),
 	new HtmlWebpackPlugin({
-		template: './src/index.jade',
+		template: './src/index.pug',
 	}),
 	//全域加載模組
 	new webpack.ProvidePlugin({

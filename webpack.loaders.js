@@ -9,7 +9,7 @@ module.exports = [
 		exclude: /(node_modules|bower_components)/,
 		loader: 'react-hot!babel',
 	},
-	{ test: /\.jade$/, loader: 'jade' },
+	{ test: /\.pug$/, loader: 'pug' },
 	{ test: /\.s?a?c?ss$/, loader: isProduction() ? ExtractTextPlugin.extract('style', `css!postcss!sass?${compassPath}`) : `style!css!postcss!sass?${compassPath}` },
 	{ test: /\.eot(\?v=\d+\.\d+\.\d+)?$/, loader: 'file' },
 	{ test: /\.(woff|woff2)$/, loader: 'url?prefix=font/&limit=5000' },

@@ -55,6 +55,19 @@ export default class Chat extends Component {
 	getUser() {
 		return firebase.chatAH.currentUser;
 	}
+
+	/**
+	 * 判斷 message 是使用者自己的還是他人的來決定放哪個 className
+	 * @param {any} uid uid
+	 * @returns {String} className
+	 */
+	getMessageClassName(uid) {
+		if(this.getUser()) {
+			return uid === this.getUser().uid ? 'clearfix messagesSelf' : 'clearfix messagesOther'
+		} else {
+			return 'clearfix messagesOther'
+		}
+	}
 	render() {
 		// 'background': `url("${p1}")`
 	    return (
@@ -65,7 +78,7 @@ export default class Chat extends Component {
 						{this.props.chat.map((obj, key) =>
 							<Messages
 								key={key}
-								className={obj.uid === this.getUser().uid ? 'clearfix messagesSelf' : 'clearfix messagesOther'}
+								className={this.getMessageClassName(obj.uid)}
 								photoURL={obj.photoURL}
 								displayName={obj.displayName}
 								message={obj.message}
