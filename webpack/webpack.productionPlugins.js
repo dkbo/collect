@@ -1,6 +1,8 @@
 const webpack = require('webpack');
 const ExtractTextPlugin = require('extract-text-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const autoprefixer = require('autoprefixer');
+
 // const WebpackCleanupPlugin = require('webpack-cleanup-plugin');
 
 module.exports = [
@@ -13,6 +15,13 @@ module.exports = [
 		},
 		__HASHPATH__: true,
 	}),
+	new webpack.LoaderOptionsPlugin({
+		options: {
+			postcss: [
+				autoprefixer({browsers: ['last 2 versions', 'IE 7']}),
+			]
+		}
+  	}),
 	//提取代碼中的公共模塊，然後將公共模塊打包到一個獨立的文件中，以便在其他的入口和模塊中使用。
 	//別忘了在html中單獨引入抽離出來的公共模塊。
 	new webpack.optimize.CommonsChunkPlugin({
@@ -22,8 +31,6 @@ module.exports = [
 					],
 					minChunks: Infinity
 	}),
-	//刪除多餘的依賴
-	new webpack.optimize.DedupePlugin(),
 	//醜化最小化程式
 	new webpack.optimize.UglifyJsPlugin({
 		compress: {
@@ -36,9 +43,9 @@ module.exports = [
 		// beautify: false, //prod
 
 	}),
-	new webpack.optimize.OccurenceOrderPlugin(),
 	// new ExtractTextPlugin('./css/[name]_[contenthash].css', {
-	new ExtractTextPlugin('css/[name].css', {
+	new ExtractTextPlugin({
+		filename: 'css/[name].css',
 		allChunks: true
 	}),
 	new HtmlWebpackPlugin({

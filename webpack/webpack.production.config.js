@@ -1,10 +1,9 @@
 const path = require('path');
-const loaders = require('./webpack.loaders');
+const rules = require('./loaders');
 const plugins = require('./webpack.productionPlugins');
-const autoprefixer = require('autoprefixer');
 
-const enterFile = 'src/index.jsx';
-const outerPath = 'docs';
+const enterFile = '../src/index.jsx';
+const outerPath = '../docs';
 const publicPath = 'https://dkbo.github.io/collect/';
 
 module.exports = {
@@ -20,13 +19,10 @@ module.exports = {
 		publicPath,
 	},
 	resolve: {
-		extensions: ['', '.js', '.jsx', '.css', '.sass']
+		extensions: ['.js', '.jsx', '.css', '.sass']
 	},
 	module: {
-		loaders
-	},
-	postcss: function(){
-		return [autoprefixer({browsers: ['last 2 versions']})]
+		rules
 	},
 	plugins: plugins
 };
