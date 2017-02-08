@@ -1,15 +1,15 @@
 import './index.sass'
 
-import React from 'react';
-import { render } from 'react-dom';
-import { Provider } from 'react-redux';
+import React from 'react'
+import { render } from 'react-dom'
+import { Provider } from 'react-redux'
 
 import {Router} from 'react-router'
 import currentHistory from './config/currentHistory'
 
 import { syncHistoryWithStore } from 'react-router-redux'
 import { configureStore } from './store/configureStore'
-import routes from './router';
+import routes from './router'
 
 import {chat, geo} from './config/firebase'
 

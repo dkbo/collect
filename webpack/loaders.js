@@ -24,7 +24,7 @@ module.exports = [
 	{
 		test: /\.jsx?$/,
 		exclude: /(node_modules|bower_components)/,
-		use: ['react-hot-loader', 'babel-loader'],
+		use: 'babel-loader',
 	},
 	{ 	test: /\.pug$/, use: 'pug-loader' },
 	{ 	test: /\.s?a?c?ss$/,
