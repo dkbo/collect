@@ -7,7 +7,7 @@ import * as reducers from '../reducers';
 
 const createStoreWithMiddleware = compose(
   // applyMiddleware(thunk, promise, logger()),
-  applyMiddleware(promise, routerMiddleware(history))
+  applyMiddleware(promise, routerMiddleware(history)),
 )(createStore);
 const rootReducer = combineReducers({
   ...reducers,
@@ -15,10 +15,10 @@ const rootReducer = combineReducers({
 });
 
 const middleware = [rootReducer]
-if(process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production') {
   middleware.push(window.devToolsExtension && window.devToolsExtension())
 }
-export const configureStore = initialState => {
+const configureStore = (initialState) => {
   const store = createStoreWithMiddleware(
     ...middleware,
     initialState,
@@ -27,10 +27,11 @@ export const configureStore = initialState => {
   if (module.hot) {
     // Enable Webpack hot module replacement for reducers
     module.hot.accept('../reducers', () => {
-      const nextReducer = require('../reducers');
-      store.replaceReducer(nextReducer);
+      store.replaceReducer(reducers);
     });
   }
 
   return store;
 }
+
+export default configureStore

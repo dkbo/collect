@@ -1,4 +1,4 @@
-import React, { Component, PropTypes } from "react"
+import React, { Component, PropTypes } from 'react'
 import './control.sass'
 
 export default class Control extends Component {
@@ -18,7 +18,7 @@ export default class Control extends Component {
    */
   handleKeyDown(e) {
     if (e.keyCode === 13) {
-      //Setting origin and destination
+      // Setting origin and destination
       this.doDirections()
     }
   }
@@ -39,12 +39,12 @@ export default class Control extends Component {
     const origin = this.props.directions.get('origin')
     const destination = this.props.directions.get('destination')
     return (
-      <div id="mapControl" ref='control' className={controlClassName}>
+      <div id="mapControl" ref="control" className={controlClassName}>
         <div className="card-header text-white text-xs-center">查詢</div>
         <div className="card-block">
-          <input className='form-control' ref='origin' type="text" defaultValue={origin} onKeyDown={this.handleKeyDown} placeholder='起點' />
-          <input className='form-control' ref='destination' type="text" defaultValue={destination} onKeyDown={this.handleKeyDown} placeholder='終點' />
-          <button className='form-control btn btn-success' onClick={this.doDirections}>導航</button>
+          <input className="form-control" ref="origin" type="text" defaultValue={origin} onKeyDown={this.handleKeyDown} placeholder="起點" />
+          <input className="form-control" ref="destination" type="text" defaultValue={destination} onKeyDown={this.handleKeyDown} placeholder="終點" />
+          <button className="form-control btn btn-success" onClick={this.doDirections}>導航</button>
         </div>
       </div>
     )

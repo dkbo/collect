@@ -1,4 +1,4 @@
-import {WAY, POS} from '../../constants';
+import { WAY, POS } from '../../constants';
 
 export function way(key, bool) {
   return {

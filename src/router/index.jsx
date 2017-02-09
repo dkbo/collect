@@ -1,6 +1,5 @@
 import App from '../containers/app'
 import Home from '../page/home/'
-import Card from '../page/card/'
 import Rpg from '../page/rpg/'
 import Auth from '../page/auth/'
 import Chat from '../page/chat/'
@@ -8,7 +7,7 @@ import Resume from '../page/resume/'
 import Directions from '../page/directions/'
 import NotFoundPage from '../page/notFoundPage/'
 
-const getUser = () => firebase.chatAH.currentUser
+// const getUser = () => firebase.chatAH.currentUser
 
 // const requireAuth = (nextState, replace) => {
 //   if(!getUser()) {
@@ -16,11 +15,11 @@ const getUser = () => firebase.chatAH.currentUser
 //   }
 // }
 
-const unRequireAuth = (nextState, replace) => {
-  if(getUser()) {
-    replace('/')
-  }
-}
+// const unRequireAuth = (nextState, replace) => {
+//   if (getUser()) {
+//     replace('/')
+//   }
+// }
 
 export const routers = {
   path: '/',
@@ -30,12 +29,7 @@ export const routers = {
       indexRoute: {
         title: 'Home',
         component: Home,
-      }
-    },
-    {
-      title: 'BootStrap Card',
-      path: '/card',
-      component: Card,
+      },
     },
     {
       title: 'RPG Room',
@@ -66,14 +60,11 @@ export const routers = {
       title: '404',
       path: '/*',
       component: NotFoundPage,
-    }
-  ]
+    },
+  ],
 }
 
 export default routers
-
-
-
 
 // const requireUnauth = getState => {
 //   return (nextState, replace) => {
@@ -82,6 +73,3 @@ export default routers
 //     }
 //   };
 // };
-
-
-

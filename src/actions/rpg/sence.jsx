@@ -1,6 +1,6 @@
-import {SEC} from '../../constants';
+import { SEC } from '../../constants';
 
-export function sen(object) {
+export default function sen(object) {
   return {
     type: SEC,
     object,

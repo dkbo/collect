@@ -1,5 +1,5 @@
 
-export default function() {
+export default function () {
   return class overlays extends google.maps.OverlayView {
     constructor(bounds, image, message, map) {
       super(bounds, image, message, map)
@@ -42,10 +42,10 @@ export default function() {
       const sw = overlayProjection.fromLatLngToDivPixel(this.bounds.getSouthWest());
       const ne = overlayProjection.fromLatLngToDivPixel(this.bounds.getNorthEast());
 
-      this.div.style.left = sw.x - 75 + 'px';
-      this.div.style.top = ne.y - 40 + 'px';
+      this.div.style.left = `${sw.x - 75}px`;
+      this.div.style.top = `${ne.y - 40}px`;
     }
-    onSet(bounds, image, message, map) {
+    onSet(bounds, image, message) {
       this.bounds = bounds
       this.Dialog.innerHTML = message
       this.img.src = image

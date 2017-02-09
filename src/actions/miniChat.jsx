@@ -1,8 +1,7 @@
-import {TOGGLE_MINICHAT} from '../constants'
+import { TOGGLE_MINICHAT } from '../constants'
 
-export const toggle_minichat = count => {
-    return {
-        type: TOGGLE_MINICHAT,
-        count,
-    }
-}
+const toggle_minichat = count => ({
+  type: TOGGLE_MINICHAT,
+  count,
+})
+export default toggle_minichat

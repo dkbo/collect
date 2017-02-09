@@ -1,6 +1,6 @@
-import {MES} from '../../constants';
+import { MES } from '../../constants';
 
-export function mes(object){
+export default function mes(object) {
   return {
     type: MES,
     object,

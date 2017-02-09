@@ -1,26 +1,26 @@
 const Benchmark = require('benchmark');
 
-const suite = new Benchmark.Suite;
+const suite = new Benchmark.Suite();
 
 
-const reverse = array => array ? Array.prototype.reverse.call(array) : array;
-const reverse2 = array => array ? array.reverse() : array;
+const reverse = array => Array.prototype.reverse.call(array);
+const reverse2 = array => array.reverse();
 
-suite.add('Array#reverse', function() {
-    reverse(['a', 'b', 'c']);
+suite.add('Array#reverse', () => {
+  reverse(['a', 'b', 'c']);
 })
-    .add('Array#reverse2', function() {
-        reverse2(['a', 'b', 'c']);
+    .add('Array#reverse2', () => {
+      reverse2(['a', 'b', 'c']);
     })
-    .add('Array#reverse3', function() {
-        ['a', 'b', 'c'].reverse();
+    .add('Array#reverse3', () => {
+      ['a', 'b', 'c'].reverse();
     })
 // add listeners
-    .on('cycle', function(event) {
-        console.log(String(event.target));
+    .on('cycle', (event) => {
+      console.log(String(event.target));
     })
-    .on('complete', function() {
-        console.log('Fastest is ' + this.filter('fastest').map('name'));
+    .on('complete', () => {
+      console.log(`Fastest is ${this.filter('fastest').map('name')}`);
     })
 // run async
-    .run({ 'async': true });
+    .run({ async: true });

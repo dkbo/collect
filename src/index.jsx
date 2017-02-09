@@ -1,17 +1,18 @@
-import './index.sass'
-
 import React from 'react'
 import { render } from 'react-dom'
 import { Provider } from 'react-redux'
 
-import {Router} from 'react-router'
+import { Router } from 'react-router'
+import { syncHistoryWithStore } from 'react-router-redux'
+
 import currentHistory from './config/currentHistory'
 
-import { syncHistoryWithStore } from 'react-router-redux'
-import { configureStore } from './store/configureStore'
+import configureStore from './store/configureStore'
 import routes from './router'
 
-import {chat, geo} from './config/firebase'
+import { chat, geo } from './config/firebase'
+
+import './index.sass'
 
 const store = configureStore();
 const history = syncHistoryWithStore(currentHistory, store)
@@ -27,8 +28,8 @@ firebase.geoDB = firebase.database(geoApp)
 
 
 render(
-  <Provider store={ store }>
-    <Router history={ history } routes={ routes } />
+  <Provider store={store}>
+    <Router history={history} routes={routes} />
   </Provider>,
-    document.getElementById("app")
+    document.getElementById('app'),
 )

@@ -1,17 +1,14 @@
-import React, {Component, PropTypes} from 'react'
+import React, { PropTypes } from 'react'
 import './card.sass'
 
-export default class Card extends Component {
-	render() {
-		return (
-			<div className='card'>
-				<div className="h3 text-xs-center">{this.props.header}</div>
-				{this.props.children}
-			</div>
-		)
-	}
-}
+const Card = ({ header, children }) => (
+  <div className="card">
+    <div className="h3 text-xs-center">{header}</div>
+    {children}
+  </div>
+)
 
-Card.proptypes = {
-	header: PropTypes.string.isRequired,
+Card.propTypes = {
+  header: PropTypes.string.isRequired,
 }
+export default Card
