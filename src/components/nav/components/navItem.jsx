@@ -8,7 +8,13 @@ export default class NavItem extends Component {
   render() {
     return (
       <li className="nav-item" >
-        <Link to={this.props.to} className="nav-link" activeClassName="active" onlyActiveOnIndex={this.props.to === '/'} onClick={this.props.navToggle}>
+        <Link
+          to={this.props.to}
+          className="nav-link"
+          activeClassName="active"
+          onlyActiveOnIndex={this.props.to === '/'}
+          onClick={this.props.navToggle}
+        >
           {this.props.title}
         </Link>
       </li>

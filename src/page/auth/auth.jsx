@@ -4,11 +4,8 @@ import currentHistory from '../../config/currentHistory'
 import './auth.sass'
 
 export default class Main extends Component {
-  constructor(porps) {
-    super(porps)
-    this.state = {
-      test: [],
-    }
+  state = {
+    test: [],
   }
   componentWillMount() {
     document.body.className = 'auth'
@@ -58,7 +55,8 @@ export default class Main extends Component {
         const onlineState = true
         firebase.chatDB.ref(`members/${uid}`).set({ displayName, photoURL, onlineState })
         currentHistory.push('/chat')
-      }).catch((error) => {
+      })
+      .catch((error) => {
         console.log(error);
       });
   }

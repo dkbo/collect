@@ -2,53 +2,66 @@ import React, { Component, PropTypes } from 'react'
 import './control.sass'
 
 export default class Control extends Component {
+
+  componentWillMount() {
+    this.originChangeSubject = new Rx.Subject()
+    this.destinationChangeSubject = new Rx.Subject()
+
+    this.originChange = this.originChangeSubject
+      .do(e => this.setDirectionsConfig({ origin: e.target.value }))
+      .debounceTime(1000)
+      .do(() => this.props.goDirections({ origin: this.getDirections('origin'), destination: this.getDirections('destination') }))
+
+    this.destinationChange = this.destinationChangeSubject
+      .do(e => this.setDirectionsConfig({ destination: e.target.value }))
+
+    this.event = Rx.Observable
+      .merge(this.originChange, this.destinationChange)
+      .subscribe()
+  }
+
   componentDidMount() {
     this.origin = new google.maps.places.SearchBox(this.refs.origin)
+    this.origin.addListener('places_changed', () => this.props.goDirections({ origin: this.refs.origin.value, destination: this.getDirections('destination') }))
+
     this.destination = new google.maps.places.SearchBox(this.refs.destination)
-  }
-   /**
-   * 按下 Enter 執行導航
-   * @param {Object} e KeyCode
-   * @returns {void}
-   */
-  handleKeyDown = (e) => {
-    if (e.keyCode === 13) {
-      // Setting origin and destination
-      this.doDirections()
-    }
+    this.destination.addListener('places_changed', () => this.setDirectionsConfig({ destination: this.refs.destination.value }))
   }
 
-  /**
-   * 執行地圖導航
-   * @returns {void}
-   */
-  doDirections = () => {
-    const origin = this.refs.origin.value.trim('')
-    const destination = this.refs.destination.value.trim('')
-    this.props.toggleSearchBox()
-    this.props.directionsConfig({ origin, destination })
+  componentWillUnmount() {
+    this.event.unsubscribe()
   }
+
+  setDirectionsConfig = config => this.props.directionsConfig(config)
+
+  getDirections = key => this.props.directions.get(key)
 
   render() {
-    const controlClassName = this.props.isSearchBox ? 'card active' : 'card'
-    const origin = this.props.directions.get('origin')
-    const destination = this.props.directions.get('destination')
     return (
-      <div id="mapControl" ref="control" className={controlClassName}>
-        <div className="card-header text-white text-xs-center">查詢</div>
-        <div className="card-block">
-          <input className="form-control" ref="origin" type="text" defaultValue={origin} onKeyDown={this.handleKeyDown} placeholder="起點" />
-          <input className="form-control" ref="destination" type="text" defaultValue={destination} onKeyDown={this.handleKeyDown} placeholder="終點" />
-          <button className="form-control btn btn-success" onClick={this.doDirections}>導航</button>
-        </div>
+      <div id="mapControl">
+        <input
+          className="form-control"
+          ref="origin"
+          type="text"
+          value={this.getDirections('origin')}
+          onChange={e => this.originChangeSubject.next(e)}
+          placeholder="起點"
+        />
+        <input
+          className="form-control"
+          ref="destination"
+          type="text"
+          value={this.getDirections('destination')}
+          onChange={e => this.destinationChangeSubject.next(e)}
+          placeholder="終點"
+        />
       </div>
     )
   }
 }
 
 Control.propTypes = {
-  isSearchBox: PropTypes.bool.isRequired,
   directions: PropTypes.object.isRequired,
   directionsConfig: PropTypes.func,
-  toggleSearchBox: PropTypes.func,
+  goDirections: PropTypes.func,
 }

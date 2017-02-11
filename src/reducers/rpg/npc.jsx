@@ -7,6 +7,7 @@ const json = {
   npcName: '',
   npcMessage: '',
 }
+
 const npc = (state = Map(json), action) => {
   switch (action.type) {
     case MES:

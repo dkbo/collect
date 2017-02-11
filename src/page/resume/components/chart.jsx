@@ -1,13 +1,10 @@
 import React, { Component, PropTypes } from 'react'
 
 export default class Chart extends Component {
-  constructor(props) {
-    super(props)
-    this.ctx = null
-    this.timeout = null
-  }
+
   componentWillMount() {
-    this.resize = Rx.Observable.fromEvent(window, 'resize')
+    this.resize = Rx.Observable
+      .fromEvent(window, 'resize')
       .debounceTime(600)
       .subscribe(this.handleResize)
   }
@@ -23,7 +20,6 @@ export default class Chart extends Component {
    * @returns {number} 取得當前畫布高寬
    */
   getSize = () => this.refs.chart.clientWidth
-
   /**
    * 畫儀表圓形圖
    * @param {string} color 線條顏色

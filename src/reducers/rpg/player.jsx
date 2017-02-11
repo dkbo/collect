@@ -14,6 +14,7 @@ const json = {
   sy: 0, // 人物檔案 Y 座標裁切點
   s: 4, //人物行走格數
 }
+
 const player = (state = Map(json), action) => {
   switch (action.type) {
     case WAY:

@@ -1,9 +1,11 @@
 import moment from 'moment'
 import React, { Component, PropTypes } from 'react'
 import overlays from '../objects/overlays'
+
 import './map.sass'
 
 export default class Map extends Component {
+
   constructor() {
     super()
 
@@ -19,28 +21,41 @@ export default class Map extends Component {
     moment.locale('zh-TW');
   }
   componentWillMount() {
-    this.resize = Rx.Observable.fromEvent(window, 'resize')
+    this.resize = Rx.Observable
+      .fromEvent(window, 'resize')
       .debounceTime(300)
       .subscribe(this.resizeMapBoxHeight)
     document.body.className = 'directions'
   }
+
   componentDidMount() {
     this.resizeMapBoxHeight()
     this.initMap()
     this.calcRoute()
   }
+
   shouldComponentUpdate(nextProps) {
     return nextProps.directions !== this.props.directions
   }
+
   componentDidUpdate() {
     this.calcRoute()
   }
+
   componentWillUnmount() {
     this.resize.unsubscribe()
     document.body.className = ''
-    firebase.geoDB.ref('geolocation/').off('child_changed', this.setGeoMarkers)
-    firebase.geoDB.ref('geolocation/').off('child_added', this.setGeoMarkers)
+
+    firebase.geoDB
+      .ref('geolocation/')
+      .off('child_changed', this.setGeoMarkers)
+
+    firebase.geoDB
+      .ref('geolocation/')
+      .off('child_added', this.setGeoMarkers)
   }
+  getDirections = key => this.props.directions.get(key)
+
   setGeoMarkers = (snap) => {
     const val = snap.val()
     const bounds = new google.maps.LatLngBounds(new google.maps.LatLng(val.lat, val.lng))
@@ -61,6 +76,9 @@ export default class Map extends Component {
       this.geoMarkers[val.uid] = new Overlay(bounds, val.photoURL, messages, this.map)
     }
   }
+
+  toggleSearchBox = () => this.setState({ isSearchBox: !this.state.isSearchBox })
+
   transVideo = (type, message) => {
     switch (type) {
       case 'youtube':
@@ -76,16 +94,21 @@ export default class Map extends Component {
     this.map = new google.maps.Map(this.refs.map, myOptions)
     this.directionsDisplay.setMap(this.map)
     this.directionsDisplay.setPanel(this.refs.panel)
-    firebase.geoDB.ref('geolocation/').on('child_changed', this.setGeoMarkers)
-    firebase.geoDB.ref('geolocation/').on('child_added', this.setGeoMarkers)
+
+    firebase.geoDB
+      .ref('geolocation/')
+      .on('child_changed', this.setGeoMarkers)
+    firebase.geoDB
+      .ref('geolocation/')
+      .on('child_added', this.setGeoMarkers)
   }
   calcRoute = () => {
     this.refs.panel.innerHTML = ''
-    const origin = this.props.directions.get('origin');
-    const destination = this.props.directions.get('destination');
-    const latLng = this.props.directions.get('latLng');
+    const origin = this.getDirections('origin');
+    const destination = this.getDirections('destination');
+    const latLng = this.getDirections('latLng');
     if (!origin) {
-      return this.props.directionsConfig({ origin, destination })
+      return this.props.goDirections({ origin, destination })
     }
     this.DeleteMarkers()
 
@@ -127,7 +150,7 @@ export default class Map extends Component {
     return false
   }
   DeleteMarkers = () => {
-    for (let i = 0; i < this.markers.length; i + 1) {
+    for (let i = 0; i < this.markers.length; i += 1) {
       this.markers[i].setMap(null)
     }
   }
@@ -141,9 +164,15 @@ export default class Map extends Component {
     this.refs.map.style.height = mapBoxHeight
     this.refs.panel.style.height = mapBoxHeight
   }
+
+  /**
+   * 顯示/隱藏導航視窗
+   * @return {void}
+   */
   toggleSearchBox() {
     this.setState({ isSearchBox: !this.state.isSearchBox })
   }
+
   toggleDirectionsBox = (isActive) => {
     if (isActive) {
       this.refs.panel.className += ' active'
@@ -163,5 +192,5 @@ export default class Map extends Component {
 
 Map.propTypes = {
   directions: PropTypes.object.isRequired,
-  directionsConfig: PropTypes.func,
+  goDirections: PropTypes.func,
 }

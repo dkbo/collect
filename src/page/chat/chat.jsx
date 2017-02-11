@@ -9,6 +9,7 @@ export default class Chat extends Component {
       .fromEvent(window, 'resize')
       .debounceTime(300)
       .subscribe(this.resizeChatBoxHeight)
+
     document.body.className = 'chat'
   }
   componentDidMount() {
@@ -23,7 +24,10 @@ export default class Chat extends Component {
   }
   componentWillUnmount() {
     this.resize.unsubscribe()
-    firebase.chatDB.ref('.info/connected').off('value', this.connected);
+    firebase.chatDB
+      .ref('.info/connected')
+      .off('value', this.connected);
+
     document.body.className = ''
   }
   /**
@@ -72,7 +76,7 @@ export default class Chat extends Component {
             </ul>
           </div>
         </div>
-        <Control clear_message={this.props.clear_message} />
+        <Control clearMessage={this.props.clearMessage} />
       </div>
     )
   }
@@ -80,5 +84,5 @@ export default class Chat extends Component {
 
 Chat.propTypes = {
   chat: PropTypes.object,
-  clear_message: PropTypes.func,
+  clearMessage: PropTypes.func,
 }

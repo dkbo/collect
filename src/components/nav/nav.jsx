@@ -32,41 +32,40 @@ const navItems = [
 ]
 
 export default class Nav extends Component {
-  constructor() {
-    super()
-    this.state = {
-      isShowNav: false,
-    }
-    this.navToggle = ::this.navToggle
+  state = {
+    isShowNav: false,
   }
+
   getUser = () => firebase.chatAH.currentUser;
+
+  getNavbarClass = () => (this.state.isShowNav ? 'nav navbar-nav active' : 'nav navbar-nav')
+
   /**
    * 在解析度寬度 767px 以下顯示隱藏選單
    * @returns {void}
    */
-  navToggle() {
-    this.setState({ isShowNav: !this.state.isShowNav })
-  }
+  navToggle = () => this.setState({ isShowNav: !this.state.isShowNav })
 
   logout = () => {
-    firebase.chatAH.signOut()
+    firebase.chatAH
+    .signOut()
     .then(() => {
       console.log('登出成功')
       currentHistory.push('/auth')
-    }).catch((error) => {
+    })
+    .catch((error) => {
       console.log('登出失敗', error)
     });
   }
-  login = () => {
-    currentHistory.push('/auth')
-  }
+
+  login = () => currentHistory.push('/auth')
+
   render() {
-    const navbarClass = this.state.isShowNav ? 'nav navbar-nav active' : 'nav navbar-nav'
     const user = this.getUser()
     return (
       <nav id="navTop" className="navbar navbar-dark navbar-full">
         <button className="btn hidden-md-up" onClick={this.navToggle}><i className="fa fa-bars" /></button>
-        <ul className={navbarClass}>
+        <ul className={this.getNavbarClass()}>
           {navItems.map(item =>
             <NavItem to={item.to} key={item.id} title={item.title} navToggle={this.navToggle} />)}
         </ul>

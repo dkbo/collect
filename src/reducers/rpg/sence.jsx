@@ -11,6 +11,7 @@ const json = {
   mRf: 0,
   isTransSence: true,
 }
+
 const sence = (state = Map(json), action) => {
   switch (action.type) {
     case SEC:

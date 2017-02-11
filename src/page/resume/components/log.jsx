@@ -2,23 +2,29 @@ import React, { Component, PropTypes } from 'react'
 import './log.sass'
 
 export default class Log extends Component {
-  constructor(props) {
-    super(props)
-    this.state = {
-      logOpacity: 0,
-      stemWidth: 0,
-    }
+  state = {
+    logOpacity: 0,
+    stemWidth: 0,
   }
+
   componentDidMount() {
-    Rx.Observable.of('100px')
+    Rx.Observable
+      .of('100px')
       .delay(1500)
       .take(1)
-      .subscribe(stemWidth => this.setState({ stemWidth }))
-    Rx.Observable.of(1)
+      .subscribe(this.setStemWidth)
+
+    Rx.Observable
+      .of(1)
       .delay(2100)
       .take(1)
-      .subscribe(logOpacity => this.setState({ logOpacity }))
+      .subscribe(this.setLogOpacity)
   }
+
+  setStemWidth = stemWidth => this.setState({ stemWidth })
+
+  setLogOpacity = logOpacity => this.setState({ logOpacity })
+
   render() {
     return (
       <div className="log">

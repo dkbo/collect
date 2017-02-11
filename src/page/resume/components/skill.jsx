@@ -20,12 +20,11 @@ export default class About extends Component {
       wait: 100,
     }
   }
-  componentDidMount() {
-    this.drawWordCloud()
-  }
-  drawWordCloud() {
-    WordCloud(this.refs.canvas, this.configration);
-  }
+
+  componentDidMount = () => this.drawWordCloud()
+
+  drawWordCloud = () => WordCloud(this.refs.canvas, this.configration);
+
   render() {
     return (
       <Card header="技能">

@@ -8,16 +8,21 @@ export default class Sence extends Component {
     this.img = new Image()
     this.senceChange()
   }
+
   shouldComponentUpdate(nextProps) {
     if (this.props.sence.get('mapId') !== nextProps.sence.get('mapId')) {
       this.senceChange(nextProps)
     }
     return this.props.sence !== nextProps.sence
   }
+
   componentDidUpdate() {
     this.drawSence()
   }
+
   getSenceClassName = (className = 'sence') => (this.props.sence.get('isTransSence') ? `${className} x-hide` : className)
+
+
   drawSence(props = this.props) {
     const { width, height } = isMoveObject[props.sence.get('mapId')].map
     const msx = props.sence.get('msx')
@@ -37,6 +42,7 @@ export default class Sence extends Component {
     }
     this.img.src = isMoveObject[props.sence.get('mapId')].map[props.senceImg]
   }
+
   render() {
     return (
       <div>

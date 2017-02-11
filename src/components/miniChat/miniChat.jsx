@@ -10,13 +10,8 @@ export default class Chat extends Component {
       height: `${400}px`,
       bottom: '-1000px',
     }
-    this.handleClick = ::this.handleClick
-    this.resizeMiniChatBoxHeight = ::this.resizeMiniChatBoxHeight
   }
   componentWillMount() {
-    // firebase.chatDB
-    //   .ref('.info/connected')
-    //   .on('value', this.connected)
     this.resize = Rx.Observable
       .fromEvent(window, 'resize')
       .debounceTime(300)
@@ -35,32 +30,19 @@ export default class Chat extends Component {
     this.refs.messageBlock.scrollTop = this.refs.messageBlockUl.clientHeight
   }
   componentWillUnmount() {
-    firebase
-      .chatDB
+    firebase.chatDB
       .ref('.info/connected')
       .off('value', this.connected)
-    firebase
-      .chatDB
+    firebase.chatDB
       .ref('members')
       .off('child_changed', this.userOnlineLog)
-    this
-      .resize
-      .unsubscribe()
+    this.resize.unsubscribe()
   }
   getUser = () => firebase.chatAH.currentUser
-  // connected(snap) {
-  //   if (snap.val() === true) {
-  //     null
-  //   } else {
-  //     null
-  //   }
-  // }
-  handleClick() {
-    this
-      .props
-      .toggleMinichat(this.props.chat.size)
+  handleClick = () => {
+    this.props.toggleMinichat(this.props.chat.size)
   }
-  resizeMiniChatBoxHeight() {
+  resizeMiniChatBoxHeight = () => {
     const controlHeight = 36
     let { height, bottom } = ''
     if (window.innerWidth < 768) {
@@ -123,7 +105,7 @@ export default class Chat extends Component {
             </ul>
           </div>
         </div>
-        <Control clear_message={this.props.clear_message} />
+        <Control clearMessage={this.props.clearMessage} />
       </div>
     )
   }
@@ -131,7 +113,7 @@ export default class Chat extends Component {
 
 Chat.propTypes = {
   chat: PropTypes.object.isRequired,
-  clear_message: PropTypes.func,
+  clearMessage: PropTypes.func,
   toggleMinichat: PropTypes.func,
   miniChat: PropTypes.object.isRequired,
   miniChatStyle: PropTypes.object,

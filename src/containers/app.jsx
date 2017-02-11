@@ -30,12 +30,17 @@ class App extends Component {
   connected = (snap) => {
     if (snap.val() === true) {
       // 連線後取消監聽 database 連線狀況避免 DOM render
-      firebase.chatDB.ref('.info/connected').off('value', this.connected)
+      firebase.chatDB
+        .ref('.info/connected')
+        .off('value', this.connected)
+
       if (this.getUser()) {
         const { uid } = this.getUser()
         const ref = firebase.chatDB.ref(`members/${uid}/onlineState`)
         ref.set(true)
-        ref.onDisconnect().set(false)
+        ref
+          .onDisconnect()
+          .set(false)
       }
     }
   }
@@ -44,14 +49,18 @@ class App extends Component {
    * @returns {void}
    */
   memberOnlineOn() {
-    firebase.chatDB.ref('members').on('child_changed', this.userOnlineLog)
+    firebase.chatDB
+      .ref('members')
+      .on('child_changed', this.userOnlineLog)
   }
   /**
    * 停止偵測會員狀態
    * @returns {void}
    */
   memberOnlineOff() {
-    firebase.chatDB.ref('members').off('child_changed', this.userOnlineLog)
+    firebase.chatDB
+      .ref('members')
+      .off('child_changed', this.userOnlineLog)
   }
   /**
    * 當 Firebase 資料庫於 messages 底下有新筆資料時，執行方法
@@ -59,7 +68,10 @@ class App extends Component {
    * @returns {void}
    */
   chatMessageOn = (func) => {
-    firebase.chatDB.ref('messages/').limitToLast(1).on('child_added', func)
+    firebase.chatDB
+      .ref('messages/')
+      .limitToLast(1)
+      .on('child_added', func)
   }
 
   /**
@@ -68,7 +80,9 @@ class App extends Component {
    * @returns {void}
    */
   chatMessageOff = (func) => {
-    firebase.chatDB.ref('messages/').off('child_added', func)
+    firebase.chatDB
+      .ref('messages/')
+      .off('child_added', func)
   }
   userOnlineLog = (snap) => {
     const { onlineState, displayName } = snap.val()

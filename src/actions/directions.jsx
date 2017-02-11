@@ -1,4 +1,4 @@
-import { DIRECTIONS_CONFIG } from '../constants'
+import { DIRECTIONS_CONFIG, DIRECTIONS_KEY } from '../constants'
 import geolocation from '../config/geolocation'
 
 /**
@@ -8,11 +8,8 @@ import geolocation from '../config/geolocation'
  * @param {JSON} latLng 原始位置的經緯度經緯度
  * @return {JSON} 把資料傳入 reducers
  */
-
 const getPos = (origin, destination) => new Promise((resolve, reject) => {
-  const geocoder = new google
-      .maps
-      .Geocoder()
+  const geocoder = new google.maps.Geocoder()
   geolocation.getCurrentPosition((position) => {
     if (origin) {
       geocoder.geocode({
@@ -26,9 +23,7 @@ const getPos = (origin, destination) => new Promise((resolve, reject) => {
         }
       })
     } else {
-      const latLng = new google
-          .maps
-          .LatLng(position.coords.latitude, position.coords.longitude)
+      const latLng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
       geocoder.geocode({
         latLng,
       }, (results) => {
@@ -45,9 +40,7 @@ const getPos = (origin, destination) => new Promise((resolve, reject) => {
         resolve({ origin, destination, latLng })
       })
     } else {
-      const latLng = new google
-          .maps
-          .LatLng(24.962, 121.218)
+      const latLng = new google.maps.LatLng(24.962, 121.218)
       geocoder.geocode({
         latLng,
       }, (results) => {
@@ -63,7 +56,7 @@ const getPos = (origin, destination) => new Promise((resolve, reject) => {
  * @param {String} destination 導航目的地位址
  * @return {Function} 把資料傳入 reducers
  */
-const directionsConfig = async ({ origin, destination }) => {
+export const goDirections = async ({ origin, destination }) => {
   try {
     const json = await getPos(origin, destination)
     return {
@@ -77,4 +70,10 @@ const directionsConfig = async ({ origin, destination }) => {
     return false
   }
 }
-export default directionsConfig
+
+export const directionsConfig = key => (
+  {
+    type: DIRECTIONS_KEY,
+    key,
+  }
+)

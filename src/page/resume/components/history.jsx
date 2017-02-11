@@ -4,18 +4,20 @@ import Log from './log'
 import './history.sass'
 
 export default class History extends Component {
-  constructor(props) {
-    super(props)
-    this.state = {
-      middleLineHeight: 0,
-    }
+  state = {
+    middleLineHeight: 0,
   }
+
   componentDidMount() {
-    Rx.Observable.of('600px')
+    Rx.Observable
+      .of('600px')
       .delay(500)
       .take(1)
-      .subscribe(middleLineHeight => this.setState({ middleLineHeight }))
+      .subscribe(this.setMiddleLineHeight)
   }
+
+  setMiddleLineHeight = middleLineHeight => this.setState({ middleLineHeight })
+
   render() {
     return (
       <Card header="經歷">

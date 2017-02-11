@@ -26,6 +26,7 @@ export default class Player extends Component {
       .merge(this.keyUp, this.keyDown, this.touchStart, this.resize)
       .subscribe()
   }
+
   componentDidMount() {
     this.canvas = this.refs.player
     this.player = this.canvas.getContext('2d')
@@ -42,14 +43,18 @@ export default class Player extends Component {
     this.props.rAF()(this.isDraw)
     this.drawPlayer()
   }
+
   componentDidUpdate() {
     this.drawPlayer()
   }
+
   componentWillUnmount() {
     this.subscribe.unsubscribe()
     this.props.cAF()(this.aframe)
   }
+
   getPlayerClassName = (className = 'player') => (this.props.sence.get('isTransSence') ? `${className} x-hide` : className)
+
   isDraw = () => {
     if (!this.props.sence.get('isTransSence')) {
       let [x, y, isMoveX, isMoveY] = [0, 0, false, false]

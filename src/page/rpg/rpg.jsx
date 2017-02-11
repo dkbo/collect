@@ -17,19 +17,23 @@ export default class Rpg extends Component {
       .withLatestFrom(touchStart, (move, start) => ({ move, start }))
       .subscribe(this.handleTouchMove)
   }
+
   componentDidMount() {
     document.oncontextmenu = () => false
   }
+
   componentWillUnmount() {
     document.oncontextmenu = () => true
     this.move.unsubscribe()
   }
+
   getTouchPos = e => (
     {
       x: e.changedTouches[0].pageX,
       y: e.changedTouches[0].pageY,
     }
   )
+
   requestAFrame = () =>
     window.requestAnimationFrame ||
     window.webkitRequestAnimationFrame ||
@@ -73,6 +77,7 @@ export default class Rpg extends Component {
       this.isTouchEnd('down')
     }
   }
+
   // 處理觸碰結束時事件
   handleTouchEnd = () => {
     this.isTouchEnd('left')
@@ -80,16 +85,19 @@ export default class Rpg extends Component {
     this.isTouchEnd('up')
     this.isTouchEnd('down')
   }
+
   isTouchEnd(way) {
     if (this.props.player[way]) {
       this.props.way(way, false)
     }
   }
+
   isTouchStart(way) {
     if (!this.props.player[way]) {
       this.props.way(way, true)
     }
   }
+
   render() {
     return (
       <div>

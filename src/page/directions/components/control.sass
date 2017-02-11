@@ -1,30 +1,27 @@
 body.directions
-    #mapControl
-        position: absolute
-        width: 80%
-        left: 10%
-        top: -2000px
-        z-index: 9999
-        transition: .5s all ease
-        background: rgba(255, 255, 255, 0.9)
-        border: none
-        box-shadow: 1px 2px 5px #ccc
-        &.active
-            top: 20% !important
-        @media screen and (min-width: 576px)
-            width: 60%
-            left: 20%
+  #mapControl
+    position: absolute
+    width: 90%
+    left: 0
+    right: 0
+    margin auto
+    top: 10px
+    margin: auto
+    background: #fff
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 -1px 0px rgba(0,0,0,0.02)
+    @media screen and (min-width: 576px)
+      width: 50%
+    @media screen and (min-width: 768px)
+      width: 40%
+    @media screen and (min-width: 1172px)
+      width: 30%
 
-        @media screen and (min-width: 768px)
-            width: 50%
-            left: 25%
+    input
+      background: transparent
+      border: none
 
-        .card-header
-            background: linear-gradient(#6C91E4 0%, #142C79 100%)
-        input
-            background: transparent
-        input, button
-            border-radius: 0
+    input, button
+      border-radius: 0
 
-    .pac-container.pac-logo
-        z-index: 9999
+  .pac-container.pac-logo
+    z-index: 9999
