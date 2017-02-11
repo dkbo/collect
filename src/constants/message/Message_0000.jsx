@@ -1,6 +1,6 @@
 import React from 'react'
 
-const message_0000 = [
+const MESSAGE_0000 = [
   {
     name: '稻草人',
     text: [
@@ -29,4 +29,4 @@ const message_0000 = [
     ],
   },
 ]
-export default message_0000
+export default MESSAGE_0000

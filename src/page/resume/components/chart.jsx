@@ -5,10 +5,6 @@ export default class Chart extends Component {
     super(props)
     this.ctx = null
     this.timeout = null
-
-    this.getSize = ::this.getSize
-    this.handleResize = ::this.handleResize
-    this.drawCircle2 = ::this.drawCircle2
   }
   componentWillMount() {
     this.resize = Rx.Observable.fromEvent(window, 'resize')
@@ -26,9 +22,8 @@ export default class Chart extends Component {
    * 取得當前畫布高寬
    * @returns {number} 取得當前畫布高寬
    */
-  getSize() {
-    return this.refs.chart.clientWidth
-  }
+  getSize = () => this.refs.chart.clientWidth
+
   /**
    * 畫儀表圓形圖
    * @param {string} color 線條顏色
@@ -55,7 +50,7 @@ export default class Chart extends Component {
    * @param {number} size 畫圖限制的高跟寬
    * @returns {void}
    */
-  drawCircle2(color, lineWidth, percent, size) {
+  drawCircle2 = (color, lineWidth, percent, size) => {
     for (let i = 1; i < percent; i += 1) {
       setTimeout(() => this.drawCircle(color, lineWidth, i / 100, size), 30 * i)
     }
@@ -93,7 +88,7 @@ export default class Chart extends Component {
    * @param {number} lineD 跟底圖的線條寬誤差值
    * @returns {void}
    */
-  handleResize(e, lineWidth = 6, size = this.getSize(), lineD = 4) {
+  handleResize = (e, lineWidth = 6, size = this.getSize(), lineD = 4) => {
     this.refs.canvas.width = this.refs.canvas.height = this.getSize()
     this.clearCircle(size)
     this.drawText(this.props.textColor, this.props.text, size)

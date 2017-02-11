@@ -1,6 +1,6 @@
 import React from 'react'
 
-const message_0002 = [
+const MESSAGE_0002 = [
   {
     name: '哆拉工',
     text: ['用老闆做的編輯器隔間二樓，雖然比以前快多了!但還是很累人呢。', '過陣子外面也要重整一下了'],
@@ -18,4 +18,4 @@ const message_0002 = [
   },
 
 ];
-export default message_0002
+export default MESSAGE_0002

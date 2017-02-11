@@ -18,9 +18,8 @@ export default class Control extends Component {
   shouldComponentUpdate() {
     return this.isRender
   }
-  getUser() {
-    return firebase.chatAH.currentUser;
-  }
+  getPlaceholder = () => (this.getUser() ? '留言' : '登入後才可留言唷~')
+  getUser = () => firebase.chatAH.currentUser
   getGeoLocation(uid, json) {
     geolocation.getCurrentPosition((position) => {
       const [lat, lng] = [position.coords.latitude, position.coords.longitude]
@@ -32,9 +31,8 @@ export default class Control extends Component {
       })
     })
   }
-  setGeoLocation(uid, json) {
-    firebase
-      .geoDB
+  setGeoLocation = (uid, json) => {
+    firebase.geoDB
       .ref(`geolocation/${uid}`)
       .set(json)
       .then(() => {
@@ -97,16 +95,13 @@ export default class Control extends Component {
     }
   }
   render() {
-    const placeholder = this.getUser()
-      ? '留言'
-      : '登入後才可留言唷~'
     return (
       <div className="control">
         <input
           className="form-control"
           ref="message"
           type="text"
-          placeholder={placeholder}
+          placeholder={this.getPlaceholder()}
           onKeyDown={this.handleKeyDown}
         />
         <button className="btn" type="button" title="發送" onClick={this.SendMessage}>

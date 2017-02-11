@@ -6,22 +6,27 @@ import './nav.sass'
 const navItems = [
   {
     to: '/',
+    id: 'home',
     title: '首頁',
   },
   {
     to: '/resume',
+    id: 'resume',
     title: 'e履歷',
   },
   {
     to: '/rpgroom',
+    id: 'rpgroom',
     title: '遊戲室',
   },
   {
     to: '/directions',
+    id: 'directions',
     title: '地圖導航',
   },
   {
     to: '/chat',
+    id: 'chat',
     title: '多人聊天',
   },
 ]
@@ -34,9 +39,7 @@ export default class Nav extends Component {
     }
     this.navToggle = ::this.navToggle
   }
-  getUser() {
-    return firebase.chatAH.currentUser;
-  }
+  getUser = () => firebase.chatAH.currentUser;
   /**
    * 在解析度寬度 767px 以下顯示隱藏選單
    * @returns {void}
@@ -45,7 +48,7 @@ export default class Nav extends Component {
     this.setState({ isShowNav: !this.state.isShowNav })
   }
 
-  logout() {
+  logout = () => {
     firebase.chatAH.signOut()
     .then(() => {
       console.log('登出成功')
@@ -54,7 +57,7 @@ export default class Nav extends Component {
       console.log('登出失敗', error)
     });
   }
-  login() {
+  login = () => {
     currentHistory.push('/auth')
   }
   render() {
@@ -64,8 +67,8 @@ export default class Nav extends Component {
       <nav id="navTop" className="navbar navbar-dark navbar-full">
         <button className="btn hidden-md-up" onClick={this.navToggle}><i className="fa fa-bars" /></button>
         <ul className={navbarClass}>
-          {navItems.map((item, key) =>
-            <NavItem to={item.to} key={key} title={item.title} navToggle={this.navToggle} />)}
+          {navItems.map(item =>
+            <NavItem to={item.to} key={item.id} title={item.title} navToggle={this.navToggle} />)}
         </ul>
         <div className="float-xs-right">
           {user ? <button className="btn"><img className="rounded" src={user.photoURL} alt="" /></button> : null}

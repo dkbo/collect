@@ -1,13 +1,13 @@
 // Chat
-export const ADD_MESSAGE = 'add_message';
+export const ADD_MESSAGE = 'addMessage';
 export const CLEAR_MESSAGE = 'clear_message';
 
 // miniChat
-export const TOGGLE_MINICHAT = 'toggle_minichat';
+export const TOGGLE_MINICHAT = 'toggleMinichat';
 
 
 // Directions
-export const DIRECTIONS_CONFIG = 'directions_config';
+export const DIRECTIONS_CONFIG = 'directionsConfig';
 
 // rpg
 export const WAY = 'way';

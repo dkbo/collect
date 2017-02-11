@@ -8,44 +8,91 @@ import './rpg.sass'
 
 export default class Rpg extends Component {
   componentWillMount() {
-    document.body.className = 'rpg'
+    const touchStart = Rx.Observable.fromEvent(document, 'touchstart')
+    const touchMove = Rx.Observable.fromEvent(document, 'touchmove')
+    const touchEnd = Rx.Observable.fromEvent(document, 'touchend')
+
+    this.move = touchStart
+      .concatMap(() => touchMove.takeUntil(touchEnd.do(this.handleTouchEnd)))
+      .withLatestFrom(touchStart, (move, start) => ({ move, start }))
+      .subscribe(this.handleTouchMove)
   }
   componentDidMount() {
-    window.addEventListener('contextmenu', this.contextmenu, false)
+    document.oncontextmenu = () => false
   }
   componentWillUnmount() {
-    window.removeEventListener('contextmenu', this.contextmenu, false)
-    document.body.className = ''
+    document.oncontextmenu = () => true
+    this.move.unsubscribe()
   }
-  requestAFrame() {
-    return window.requestAnimationFrame ||
-      window.webkitRequestAnimationFrame ||
-      window.mozRequestAnimationFrame ||
-      window.oRequestAnimationFrame ||
-      function raf(callback) {
-        window.setTimeout(callback, 1000 / 60)
-      }
+  getTouchPos = e => (
+    {
+      x: e.changedTouches[0].pageX,
+      y: e.changedTouches[0].pageY,
+    }
+  )
+  requestAFrame = () =>
+    window.requestAnimationFrame ||
+    window.webkitRequestAnimationFrame ||
+    window.mozRequestAnimationFrame ||
+    window.oRequestAnimationFrame ||
+    function raf(callback) {
+      window.setTimeout(callback, 1000 / 60)
+    }
+
+  cancelAFrame = () =>
+    window.cancelAnimationFrame ||
+    window.webkitCancelAnimationFrame ||
+    window.mozCancelAnimationFrame ||
+    window.oCancelAnimationFrame ||
+    window.clearTimeout
+
+  // 返回觸碰移動時 XY 座標
+  handleTouchMove = ({ move, start }) => {
+    const movePos = this.getTouchPos(move);
+    const startPos = this.getTouchPos(start);
+    const startTouchXCalc = movePos.x - startPos.x
+    const startTouchYCalc = movePos.y - startPos.y
+    if (startTouchXCalc < -30) {
+      this.isTouchStart('left')
+    } else {
+      this.isTouchEnd('left')
+    }
+    if (startTouchXCalc > 30) {
+      this.isTouchStart('right')
+    } else {
+      this.isTouchEnd('right')
+    }
+    if (startTouchYCalc < -30) {
+      this.isTouchStart('up')
+    } else {
+      this.isTouchEnd('up')
+    }
+    if (startTouchYCalc > 30) {
+      this.isTouchStart('down')
+    } else {
+      this.isTouchEnd('down')
+    }
   }
-  cancelAFrame() {
-    return window.cancelAnimationFrame ||
-      window.webkitCancelAnimationFrame ||
-      window.mozCancelAnimationFrame ||
-      window.oCancelAnimationFrame ||
-      function caf(id) {
-        window.clearTimeout(id)
-      }
+  // 處理觸碰結束時事件
+  handleTouchEnd = () => {
+    this.isTouchEnd('left')
+    this.isTouchEnd('right')
+    this.isTouchEnd('up')
+    this.isTouchEnd('down')
   }
-  /**
-   * 鎖定瀏覽器滑鼠右鍵選單
-   * @param {object} e 事件集
-   * @returns {void}
-   */
-  contextmenu(e) {
-    e.preventDefault()
+  isTouchEnd(way) {
+    if (this.props.player[way]) {
+      this.props.way(way, false)
+    }
+  }
+  isTouchStart(way) {
+    if (!this.props.player[way]) {
+      this.props.way(way, true)
+    }
   }
   render() {
     return (
-      <main>
+      <div>
         {this.props.sence.get('isTransSence')
           ? <Load loadText="載入中請稍後" bodyClass="rpg" />
           : null
@@ -55,11 +102,13 @@ export default class Rpg extends Component {
         <Sence {...this.props} senceImg={'first'} />
         {this.props.npc.isChat ? <Chat npc={this.props.npc} /> : null }
         <MiniChat {...this.props} miniChatStyle={{ left: 0 }} />
-      </main>
+      </div>
     )
   }
 }
 Rpg.propTypes = {
   sence: PropTypes.any,
   npc: PropTypes.object,
+  way: PropTypes.func,
+  player: PropTypes.object,
 }

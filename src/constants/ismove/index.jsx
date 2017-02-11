@@ -1,13 +1,13 @@
-import isMove_0000 from './isMove_0000';
-import isMove_0001 from './isMove_0001';
-import isMove_0002 from './isMove_0002';
-import isMove_0003 from './isMove_0003';
+import ISMOVE_0000 from './isMove_0000';
+import ISMOVE_0001 from './isMove_0001';
+import ISMOVE_0002 from './isMove_0002';
+import ISMOVE_0003 from './isMove_0003';
 
 const isMoveObject = [
-  isMove_0000,
-  isMove_0001,
-  isMove_0002,
-  isMove_0003,
+  ISMOVE_0000,
+  ISMOVE_0001,
+  ISMOVE_0002,
+  ISMOVE_0003,
 ];
 
 export default isMoveObject

@@ -10,20 +10,18 @@ class App extends Component {
     firebase.chatDB.ref('.info/connected').on('value', this.connected)
   }
   componentDidMount() {
-    this.chatMessageOn(this.props.add_message)
+    this.chatMessageOn(this.props.addMessage)
     this.memberOnlineOn()
   }
   componentWillUnmount() {
-    this.chatMessageOff(this.props.add_message)
+    this.chatMessageOff(this.props.addMessage)
     this.memberOnlineOff()
   }
   /**
    * 取得會員資料
    * @returns {JSON} 取得會員資料
    */
-  getUser() {
-    return firebase.chatAH.currentUser;
-  }
+  getUser = () => firebase.chatAH.currentUser
   /**
    * 當 會員 線上狀態改變時，發送訊息
    * @param {any} snap firebase 連線數據
@@ -60,15 +58,16 @@ class App extends Component {
    * @param {Function} func CallBack
    * @returns {void}
    */
-  chatMessageOn(func) {
+  chatMessageOn = (func) => {
     firebase.chatDB.ref('messages/').limitToLast(1).on('child_added', func)
   }
+
   /**
    * 停止與Firebase 於 messages 底下的雙向數據溝通
    * @param {Function} func CallBack
    * @returns {void}
    */
-  chatMessageOff(func) {
+  chatMessageOff = (func) => {
     firebase.chatDB.ref('messages/').off('child_added', func)
   }
   userOnlineLog = (snap) => {
@@ -102,7 +101,7 @@ class App extends Component {
 }
 
 App.propTypes = {
-  add_message: PropTypes.func,
+  addMessage: PropTypes.func,
 }
 
 /**

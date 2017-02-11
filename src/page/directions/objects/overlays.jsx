@@ -10,8 +10,6 @@ export default function () {
       this.map = map;
       this.div = null;
       this.setMap(map);
-
-      this.toggleDialog = ::this.toggleDialog
     }
     onAdd() {
       const innerHTML = `
@@ -33,7 +31,7 @@ export default function () {
       const panes = this.getPanes();
       panes.overlayImage.appendChild(this.div);
     }
-    toggleDialog() {
+    toggleDialog = () => {
       this.Dialog.style.opacity = this.Dialog.style.opacity === '1' ? 0 : 1
     }
 

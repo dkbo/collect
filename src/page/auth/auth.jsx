@@ -9,10 +9,6 @@ export default class Main extends Component {
     this.state = {
       test: [],
     }
-    this.authGoogle = ::this.authGoogle
-    this.authFacebook = ::this.authFacebook
-    this.authGithub = ::this.authGithub
-    this.firebaseAuth = ::this.firebaseAuth
   }
   componentWillMount() {
     document.body.className = 'auth'
@@ -24,14 +20,12 @@ export default class Main extends Component {
    * 取得會員資料
    * @returns {JSON} 取得會員資料
    */
-  getUser() {
-    return firebase.chatAH.currentUser;
-  }
+  getUser = () => firebase.chatAH.currentUser
   /**
    * 透過 Google 授權註冊/登入
    * @return {void}
     */
-  authGoogle() {
+  authGoogle = () => {
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/plus.login');
     this.firebaseAuth(provider)
@@ -40,7 +34,7 @@ export default class Main extends Component {
    * 透過 Facebook 授權註冊/登入
    * @return {void}
    */
-  authFacebook() {
+  authFacebook = () => {
     const provider = new firebase.auth.FacebookAuthProvider();
     this.firebaseAuth(provider)
   }
@@ -48,7 +42,7 @@ export default class Main extends Component {
    * 透過 Github 授權註冊/登入
    * @return {void}
    */
-  authGithub() {
+  authGithub = () => {
     const provider = new firebase.auth.GithubAuthProvider();
     this.firebaseAuth(provider)
   }
@@ -57,7 +51,7 @@ export default class Main extends Component {
    * @param {any} provider 授權資料
    * @return {void}
    */
-  firebaseAuth(provider) {
+  firebaseAuth = (provider) => {
     firebase.chatAH.signInWithPopup(provider)
       .then((result) => {
         const { uid, displayName, photoURL } = result.user
@@ -87,5 +81,5 @@ export default class Main extends Component {
 
 Main.propTypes = {
   chatMessageOn: PropTypes.func,
-  add_message: PropTypes.func,
+  addMessage: PropTypes.func,
 }

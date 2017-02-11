@@ -63,7 +63,7 @@ const getPos = (origin, destination) => new Promise((resolve, reject) => {
  * @param {String} destination 導航目的地位址
  * @return {Function} 把資料傳入 reducers
  */
-const directions_config = async ({ origin, destination }) => {
+const directionsConfig = async ({ origin, destination }) => {
   try {
     const json = await getPos(origin, destination)
     return {
@@ -74,6 +74,7 @@ const directions_config = async ({ origin, destination }) => {
     }
   } catch (err) {
     console.error(err)
+    return false
   }
 }
-export default directions_config
+export default directionsConfig

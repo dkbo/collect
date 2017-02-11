@@ -2,21 +2,16 @@ import React, { Component, PropTypes } from 'react'
 import './control.sass'
 
 export default class Control extends Component {
-  constructor() {
-    super()
-    this.handleKeyDown = ::this.handleKeyDown
-    this.doDirections = ::this.doDirections
-  }
   componentDidMount() {
-    new google.maps.places.SearchBox(this.refs.origin)
-    new google.maps.places.SearchBox(this.refs.destination)
+    this.origin = new google.maps.places.SearchBox(this.refs.origin)
+    this.destination = new google.maps.places.SearchBox(this.refs.destination)
   }
    /**
    * 按下 Enter 執行導航
    * @param {Object} e KeyCode
    * @returns {void}
    */
-  handleKeyDown(e) {
+  handleKeyDown = (e) => {
     if (e.keyCode === 13) {
       // Setting origin and destination
       this.doDirections()
@@ -27,11 +22,11 @@ export default class Control extends Component {
    * 執行地圖導航
    * @returns {void}
    */
-  doDirections() {
+  doDirections = () => {
     const origin = this.refs.origin.value.trim('')
     const destination = this.refs.destination.value.trim('')
     this.props.toggleSearchBox()
-    this.props.directions_config({ origin, destination })
+    this.props.directionsConfig({ origin, destination })
   }
 
   render() {
@@ -54,6 +49,6 @@ export default class Control extends Component {
 Control.propTypes = {
   isSearchBox: PropTypes.bool.isRequired,
   directions: PropTypes.object.isRequired,
-  directions_config: PropTypes.func,
+  directionsConfig: PropTypes.func,
   toggleSearchBox: PropTypes.func,
 }

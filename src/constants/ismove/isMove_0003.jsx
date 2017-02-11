@@ -1,7 +1,7 @@
 import first from '../../images/0003F.png'
 import second from '../../images/0003S.png'
 
-const isMove_0003 = {
+const ISMOVE_0003 = {
   map: {
     index: 3,
     name: '房屋(2F)',
@@ -213,4 +213,4 @@ const isMove_0003 = {
     },
   ],
 }
-export default isMove_0003
+export default ISMOVE_0003

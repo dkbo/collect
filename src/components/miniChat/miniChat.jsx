@@ -47,9 +47,7 @@ export default class Chat extends Component {
       .resize
       .unsubscribe()
   }
-  getUser() {
-    return firebase.chatAH.currentUser
-  }
+  getUser = () => firebase.chatAH.currentUser
   // connected(snap) {
   //   if (snap.val() === true) {
   //     null
@@ -60,7 +58,7 @@ export default class Chat extends Component {
   handleClick() {
     this
       .props
-      .toggle_minichat(this.props.chat.size)
+      .toggleMinichat(this.props.chat.size)
   }
   resizeMiniChatBoxHeight() {
     const controlHeight = 36
@@ -83,14 +81,8 @@ export default class Chat extends Component {
       : {
         uid: null,
       }
-    const isShow = this
-      .props
-      .miniChat
-      .get('isShow')
-    const count = this.props.chat.size - this
-      .props
-      .miniChat
-      .get('count')
+    const isShow = this.props.miniChat.get('isShow')
+    const count = this.props.chat.size - this.props.miniChat.get('count')
     const { height, bottom } = this.state
     const miniChatStyle = isShow
       ? this.props.miniChatStyle
@@ -117,11 +109,9 @@ export default class Chat extends Component {
             }}
           >
             <ul ref="messageBlockUl">
-              {this
-                .props
-                .chat
-                .map((obj, key) => <Messages
-                  key={key}
+              {this.props.chat
+                .map(obj => <Messages
+                  key={obj.timestamp}
                   className={obj.uid === user.uid
                   ? 'clearfix messagesSelf'
                   : 'clearfix messagesOther'}
@@ -142,7 +132,7 @@ export default class Chat extends Component {
 Chat.propTypes = {
   chat: PropTypes.object.isRequired,
   clear_message: PropTypes.func,
-  toggle_minichat: PropTypes.func,
+  toggleMinichat: PropTypes.func,
   miniChat: PropTypes.object.isRequired,
   miniChatStyle: PropTypes.object,
 }

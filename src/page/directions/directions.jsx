@@ -13,7 +13,6 @@ export default class Direction extends Component {
     this.state = {
       isSearchBox: false,
     }
-    this.toggleSearchBox = ::this.toggleSearchBox
   }
   // shouldComponentUpdate(nextProps) {
   //   console.log(nextProps.directions, this.props.directions);
@@ -23,7 +22,7 @@ export default class Direction extends Component {
    * 顯示/隱藏導航視窗
    * @return {void}
    */
-  toggleSearchBox() {
+  toggleSearchBox = () => {
     this.setState({ isSearchBox: !this.state.isSearchBox })
   }
 

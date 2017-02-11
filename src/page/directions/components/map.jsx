@@ -16,13 +16,6 @@ export default class Map extends Component {
     this.markers = []
     this.geoMarkers = {}
 
-    this.resizeMapBoxHeight = ::this.resizeMapBoxHeight
-    this.initMap = ::this.initMap
-    this.calcRoute = ::this.calcRoute
-    this.DeleteMarkers = ::this.DeleteMarkers
-    this.toggleDirectionsBox = ::this.toggleDirectionsBox
-    this.setGeoMarkers = ::this.setGeoMarkers
-
     moment.locale('zh-TW');
   }
   componentWillMount() {
@@ -48,7 +41,7 @@ export default class Map extends Component {
     firebase.geoDB.ref('geolocation/').off('child_changed', this.setGeoMarkers)
     firebase.geoDB.ref('geolocation/').off('child_added', this.setGeoMarkers)
   }
-  setGeoMarkers(snap) {
+  setGeoMarkers = (snap) => {
     const val = snap.val()
     const bounds = new google.maps.LatLngBounds(new google.maps.LatLng(val.lat, val.lng))
     const message = val.type ? this.transVideo(val.type, val.message) : val.message
@@ -68,7 +61,7 @@ export default class Map extends Component {
       this.geoMarkers[val.uid] = new Overlay(bounds, val.photoURL, messages, this.map)
     }
   }
-  transVideo(type, message) {
+  transVideo = (type, message) => {
     switch (type) {
       case 'youtube':
         return `<iframe width='100%' height='100px' src='https://www.youtube.com/embed/${message}' frameborder='0' allowfullscreen ></iframe>`
@@ -76,7 +69,7 @@ export default class Map extends Component {
         return message
     }
   }
-  initMap() {
+  initMap = () => {
     const myOptions = {
       mapTypeId: google.maps.MapTypeId.ROADMAP,
     }
@@ -86,13 +79,13 @@ export default class Map extends Component {
     firebase.geoDB.ref('geolocation/').on('child_changed', this.setGeoMarkers)
     firebase.geoDB.ref('geolocation/').on('child_added', this.setGeoMarkers)
   }
-  calcRoute() {
+  calcRoute = () => {
     this.refs.panel.innerHTML = ''
     const origin = this.props.directions.get('origin');
     const destination = this.props.directions.get('destination');
     const latLng = this.props.directions.get('latLng');
     if (!origin) {
-      return this.props.directions_config({ origin, destination })
+      return this.props.directionsConfig({ origin, destination })
     }
     this.DeleteMarkers()
 
@@ -131,18 +124,19 @@ export default class Map extends Component {
       destination,
     }
     localStorage.map = JSON.stringify(map)
+    return false
   }
-  DeleteMarkers() {
+  DeleteMarkers = () => {
     for (let i = 0; i < this.markers.length; i + 1) {
       this.markers[i].setMap(null)
     }
   }
-  attachSecretMessage(marker, content) {
+  attachSecretMessage = (marker, content) => {
     const infowindow = new google.maps.InfoWindow({ content })
     infowindow.open(marker.get('map'), marker)
   }
 
-  resizeMapBoxHeight() {
+  resizeMapBoxHeight = () => {
     const mapBoxHeight = `${window.innerHeight - 40}px`
     this.refs.map.style.height = mapBoxHeight
     this.refs.panel.style.height = mapBoxHeight
@@ -150,7 +144,7 @@ export default class Map extends Component {
   toggleSearchBox() {
     this.setState({ isSearchBox: !this.state.isSearchBox })
   }
-  toggleDirectionsBox(isActive) {
+  toggleDirectionsBox = (isActive) => {
     if (isActive) {
       this.refs.panel.className += ' active'
     } else {
@@ -169,5 +163,5 @@ export default class Map extends Component {
 
 Map.propTypes = {
   directions: PropTypes.object.isRequired,
-  directions_config: PropTypes.func,
+  directionsConfig: PropTypes.func,
 }

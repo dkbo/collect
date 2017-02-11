@@ -1,7 +1,7 @@
 import first from '../../images/0000F.png';
 import second from '../../images/0000S.png';
 
-const isMove_0000 = {
+const ISMOVE_0000 = {
   map: {
     index: 0,
     name: '大地圖',
@@ -364,4 +364,4 @@ const isMove_0000 = {
     },
   ],
 }
-export default isMove_0000
+export default ISMOVE_0000

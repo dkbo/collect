@@ -4,26 +4,27 @@ import messageObject from '../../../constants/message/'
 import man from '../../../images/man.png'
 
 export default class Player extends Component {
-  constructor(props) {
-    super(props)
-    this.touchstart = {
-      x: 0,
-      y: 0,
-    }
-    this.handleResize = ::this.handleResize
-    this.handleKeyDown = ::this.handleKeyDown
-    this.handleKeyUp = ::this.handleKeyUp
-    this.moveAnimate = ::this.moveAnimate
-    this.isDraw = ::this.isDraw
-  }
   componentWillMount() {
     this.resize = Rx.Observable
       .fromEvent(window, 'resize')
       .debounceTime(300)
-      .subscribe(this.handleResize)
-    window.addEventListener('keydown', this.handleKeyDown, false)
-    window.addEventListener('keyup', this.handleKeyUp, false)
-    window.addEventListener('touchstart', this.moveAnimate, false)
+      .do(this.handleResize)
+
+    this.keyUp = Rx.Observable
+      .fromEvent(window, 'keyup')
+      .do(this.handleKeyUp)
+
+    this.keyDown = Rx.Observable
+      .fromEvent(window, 'keydown')
+      .do(this.handleKeyDown)
+
+    this.touchStart = Rx.Observable
+      .fromEvent(window, 'touchstart')
+      .do(this.moveAnimate)
+
+    this.subscribe = Rx.Observable
+      .merge(this.keyUp, this.keyDown, this.touchStart, this.resize)
+      .subscribe()
   }
   componentDidMount() {
     this.canvas = this.refs.player
@@ -45,13 +46,11 @@ export default class Player extends Component {
     this.drawPlayer()
   }
   componentWillUnmount() {
-    this.resize.unsubscribe()
-    window.removeEventListener('keydown', this.handleKeyDown, false)
-    window.removeEventListener('keyup', this.handleKeyUp, false)
-    window.removeEventListener('touchstart', this.moveAnimate, false)
+    this.subscribe.unsubscribe()
     this.props.cAF()(this.aframe)
   }
-  isDraw() {
+  getPlayerClassName = (className = 'player') => (this.props.sence.get('isTransSence') ? `${className} x-hide` : className)
+  isDraw = () => {
     if (!this.props.sence.get('isTransSence')) {
       let [x, y, isMoveX, isMoveY] = [0, 0, false, false]
       let { px, py, sx, sy, spx, spy } = this.props.player
@@ -208,7 +207,7 @@ export default class Player extends Component {
 
 
   // Check the player's direction, then excute isMessage
-  moveAnimate() {
+  moveAnimate = () => {
     const { sy, s } = this.props.player
     switch (sy) {
       case 0: // down
@@ -262,8 +261,8 @@ export default class Player extends Component {
     this.player.drawImage(this.img, sx, sy, nX, nY, spx, spy, nX, nY)
   }
 
-  handleKeyDown(e) {
-    switch (e.keyCode) {
+  handleKeyDown = ({ keyCode }) => {
+    switch (keyCode) {
       case 37:
         this.isKeyDown('left')
         break
@@ -289,8 +288,8 @@ export default class Player extends Component {
       this.props.way(way, true)
     }
   }
-  handleKeyUp(e) {
-    switch (e.keyCode) {
+  handleKeyUp = ({ keyCode }) => {
+    switch (keyCode) {
       case 37:
         this.isKeyUp('left')
         break
@@ -312,7 +311,7 @@ export default class Player extends Component {
       this.props.way(way, false)
     }
   }
-  handleResize() {
+  handleResize = () => {
     const { nY, nX } = this.player
     const { px, py } = this.props.player
     const h = window.innerHeight
@@ -369,7 +368,7 @@ export default class Player extends Component {
     return (
       <div>
         <canvas
-          className={this.props.sence.get('isTransSence') ? 'x-hide' : null}
+          className={this.getPlayerClassName()}
           ref="player"
           width={window.innerWidth}
           height={window.innerHeight}

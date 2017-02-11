@@ -4,10 +4,6 @@ import Control from './components/control'
 import './chat.sass'
 
 export default class Chat extends Component {
-  constructor(porps) {
-    super(porps)
-    this.resizeChatBoxHeight = ::this.resizeChatBoxHeight
-  }
   componentWillMount() {
     this.resize = Rx.Observable
       .fromEvent(window, 'resize')
@@ -47,14 +43,12 @@ export default class Chat extends Component {
      * 取得會員的資訊
      * @returns {Object} 會員資訊
      */
-  getUser() {
-    return firebase.chatAH.currentUser;
-  }
+  getUser = () => firebase.chatAH.currentUser;
   /**
    * 依照畫面大小來調適聊天室窗的大高度
    * @return {void}
    */
-  resizeChatBoxHeight() {
+  resizeChatBoxHeight = () => {
     const controlHeight = 36
     const chatBoxHeight = `${window.innerHeight - document.getElementById('navTop').clientHeight - controlHeight}px`
     this.refs.messageBlock.style.height = chatBoxHeight
@@ -66,9 +60,9 @@ export default class Chat extends Component {
         <div id="chatBox" className="card">
           <div className="card-block" ref="messageBlock">
             <ul ref="messageBlockUl">
-              {this.props.chat.map((obj, key) =>
+              {this.props.chat.map(obj =>
                 <Messages
-                  key={key}
+                  key={obj.timestamp}
                   className={this.getMessageClassName(obj.uid)}
                   photoURL={obj.photoURL}
                   displayName={obj.displayName}

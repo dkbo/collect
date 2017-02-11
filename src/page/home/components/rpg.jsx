@@ -3,7 +3,7 @@ import React from 'react'
 import Highlight from 'react-syntax-highlighter'
 import { monokai } from 'react-syntax-highlighter/dist/styles';
 
-import rpg_pc from '../../../images/rpg_pc.jpg'
+import pc from '../../../images/rpg_pc.jpg'
 
 
 const rpgRAF = `//一開始就跑 requestAFrame
@@ -57,7 +57,7 @@ const RPG = () => (
           上面所說的只是當初剛起步時的歷程，但是千萬別用上列的方式來構成畫面，畢竟幾百幾千的 <code>DIV</code>，效能會非常的差唷!
       </p>
     </div>
-    <img className="card-img-top" src={rpg_pc} style={{ width: '100%' }} alt="" />
+    <img className="card-img-top" src={pc} style={{ width: '100%' }} alt="" />
   </div>
 )
 
