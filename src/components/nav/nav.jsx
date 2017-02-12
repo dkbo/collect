@@ -20,6 +20,11 @@ const navItems = [
     title: '遊戲室',
   },
   {
+    to: '/search',
+    id: 'search',
+    title: '維基百科',
+  },
+  {
     to: '/directions',
     id: 'directions',
     title: '地圖導航',

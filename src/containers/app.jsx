@@ -103,7 +103,7 @@ class App extends Component {
         chatMessageOff,
         title,
       })
-    document.title = title
+    document.title = `DKBO - ${title}`
 
     return (
       <main>
@@ -127,6 +127,7 @@ const mapStateToProps = state => ({
   chat: state.chat,
   miniChat: state.miniChat,
   directions: state.directions,
+  showList: state.searchApi,
   geo: state.geo,
   player: state.player.toObject(),
   sence: state.sence,

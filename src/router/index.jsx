@@ -5,6 +5,7 @@ import Auth from '../page/auth/'
 import Chat from '../page/chat/'
 import Resume from '../page/resume/'
 import Directions from '../page/directions/'
+import SearchApi from '../page/searchApi/'
 import NotFoundPage from '../page/notFoundPage/'
 
 // const getUser = () => firebase.chatAH.currentUser
@@ -27,7 +28,7 @@ export const routers = {
   childRoutes: [
     {
       indexRoute: {
-        title: 'Home',
+        title: '首頁',
         component: Home,
       },
     },
@@ -37,7 +38,7 @@ export const routers = {
       component: Rpg,
     },
     {
-      title: 'Chat',
+      title: '聊天室',
       path: '/chat',
       component: Chat,
     },
@@ -47,14 +48,19 @@ export const routers = {
       component: Auth,
     },
     {
-      title: 'directions',
+      title: '地圖查詢',
       path: '/directions',
       component: Directions,
     },
     {
-      title: 'resume',
+      title: 'E 履歷',
       path: '/resume',
       component: Resume,
+    },
+    {
+      title: '維基百科查詢',
+      path: '/search',
+      component: SearchApi,
     },
     {
       title: '404',

@@ -4,7 +4,7 @@ body.directions
   #panel
     position: absolute
     overflow-y: auto
-    width: 50%
+    display: none
     right: -100%
     top: 0
     padding: 10px
@@ -12,9 +12,8 @@ body.directions
     background: rgba(255, 255, 255, 0.7)
     &.active
       right: 0
-    @media screen and (min-width: 576px)
-      width: 40%
     @media screen and (min-width: 768px)
+      display: block
       width: 30%
   #searchBtn
     position: absolute

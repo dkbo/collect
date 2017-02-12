@@ -54,6 +54,6 @@ module.exports = [
 	//全域加載模組
 	new webpack.ProvidePlugin({
 		'Promise': 'es6-promise',
-		'fetch': 'imports?this=>global!exports?global.fetch!whatwg-fetch'
+		'fetch': 'imports-loader?this=>global!exports-loader?global.fetch!whatwg-fetch'
 	})
 ];

@@ -5,6 +5,8 @@ export const CLEAR_MESSAGE = 'clearMessage';
 // miniChat
 export const TOGGLE_MINICHAT = 'toggleMinichat';
 
+// search
+export const SEARCH_API = 'searchApi';
 
 // Directions
 export const DIRECTIONS_CONFIG = 'directionsConfig';

@@ -39,22 +39,30 @@ export default class Control extends Component {
   render() {
     return (
       <div id="mapControl">
-        <input
-          className="form-control"
-          ref="origin"
-          type="text"
-          value={this.getDirections('origin')}
-          onChange={e => this.originChangeSubject.next(e)}
-          placeholder="起點"
-        />
-        <input
-          className="form-control"
-          ref="destination"
-          type="text"
-          value={this.getDirections('destination')}
-          onChange={e => this.destinationChangeSubject.next(e)}
-          placeholder="終點"
-        />
+        <div className="mapControl-group">
+          <label htmlFor="mapControl-start"><i className="fa fa-search" /></label>
+          <input
+            className="form-control"
+            id="mapControl-start"
+            ref="origin"
+            type="text"
+            value={this.getDirections('origin')}
+            onChange={e => this.originChangeSubject.next(e)}
+            placeholder="起點"
+          />
+        </div>
+        <div className="mapControl-group">
+          <label htmlFor="mapControl-end"><i className="fa fa-bus" /></label>
+          <input
+            className="form-control"
+            id="mapControl-end"
+            ref="destination"
+            type="text"
+            value={this.getDirections('destination')}
+            onChange={e => this.destinationChangeSubject.next(e)}
+            placeholder="終點"
+          />
+        </div>
       </div>
     )
   }

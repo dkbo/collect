@@ -1,4 +1,5 @@
 export { mes, way, pos, sen } from './rpg'
 export { addMessage, clearMessage } from './chat'
 export toggleMinichat from './miniChat'
+export searchApi from './searchApi'
 export { goDirections, directionsConfig } from './directions'

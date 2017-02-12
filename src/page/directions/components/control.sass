@@ -16,12 +16,16 @@ body.directions
     @media screen and (min-width: 1172px)
       width: 30%
 
-    input
-      background: transparent
-      border: none
-
-    input, button
-      border-radius: 0
-
-  .pac-container.pac-logo
-    z-index: 9999
+    .mapControl-group
+      display: table
+      position: relative
+      width: 100%
+      padding: 10px 15px
+      label
+        display: table-cell
+        width: 30px
+        border-right: 1px solid #e0dada
+      input
+        display: table-cell
+        width: 100%
+        border: none
