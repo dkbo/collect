@@ -58,7 +58,7 @@ export const routers = {
       component: Resume,
     },
     {
-      title: '維基百科查詢',
+      title: '查詢',
       path: '/search',
       component: SearchApi,
     },

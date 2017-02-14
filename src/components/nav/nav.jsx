@@ -22,7 +22,7 @@ const navItems = [
   {
     to: '/search',
     id: 'search',
-    title: '維基百科',
+    title: '外部查詢',
   },
   {
     to: '/directions',

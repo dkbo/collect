@@ -1,15 +1,24 @@
-import { SEARCH_API } from '../constants'
+import { SEARCH_WIKI_KEYWORD, SEARCH_GITHUB_KEYWORD } from '../constants'
 
-const url = 'https://zh.wikipedia.org/w/api.php?action=opensearch&limit=10&origin=*&search=';
-
-const getSearchList = keyword => fetch(url + keyword)
+const fetchGithub = keyword => fetch(`https://api.github.com/search/repositories?q=${keyword}&sort=stars&order=desc`)
   .then(res => res.json())
 
-const searchApi = async (keyword) => {
-  const list = await getSearchList(keyword)
+const fetchWiki = keyword => fetch(`https://zh.wikipedia.org/w/api.php?action=opensearch&limit=10&origin=*&search=${keyword}`)
+  .then(res => res.json())
+
+export const searchWikiKeyword = async (keyword) => {
+  const list = await fetchWiki(keyword)
   return {
-    type: SEARCH_API,
+    type: SEARCH_WIKI_KEYWORD,
     list,
   }
 }
-export default searchApi
+
+export const searchGithubKeyword = async (keyword) => {
+  const list = await fetchGithub(keyword)
+  list.items.splice(10, Number.MAX_VALUE)
+  return {
+    type: SEARCH_GITHUB_KEYWORD,
+    list: list.items,
+  }
+}

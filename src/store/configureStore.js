@@ -1,13 +1,14 @@
 import { createStore, applyMiddleware, combineReducers, compose } from 'redux';
 import { routerReducer as routing, routerMiddleware } from 'react-router-redux'
 import promise from 'redux-promise';
+import thunk from 'redux-thunk';
 // import logger from 'redux-logger';
 import * as reducers from '../reducers';
 
 
 const createStoreWithMiddleware = compose(
   // applyMiddleware(thunk, promise, logger()),
-  applyMiddleware(promise, routerMiddleware(history)),
+  applyMiddleware(thunk, promise, routerMiddleware(history)),
 )(createStore);
 const rootReducer = combineReducers({
   ...reducers,

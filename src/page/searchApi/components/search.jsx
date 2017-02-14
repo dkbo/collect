@@ -5,13 +5,18 @@ export default class Search extends Component {
   componentWillMount() {
     this.changeSubject = new Rx.Subject()
 
-    this.event = this.changeSubject
+    const search = this.changeSubject
+      .filter(e => e.target.value.trim())
       .map(e => e.target.value)
       .debounceTime(500)
-      .subscribe(value => this.props.searchApi(value))
+      .share()
+
+    this.wikiSearch = search.subscribe(this.props.searchWikiKeyword)
+    this.githubSearch = search.subscribe(this.props.searchGithubKeyword)
   }
   componentWillUnmount() {
-    this.event.unsubscribe()
+    this.wikiSearch.unsubscribe()
+    this.githubSearch.unsubscribe()
   }
   render() {
     return (
