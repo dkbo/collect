@@ -1,4 +1,5 @@
 import React, { Component, PropTypes } from 'react'
+import currentHistory from '../../../config/currentHistory'
 import './search.sass'
 
 export default class Search extends Component {
@@ -6,18 +7,36 @@ export default class Search extends Component {
     this.changeSubject = new Rx.Subject()
 
     const search = this.changeSubject
-      .filter(e => e.target.value.trim())
-      .map(e => e.target.value)
+      .filter(value => value.trim())
       .debounceTime(500)
+      .do(value => currentHistory.push(`/search/${value}`))
       .share()
 
     this.wikiSearch = search.subscribe(this.props.searchWikiKeyword)
     this.githubSearch = search.subscribe(this.props.searchGithubKeyword)
   }
+
+  componentDidMount() {
+    const keyword = this.props.router.params.keyword
+    if (keyword) {
+      this.changeSubject.next(keyword)
+    }
+  }
+  shouldComponentUpdate() {
+    return false
+  }
   componentWillUnmount() {
     this.wikiSearch.unsubscribe()
     this.githubSearch.unsubscribe()
   }
+
+  getDefaultValue = () => {
+    if (this.props.router.params.keyword) {
+      return this.props.router.params.keyword
+    }
+    return this.props.showList.wiki ? this.props.showList.wiki[0] : ''
+  }
+
   render() {
     return (
       <div id="search">
@@ -25,10 +44,10 @@ export default class Search extends Component {
         <input
           type="search"
           id="search-input"
-          defaultValue={this.props.showList ? this.props.showList[0] : ''}
-          onChange={e => this.changeSubject.next(e)}
+          defaultValue={this.getDefaultValue()}
+          onChange={e => this.changeSubject.next(e.target.value)}
           autoComplete="off"
-          placeholder="搜尋 維基百科 關鍵字"
+          placeholder="搜尋關鍵字"
         />
       </div>
     )
@@ -36,6 +55,9 @@ export default class Search extends Component {
 }
 
 Search.propTypes = {
-  searchApi: PropTypes.func,
+  searchWikiKeyword: PropTypes.func,
+  searchGithubKeyword: PropTypes.func,
+  showList: PropTypes.object,
+  router: PropTypes.object,
 }
 

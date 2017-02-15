@@ -59,7 +59,7 @@ export const routers = {
     },
     {
       title: '查詢',
-      path: '/search',
+      path: '/search(/:keyword)',
       component: SearchApi,
     },
     {
