@@ -1,0 +1,44 @@
+#todos
+  display: flex
+  justify-content: center
+  align-items: center
+  flex-direction: column
+  min-height: 100vh
+  background: #92c7d6;
+  background: radial-gradient(top, circle cover, #97d0e1, #427388 80%);
+#todoBox
+  margin-top: 40px
+  display: flex
+  justify-content: center
+  align-items: center
+  flex-direction: column
+  animation: todoOpacity 2s 1
+  ul
+    width: 400px
+    list-style: none
+    padding: 0
+#todoOption
+  margin-bottom: 10px
+#todoControl, #todoOption
+  display: flex
+  width: 100%
+  button, a
+    cursor: pointer
+    width: 100%
+    background: #ccc
+  a
+    text-align: center
+    color: black
+    text-decoration: none
+    &.active
+      background: black
+      color: white
+  button
+    border: none
+    &:focus
+      outline: none
+@keyframes todoOpacity
+  0%
+    opacity: 0
+  100%
+    opacity: 1

@@ -1,0 +1,55 @@
+#todos
+  li
+    width: 100%
+    background: white
+    border-radius: 10px
+    font-size: 20px
+    margin: 10px 0
+    display: table
+    overflow: hidden
+    transition: .5s all ease
+    cursor: pointer
+    animation: todoLiIn 1s 1
+    .liText, label
+      display: table-cell
+      vertical-align: middle
+    .liText
+      padding: 10px
+      word-break: break-all
+    input
+      border: none
+      color: red
+      &:focus
+        outline: none
+    label
+      width: 25px
+      padding: 10px 5px
+      background: #e0e0e0
+      border-left: 1px solid #c5c3c3
+      cursor: pointer
+    button
+      border: none
+      cursor: pointer
+      background: transparent
+      &:focus
+        outline: none
+    &.completed
+      background: #67988b
+      color: white
+    &.leaved
+      animation: todoLiOut 1s 1
+    &.hide
+      display: none
+
+@keyframes todoLiIn
+  0%
+    transform: translateX(-200px)
+  100%
+    transform: translateX(0)
+
+@keyframes todoLiOut
+  0%
+    transform: translateX(0)
+  100%
+    transform: translateX(200px)
+    opacity: 0

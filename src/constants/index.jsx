@@ -13,6 +13,14 @@ export const SEARCH_GITHUB_KEYWORD = 'SEARCH_GITHUB_KEYWORD';
 export const DIRECTIONS_CONFIG = 'DIRECTIONS_CONFIG';
 export const DIRECTIONS_KEY = 'DIRECTIONS_KEY';
 
+// Todos
+export const TODO_ADDED = 'TODO_ADDED';
+export const TODO_UPDATE = 'TODO_UPDATE';
+export const TODO_UPDATE_ACTIVE = 'TODO_UPDATE_ACTIVE';
+export const TODO_COMPLETED = 'TODO_COMPLETED';
+export const TODO_DELETE = 'TODO_DELETE';
+export const TODO_DELETE_ALL = 'TODO_DELETE_ALL';
+export const TODO_DELETE_COMPLETED = 'TODO_DELETE_COMPLETED';
 
 // rpg
 export const WAY = 'WAY';

@@ -25,6 +25,11 @@ const navItems = [
     title: '外部查詢',
   },
   {
+    to: '/todos',
+    id: 'todos',
+    title: 'Todos',
+  },
+  {
     to: '/directions',
     id: 'directions',
     title: '地圖導航',

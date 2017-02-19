@@ -6,6 +6,7 @@ import Chat from '../page/chat/'
 import Resume from '../page/resume/'
 import Directions from '../page/directions/'
 import SearchApi from '../page/searchApi/'
+import Todos from '../page/todos/'
 import NotFoundPage from '../page/notFoundPage/'
 
 // const getUser = () => firebase.chatAH.currentUser
@@ -58,9 +59,36 @@ export const routers = {
       component: Resume,
     },
     {
-      title: '查詢',
-      path: '/search(/:keyword)',
-      component: SearchApi,
+      path: '/search',
+      childRoutes: [
+        {
+          indexRoute: {
+            title: '查詢',
+            component: SearchApi,
+          },
+        },
+        {
+          title: '查詢',
+          path: '/search(/:keyword)',
+          component: SearchApi,
+        },
+      ],
+    },
+    {
+      path: '/todos',
+      childRoutes: [
+        {
+          indexRoute: {
+            title: 'Todos',
+            component: Todos,
+          },
+        },
+        {
+          title: 'Todos',
+          path: '/todos/(:keyword)',
+          component: Todos,
+        },
+      ],
     },
     {
       title: '404',

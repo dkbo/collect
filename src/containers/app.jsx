@@ -132,6 +132,7 @@ const mapStateToProps = state => ({
   player: state.player.toObject(),
   sence: state.sence,
   npc: state.npc.toObject(),
+  todos: state.todos,
 })
 /**
  * Reducers 方法綁定在 Props 裡
