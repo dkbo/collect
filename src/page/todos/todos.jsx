@@ -3,9 +3,6 @@ import Input from './components/input'
 import ListBox from './components/listBox'
 import { Link } from 'react-router'
 
-
-
-
 import './todos.sass'
 
 const Todolist = (props) => {
@@ -13,7 +10,7 @@ const Todolist = (props) => {
   return (
     <div id="todos">
       <div id="todoBox">
-        <h1>React Todos({props.todos.length})</h1>
+        <h1>Todos({props.todos.length})</h1>
         <div id="todoControl">
           <button onClick={props.todoDeleteCompleted}>Clear Completed</button>
           <button onClick={props.todoDeleteAll}>Clear All</button>
