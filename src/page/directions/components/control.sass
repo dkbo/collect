@@ -1,31 +1,30 @@
-body.directions
-  #mapControl
-    position: absolute
-    width: 90%
-    left: 0
-    right: 0
-    margin auto
-    top: 10px
-    margin: auto
-    background: #fff
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 -1px 0px rgba(0,0,0,0.02)
-    @media screen and (min-width: 576px)
-      width: 50%
-    @media screen and (min-width: 768px)
-      width: 40%
-    @media screen and (min-width: 1172px)
-      width: 30%
+#mapControl
+  position: absolute
+  width: 90%
+  left: 0
+  right: 0
+  margin auto
+  top: 10px
+  margin: auto
+  background: #fff
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 -1px 0px rgba(0,0,0,0.02)
+  @media screen and (min-width: 576px)
+    width: 50%
+  @media screen and (min-width: 768px)
+    width: 40%
+  @media screen and (min-width: 1172px)
+    width: 30%
 
-    .mapControl-group
-      display: table
-      position: relative
+  .mapControl-group
+    display: table
+    position: relative
+    width: 100%
+    padding: 10px 15px
+    label
+      display: table-cell
+      width: 30px
+      border-right: 1px solid #e0dada
+    input
+      display: table-cell
       width: 100%
-      padding: 10px 15px
-      label
-        display: table-cell
-        width: 30px
-        border-right: 1px solid #e0dada
-      input
-        display: table-cell
-        width: 100%
-        border: none
+      border: none

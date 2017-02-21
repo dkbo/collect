@@ -4,21 +4,7 @@ import Control from './components/control'
 import './miniChat.sass'
 
 export default class Chat extends Component {
-  constructor(porps) {
-    super(porps)
-    this.state = {
-      height: `${400}px`,
-      bottom: '-1000px',
-    }
-  }
-  componentWillMount() {
-    this.resize = Rx.Observable
-      .fromEvent(window, 'resize')
-      .debounceTime(300)
-      .subscribe(this.resizeMiniChatBoxHeight)
-  }
   componentDidMount() {
-    this.resizeMiniChatBoxHeight()
     this.refs.messageBlock.scrollTop = this.refs.messageBlockUl.clientHeight
   }
   shouldComponentUpdate(props, state) {
@@ -36,27 +22,12 @@ export default class Chat extends Component {
     firebase.chatDB
       .ref('members')
       .off('child_changed', this.userOnlineLog)
-    this.resize.unsubscribe()
   }
   getUser = () => firebase.chatAH.currentUser
   handleClick = () => {
     this.props.toggleMinichat(this.props.chat.size)
   }
-  resizeMiniChatBoxHeight = () => {
-    const controlHeight = 36
-    let { height, bottom } = ''
-    if (window.innerWidth < 768) {
-      height = window.innerHeight - this.refs.miniChatHeader.offsetHeight - controlHeight
-      bottom = -(height + controlHeight)
-    } else {
-      height = 400
-      bottom = -(height + controlHeight + 2)
-    }
-    this.setState({
-      height: `${height}px`,
-      bottom: `${bottom}px`,
-    })
-  }
+
   render() {
     const user = this.getUser()
       ? this.getUser()
@@ -65,15 +36,9 @@ export default class Chat extends Component {
       }
     const isShow = this.props.miniChat.get('isShow')
     const count = this.props.chat.size - this.props.miniChat.get('count')
-    const { height, bottom } = this.state
-    const miniChatStyle = isShow
-      ? this.props.miniChatStyle
-      : {
-        ...this.props.miniChatStyle,
-        bottom,
-      }
+
     return (
-      <div id="miniChat" style={miniChatStyle}>
+      <div id="miniChat" style={this.props.miniChatStyle} className={isShow ? 'active' : ''}>
         <div id="miniChatBox" className="card">
           <button className="card-header" ref="miniChatHeader" onClick={this.handleClick}>
             <b>多人聊天窗口
@@ -86,9 +51,6 @@ export default class Chat extends Component {
           <div
             className="card-block"
             ref="messageBlock"
-            style={{
-              height,
-            }}
           >
             <ul ref="messageBlockUl">
               {this.props.chat

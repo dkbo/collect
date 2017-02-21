@@ -21,15 +21,11 @@ export default class Map extends Component {
     moment.locale('zh-TW');
   }
   componentWillMount() {
-    this.resize = Rx.Observable
-      .fromEvent(window, 'resize')
-      .debounceTime(300)
-      .subscribe(this.resizeMapBoxHeight)
+
     document.body.className = 'directions'
   }
 
   componentDidMount() {
-    this.resizeMapBoxHeight()
     this.initMap()
     this.calcRoute()
   }
@@ -43,7 +39,6 @@ export default class Map extends Component {
   }
 
   componentWillUnmount() {
-    this.resize.unsubscribe()
     document.body.className = ''
 
     firebase.geoDB
@@ -157,12 +152,6 @@ export default class Map extends Component {
   attachSecretMessage = (marker, content) => {
     const infowindow = new google.maps.InfoWindow({ content })
     infowindow.open(marker.get('map'), marker)
-  }
-
-  resizeMapBoxHeight = () => {
-    const mapBoxHeight = `${window.innerHeight - 40}px`
-    this.refs.map.style.height = mapBoxHeight
-    this.refs.panel.style.height = mapBoxHeight
   }
 
   /**

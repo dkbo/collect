@@ -1,13 +1,17 @@
 #miniChat
     position: fixed
     width: 100%
-    bottom: 0
     transition: .3s all ease
     z-index: 9999
     background: rgba(255, 255, 255, 0.8)
+    bottom: -436px
+    @media screen and (max-width: 767px)
+        bottom: calc(0px - 100vh + 48px)
 
     @media screen and (min-width: 768px)
         width: 400px
+    &.active
+      bottom: 0
     #miniChatBox
         position: relative
         margin: 0
@@ -15,6 +19,7 @@
         background: transparent
         @media screen and (max-width: 767px)
             border: none
+
         .card-header
             width: 100%
             background: linear-gradient(#6C91E4 0%, #142C79 100%)
@@ -32,6 +37,9 @@
             border: none
             -ms-overflow-style: -ms-autohiding-scrollbar
             -webkit-overflow-scrolling: touch
+            @media screen and (max-width: 767px)
+              height: calc(100vh - 48px - 36px)
+
             &::-webkit-scrollbar
                 -webkit-appearance: none
                 width: 4px
