@@ -2,10 +2,15 @@ import React, { Component, PropTypes } from 'react'
 import isMoveObject from '../../../constants/ismove/'
 
 export default class Sence extends Component {
+  constructor(props) {
+    super(props)
+    this.width = isMoveObject[props.sence.get('mapId')].map.width
+    this.height = isMoveObject[props.sence.get('mapId')].map.height
+    this.img = new Image()
+  }
   componentDidMount() {
     this.canvas = this.refs.sence
     this.sence = this.canvas.getContext('2d')
-    this.img = new Image()
     this.senceChange()
   }
 
