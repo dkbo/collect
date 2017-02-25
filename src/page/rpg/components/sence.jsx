@@ -2,12 +2,6 @@ import React, { Component, PropTypes } from 'react'
 import isMoveObject from '../../../constants/ismove/'
 
 export default class Sence extends Component {
-  componentWillMount() {
-    this.resize = Rx.Observable.fromEvent(window, 'resize')
-    this.resize
-      .debounceTime(300)
-      .subscribe(this.handleResize)
-  }
   componentDidMount() {
     this.canvas = this.refs.sence
     this.sence = this.canvas.getContext('2d')
@@ -25,21 +19,18 @@ export default class Sence extends Component {
   componentDidUpdate() {
     this.drawSence()
   }
-  componentWillUnmount() {
-    this.resize.unsubscribe()
-  }
+
   getSenceClassName = (className = 'sence') => (this.props.sence.get('isTransSence') ? `${className} x-hide` : className)
 
-
   drawSence(props = this.props) {
-    const { width, height } = isMoveObject[props.sence.get('mapId')].map
     const msx = props.sence.get('msx')
     const msy = props.sence.get('msy')
     this.sence.clearRect(0, 0, window.innerWidth, window.innerHeight)
-    this.sence.drawImage(this.img, msx, msy, width, height, this.mpx, this.mpy, width, height)
+    this.sence.drawImage(this.img, msx, msy, this.width, this.height, 0, 0, this.width, this.height)
   }
   senceChange(props = this.props) {
-    this.handleResize()
+    this.width = isMoveObject[props.sence.get('mapId')].map.width
+    this.height = isMoveObject[props.sence.get('mapId')].map.height
     this.img.onload = () => {
       this.drawSence()
       if (props.sence.get('isTransSence')) {
@@ -49,19 +40,14 @@ export default class Sence extends Component {
     this.img.src = isMoveObject[props.sence.get('mapId')].map[props.senceImg]
   }
 
-  handleResize = () => {
-    const { width, height } = isMoveObject[this.props.sence.get('mapId')].map
-    this.mpx = width >= window.innerWidth ? 0 : (window.innerWidth - width) / 2
-    this.mpy = height >= window.innerHeight ? 0 : (window.innerHeight - height) / 2
-  }
-
   render() {
     return (
       <div>
         <canvas
           className={this.getSenceClassName()}
-          ref="sence" width={window.innerWidth}
-          height={window.innerHeight}
+          ref="sence"
+          width={Math.min(window.innerWidth, this.width)}
+          height={Math.min(window.innerHeight, this.height)}
         />
       </div>
     )
