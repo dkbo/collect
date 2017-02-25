@@ -10,10 +10,10 @@ export default class Rpg extends Component {
   componentWillMount() {
     const touchStart = Rx.Observable.fromEvent(document, 'touchstart')
     const touchMove = Rx.Observable.fromEvent(document, 'touchmove')
-    const touchEnd = Rx.Observable.fromEvent(document, 'touchend')
+    const touchEnd = Rx.Observable.fromEvent(document, 'touchend').map(() => this.handleTouchEnd())
 
     this.move = touchStart
-      .concatMap(() => touchMove.takeUntil(touchEnd.do(this.handleTouchEnd)))
+      .concatMap(() => touchMove.takeUntil(touchEnd))
       .withLatestFrom(touchStart, (move, start) => ({ move, start }))
       .subscribe(this.handleTouchMove)
   }
@@ -79,8 +79,11 @@ export default class Rpg extends Component {
   }
 
   // 處理觸碰結束時事件
-  handleTouchEnd = way => {
-    this.isTouchEnd(way)
+  handleTouchEnd = () => {
+    this.isTouchEnd('down')
+    this.isTouchEnd('up')
+    this.isTouchEnd('right')
+    this.isTouchEnd('left')
   }
 
   isTouchEnd(way) {
