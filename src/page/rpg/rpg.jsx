@@ -14,7 +14,10 @@ export default class Rpg extends Component {
 
     this.move = touchStart
       .concatMap(() => touchMove.takeUntil(touchEnd))
-      .withLatestFrom(touchStart, (move, start) => ({ move, start }))
+      .withLatestFrom(touchStart, (move, start) => {
+        move.preventDefault()
+        return { move, start }
+      })
       .subscribe(this.handleTouchMove)
   }
 
