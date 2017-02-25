@@ -20,10 +20,6 @@ export default class Map extends Component {
 
     moment.locale('zh-TW');
   }
-  componentWillMount() {
-
-    document.body.className = 'directions'
-  }
 
   componentDidMount() {
     this.initMap()
@@ -39,7 +35,6 @@ export default class Map extends Component {
   }
 
   componentWillUnmount() {
-    document.body.className = ''
 
     firebase.geoDB
       .ref('geolocation/')

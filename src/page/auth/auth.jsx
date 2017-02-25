@@ -7,12 +7,6 @@ export default class Main extends Component {
   state = {
     test: [],
   }
-  componentWillMount() {
-    document.body.className = 'auth'
-  }
-  componentWillUnmount() {
-    document.body.className = ''
-  }
   /**
    * 取得會員資料
    * @returns {JSON} 取得會員資料
@@ -62,7 +56,7 @@ export default class Main extends Component {
   }
   render() {
     return (
-      <div className="container text-xs-center">
+      <div className="text-xs-center" id="auth">
         <div id="loginBox">
           <h1>登入</h1>
           <div id="login">

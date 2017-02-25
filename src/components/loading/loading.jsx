@@ -2,11 +2,8 @@ import React, { Component, PropTypes } from 'react';
 import './loading.sass'
 
 export default class Loading extends Component {
-  componentWillMount() {
-    document.body.className = 'loading'
-  }
-  componentWillUnmount() {
-    document.body.className = this.props.bodyClass
+  shouldComponentUpdate() {
+    return false
   }
   render() {
     return (
@@ -41,6 +38,5 @@ export default class Loading extends Component {
 }
 
 Loading.propTypes = {
-  bodyClass: PropTypes.string,
   loadText: PropTypes.string,
 }

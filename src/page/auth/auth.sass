@@ -22,13 +22,18 @@ $boxBg: #AAB2BD
     transform: scale(1.2)
     background: darken($bg, 15%)
 
-body.auth
+#auth
   background-color: lighten($boxBg, 25%)
+  min-height: 100vh
+  position: relative
   #loginBox
     position: absolute
     height: 300px
-    top: calc(50% - 150px)
-    left: calc(50% - 180px)
+    left: 0
+    right: 0
+    top: 0
+    bottom: 0
+    margin: auto
     h1
       margin: 0
     #login

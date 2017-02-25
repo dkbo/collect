@@ -2,6 +2,12 @@ import React, { Component, PropTypes } from 'react'
 import isMoveObject from '../../../constants/ismove/'
 
 export default class Sence extends Component {
+  componentWillMount() {
+    this.resize = Rx.Observable.fromEvent(window, 'resize')
+    this.resize
+      .debounceTime(300)
+      .subscribe(this.handleResize)
+  }
   componentDidMount() {
     this.canvas = this.refs.sence
     this.sence = this.canvas.getContext('2d')
@@ -19,7 +25,9 @@ export default class Sence extends Component {
   componentDidUpdate() {
     this.drawSence()
   }
-
+  componentWillUnmount() {
+    this.resize.unsubscribe()
+  }
   getSenceClassName = (className = 'sence') => (this.props.sence.get('isTransSence') ? `${className} x-hide` : className)
 
 
@@ -31,16 +39,20 @@ export default class Sence extends Component {
     this.sence.drawImage(this.img, msx, msy, width, height, this.mpx, this.mpy, width, height)
   }
   senceChange(props = this.props) {
-    const { width, height } = isMoveObject[props.sence.get('mapId')].map
+    this.handleResize()
     this.img.onload = () => {
-      this.mpx = width >= window.innerWidth ? 0 : (window.innerWidth - width) / 2
-      this.mpy = height >= window.innerHeight ? 0 : (window.innerHeight - height) / 2
       this.drawSence()
       if (props.sence.get('isTransSence')) {
         setTimeout(() => props.sen({ isTransSence: false }), 1000)
       }
     }
     this.img.src = isMoveObject[props.sence.get('mapId')].map[props.senceImg]
+  }
+
+  handleResize = () => {
+    const { width, height } = isMoveObject[this.props.sence.get('mapId')].map
+    this.mpx = width >= window.innerWidth ? 0 : (window.innerWidth - width) / 2
+    this.mpy = height >= window.innerHeight ? 0 : (window.innerHeight - height) / 2
   }
 
   render() {

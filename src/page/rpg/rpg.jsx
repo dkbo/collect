@@ -79,11 +79,8 @@ export default class Rpg extends Component {
   }
 
   // 處理觸碰結束時事件
-  handleTouchEnd = () => {
-    this.isTouchEnd('left')
-    this.isTouchEnd('right')
-    this.isTouchEnd('up')
-    this.isTouchEnd('down')
+  handleTouchEnd = way => {
+    this.isTouchEnd(way)
   }
 
   isTouchEnd(way) {
@@ -100,9 +97,9 @@ export default class Rpg extends Component {
 
   render() {
     return (
-      <div>
+      <div id="rpg">
         {this.props.sence.get('isTransSence')
-          ? <Load loadText="載入中請稍後" bodyClass="rpg" />
+          ? <Load loadText="載入中請稍後" />
           : null
         }
         <Sence {...this.props} senceImg={'second'} />

@@ -8,15 +8,10 @@ import State from './components/state'
 import './resume.sass'
 
 export default class Resume extends Component {
-  componentWillMount() {
-    document.body.className = 'resume'
-  }
-  componentWillUnmount() {
-    document.body.className = ''
-  }
+
   render() {
     return (
-      <div className="container-fluid">
+      <div className="container-fluid" id="resume">
         <div className="masonry">
           <About />
           <Author />
