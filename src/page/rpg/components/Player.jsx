@@ -375,8 +375,8 @@ export default class Player extends Component {
         <canvas
           className={this.getPlayerClassName()}
           ref="player"
-          width={window.innerWidth}
-          height={window.innerHeight}
+          width={window.innerWidth > this.width ? this.width : window.innerWidth}
+          height={window.innerHeight > this.height ? this.height : window.innerHeight}
         />
       </div>
     )

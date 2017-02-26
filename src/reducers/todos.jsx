@@ -3,6 +3,9 @@ import {
   TODO_UPDATE,
   TODO_UPDATE_ACTIVE,
   TODO_COMPLETED,
+  TODO_LEAVE,
+  TODO_LEAVE_COMPLETED,
+  TODO_LEAVE_ALL,
   TODO_DELETE,
   TODO_DELETE_COMPLETED,
   TODO_DELETE_ALL,
@@ -15,6 +18,7 @@ const stateInitial = localStorage.todos
       value: '大家好我是 dkbo',
       isEdit: false,
       completed: false,
+      isLeave: false,
       timestamp: 1487470763624,
     },
   ]
@@ -41,6 +45,22 @@ const todos = (state = stateInitial, action) => {
         index === action.index
         ? Object.assign({}, object, { completed: !object.completed })
         : object
+      ))
+    case TODO_LEAVE:
+      return state.map((object, index) => (
+        index === action.index
+        ? Object.assign({}, object, { isLeave: true })
+        : object
+      ))
+    case TODO_LEAVE_COMPLETED:
+      return state.map(object => (
+        object.completed === true
+        ? Object.assign({}, object, { isLeave: true })
+        : object
+      ))
+    case TODO_LEAVE_ALL:
+      return state.map((object, index) => (
+        Object.assign({}, object, { isLeave: true })
       ))
     case TODO_DELETE:
       return state.filter((object, index) => index !== action.index)

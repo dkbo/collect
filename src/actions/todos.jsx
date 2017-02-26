@@ -3,6 +3,9 @@ import {
   TODO_UPDATE,
   TODO_UPDATE_ACTIVE,
   TODO_COMPLETED,
+  TODO_LEAVE,
+  TODO_LEAVE_COMPLETED,
+  TODO_LEAVE_ALL,
   TODO_DELETE,
   TODO_DELETE_ALL,
   TODO_DELETE_COMPLETED,
@@ -15,6 +18,7 @@ export const todoAdded = value => (
       value,
       isEdit: false,
       completed: false,
+      isLeave: false,
       timestamp: new Date().getTime(),
     },
   }
@@ -39,6 +43,25 @@ export const todoCompleted = index => (
   {
     type: TODO_COMPLETED,
     index,
+  }
+)
+
+export const todoLeave = index => (
+  {
+    type: TODO_LEAVE,
+    index,
+  }
+)
+
+export const todoLeaveCompleted = () => (
+  {
+    type: TODO_LEAVE_COMPLETED,
+  }
+)
+
+export const todoLeaveAll = index => (
+  {
+    type: TODO_LEAVE_ALL,
   }
 )
 

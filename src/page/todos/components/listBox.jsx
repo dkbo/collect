@@ -4,13 +4,10 @@ import './listBox.sass'
 export default class ListBox extends Component {
   constructor(props) {
     super(props)
-    this.state = {
-      liLeave: false,
-    }
     this.DeleteSubject = new Rx.Subject()
 
     this.Delete = this.DeleteSubject
-      .map(() => this.setState({ liLeave: true }))
+      .map(() => this.handleLeave())
       .delay(500)
       .subscribe(this.handleDelete)
   }
@@ -30,11 +27,17 @@ export default class ListBox extends Component {
     } else if (this.props.router.params.keyword === 'active') {
       state = this.props.object.completed ? 'hide' : ''
     }
-    if (this.state.liLeave) {
-      return `${state} leaved`
-    } else if (this.props.object.completed) {
+
+    if (this.props.object.isLeave) {
+      if(state.indexOf('hide') === -1) {
+        state += `${state} leaved`
+      }
+    }
+
+    if (this.props.object.completed) {
       return `${state} completed`
     }
+
     return state
   }
   getLiItems = () => (
@@ -42,6 +45,7 @@ export default class ListBox extends Component {
       ? <input ref="edit" type="text" onBlur={this.handleBlur} onKeyDown={this.handleEdit} defaultValue={this.props.object.value} />
       : <span>{this.props.object.value}</span>
   )
+  handleLeave = () => this.props.todoLeave(this.props.index)
   handleDelete = () => this.props.todoDelete(this.props.index)
   handleEdit = e => (
     e.keyCode === 13 ? this.props.todoUpdate(e.target.value, this.props.index) : null
@@ -49,7 +53,6 @@ export default class ListBox extends Component {
   handleBlur = e => this.props.todoUpdate(e.target.value, this.props.index)
   handleEditActive = () => this.props.todoUpdateActive(this.props.index)
   handleCompleted = () => this.props.todoCompleted(this.props.index)
-
   render() {
     return (
       <li className={this.getLiClassName()}>
@@ -68,7 +71,6 @@ export default class ListBox extends Component {
     )
   }
 }
-
 ListBox.propTypes = {
   todoDelete: PropTypes.func,
   todoUpdate: PropTypes.func,
