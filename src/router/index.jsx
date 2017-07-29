@@ -1,13 +1,4 @@
 import App from '../containers/app'
-import Home from '../page/home/'
-import Rpg from '../page/rpg/'
-import Auth from '../page/auth/'
-import Chat from '../page/chat/'
-import Resume from '../page/resume/'
-import Directions from '../page/directions/'
-import SearchApi from '../page/searchApi/'
-import Todos from '../page/todos/'
-import NotFoundPage from '../page/notFoundPage/'
 
 // const getUser = () => firebase.chatAH.currentUser
 
@@ -22,7 +13,9 @@ import NotFoundPage from '../page/notFoundPage/'
 //     replace('/')
 //   }
 // }
-
+function loadRoute(cb) {
+  return module => cb(null, module.default)
+}
 export const routers = {
   path: '/',
   component: App,
@@ -30,33 +23,59 @@ export const routers = {
     {
       indexRoute: {
         title: '首頁',
-        component: Home,
+        getComponent(location, cb) {
+          import('@P/home/')
+            .then(loadRoute(cb))
+        },
       },
     },
     {
       title: 'RPG Room',
       path: '/rpgroom',
-      component: Rpg,
+      getComponent(location, cb) {
+        import('@P/rpg/')
+          .then(loadRoute(cb))
+      },
+    },
+    {
+      title: 'Mini Game',
+      path: '/minigame',
+      getComponent(location, cb) {
+        import('@P/miniGame/')
+          .then(loadRoute(cb))
+      },
     },
     {
       title: '聊天室',
       path: '/chat',
-      component: Chat,
+      getComponent(location, cb) {
+        import('@P/chat/')
+          .then(loadRoute(cb))
+      },
     },
     {
       title: 'Auth',
       path: '/auth',
-      component: Auth,
+      getComponent(location, cb) {
+        import('@P/auth/')
+          .then(loadRoute(cb))
+      },
     },
     {
       title: '地圖查詢',
       path: '/directions',
-      component: Directions,
+      getComponent(location, cb) {
+        import('@P/directions/')
+          .then(loadRoute(cb))
+      },
     },
     {
       title: 'E 履歷',
       path: '/resume',
-      component: Resume,
+      getComponent(location, cb) {
+        import('@P/resume/')
+          .then(loadRoute(cb))
+      },
     },
     {
       path: '/search',
@@ -64,13 +83,19 @@ export const routers = {
         {
           indexRoute: {
             title: '查詢',
-            component: SearchApi,
+            getComponent(location, cb) {
+              import('@P/searchApi/')
+                .then(loadRoute(cb))
+            },
           },
         },
         {
           title: '查詢',
           path: '/search(/:keyword)',
-          component: SearchApi,
+          getComponent(location, cb) {
+            import('@P/searchApi/')
+              .then(loadRoute(cb))
+          },
         },
       ],
     },
@@ -80,20 +105,29 @@ export const routers = {
         {
           indexRoute: {
             title: 'Todos',
-            component: Todos,
+            getComponent(location, cb) {
+              import('@P/todos/')
+                .then(loadRoute(cb))
+            },
           },
         },
         {
           title: 'Todos',
           path: '/todos/(:keyword)',
-          component: Todos,
+          getComponent(location, cb) {
+            import('@P/todos/')
+              .then(loadRoute(cb))
+          },
         },
       ],
     },
     {
       title: '404',
       path: '/*',
-      component: NotFoundPage,
+      getComponent(location, cb) {
+        import('@P/notFoundPage/')
+          .then(loadRoute(cb))
+      },
     },
   ],
 }

@@ -6,6 +6,8 @@ const enterFile = '../src/index.jsx';
 const outerPath = '../docs';
 const publicPath = 'https://dkbo.github.io/collect/';
 
+const resolve = dir => path.join(__dirname, '../src', dir)
+
 module.exports = {
   entry: {
     // polyfill: ['babel-polyfill'],
@@ -20,6 +22,11 @@ module.exports = {
   },
   resolve: {
     extensions: ['.js', '.jsx', '.css', '.sass'],
+    alias: {
+      '@': resolve(''),
+      '@C': resolve('/components'),
+      '@P': resolve('/page'),
+    },
   },
   module: {
     rules,

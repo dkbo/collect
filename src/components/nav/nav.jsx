@@ -20,6 +20,11 @@ const navItems = [
     title: '遊戲室',
   },
   {
+    to: '/miniGame',
+    id: 'miniGame',
+    title: '小遊戲',
+  },
+  {
     to: '/search',
     id: 'search',
     title: '外部查詢',

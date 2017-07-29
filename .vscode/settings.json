@@ -9,4 +9,5 @@
 
     // 若啟用，將在您儲存檔案時修剪尾端空白。
     "files.trimTrailingWhitespace": true,
+    "vsicons.presets.angular": false,
 }
