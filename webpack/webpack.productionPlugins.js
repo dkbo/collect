@@ -15,6 +15,7 @@ module.exports = [
     },
     __HASHPATH__: true,
   }),
+  new webpack.optimize.ModuleConcatenationPlugin(),
   new webpack.LoaderOptionsPlugin({
     options: {
       postcss: [

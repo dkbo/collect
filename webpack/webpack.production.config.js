@@ -18,6 +18,7 @@ module.exports = {
     path: path.join(__dirname, outerPath),
     // filename: './js/[name]_[chunkhash].js'
     filename: 'js/[name].js',
+    chunkFilename: 'js/[name].js',
     publicPath,
   },
   resolve: {

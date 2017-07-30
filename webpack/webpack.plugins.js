@@ -15,6 +15,7 @@ module.exports = [
     },
   }),
   new webpack.HotModuleReplacementPlugin(),
+  new webpack.optimize.ModuleConcatenationPlugin(),
   new HtmlWebpackPlugin({
     template: './src/index.pug',
   }),
