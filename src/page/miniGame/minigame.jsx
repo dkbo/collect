@@ -9,12 +9,20 @@ const requestAFrame = (() => window.requestAnimationFrame ||
     return window.setTimeout(callback, 1000 / 60);
   })();
 export default class MiniGame extends Component {
+  constructor(props) {
+    super(props)
+    this.startGame = ::this.startGame
+    this.animation = ::this.animation
+  }
+  state = {
+    score: 0,
+    hp: 10,
+  }
   componentWillMount() {
     window.addEventListener('keydown', (e) => {
       switch (e.keyCode) {
         case 32:
           this.bow.push({ x: 15 + this.x, y: this.y + 10 });
-          console.log(this.bow)
           break;
         case 37:
           this.key.left = true;
@@ -53,29 +61,25 @@ export default class MiniGame extends Component {
     });
   }
   componentDidMount() {
-    this.refs.canvas.height = window.innerHeight
-    this.refs.canvas.width = window.innerWidth
-    this.c = this.refs.canvas.getContext('2d')
-    this.x = 50;
-    this.y = 100;
-    this.w = 15;
-    this.h = 20;
-    this.sp = 4;
-    this.key = {
-      up: false,
-      right: false,
-      down: false,
-      left: false,
-    };
-    this.bow = [];
-    this.wall = [];
-
-    this.animation();
+    this.startGame();
   }
   setXY(x, y) {
     this.x = x;
     this.y = y;
   }
+  x = 50
+  y = 100
+  w = 15
+  h = 20
+  sp = 4
+  key = {
+    up: false,
+    right: false,
+    down: false,
+    left: false,
+  }
+  bow = []
+  wall = []
   animation() {
     this.c.clearRect(0, 0, 9999, 9999)
     this.c.beginPath();
@@ -105,12 +109,17 @@ export default class MiniGame extends Component {
         if (this.wall.length > 0) {
           let ism = false;
           for (const y in this.wall) {
-            if (this.bow[x].x + 10 > this.wall[y].x && this.bow[x].y - this.wall[y].y > 0 && this.bow[x].y - this.wall[y].h <= this.wall[y].h) {
+            const left = this.bow[x].x + 10 > this.wall[y].x
+            const top = this.bow[x].y - this.wall[y].y > 0
+            const height = this.bow[x].y - this.wall[y].h <= this.wall[y].y
+            if (left && top && height) {
+              this.wall.splice(y, 1);
               ism = true;
               break;
             }
           }
           if (ism) {
+            this.setState({ score: this.state.score + 100 })
             this.bow.splice(x, 1);
             x--;
             continue;
@@ -127,6 +136,7 @@ export default class MiniGame extends Component {
       for (let x in this.wall) {
         if (this.wall[x].x < 0) {
           this.wall.splice(x, 1);
+          this.setState({ hp: this.state.hp - 1 })
           x--;
           continue;
         }
@@ -147,15 +157,43 @@ export default class MiniGame extends Component {
         w: this.random(3, 10),
       });
     }
-    requestAFrame(this.animation.bind(this));
+    this.state.hp > 0 && requestAFrame(this.animation);
   }
   random(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min
   }
+  startGame() {
+    this.setState({
+      score: 0,
+      hp: 10,
+    }, () => {
+      this.refs.canvas.height = window.innerHeight
+      this.refs.canvas.width = window.innerWidth
+      this.c = this.refs.canvas.getContext('2d')
+      this.x = 50
+      this.y = 100
+      this.w = 15
+      this.h = 20
+      this.sp = 4
+      this.key = {
+        up: false,
+        right: false,
+        down: false,
+        left: false,
+      }
+      this.bow = []
+      this.wall = []
+      requestAFrame(this.animation);
+    })
+  }
   render() {
     return (
       <div id="miniGame">
-        <canvas ref="canvas" id="canvas1" width="1200px" height="1000px" />
+        { this.state.hp
+          ? <canvas ref="canvas" id="canvas1" width="1200px" height="1000px" />
+          : <div className="gameover" onClick={this.startGame}>Game Over</div>
+        }
+        <div className="score"><strong>Score:</strong> {this.state.score}/hp: {this.state.hp}</div>
       </div>
     )
   }
