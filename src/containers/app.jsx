@@ -4,7 +4,29 @@ import { connect } from 'react-redux';
 import * as actions from '../actions';
 
 import Nav from '../components/nav/'
-
+/**
+ * 數據綁定在 Props裡
+ * @param {JSON} state Store 數據資料
+ * @returns {JSON} Store 數據綁定在 Props裡
+ */
+const mapStateToProps = state => ({
+  chat: state.chat,
+  miniChat: state.miniChat,
+  directions: state.directions,
+  showList: state.searchApi,
+  geo: state.geo,
+  player: state.player.toObject(),
+  sence: state.sence,
+  npc: state.npc.toObject(),
+  todos: state.todos,
+})
+/**
+ * Reducers 方法綁定在 Props 裡
+ * @param {JSON} dispatch 執行 Action 方法
+ * @returns {any} Reducers 方法綁定在 Props 裡
+ */
+const mapDispatchToProps = dispatch => bindActionCreators(actions, dispatch)
+@connect(mapStateToProps, mapDispatchToProps)
 class App extends Component {
   componentWillMount() {
     firebase.chatDB.ref('.info/connected').on('value', this.connected)
@@ -118,28 +140,4 @@ App.propTypes = {
   addMessage: PropTypes.func,
 }
 
-/**
- * 數據綁定在 Props裡
- * @param {JSON} state Store 數據資料
- * @returns {JSON} Store 數據綁定在 Props裡
- */
-const mapStateToProps = state => ({
-  chat: state.chat,
-  miniChat: state.miniChat,
-  directions: state.directions,
-  showList: state.searchApi,
-  geo: state.geo,
-  player: state.player.toObject(),
-  sence: state.sence,
-  npc: state.npc.toObject(),
-  todos: state.todos,
-})
-/**
- * Reducers 方法綁定在 Props 裡
- * @param {JSON} dispatch 執行 Action 方法
- * @returns {any} Reducers 方法綁定在 Props 裡
- */
-const mapDispatchToProps = dispatch => bindActionCreators(actions, dispatch)
-
-
-export default connect(mapStateToProps, mapDispatchToProps)(App);
+export default App;

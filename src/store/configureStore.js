@@ -1,14 +1,16 @@
-import { createStore, applyMiddleware, combineReducers, compose } from 'redux';
+import { createStore, applyMiddleware, combineReducers, compose } from 'redux'
 import { routerReducer as routing, routerMiddleware } from 'react-router-redux'
+import { combineEpics, createEpicMiddleware } from 'redux-observable'
 import promise from 'redux-promise';
-import thunk from 'redux-thunk';
 // import logger from 'redux-logger';
-import * as reducers from '../reducers';
+import * as reducers from '../reducers'
+import { searchGithubKeywordEpics, searchWikiKeywordEpics} from '../epics'
 
-
+const rootEcips = combineEpics(searchGithubKeywordEpics, searchWikiKeywordEpics)
+const epicMiddleware = createEpicMiddleware(rootEcips)
+// const epicMiddleware = createEpicMiddleware(epics.searchGithubKeywordEpics)
 const createStoreWithMiddleware = compose(
-  // applyMiddleware(thunk, promise, logger()),
-  applyMiddleware(thunk, promise, routerMiddleware(history)),
+  applyMiddleware(promise, routerMiddleware(history)),
 )(createStore);
 const rootReducer = combineReducers({
   ...reducers,
@@ -22,6 +24,7 @@ if (process.env.NODE_ENV !== 'production') {
 const configureStore = (initialState) => {
   const store = createStoreWithMiddleware(
     ...middleware,
+    applyMiddleware(epicMiddleware),
     initialState,
   );
 

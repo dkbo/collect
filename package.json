@@ -28,8 +28,10 @@
     "react-router-redux": "^4.0.7",
     "react-syntax-highlighter": "^4.0.1",
     "redux": "^3.5.2",
+    "redux-observable": "^0.17.0",
     "redux-promise": "^0.5.3",
-    "redux-thunk": "^2.2.0"
+    "redux-thunk": "^2.2.0",
+    "rxjs": "^5.5.2"
   },
   "devDependencies": {
     "autoprefixer": "^6.5.3",
