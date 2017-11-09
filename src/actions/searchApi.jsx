@@ -6,14 +6,7 @@ export const searchGithubKeyword = keyword => ({
   keyword,
 })
 
-// export const searchWikiKeyword = keyword => ({
-//   type: SEARCH_WIKI_KEYWORD_EPICS,
-//   keyword,
-// })
-
-export const searchWikiKeyword = keyword => {
-  return {
-    type: SEARCH_WIKI_KEYWORD_EPICS,
-    keyword,
-  }
-}
+export const searchWikiKeyword = keyword => ({
+  type: SEARCH_WIKI_KEYWORD_EPICS,
+  keyword,
+})
