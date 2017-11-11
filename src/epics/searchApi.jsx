@@ -14,21 +14,22 @@ import {
 export const searchWikiKeywordEpics = action$ =>
   action$.ofType(SEARCH_WIKI_KEYWORD_EPICS)
     .pluck('keyword')
-    .mergeMap(action =>
-      ajax
-        .getJSON(`https://api.github.com/search/repositories?q=${action}&sort=stars&order=desc`)
-        .pluck('items')
-        .map(items => items.slice(0, 10))
-        .map(list => ({ type: SEARCH_WIKI_KEYWORD, list }))
+    .mergeMap(keyword =>
+      ajax({
+        url: `https://zh.wikipedia.org/w/api.php?action=opensearch&limit=10&origin=*&search=${keyword}`,
+        crossDomain: true,
+        responseType: 'json'
+      })
+      .pluck('response')
+      .map(list => ({ type: SEARCH_WIKI_KEYWORD, list }))
     )
 export const searchGithubKeywordEpics = action$ =>
   action$.ofType(SEARCH_GITHUB_KEYWORD_EPICS)
     .pluck('keyword')
-    .mergeMap(action =>
+    .mergeMap(keyword =>
       ajax
-        .getJSON(`https://api.github.com/search/repositories?q=${action}&sort=stars&order=desc`)
+        .getJSON(`https://api.github.com/search/repositories?q=${keyword}&sort=stars&order=desc`)
         .pluck('items')
         .map(items => items.slice(0, 10))
         .map((list) => ({ type: SEARCH_GITHUB_KEYWORD, list }))
   )
-
