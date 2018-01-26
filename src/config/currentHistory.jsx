@@ -1,5 +1,4 @@
-import { hashHistory, browserHistory } from 'react-router'
-
-const currentHistory = __HASHPATH__ ? hashHistory : browserHistory
+import { HashRouter, BrowserRouter } from 'react-router-dom'
+const currentHistory = __HASHPATH__ ? HashRouter : BrowserRouter
 
 export default currentHistory

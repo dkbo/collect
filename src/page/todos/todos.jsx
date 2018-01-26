@@ -1,7 +1,7 @@
 import React, { Component, PropTypes } from 'react'
 import Input from './components/input'
 import ListBox from './components/listBox'
-import { Link } from 'react-router'
+import { Link } from 'react-router-dom'
 
 import './todos.sass'
 

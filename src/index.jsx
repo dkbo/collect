@@ -12,7 +12,7 @@ import routes from './router'
 
 import { chat, geo } from './config/firebase'
 
-import './index.sass'
+// import './index.sass'
 
 const store = configureStore();
 const history = syncHistoryWithStore(currentHistory, store)

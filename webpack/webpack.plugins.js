@@ -7,13 +7,13 @@ module.exports = [
   new webpack.DefinePlugin({
     __HASHPATH__: true,
   }),
-  new webpack.LoaderOptionsPlugin({
-    options: {
-      postcss: [
-        autoprefixer({ browsers: ['> 0%'] }),
-      ],
-    },
-  }),
+  // new webpack.LoaderOptionsPlugin({
+  //   options: {
+  //     postcss: [
+  //       autoprefixer(),
+  //     ],
+  //   },
+  // }),
   new webpack.HotModuleReplacementPlugin(),
   new webpack.optimize.ModuleConcatenationPlugin(),
   new HtmlWebpackPlugin({

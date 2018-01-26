@@ -3,20 +3,31 @@ const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const isProduction = () => process.argv.indexOf('-p') !== -1
 const imgLoad = ext => `url-loader?limit=10000&mimetype=image/${ext}&name=images/[name].[ext]`
 const compassPath = 'includePaths[]=' + path.join(__dirname, '../node_modules/compass-mixins/lib')
+const autoprefixer = require('autoprefixer')
+const postCss = {
+	loader: 'postcss-loader',
+	options: {
+		ident: 'postcss',
+		plugins: [
+			autoprefixer({ browsers: ['> 0%'] })
+		]
+	}
+}
+
 const sassUse = () => (
 	isProduction() ?
 		ExtractTextPlugin.extract({
 			fallback: 'style-loader',
 			use: [
 				'css-loader',
-				'postcss-loader',
+				postCss,
 				`sass-loader?${compassPath}`,
 			]
 		}) :
 		[
 			'style-loader',
 			'css-loader',
-			'postcss-loader',
+			postCss,
 			`sass-loader?${compassPath}`,
 		]
 )

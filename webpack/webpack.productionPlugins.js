@@ -16,13 +16,13 @@ module.exports = [
     __HASHPATH__: true,
   }),
   new webpack.optimize.ModuleConcatenationPlugin(),
-  new webpack.LoaderOptionsPlugin({
-    options: {
-      postcss: [
-        autoprefixer({ browsers: ['> 0%'] }),
-      ],
-    },
-  }),
+  // new webpack.LoaderOptionsPlugin({
+  //   options: {
+  //     postcss: [
+  //       autoprefixer({ browsers: ['> 0%'] }),
+  //     ],
+  //   },
+  // }),
   // 提取代碼中的公共模塊，然後將公共模塊打包到一個獨立的文件中，以便在其他的入口和模塊中使用。
   // 別忘了在html中單獨引入抽離出來的公共模塊。
   new webpack.optimize.CommonsChunkPlugin({
