@@ -1,12 +1,12 @@
 import React from 'react'
 import Highlight from 'react-syntax-highlighter'
-import { monokai } from 'react-syntax-highlighter/dist/styles';
+import { monokai } from 'react-syntax-highlighter/dist/styles/hljs';
 
 import head from '../../../images/aboutbg.jpg'
 
 const highlight = `/**
  * @作者 DKBO
- * @Blog https://dkbo-blog.github.io
+ * @Blog https://dkbo-blog.github.io【react-syntax-highlighter
  * @LICENSE MIT
  * @returns {作品} Me
  */

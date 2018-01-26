@@ -1,7 +1,7 @@
 import React from 'react'
 
 import Highlight from 'react-syntax-highlighter'
-import { monokai } from 'react-syntax-highlighter/dist/styles';
+import { monokai } from 'react-syntax-highlighter/dist/styles/hljs';
 
 import pc from '../../../images/rpg_pc.jpg'
 
