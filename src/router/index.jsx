@@ -14,18 +14,16 @@ import App from '../containers/app'
 //   }
 // }
 const loadRoute = cb => module => cb(null, module.default)
-
 export const routers = {
   path: '/',
   component: App,
-  childRoutes: [
+  routes: [
     {
-      indexRoute: {
-        title: '首頁',
-        getComponent(location, cb) {
-          import(/* webpackChunkName: "home" */ '@P/home/')
-          .then(loadRoute(cb))
-        },
+      path: '/',
+      title: '首頁',
+      getComponent(location, cb) {
+        import(/* webpackChunkName: "home" */ '@P/home/')
+        .then(loadRoute(cb))
       },
     },
     {
@@ -78,7 +76,7 @@ export const routers = {
     },
     {
       path: '/search',
-      childRoutes: [
+      routes: [
         {
           indexRoute: {
             title: '查詢',
@@ -100,7 +98,7 @@ export const routers = {
     },
     {
       path: '/todos',
-      childRoutes: [
+      routes: [
         {
           indexRoute: {
             title: 'Todos',
@@ -130,7 +128,6 @@ export const routers = {
     },
   ],
 }
-
 export default routers
 
 // const requireUnauth = getState => {

@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react'
+import React from 'react'
+import PropTypes from 'prop-types'
 import './wikiList.sass'
 
 const renderwikiList = (list1 = [], list2, list3) => list1.map((value, i) => (

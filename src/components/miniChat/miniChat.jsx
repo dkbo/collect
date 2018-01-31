@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react'
+import React, { Component } from 'react'
+import PropTypes from 'prop-types'
 import Messages from './components/messages'
 import Control from './components/control'
 import './miniChat.sass'
