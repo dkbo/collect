@@ -123,7 +123,9 @@ class App extends Component {
 		return (
 			<main>
 				<Nav />
-				{renderRoutes(routes)}
+				<Switch>
+					{renderRoutes(routes)}
+				</Switch>
 			</main>
 		)
 	}

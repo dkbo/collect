@@ -6,7 +6,7 @@ import { Route, Switch } from 'react-router-dom'
 import { ConnectedRouter } from 'react-router-redux'
 import { configureStore, history } from './store/configureStore'
 import { chat, geo } from './config/firebase'
-// import './index.sass'
+import './index.sass'
 import App from './containers/app'
 
 const store = configureStore()

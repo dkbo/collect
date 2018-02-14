@@ -52,7 +52,7 @@
     "babel-preset-stage-0": "^6.16.0",
     "babel-runtime": "^6.18.0",
     "benchmark": "^2.1.2",
-    "bootstrap": "4.0.0",
+    "bootstrap": "4.0.0-alpha.5",
     "compass-loader": "^0.0.4",
     "compass-mixins": "^0.12.10",
     "css-loader": "^0.28.9",

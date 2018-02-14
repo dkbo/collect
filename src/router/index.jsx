@@ -22,42 +22,41 @@ export const routers = [
 		title: '首頁',
 		path: '/',
 		exact: true,
-		// component: Home
 		component: Loadable({
 			loader: () => import(/* webpackChunkName: "home" */ '@P/home/'),
 			loading: A
 		})
 	},
-	// {
-	//   title: 'RPG Room',
-	//   path: '/rpgroom',
-	//   getComponent(location, cb) {
-	//     import(/* webpackChunkName: "rpg" */ '@P/rpg/')
-	//     .then(loadRoute(cb))
-	//   },
-	// },
-	// {
-	//   title: 'Mini Game',
-	//   path: '/minigame',
-	//   getComponent(location, cb) {
-	//     import(/* webpackChunkName: "miniGame" */ '@P/miniGame/')
-	//     .then(loadRoute(cb))
-	//   },
-	// },
-	// {
-	//   title: '聊天室',
-	//   path: '/chat',
-	//   getComponent(location, cb) {
-	//     import(/* webpackChunkName: "chat" */ '@P/chat/')
-	//     .then(loadRoute(cb))
-	//   },
-	// },
+	{
+		title: 'RPG Room',
+		path: '/rpgroom',
+		component: Loadable({
+			loader: () => import(/* webpackChunkName: "rpg" */ '@P/rpg/'),
+			loading: A
+		})
+	},
+	{
+		title: 'Mini Game',
+		path: '/minigame',
+		component: Loadable({
+			loader: () => import(/* webpackChunkName: "miniGame" */ '@P/miniGame/'),
+			loading: A
+		})
+	},
+	{
+		title: '聊天室',
+		path: '/chat',
+		component: Loadable({
+			loader: () => import(/* webpackChunkName: "chat" */ '@P/chat/'),
+			loading: A
+		})
+	},
 	{
 		title: 'Auth',
 		path: '/auth',
 		component: () =>
 			Loadable({
-				loader: import(/* webpackChunkName: "home" */ '@P/auth/'),
+				loader: import(/* webpackChunkName: "auth" */ '@P/auth/'),
 				loading: A
 			})
 	}
