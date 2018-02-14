@@ -5,6 +5,8 @@ import { connect } from 'react-redux'
 import * as actions from '../actions'
 import { Route, Switch } from 'react-router-dom'
 import { renderRoutes } from 'react-router-config'
+import routes from '../router'
+
 import Nav from '../components/nav/'
 /**
  * 數據綁定在 Props裡

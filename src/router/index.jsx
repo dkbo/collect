@@ -1,5 +1,7 @@
+import React, { Component } from 'react'
+
 import App from '../containers/app'
-import Home from '@P/home/'
+import Loadable from 'react-loadable'
 // const getUser = () => firebase.chatAH.currentUser
 
 // const requireAuth = (nextState, replace) => {
@@ -13,18 +15,19 @@ import Home from '@P/home/'
 //     replace('/')
 //   }
 // }
+const A = () => <div />
 const loadRoute = cb => module => cb(null, module.default)
 export const routers = [
 	{
 		title: '首頁',
 		path: '/',
 		exact: true,
-		component: Home
-		// getComponent(location, cb) {
-		//   import(/* webpackChunkName: "home" */ '@P/home/')
-		//   .then(loadRoute(cb))
-		// },
-	}
+		// component: Home
+		component: Loadable({
+			loader: () => import(/* webpackChunkName: "home" */ '@P/home/'),
+			loading: A
+		})
+	},
 	// {
 	//   title: 'RPG Room',
 	//   path: '/rpgroom',
@@ -49,14 +52,15 @@ export const routers = [
 	//     .then(loadRoute(cb))
 	//   },
 	// },
-	// {
-	//   title: 'Auth',
-	//   path: '/auth',
-	//   getComponent(location, cb) {
-	//     import(/* webpackChunkName: "auth" */ '@P/auth/')
-	//     .then(loadRoute(cb))
-	//   },
-	// },
+	{
+		title: 'Auth',
+		path: '/auth',
+		component: () =>
+			Loadable({
+				loader: import(/* webpackChunkName: "home" */ '@P/auth/'),
+				loading: A
+			})
+	}
 	// {
 	//   title: '地圖查詢',
 	//   path: '/directions',
@@ -78,19 +82,16 @@ export const routers = [
 	//   routes: [
 	//     {
 	//       indexRoute: {
-	//         title: '查詢',
-	//         getComponent(location, cb) {
-	//           import(/* webpackChunkName: "searchApi" */ '@P/searchApi/')
-	//           .then(loadRoute(cb))
-	//         },
+	// 		title: '查詢',
+	// 		component: () =>
+	// 		Loadable({ loader: import(/* webpackChunkName: "home" */ '@P/searchApi/'), loading: A })
 	//       },
 	//     },
 	//     {
 	//       title: '查詢',
-	//       path: '/search(/:keyword)',
-	//       getComponent(location, cb) {
-	//         import(/* webpackChunkName: "searchApi" */ '@P/searchApi/')
-	//         .then(loadRoute(cb))
+	// 	  path: '/search(/:keyword)',
+	// 	  component: () =>
+	// 	  	Loadable({ loader: import(/* webpackChunkName: "home" */ '@P/searchApi/'), loading: A })
 	//       },
 	//     },
 	//   ],

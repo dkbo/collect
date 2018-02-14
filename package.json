@@ -19,11 +19,13 @@
   },
   "homepage": "https://dkbo.github.io/collect/",
   "dependencies": {
+    "babel-plugin-syntax-dynamic-import": "^6.18.0",
     "history": "^4.7.2",
     "immutable": "^3.8.1",
     "moment": "^2.17.1",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
+    "react-loadable": "^5.3.1",
     "react-redux": "^5.0.2",
     "react-router": "^4.2.0",
     "react-router-config": "^1.0.0-beta.4",
