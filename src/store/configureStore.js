@@ -1,12 +1,11 @@
 import { createStore, applyMiddleware, combineReducers, compose } from 'redux'
 import { routerReducer as routing, routerMiddleware } from 'react-router-redux'
-import createHistory from 'history/createBrowserHistory';
+import history from '../config/currentHistory'
 import { createEpicMiddleware } from 'redux-observable'
 import promise from 'redux-promise';
 // import logger from 'redux-logger';
 import * as reducers from '../reducers'
 import rootEpics from '../epics'
-export const history = createHistory()
 const epicMiddleware = createEpicMiddleware(rootEpics)
 // const epicMiddleware = createEpicMiddleware(epics.searchGithubKeywordEpics)
 const createStoreWithMiddleware = compose(

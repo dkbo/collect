@@ -1,3 +1,5 @@
-import createHistory from 'history/createBrowserHistory'
+import { createBrowserHistory, createHashHistory } from 'history'
 
-export default createHistory()
+const currentHistory = __HASHPATH__ ? createHashHistory : createBrowserHistory
+
+export default currentHistory()

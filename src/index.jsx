@@ -4,7 +4,8 @@ import { render } from 'react-dom'
 import { Provider } from 'react-redux'
 import { Route, Switch } from 'react-router-dom'
 import { ConnectedRouter } from 'react-router-redux'
-import { configureStore, history } from './store/configureStore'
+import { configureStore } from './store/configureStore'
+import history from './config/currentHistory'
 import { chat, geo } from './config/firebase'
 import './index.sass'
 import App from './containers/app'
@@ -22,9 +23,9 @@ firebase.geoDB = firebase.database(geoApp)
 console.log(store)
 render(
 	<Provider store={store}>
-		<ConnectedRouter history={history}>
-			<App />
-		</ConnectedRouter>
+		<ConnectedRouter history={history} />
+			{/* <App />
+		</ConnectedRouter> */}
 	</Provider>,
 	document.getElementById('app')
 )
