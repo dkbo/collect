@@ -20,6 +20,7 @@ module.exports = {
     filename: '[name].js',
     publicPath,
   },
+  devtool: 'source-map',
   resolve: {
     extensions: ['.js', '.jsx', '.css', '.sass'],
     alias: {
