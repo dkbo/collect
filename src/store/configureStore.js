@@ -1,11 +1,12 @@
 import { createStore, applyMiddleware, combineReducers, compose } from 'redux'
 import { routerReducer as routing, routerMiddleware } from 'react-router-redux'
+import createHistory from 'history/createBrowserHistory';
 import { createEpicMiddleware } from 'redux-observable'
 import promise from 'redux-promise';
 // import logger from 'redux-logger';
 import * as reducers from '../reducers'
 import rootEpics from '../epics'
-
+export const history = createHistory()
 const epicMiddleware = createEpicMiddleware(rootEpics)
 // const epicMiddleware = createEpicMiddleware(epics.searchGithubKeywordEpics)
 const createStoreWithMiddleware = compose(
@@ -20,7 +21,7 @@ const middleware = [rootReducer]
 if (process.env.NODE_ENV !== 'production') {
   middleware.push(window.devToolsExtension && window.devToolsExtension())
 }
-const configureStore = (initialState) => {
+export const configureStore = (initialState) => {
   const store = createStoreWithMiddleware(
     ...middleware,
     applyMiddleware(epicMiddleware),
@@ -37,4 +38,3 @@ const configureStore = (initialState) => {
   return store;
 }
 
-export default configureStore
