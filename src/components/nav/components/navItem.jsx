@@ -2,16 +2,12 @@ import React, { Component } from 'react'
 import PropTypes from 'prop-types'
 import { NavLink } from 'react-router-dom'
 export default class NavItem extends Component {
-  shouldComponentUpdate() {
-    return false
-  }
   render() {
     return (
       <li className="nav-item" >
         <NavLink
           to={this.props.to}
           className="nav-link"
-          // activeClassName="active"
           exact={this.props.to === '/'}
           onClick={this.props.navToggle}
         >

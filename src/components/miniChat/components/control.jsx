@@ -15,7 +15,10 @@ export default class Control extends Component {
     this.clickSubject = new Rx.Subject()
 
     this.keyDown = this.keyDownSubject
-      .filter(e => e.keyCode === 13)
+      .filter(e => {
+        console.log(321)
+        return e.keyCode === 13
+      })
       .throttleTime(1000)
       .do(this.SendMessage)
 
@@ -65,8 +68,10 @@ export default class Control extends Component {
   SendMessage = () => {
     const user = this.getUser()
     if (user) {
+    console.log(this.state)
       const { message } = this.state;
-      if (message.trim('')) {
+      if (message.trim()) {
+        console.log(3)
         const youtubeReg = /(?:[?&]v=|\/embed\/|\/1\/|\/v\/|https:\/\/(?:www\.)?youtu\.be\/)([^&\n?#]+)/
         const youtubeMatch = message.match(youtubeReg)
 
