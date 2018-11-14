@@ -2,29 +2,29 @@ import React, { Component } from 'react'
 import PropTypes from 'prop-types'
 import Input from './components/input'
 import ListBox from './components/listBox'
-import { Link } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { bindActionCreators } from 'redux'
 
 import './todos.sass'
 
-const mapStateToProps = state => ({
-	// chat: state.chat
-	// miniChat: state.miniChat,
-	// directions: state.directions,
-	// showList: state.searchApi,
-	// geo: state.geo,
-	// player: state.player.toObject(),
-	// sence: state.sence,
-	// npc: state.npc.toObject(),
-	todos: state.todos
-})
+// const mapStateToProps = state => ({
+// 	chat: state.chat,
+// 	miniChat: state.miniChat,
+// 	directions: state.directions,
+// 	showList: state.searchApi,
+// 	geo: state.geo,
+// 	player: state.player.toObject(),
+// 	sence: state.sence,
+// 	npc: state.npc.toObject(),
+// 	todos: state.todos
+// })
 /**
  * Reducers 方法綁定在 Props 裡
  * @param {JSON} dispatch 執行 Action 方法
  * @returns {any} Reducers 方法綁定在 Props 裡
  */
-const mapDispatchToProps = dispatch => bindActionCreators(actions, dispatch)
-@connect(mapStateToProps, mapDispatchToProps)
+// const mapDispatchToProps = dispatch => bindActionCreators(actions, dispatch)
+// @connect(mapStateToProps, mapDispatchToProps)
 export default class Todolist extends Component {
 	state = {
 		liLeave: false
@@ -70,13 +70,13 @@ export default class Todolist extends Component {
 					</div>
 					<Input {...this.props} />
 					<div id="todoOption">
-						<Link to="/todos">All</Link>
-						<Link to="/todos/active" activeClassName="active">
+						<NavLink to="/todos">All</NavLink>
+						<NavLink to="/todos/active" activeClassName="active">
 							Active
-						</Link>
-						<Link to="/todos/completed" activeClassName="active">
+						</NavLink>
+						<NavLink to="/todos/completed" activeClassName="active">
 							Completed
-						</Link>
+						</NavLink>
 					</div>
 					<ul>
 						{this.props.todos.map((object, index) => (

@@ -18,7 +18,8 @@ export default class Search extends Component {
   }
 
   componentDidMount() {
-    const keyword = this.props.router.params.keyword
+    console.log(this.props);
+    const keyword = this.props.match.params.keyword
     if (keyword) {
       this.changeSubject.next(keyword)
     }
@@ -32,8 +33,8 @@ export default class Search extends Component {
   }
 
   getDefaultValue = () => {
-    if (this.props.router.params.keyword) {
-      return this.props.router.params.keyword
+    if (this.props.match.params.keyword) {
+      return this.props.match.params.keyword
     }
     return this.props.showList.wiki ? this.props.showList.wiki[0] : ''
   }

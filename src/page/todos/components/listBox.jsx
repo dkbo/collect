@@ -23,9 +23,9 @@ export default class ListBox extends Component {
   getEditLabelClassName = () => (this.props.object.completed ? 'hidden-xs-up' : '')
   getLiClassName = () => {
     let state = ''
-    if (this.props.router.params.keyword === 'completed') {
+    if (this.props.match.params.keyword === 'completed') {
       state = this.props.object.completed ? '' : 'hide'
-    } else if (this.props.router.params.keyword === 'active') {
+    } else if (this.props.match.params.keyword === 'active') {
       state = this.props.object.completed ? 'hide' : ''
     }
 

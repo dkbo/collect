@@ -1,7 +1,6 @@
 import React, { Component } from 'react'
 import PropTypes from 'prop-types'
-import { Link } from 'react-router-dom'
-
+import { NavLink } from 'react-router-dom'
 export default class NavItem extends Component {
   shouldComponentUpdate() {
     return false
@@ -9,15 +8,15 @@ export default class NavItem extends Component {
   render() {
     return (
       <li className="nav-item" >
-        <Link
+        <NavLink
           to={this.props.to}
           className="nav-link"
-          activeClassName="active"
-          onlyActiveOnIndex={this.props.to === '/'}
+          // activeClassName="active"
+          exact={this.props.to === '/'}
           onClick={this.props.navToggle}
         >
           {this.props.title}
-        </Link>
+        </NavLink>
       </li>
     )
   }

@@ -3,7 +3,6 @@ import PropTypes from 'prop-types'
 import { bindActionCreators } from 'redux'
 import { connect } from 'react-redux'
 import * as actions from '../actions'
-import { Route, Switch } from 'react-router-dom'
 import { renderRoutes } from 'react-router-config'
 import routes from '../router'
 
@@ -14,15 +13,15 @@ import Nav from '../components/nav/'
  * @returns {JSON} Store 數據綁定在 Props裡
  */
 const mapStateToProps = state => ({
-	chat: state.chat
-	// miniChat: state.miniChat,
-	// directions: state.directions,
-	// showList: state.searchApi,
-	// geo: state.geo,
-	// player: state.player.toObject(),
-	// sence: state.sence,
-	// npc: state.npc.toObject(),
-	// todos: state.todos
+	chat: state.chat,
+	miniChat: state.miniChat,
+	directions: state.directions,
+	showList: state.searchApi,
+	geo: state.geo,
+	player: state.player.toObject(),
+	sence: state.sence,
+	npc: state.npc.toObject(),
+	todos: state.todos
 })
 /**
  * Reducers 方法綁定在 Props 裡
@@ -108,24 +107,23 @@ class App extends Component {
 			console.log(`${displayName}下線了`)
 		}
 	}
-	render() {
-		// const chatMessageOn = this.chatMessageOn
-		// const chatMessageOff = this.chatMessageOff
+	render(route) {
+		const chatMessageOn = this.chatMessageOn
+		const chatMessageOff = this.chatMessageOff
+		const renderRoutesData = renderRoutes(routes, this.props)
 		// const title = this.props.children.props.route.title
+		// const title = 'te'
 		// const Page = React.cloneElement(this.props.children, {
 		// 	...this.props,
 		// 	chatMessageOn,
 		// 	chatMessageOff,
-		// 	title
+		// 	// title
 		// })
 		// document.title = `DKBO - ${title}`
-
 		return (
 			<main>
 				<Nav />
-				<Switch>
-					{renderRoutes(routes)}
-				</Switch>
+				{renderRoutesData}
 			</main>
 		)
 	}

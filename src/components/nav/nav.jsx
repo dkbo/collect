@@ -81,8 +81,9 @@ export default class Nav extends Component {
       <nav id="navTop" className="navbar navbar-dark navbar-full">
         <button className="btn hidden-md-up" onClick={this.navToggle}><i className="fa fa-bars" /></button>
         <ul className={this.getNavbarClass()}>
-          {navItems.map(item =>
-            <NavItem to={item.to} key={item.id} title={item.title} navToggle={this.navToggle} />)}
+          { navItems.map(item =>
+              <NavItem to={item.to} key={item.id} title={item.title} navToggle={this.navToggle} />)
+          }
         </ul>
         <div className="float-xs-right">
           {user ? <button className="btn"><img className="rounded" src={user.photoURL} alt="" /></button> : null}
