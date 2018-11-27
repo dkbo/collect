@@ -122,6 +122,11 @@ export const routers = [
 		component: loadRoute(() => import(/* webpackChunkName: "todos" */ '@P/todos/')),
 	},
 	{
+		path: '/3dsence',
+		title: '3dSence',
+		component: loadRoute(() => import(/* webpackChunkName: "3dSence" */ '@P/3dSence/')),
+	},
+	{
 		title: '404',
 		path: '/*',
 		component: loadRoute(() => import(/* webpackChunkName: "notFoundPage" */ '@P/notFoundPage/'))
