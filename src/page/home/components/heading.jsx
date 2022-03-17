@@ -45,7 +45,7 @@ const highlight = `/**
 
 const Heading = () => (
   <div>
-    <h2 className="card-header">這是單調的首頁</h2>
+    <h2 className="card-header">5年前(過去式)</h2>
     <div className="card-block row">
       <div className="col col-md-6">
         <div className="card">

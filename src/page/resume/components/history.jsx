@@ -23,6 +23,7 @@ export default class History extends Component {
       <Card header="經歷">
         <div className="history">
           <div className="middleLine" style={{ height: this.state.middleLineHeight }} />
+          <Log name="光曳資訊有限公司" classor="高階前端工程師" time="2017-2022" />
           <Log name="盛大資訊股份有限公司" classor="前端工程師" time="2016-2017" />
           <Log name="台灣惠多笑有限公司" classor="網頁工程師" time="2013-2016" />
           <Log name="威弘數位工程有限公司" classor="系統工程師" time="2012-2012" />

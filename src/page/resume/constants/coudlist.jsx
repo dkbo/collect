@@ -1,19 +1,17 @@
 const list = [
   ['HTML', 6],
   ['Javascript', 6],
-  ['ECMA Script', 6],
+  ['ES6', 6],
   ['CSS', 6],
   //
-  ['Sass', 4],
-  ['Jade', 4],
-  ['BaBel', 4],
+  ['sass', 4],
+  ['pug', 4],
+  ['babel', 4],
   //
-  ['Gulp', 4],
-  ['Webpack', 4],
+  ['gulp', 4],
+  ['webpack', 4],
   //
-  ['Atom', 3],
   ['Virtual Studio Code', 3],
-  ['Sublime Text', 3],
   //
   ['Wordpress', 3],
   ['Joomla', 3],
@@ -34,11 +32,7 @@ const list = [
   //
   ['Node', 3],
   ['PHP', 3],
-  ['JSP', 3],
   //
-  ['MySql', 3],
-  ['Oracle', 3],
-  ['MongoDB', 3],
-  ['NoSql', 3],
+  ['Jest', 3],
 ]
 export default list

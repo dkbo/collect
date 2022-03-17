@@ -23,8 +23,8 @@ const Media = () => (
     </a>
     <div className="media-body">
       <div className="h4 media-heading">盧宏寶</div>
-      <Pair label="Class:" span="前端工程師" />
-      <Pair label="Level:" span="3年" />
+      <Pair label="Class:" span="高階前端工程師" />
+      <Pair label="Level:" span="9年" />
       <Pair label="Email:" span="dk880842@gmail.com" />
       <Pair label="Location:" span="台灣高雄市" />
     </div>

@@ -56,6 +56,7 @@ export default class Todolist extends Component {
 		engine.runRenderLoop(function() {
 			scene.render()
 		})
+		window.onresize = () => engine.resize()
 	}
 	render() {
 		return <canvas id="sence" />
