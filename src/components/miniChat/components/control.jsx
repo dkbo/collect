@@ -15,7 +15,7 @@ export default class Control extends Component {
     this.clickSubject = new Rx.Subject()
 
     this.keyDown = this.keyDownSubject
-      .filter(e => {
+      .filter((e) => {
         console.log(321)
         return e.keyCode === 13
       })
@@ -68,7 +68,7 @@ export default class Control extends Component {
   SendMessage = () => {
     const user = this.getUser()
     if (user) {
-    console.log(this.state)
+      console.log(this.state)
       const { message } = this.state;
       if (message.trim()) {
         console.log(3)

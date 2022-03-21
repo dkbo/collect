@@ -22,10 +22,10 @@ firebase.chatAH = firebase.auth()
 const geoApp = firebase.app('geo')
 firebase.geoDB = firebase.database(geoApp)
 render(
-	<Provider store={store}>
-		<ConnectedRouter history={history}>
-			<App />
-		</ConnectedRouter>
-	</Provider>,
-	document.getElementById('app')
+  <Provider store={store}>
+    <ConnectedRouter history={history}>
+      <App />
+    </ConnectedRouter>
+  </Provider>,
+  document.getElementById('app'),
 )
