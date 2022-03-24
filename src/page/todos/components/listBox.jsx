@@ -1,78 +1,83 @@
-import React, { Component } from 'react'
+import React, { useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
 import './listBox.sass'
 
-export default class ListBox extends Component {
-  constructor(props) {
-    super(props)
-    this.DeleteSubject = new Rx.Subject()
+const DeleteSubject = new Rx.Subject()
 
-    this.Delete = this.DeleteSubject
-      .map(() => this.handleLeave())
+const ListBox = (props) => {
+  const editRef = useRef(null)
+
+  useEffect(() => {
+    DeleteSubject
+      .map(handleLeave)
       .delay(500)
-      .subscribe(this.handleDelete)
-  }
-  componentDidUpdate(prevProps) {
-    if (this.props.del) {
-      this.DeleteSubject.next()
+      .subscribe(handleDelete)
+  }, [])
+  useEffect(() => {
+    if (props.del) {
+      DeleteSubject.next()
     }
-    if (!prevProps.object.isEdit && this.props.object.isEdit) {
-      this.refs.edit.focus();
+  })
+  useEffect(() => {
+    console.log(11);
+    if (editRef.current) {
+      editRef.current.focus();
     }
-  }
-  getEditLabelClassName = () => (this.props.object.completed ? 'hidden-xs-up' : '')
-  getLiClassName = () => {
+  }, [props.object.isEdit])
+
+  const getEditLabelClassName = () => (props.object.completed ? 'hidden-xs-up' : '')
+  const getLiClassName = () => {
     let state = ''
-    if (this.props.match.params.keyword === 'completed') {
-      state = this.props.object.completed ? '' : 'hide'
-    } else if (this.props.match.params.keyword === 'active') {
-      state = this.props.object.completed ? 'hide' : ''
+    if (props.match.params.keyword === 'completed') {
+      state = props.object.completed ? '' : 'hide'
+    } else if (props.match.params.keyword === 'active') {
+      state = props.object.completed ? 'hide' : ''
     }
 
-    if (this.props.object.isLeave) {
-      if(state.indexOf('hide') === -1) {
+    if (props.object.isLeave) {
+      if (state.indexOf('hide') === -1) {
         state += `${state} leaved`
       }
     }
 
-    if (this.props.object.completed) {
+    if (props.object.completed) {
       return `${state} completed`
     }
 
     return state
   }
-  getLiItems = () => (
-    this.props.object.isEdit
-      ? <input ref="edit" type="text" onBlur={this.handleBlur} onKeyDown={this.handleEdit} defaultValue={this.props.object.value} />
-      : <span>{this.props.object.value}</span>
+
+  const handleLeave = () => props.todoLeave(props.index)
+  const handleDelete = () => props.todoDelete(props.index)
+  const handleEdit = e => (
+    e.keyCode === 13 ? props.todoUpdate(e.target.value, props.index) : null
   )
-  handleLeave = () => this.props.todoLeave(this.props.index)
-  handleDelete = () => this.props.todoDelete(this.props.index)
-  handleEdit = e => (
-    e.keyCode === 13 ? this.props.todoUpdate(e.target.value, this.props.index) : null
+  const handleBlur = e => props.todoUpdate(e.target.value, props.index)
+  const handleEditActive = () => props.todoUpdateActive(props.index)
+  const handleCompleted = () => props.todoCompleted(props.index)
+  const getLiItems = () => (
+    props.object.isEdit
+      ? <input ref={editRef} type="text" onBlur={handleBlur} onKeyDown={handleEdit} defaultValue={props.object.value} />
+      : <span>{props.object.value}</span>
   )
-  handleBlur = e => this.props.todoUpdate(e.target.value, this.props.index)
-  handleEditActive = () => this.props.todoUpdateActive(this.props.index)
-  handleCompleted = () => this.props.todoCompleted(this.props.index)
-  render() {
-    return (
-      <li className={this.getLiClassName()}>
-        <div className="liText" onMouseDown={this.handleCompleted} >{this.getLiItems()}</div>
-        <label className={this.getEditLabelClassName()} htmlFor="edit">
-          <button id="edit" onClick={this.handleEditActive}>
-            <i className="fa fa-edit" />
-          </button>
-        </label>
-        <label htmlFor="delete">
-          <button id="delete" onClick={() => this.DeleteSubject.next()}>
-            <i className="fa fa-remove" />
-          </button>
-        </label>
-      </li>
-    )
-  }
+  return (
+    <li className={getLiClassName()}>
+      <div className="liText" onMouseDown={handleCompleted} >{getLiItems()}</div>
+      <label className={getEditLabelClassName()} htmlFor="edit">
+        <button id="edit" onClick={handleEditActive}>
+          <i className="fa fa-edit" />
+        </button>
+      </label>
+      <label htmlFor="delete">
+        <button id="delete" onClick={() => DeleteSubject.next()}>
+          <i className="fa fa-remove" />
+        </button>
+      </label>
+    </li>
+  )
 }
 ListBox.propTypes = {
+  todoLeave: PropTypes.func,
   todoDelete: PropTypes.func,
   todoUpdate: PropTypes.func,
   todoCompleted: PropTypes.func,
@@ -80,3 +85,5 @@ ListBox.propTypes = {
   object: PropTypes.object,
   index: PropTypes.number,
 }
+
+export default ListBox

@@ -28,7 +28,7 @@ const MiniGame = () => {
   const requestRef = useRef();
   const canvasEl = createRef(null)
   const [score, setScore] = useState(0)
-  const [hp, setHp] = useState(1000)
+  const [hp, setHp] = useState(10)
   const keydown = (e) => {
     switch (e.keyCode) {
       case 32:
@@ -202,7 +202,7 @@ const MiniGame = () => {
         ? <canvas ref={canvasEl} id="canvas1" width="1200px" height="1000px" />
         : <div className="gameover" onClick={startGame}>
           Game Over
-          </div>
+        </div>
       }
       <div className="score">
         <strong>Score:</strong> {score}/hp: {hp}

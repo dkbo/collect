@@ -1,59 +1,54 @@
-import React, { Component } from 'react'
+import React, { useEffect, useLayoutEffect, useState } from 'react'
 import PropTypes from 'prop-types'
 import currentHistory from '../../../config/currentHistory'
 import './search.sass'
 
-export default class Search extends Component {
-  componentWillMount() {
-    this.changeSubject = new Rx.Subject()
-
-    const search = this.changeSubject
+const changeSubject = new Rx.Subject()
+const Search = (props) => {
+  useLayoutEffect(() => {
+    const search = changeSubject
       .filter(value => value.trim())
       .debounceTime(500)
       .do(value => currentHistory.push(`/search/${value}`))
       .share()
 
-    this.wikiSearch = search.subscribe(this.props.searchWikiKeyword)
-    this.githubSearch = search.subscribe(this.props.searchGithubKeyword)
-  }
-
-  componentDidMount() {
-    console.log(this.props);
-    const keyword = this.props.match.params.keyword
+    const wikiSearch = search.subscribe(props.searchWikiKeyword)
+    const githubSearch = search.subscribe(props.searchGithubKeyword)
+    const keyword = props.match.params.keyword
     if (keyword) {
-      this.changeSubject.next(keyword)
+      changeSubject.next(keyword)
     }
-  }
-  shouldComponentUpdate() {
-    return false
-  }
-  componentWillUnmount() {
-    this.wikiSearch.unsubscribe()
-    this.githubSearch.unsubscribe()
+    return () => {
+      wikiSearch.unsubscribe()
+      githubSearch.unsubscribe()
+    }
+  }, [])
+  // useEffect(() => {
+
+  // }, [])
+  // shouldComponentUpdate() {
+  //   return false
+  // }
+  const getDefaultValue = () => {
+    if (props.match.params.keyword) {
+      return props.match.params.keyword
+    }
+    return props.showList.wiki ? props.showList.wiki[0] : ''
   }
 
-  getDefaultValue = () => {
-    if (this.props.match.params.keyword) {
-      return this.props.match.params.keyword
-    }
-    return this.props.showList.wiki ? this.props.showList.wiki[0] : ''
-  }
-
-  render() {
-    return (
-      <div id="search">
-        <label id="search-icon" htmlFor="search-input"><i className="fa fa-search" /></label>
-        <input
-          type="search"
-          id="search-input"
-          defaultValue={this.getDefaultValue()}
-          onChange={e => this.changeSubject.next(e.target.value)}
-          autoComplete="off"
-          placeholder="搜尋關鍵字"
-        />
-      </div>
-    )
-  }
+  return (
+    <div id="search">
+      <label htmlFor="search-input" id="search-icon"><i className="fa fa-search" /></label>
+      <input
+        type="search"
+        id="search-input"
+        defaultValue={getDefaultValue()}
+        onChange={e => changeSubject.next(e.target.value)}
+        autoComplete="off"
+        placeholder="搜尋關鍵字"
+      />
+    </div>
+  )
 }
 
 Search.propTypes = {
@@ -63,3 +58,4 @@ Search.propTypes = {
   router: PropTypes.object,
 }
 
+export default Search

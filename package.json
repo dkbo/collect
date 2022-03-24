@@ -37,7 +37,8 @@
     "redux-observable": "^0.17.0",
     "redux-promise": "^0.5.3",
     "redux-thunk": "^2.2.0",
-    "rxjs": "^5.5.2"
+    "rxjs": "^5.5.2",
+    "prop-types": "^15.6.0"
   },
   "devDependencies": {
     "autoprefixer": "^7.2.5",
@@ -71,7 +72,6 @@
     "node-sass": "^4.5.0",
     "opn": "^5.1.0",
     "postcss-loader": "^2.0.10",
-    "prop-types": "^15.6.0",
     "pug": "^2.0.0-beta11",
     "pug-loader": "^2.3.0",
 

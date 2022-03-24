@@ -1,45 +1,38 @@
-import React, { Component } from 'react'
+import React, { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import './log.sass'
 
-export default class Log extends Component {
-  state = {
-    logOpacity: 0,
-    stemWidth: 0,
-  }
-
-  componentDidMount() {
+const Log = (props) => {
+  const [logOpacity, setLogOpacity] = useState(0)
+  const [stemWidth, setStemWidth] = useState(0)
+  useEffect(() => {
     Rx.Observable
       .of('100px')
       .delay(1500)
       .take(1)
-      .subscribe(this.setStemWidth)
+      .subscribe(setStemWidth)
 
     Rx.Observable
       .of(1)
       .delay(2100)
       .take(1)
-      .subscribe(this.setLogOpacity)
-  }
+      .subscribe(setLogOpacity)
+  }, [])
 
-  setStemWidth = stemWidth => this.setState({ stemWidth })
 
-  setLogOpacity = logOpacity => this.setState({ logOpacity })
-
-  render() {
-    return (
-      <div className="log">
-        <div className="stem" style={{ width: this.state.stemWidth }} />
-        <section style={{ opacity: this.state.logOpacity }}>
-          <div className="name">{this.props.name}</div>
-          <div className="class">{this.props.classor}</div>
-          <div className="time">{this.props.time}</div>
-        </section>
-      </div>
-    )
-  }
+  return (
+    <div className="log">
+      <div className="stem" style={{ width: stemWidth }} />
+      <section style={{ opacity: logOpacity }}>
+        <div className="name">{props.name}</div>
+        <div className="class">{props.classor}</div>
+        <div className="time">{props.time}</div>
+      </section>
+    </div>
+  )
 }
 
+export default Log
 Log.propTypes = {
   name: PropTypes.string.isRequired,
   classor: PropTypes.string.isRequired,

@@ -1,4 +1,4 @@
-import React, { Component } from 'react'
+import React, { } from 'react'
 import About from './components/about'
 import Author from './components/author'
 import History from './components/history'
@@ -7,19 +7,16 @@ import State from './components/state'
 
 import './resume.sass'
 
-export default class Resume extends Component {
-
-  render() {
-    return (
-      <div className="container-fluid" id="resume">
-        <div className="masonry">
-          <About />
-          <Author />
-          <State />
-          <History />
-          <Skill />
-        </div>
+export default function Resume() {
+  return (
+    <div className="container-fluid" id="resume">
+      <div className="masonry">
+        <About />
+        <Author />
+        <State />
+        <History />
+        <Skill />
       </div>
-    )
-  }
+    </div>
+  )
 }
