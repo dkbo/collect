@@ -1,30 +1,22 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
 import './listBox.sass'
+import { resolve } from 'path'
 
-const DeleteSubject = new Rx.Subject()
 
 const ListBox = (props) => {
   const editRef = useRef(null)
 
   useEffect(() => {
-    DeleteSubject
-      .map(handleLeave)
-      .delay(500)
-      .subscribe(handleDelete)
-  }, [])
-  useEffect(() => {
     if (props.del) {
-      DeleteSubject.next()
+      handleLeaveAndDelete()
     }
   })
   useEffect(() => {
-    console.log(11);
     if (editRef.current) {
       editRef.current.focus();
     }
   }, [props.object.isEdit])
-
   const getEditLabelClassName = () => (props.object.completed ? 'hidden-xs-up' : '')
   const getLiClassName = () => {
     let state = ''
@@ -46,12 +38,13 @@ const ListBox = (props) => {
 
     return state
   }
-
   const handleLeave = () => props.todoLeave(props.index)
   const handleDelete = () => props.todoDelete(props.index)
-  const handleEdit = e => (
-    e.keyCode === 13 ? props.todoUpdate(e.target.value, props.index) : null
-  )
+  const handleLeaveAndDelete = (e) => {
+    handleLeave()
+    setTimeout(() => handleDelete(), 500)
+  }
+  const handleEdit = e => e.keyCode === 13 ? props.todoUpdate(e.target.value, props.index) : null
   const handleBlur = e => props.todoUpdate(e.target.value, props.index)
   const handleEditActive = () => props.todoUpdateActive(props.index)
   const handleCompleted = () => props.todoCompleted(props.index)
@@ -63,13 +56,13 @@ const ListBox = (props) => {
   return (
     <li className={getLiClassName()}>
       <div className="liText" onMouseDown={handleCompleted} >{getLiItems()}</div>
-      <label className={getEditLabelClassName()} htmlFor="edit">
-        <button id="edit" onClick={handleEditActive}>
+      <label className={getEditLabelClassName()} htmlFor={`edit${props.index}`}>
+        <button id={`edit${props.index}`} onClick={handleEditActive}>
           <i className="fa fa-edit" />
         </button>
       </label>
-      <label htmlFor="delete">
-        <button id="delete" onClick={() => DeleteSubject.next()}>
+      <label htmlFor={`delete${props.index}`}>
+        <button id={`delete${props.index}`} onClick={handleLeaveAndDelete}>
           <i className="fa fa-remove" />
         </button>
       </label>

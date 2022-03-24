@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import Input from './components/input';
 import ListBox from './components/listBox';
@@ -6,48 +6,46 @@ import { NavLink } from 'react-router-dom';
 
 import './todos.sass';
 
-export default class Todolist extends Component {
-  state = {
-    liLeave: false,
-  };
-  constructor(props) {
-    super(props);
+const DeleteSubjectCompleted = new Rx.Subject()
+const DeleteSubjectAll = new Rx.Subject()
 
-    this.DeleteSubjectCompleted = new Rx.Subject();
-    this.DeleteSubjectAll = new Rx.Subject();
+const Todolist = (props) => {
+  const [liLeave, setLiLeave] = useState(false)
+  useEffect(() => {
 
-    this.DeleteCompleted = this.DeleteSubjectCompleted;
-    this.DeleteAll = this.DeleteSubjectAll;
+    let DeleteCompleted = DeleteSubjectCompleted;
+    let DeleteAll = DeleteSubjectAll;
 
-    this.DeleteCompleted = this.DeleteSubjectAll.map(func =>
-      this.props.todoLeaveAll())
+    DeleteCompleted = DeleteSubjectAll.map(func =>
+      props.todoLeaveAll())
       .delay(500)
-      .subscribe(this.props.todoDeleteAll);
+      .subscribe(props.todoDeleteAll);
 
-    this.DeleteAll = this.DeleteSubjectCompleted.map(() =>
-      this.props.todoLeaveCompleted())
+    DeleteAll = DeleteSubjectCompleted.map(() =>
+      props.todoLeaveCompleted())
       .delay(500)
-      .subscribe(this.props.todoDeleteCompleted);
-  }
-  componentWillUnmount() {
-    this.DeleteSubjectCompleted.unsubscribe();
-    this.DeleteSubjectAll.unsubscribe();
-  }
-  render() {
-    localStorage.todos = JSON.stringify(this.props.todos);
+      .subscribe(props.todoDeleteCompleted);
+    return () => {
+      DeleteSubjectCompleted.unsubscribe();
+      DeleteSubjectAll.unsubscribe();
+    }
+  },[])
+  useEffect(() => {
+    localStorage.todos = JSON.stringify(props.todos);
+  })
     return (
       <div id="todos">
         <div id="todoBox">
-          <h1>Todos({this.props.todos.length})</h1>
+          <h1>Todos({props.todos.length})</h1>
           <div id="todoControl">
-            <button onClick={() => this.DeleteSubjectCompleted.next()}>
+            <button onClick={() => DeleteSubjectCompleted.next()}>
               Clear Completed
             </button>
-            <button onClick={() => this.DeleteSubjectAll.next()}>
+            <button onClick={() => DeleteSubjectAll.next()}>
               Clear All
             </button>
           </div>
-          <Input {...this.props} />
+          <Input {...props} />
           <div id="todoOption">
             <NavLink to="/todos">All</NavLink>
             <NavLink to="/todos/active" activeClassName="active">
@@ -58,9 +56,9 @@ export default class Todolist extends Component {
             </NavLink>
           </div>
           <ul>
-            {this.props.todos.map((object, index) => (
+            {props.todos.map((object, index) => (
               <ListBox
-                {...this.props}
+                {...props}
                 object={object}
                 key={object.timestamp}
                 index={index}
@@ -69,11 +67,12 @@ export default class Todolist extends Component {
           </ul>
         </div>
       </div>
-    );
-  }
+    )
 }
 Todolist.propTypes = {
   todos: PropTypes.array,
   todoDeleteAll: PropTypes.func,
   todoDeleteCompleted: PropTypes.func,
 };
+
+export default Todolist

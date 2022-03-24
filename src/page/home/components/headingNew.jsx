@@ -8,9 +8,8 @@ const HeadingNew = () => (
     <h2 className="card-header">簡介</h2>
     <div className="card-block row">
       <div className="col col-md-12">
-          高階前端工程師，用 vue 及 react 開發過大大小小的專案，曾任職6人team leader 並指派任務。
+          資深前端工程師，用 Vue 及 React 開發過大大小小的專案，未來會想朝著區塊鍊及元宇宙 WebVR WebAR發展，開發更多有趣及有意義的項目。
       </div>
-
     </div>
   </div>
 )
