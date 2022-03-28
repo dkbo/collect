@@ -1,6 +1,7 @@
 ---
   extends:
     - plugin:react/recommended
+    - prettier
     - airbnb
 
 

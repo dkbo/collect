@@ -6,42 +6,42 @@ import { NavLink } from 'react-router-dom';
 
 import './todos.sass';
 
-const DeleteSubjectCompleted = new Rx.Subject()
-const DeleteSubjectAll = new Rx.Subject()
+
 
 const Todolist = (props) => {
   const [liLeave, setLiLeave] = useState(false)
   useEffect(() => {
+    this.DeleteSubjectCompleted = new Rx.Subject()
+    this.DeleteSubjectAll = new Rx.Subject()
+    let DeleteCompleted = this.DeleteSubjectCompleted;
+    let DeleteAll = this.DeleteSubjectAll
 
-    let DeleteCompleted = DeleteSubjectCompleted;
-    let DeleteAll = DeleteSubjectAll;
-
-    DeleteCompleted = DeleteSubjectAll.map(func =>
+    DeleteCompleted = this.DeleteSubjectAll.map(func =>
       props.todoLeaveAll())
       .delay(500)
       .subscribe(props.todoDeleteAll);
 
-    DeleteAll = DeleteSubjectCompleted.map(() =>
+    DeleteAll = this.DeleteSubjectCompleted.map(() =>
       props.todoLeaveCompleted())
       .delay(500)
       .subscribe(props.todoDeleteCompleted);
     return () => {
-      DeleteSubjectCompleted.unsubscribe();
-      DeleteSubjectAll.unsubscribe();
+      this.DeleteSubjectCompleted.unsubscribe();
+      this.DeleteSubjectAll.unsubscribe();
     }
   },[])
   useEffect(() => {
-    localStorage.todos = JSON.stringify(props.todos);
+    localStorage.todos = JSON.stringify(props.todos || {});
   })
     return (
       <div id="todos">
         <div id="todoBox">
           <h1>Todos({props.todos.length})</h1>
           <div id="todoControl">
-            <button onClick={() => DeleteSubjectCompleted.next()}>
+            <button onClick={() => this.DeleteSubjectCompleted.next()}>
               Clear Completed
             </button>
-            <button onClick={() => DeleteSubjectAll.next()}>
+            <button onClick={() => this.DeleteSubjectAll.next()}>
               Clear All
             </button>
           </div>
@@ -69,10 +69,12 @@ const Todolist = (props) => {
       </div>
     )
 }
+
+
 Todolist.propTypes = {
   todos: PropTypes.array,
   todoDeleteAll: PropTypes.func,
   todoDeleteCompleted: PropTypes.func,
-};
+}
 
 export default Todolist

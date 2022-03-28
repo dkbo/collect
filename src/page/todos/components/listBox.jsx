@@ -9,7 +9,7 @@ const ListBox = (props) => {
 
   useEffect(() => {
     if (props.del) {
-      handleLeaveAndDelete()
+      handleLeaveAndDelete();
     }
   })
   useEffect(() => {
