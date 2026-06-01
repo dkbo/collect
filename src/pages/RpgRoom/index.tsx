@@ -571,7 +571,7 @@ export function RpgRoom() {
         drawGame()
       })
     }
-    charImg.src = '/rpg/man.png'
+    charImg.src = import.meta.env.BASE_URL + 'rpg/man.png'
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)

@@ -28,8 +28,8 @@ const ISMOVE_0000: MapData = {
   map: {
     index: 0,
     name: '大地圖',
-    first: '/rpg/0000F.png',
-    second: '/rpg/0000S.png',
+    first: import.meta.env.BASE_URL + 'rpg/0000F.png',
+    second: import.meta.env.BASE_URL + 'rpg/0000S.png',
     width: 1920,
     height: 1280,
     in: [
@@ -101,8 +101,8 @@ const ISMOVE_0001: MapData = {
   map: {
     index: 1,
     name: '花草屋',
-    first: '/rpg/0001F.png',
-    second: '/rpg/0001S.png',
+    first: import.meta.env.BASE_URL + 'rpg/0001F.png',
+    second: import.meta.env.BASE_URL + 'rpg/0001S.png',
     width: 960,
     height: 640,
     in: [{ x: 472, y: 580 }],
@@ -132,8 +132,8 @@ const ISMOVE_0002: MapData = {
   map: {
     index: 2,
     name: '房屋(1F)',
-    first: '/rpg/0002F.png',
-    second: '/rpg/0002S.png',
+    first: import.meta.env.BASE_URL + 'rpg/0002F.png',
+    second: import.meta.env.BASE_URL + 'rpg/0002S.png',
     width: 1440,
     height: 960,
     in: [
@@ -180,8 +180,8 @@ const ISMOVE_0003: MapData = {
   map: {
     index: 3,
     name: '房屋(2F)',
-    first: '/rpg/0003F.png',
-    second: '/rpg/0003S.png',
+    first: import.meta.env.BASE_URL + 'rpg/0003F.png',
+    second: import.meta.env.BASE_URL + 'rpg/0003S.png',
     width: 1440,
     height: 960,
     in: [{ x: 672, y: 160 }],

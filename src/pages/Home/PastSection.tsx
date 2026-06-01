@@ -110,7 +110,7 @@ export function PastSection() {
           {/* Background Image Card */}
           <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 aspect-video group/img shadow-md transition-all duration-300">
             <img
-              src="/aboutbg.jpg"
+              src={`${import.meta.env.BASE_URL}aboutbg.jpg`}
               alt="Developer workspace showing VS Code editor"
               className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105"
               data-testid="about-bg-image"

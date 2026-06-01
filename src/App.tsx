@@ -62,7 +62,9 @@ const router = createBrowserRouter([
       },
     ],
   },
-])
+], {
+  basename: '/collect'
+})
 
 export function App() {
   return <RouterProvider router={router} />

@@ -6,6 +6,11 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/collect/',
+  build: {
+    outDir: 'docs',
+    emptyOutDir: true,
+  },
   plugins: [
     react(),
     babel({ presets: [reactCompilerPreset()] }),
