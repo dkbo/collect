@@ -1,6 +1,0 @@
-export { player, sence, npc } from './rpg'
-export chat from './chat'
-export miniChat from './miniChat'
-export directions from './directions'
-export searchApi from './searchApi'
-export todos from './todos'
