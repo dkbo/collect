@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createHashRouter, RouterProvider } from 'react-router-dom'
 import Layout from '@/components/Layout'
 import Home from '@/pages/Home'
 import Resume from '@/pages/Resume'
@@ -11,7 +11,7 @@ import ChatPage from '@/pages/Chat'
 import NotFound from '@/pages/NotFound'
 
 // Configure standard browser router with Layout wrapper
-const router = createBrowserRouter([
+const router = createHashRouter([
   {
     path: '/',
     element: <Layout />,
@@ -62,9 +62,7 @@ const router = createBrowserRouter([
       },
     ],
   },
-], {
-  basename: '/collect'
-})
+])
 
 export function App() {
   return <RouterProvider router={router} />
