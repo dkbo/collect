@@ -1,8 +1,6 @@
 export interface MapConfig {
   index: number
   name: string
-  first: string
-  second: string
   width: number
   height: number
   in: Array<{ x: number; y: number }>
@@ -28,8 +26,6 @@ const ISMOVE_0000: MapData = {
   map: {
     index: 0,
     name: '大地圖',
-    first: import.meta.env.BASE_URL + 'rpg/0000F.png',
-    second: import.meta.env.BASE_URL + 'rpg/0000S.png',
     width: 1920,
     height: 1280,
     in: [
@@ -101,8 +97,6 @@ const ISMOVE_0001: MapData = {
   map: {
     index: 1,
     name: '花草屋',
-    first: import.meta.env.BASE_URL + 'rpg/0001F.png',
-    second: import.meta.env.BASE_URL + 'rpg/0001S.png',
     width: 960,
     height: 640,
     in: [{ x: 472, y: 580 }],
@@ -132,8 +126,6 @@ const ISMOVE_0002: MapData = {
   map: {
     index: 2,
     name: '房屋(1F)',
-    first: import.meta.env.BASE_URL + 'rpg/0002F.png',
-    second: import.meta.env.BASE_URL + 'rpg/0002S.png',
     width: 1440,
     height: 960,
     in: [
@@ -180,8 +172,6 @@ const ISMOVE_0003: MapData = {
   map: {
     index: 3,
     name: '房屋(2F)',
-    first: import.meta.env.BASE_URL + 'rpg/0003F.png',
-    second: import.meta.env.BASE_URL + 'rpg/0003S.png',
     width: 1440,
     height: 960,
     in: [
@@ -235,8 +225,6 @@ const ISMOVE_0004: MapData = {
   map: {
     index: 4,
     name: '工作室(開發者)',
-    first: import.meta.env.BASE_URL + 'rpg/0004F.png',
-    second: import.meta.env.BASE_URL + 'rpg/0004S.png',
     width: 1440,
     height: 960,
     in: [

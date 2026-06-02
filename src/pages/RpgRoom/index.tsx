@@ -18,6 +18,11 @@ import {
 import { useRpgStore } from '@/store/useRpgStore'
 import { isMoveObject } from '@/pages/RpgRoom/constants/isMove'
 import { messageObject } from '@/pages/RpgRoom/constants/message'
+import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.png'
+import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.png'
+import bgImg from '@/assets/images/map-editor/bg.jpg'
+import { mapsJson } from '@/pages/RpgRoom/data'
+
 
 interface PlayerRefState {
   px: number
@@ -67,8 +72,13 @@ export function RpgRoom() {
 
   // Assets refs
   const playerImageRef = useRef<HTMLImageElement | null>(null)
-  const bgImageRef = useRef<HTMLImageElement | null>(null)
-  const fgImageRef = useRef<HTMLImageElement | null>(null)
+  const tile1ImageRef = useRef<HTMLImageElement | null>(null)
+  const tile2ImageRef = useRef<HTMLImageElement | null>(null)
+  const bgTileImageRef = useRef<HTMLImageElement | null>(null)
+
+  // Offscreen canvas refs
+  const bgOffscreenCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const fgOffscreenCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // Player position and keys
   const playerRef = useRef<PlayerRefState>({
@@ -148,28 +158,105 @@ export function RpgRoom() {
   }
 
 
-  // Preloading map graphics
-  const loadMapImages = (id: number): Promise<void> => {
+  // Preloading core spritesheets and grass bg
+  const preloadCoreAssets = (): Promise<void> => {
     return new Promise((resolve) => {
       let loadedCount = 0
+      const totalToLoad = 4
       const checkResolve = () => {
         loadedCount++
-        if (loadedCount === 2) {
+        if (loadedCount === totalToLoad) {
           resolve()
         }
       }
 
-      const bgImg = new Image()
-      bgImg.onload = checkResolve
-      bgImg.onerror = checkResolve
-      bgImg.src = isMoveObject[id].map.second
-      bgImageRef.current = bgImg
+      // 1. Player character spritesheet
+      const charImg = new Image()
+      charImg.onload = checkResolve
+      charImg.onerror = checkResolve
+      charImg.src = import.meta.env.BASE_URL + 'rpg/man.png'
+      playerImageRef.current = charImg
 
-      const fgImg = new Image()
-      fgImg.onload = checkResolve
-      fgImg.onerror = checkResolve
-      fgImg.src = isMoveObject[id].map.first
-      fgImageRef.current = fgImg
+      // 2. Spritesheet tile 1
+      const t1Img = new Image()
+      t1Img.onload = checkResolve
+      t1Img.onerror = checkResolve
+      t1Img.src = tile1Img
+      tile1ImageRef.current = t1Img
+
+      // 3. Spritesheet tile 2
+      const t2Img = new Image()
+      t2Img.onload = checkResolve
+      t2Img.onerror = checkResolve
+      t2Img.src = tile2Img
+      tile2ImageRef.current = t2Img
+
+      // 4. Background Grass Tile
+      const bgTile = new Image()
+      bgTile.onload = checkResolve
+      bgTile.onerror = checkResolve
+      bgTile.src = bgImg
+      bgTileImageRef.current = bgTile
+    })
+  }
+
+  // Pre-render map JSON into offscreen canvases for drawing performance
+  const prepareMapCanvases = (id: number) => {
+    const mapConfig = isMoveObject[id].map
+    const mapJson = mapsJson[id]
+    if (!mapJson) return
+
+    if (!bgOffscreenCanvasRef.current) {
+      bgOffscreenCanvasRef.current = document.createElement('canvas')
+    }
+    if (!fgOffscreenCanvasRef.current) {
+      fgOffscreenCanvasRef.current = document.createElement('canvas')
+    }
+
+    const bgCanvas = bgOffscreenCanvasRef.current
+    const fgCanvas = fgOffscreenCanvasRef.current
+
+    bgCanvas.width = mapConfig.width
+    bgCanvas.height = mapConfig.height
+    fgCanvas.width = mapConfig.width
+    fgCanvas.height = mapConfig.height
+
+    const bgCtx = bgCanvas.getContext('2d')
+    const fgCtx = fgCanvas.getContext('2d')
+    if (!bgCtx || !fgCtx) return
+
+    // 1. Repeat repeating grass tile as the base background
+    const bgTile = bgTileImageRef.current
+    if (bgTile && bgTile.complete) {
+      const tileW = 32
+      const tileH = 32
+      const cols = Math.ceil(mapConfig.width / tileW)
+      const rows = Math.ceil(mapConfig.height / tileH)
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          bgCtx.drawImage(bgTile, 0, 0, 32, 32, c * tileW, r * tileH, tileW, tileH)
+        }
+      }
+    }
+
+    // 2. Draw map style tiles sequentially on respective canvases
+    const IMAGES = [
+      playerImageRef.current, // index 0 (manImg - not used for map tiles)
+      tile1ImageRef.current,  // index 1 (rpg_maker_xp)
+      tile2ImageRef.current,  // index 2 (rpg_maker_xp2)
+    ]
+
+    mapJson.styles.forEach((tile) => {
+      const sheet = IMAGES[tile.b]
+      if (!sheet || !sheet.complete) return
+
+      if (tile.z === 2) {
+        // Foreground overlay layer
+        fgCtx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
+      } else {
+        // Background base layer
+        bgCtx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
+      }
     })
   }
 
@@ -218,15 +305,15 @@ export function RpgRoom() {
     playerCtx.clearRect(0, 0, w, h)
     fgCtx.clearRect(0, 0, w, h)
 
-    // Render background map layer
-    if (bgImageRef.current && bgImageRef.current.complete) {
+    // Render background map layer from offscreen cache
+    if (bgOffscreenCanvasRef.current) {
       const sWidth = Math.min(w, mapConfig.width)
       const sHeight = Math.min(h, mapConfig.height)
       const dx = w > mapConfig.width ? (w - mapConfig.width) / 2 : 0
       const dy = h > mapConfig.height ? (h - mapConfig.height) / 2 : 0
 
       bgCtx.drawImage(
-        bgImageRef.current,
+        bgOffscreenCanvasRef.current,
         msx,
         msy,
         sWidth,
@@ -255,15 +342,15 @@ export function RpgRoom() {
       )
     }
 
-    // Render foreground overlay layer
-    if (fgImageRef.current && fgImageRef.current.complete) {
+    // Render foreground overlay layer from offscreen cache
+    if (fgOffscreenCanvasRef.current) {
       const sWidth = Math.min(w, mapConfig.width)
       const sHeight = Math.min(h, mapConfig.height)
       const dx = w > mapConfig.width ? (w - mapConfig.width) / 2 : 0
       const dy = h > mapConfig.height ? (h - mapConfig.height) / 2 : 0
 
       fgCtx.drawImage(
-        fgImageRef.current,
+        fgOffscreenCanvasRef.current,
         msx,
         msy,
         sWidth,
@@ -311,15 +398,14 @@ export function RpgRoom() {
     playerRef.current.px = targetSpawn.x
     playerRef.current.py = targetSpawn.y
 
-    loadMapImages(targetMapId).then(() => {
-      mapIdRef.current = targetMapId
-      drawGame()
-      // Brief timeout to let player view the fade screen
-      setTimeout(() => {
-        isTransSenceRef.current = false
-        setTransSence(false)
-      }, 500)
-    })
+    prepareMapCanvases(targetMapId)
+    mapIdRef.current = targetMapId
+    drawGame()
+    // Brief timeout to let player view the fade screen
+    setTimeout(() => {
+      isTransSenceRef.current = false
+      setTransSence(false)
+    }, 500)
   }
 
   // Dialogue check
@@ -604,17 +690,13 @@ export function RpgRoom() {
     playerRef.current.sy = 0
 
     // Load assets
-    const charImg = new Image()
-    charImg.onload = () => {
-      playerImageRef.current = charImg
-      loadMapImages(0).then(() => {
-        setImagesLoaded(true)
-        isTransSenceRef.current = false
-        setTransSence(false)
-        drawGame()
-      })
-    }
-    charImg.src = import.meta.env.BASE_URL + 'rpg/man.png'
+    preloadCoreAssets().then(() => {
+      prepareMapCanvases(0)
+      setImagesLoaded(true)
+      isTransSenceRef.current = false
+      setTransSence(false)
+      drawGame()
+    })
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
@@ -658,12 +740,11 @@ export function RpgRoom() {
     playerRef.current.sx = 0
     playerRef.current.sy = 0
 
-    loadMapImages(0).then(() => {
-      setImagesLoaded(true)
-      isTransSenceRef.current = false
-      setTransSence(false)
-      drawGame()
-    })
+    prepareMapCanvases(0)
+    setImagesLoaded(true)
+    isTransSenceRef.current = false
+    setTransSence(false)
+    drawGame()
   }
 
   return (
