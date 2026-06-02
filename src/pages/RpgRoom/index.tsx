@@ -52,6 +52,7 @@ export function RpgRoom() {
   const bgCanvasRef = useRef<HTMLCanvasElement>(null)
   const playerCanvasRef = useRef<HTMLCanvasElement>(null)
   const fgCanvasRef = useRef<HTMLCanvasElement>(null)
+  const coordsRef = useRef<HTMLSpanElement>(null)
 
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -202,6 +203,10 @@ export function RpgRoom() {
     const p = playerRef.current
     const id = mapIdRef.current
     const mapConfig = isMoveObject[id].map
+
+    if (coordsRef.current) {
+      coordsRef.current.innerText = `X: ${p.px}, Y: ${p.py}`
+    }
 
     const { msx, msy, spx, spy } = updateCamera(p.px, p.py, id, w, h)
 
@@ -737,9 +742,14 @@ export function RpgRoom() {
           )}
 
           {/* Info HUD display on upper-left screen showing current map info */}
-          <div className="absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-300 font-mono text-xs select-none backdrop-blur-sm">
-            <Info className="size-3.5 text-purple-400" />
-            <span>地圖: {isMoveObject[mapId]?.map?.name || '加載中'}</span>
+          <div className="absolute top-4 left-4 z-30 flex flex-col gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-300 font-mono text-xs select-none backdrop-blur-sm">
+            <div className="flex items-center gap-1.5">
+              <Info className="size-3.5 text-purple-400" />
+              <span>地圖: {isMoveObject[mapId]?.map?.name || '加載中'}</span>
+            </div>
+            <div className="text-[10px] text-slate-400 border-t border-slate-800/60 pt-1">
+              座標: <span ref={coordsRef}>X: 0, Y: 0</span>
+            </div>
           </div>
         </div>
 

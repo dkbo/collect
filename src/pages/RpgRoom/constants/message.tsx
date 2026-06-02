@@ -118,11 +118,31 @@ const MESSAGE_0003: NpcMessage[] = [
   },
 ]
 
+const MESSAGE_0004: NpcMessage[] = [
+  {
+    name: '開發者寶哥',
+    text: [
+      '歡迎來到我的開發者工作室！',
+      '這裡是我進行 AI 對接與網頁程式設計的秘密基地。',
+      '我們剛剛才透過 map-scene-drawing 的 Skill 指南，將這個隱密場景與雙向傳送門動態建立起來。',
+      '這證明了地圖設計與配置的完整流程！祝你探索愉快！',
+    ],
+  },
+  {
+    name: '神秘鋼琴',
+    text: [
+      '這是一台看起來古老但保養得極好的鋼琴。',
+      '琴鍵上有些許磨損，但當你按下琴鍵時，似乎有悠揚的樂聲在工作室中迴盪。',
+    ],
+  },
+]
+
 export const messageObject: NpcMessage[][] = [
   MESSAGE_0000,
   MESSAGE_0001,
   MESSAGE_0002,
   MESSAGE_0003,
+  MESSAGE_0004,
 ]
 
 export default messageObject

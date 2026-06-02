@@ -406,47 +406,37 @@ pre {
    FLOATING NAVBAR
    ═══════════════════════════════════════════════════════ */
 .floating-header {
-  @apply fixed top-4 left-4 right-4 z-50 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl shadow-lg transition-all duration-300;
+  @apply fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-6xl z-50 rounded-2xl transition-all duration-300;
+  /* Top of page state: transparent and blended */
+  @apply bg-white/30 dark:bg-slate-950/20 border border-slate-200/20 dark:border-slate-800/10 backdrop-blur-md shadow-none;
 }
 
 .floating-header.is-scrolled {
-  @apply shadow-xl bg-white/85 dark:bg-slate-950/85 border-slate-200/80 dark:border-slate-700/60;
+  /* Scrolled floating state: premium glassmorphism border and drop shadow */
+  @apply bg-white/70 dark:bg-slate-950/70 border-slate-200/60 dark:border-slate-800/60 backdrop-blur-xl shadow-lg shadow-slate-900/5 dark:shadow-black/20;
 }
 
 /* Mobile menu overlay */
 .mobile-menu-overlay {
-  @apply fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300;
+  @apply fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300;
 }
 
 .mobile-menu-panel {
   @apply fixed top-20 left-4 right-4 z-50 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-2xl p-4 transition-all duration-300;
 }
 
-/* Nav link active indicator */
+/* Nav link active pill */
 .nav-link-pill {
-  @apply relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer;
-}
-
-.nav-link-pill::after {
-  @apply absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300 content-[''];
-}
-
-.nav-link-pill:hover::after {
-  @apply w-3/4;
+  @apply px-3 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-300 border border-transparent select-none;
 }
 
 .nav-link-pill.active {
-  @apply bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white;
-}
-
-.nav-link-pill.active::after {
-  @apply w-3/4;
+  @apply bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 dark:border-purple-500/30;
 }
 
 .nav-link-pill.inactive {
-  @apply text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200;
+  @apply text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200;
 }
-
 /* ═══════════════════════════════════════════════════════
    HOME PAGE
    ═══════════════════════════════════════════════════════ */

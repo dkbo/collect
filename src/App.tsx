@@ -1,14 +1,17 @@
 import { createHashRouter, RouterProvider } from 'react-router-dom'
 import Layout from '@/components/Layout'
-import Home from '@/pages/Home'
-import Resume from '@/pages/Resume'
-import MiniGame from '@/pages/MiniGame'
-import RpgRoom from '@/pages/RpgRoom'
-import SearchApi from '@/pages/Search'
-import TodoList from '@/pages/Todos'
-import DirectionsPage from '@/pages/Directions'
-import ChatPage from '@/pages/Chat'
-import NotFound from '@/pages/NotFound'
+import { lazy } from 'react'
+
+const Home = lazy(() => import('@/pages/Home'))
+const Resume = lazy(() => import('@/pages/Resume'))
+const MiniGame = lazy(() => import('@/pages/MiniGame'))
+const RpgRoom = lazy(() => import('@/pages/RpgRoom'))
+const SearchApi = lazy(() => import('@/pages/Search'))
+const TodoList = lazy(() => import('@/pages/Todos'))
+const DirectionsPage = lazy(() => import('@/pages/Directions'))
+const ChatPage = lazy(() => import('@/pages/Chat'))
+const MapDeveloper = lazy(() => import('@/pages/MapDeveloper'))
+const NotFound = lazy(() => import('@/pages/NotFound'))
 
 // Configure standard browser router with Layout wrapper
 const router = createHashRouter([
@@ -55,6 +58,10 @@ const router = createHashRouter([
       {
         path: 'chat',
         element: <ChatPage />,
+      },
+      {
+        path: 'map-developer',
+        element: <MapDeveloper />,
       },
       {
         path: '*',

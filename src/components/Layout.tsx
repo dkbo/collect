@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { Code2, Sun, Moon, Menu, X } from 'lucide-react'
 import { useThemeStore } from '@/store/useThemeStore'
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/todos', label: '代辦事項', end: false, testId: 'nav-todos' },
   { to: '/directions', label: '地圖導覽', end: false, testId: 'nav-directions' },
   { to: '/chat', label: '多人聊天', end: false, testId: 'nav-chat' },
+  { to: '/map-developer', label: '地圖開發', end: false, testId: 'nav-map-developer' },
 ] as const
 
 export function Layout() {
@@ -176,9 +177,17 @@ export function Layout() {
         {/* Spacer for floating header */}
         <div className="h-40" />
 
-        {/* Dynamic routing page container */}
         <main className="relative max-w-6xl mx-auto px-4 pt-6">
-          <Outlet />
+          <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[50vh]">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">載入中...</p>
+              </div>
+            </div>
+          }>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

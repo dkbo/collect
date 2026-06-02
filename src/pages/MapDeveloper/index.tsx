@@ -1,0 +1,1329 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { 
+  Layers, 
+  Settings, 
+  Trash2, 
+  Download, 
+  Upload, 
+  HelpCircle, 
+  Grid, 
+  Save, 
+  FileJson, 
+  Copy,
+  Info,
+  FolderOpen,
+  Keyboard
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useMapEditorStore } from '@/store/useMapEditorStore'
+import type { MapTile, MapCollision } from '@/store/useMapEditorStore'
+
+// Import assets using absolute paths / Vite resolving
+import bgImg from '@/assets/images/map-editor/bg.jpg'
+import manImg from '@/assets/images/map-editor/man.png'
+import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.png'
+import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.png'
+
+const IMAGES = [manImg, tile1Img, tile2Img]
+
+export function MapDeveloper() {
+  const store = useMapEditorStore()
+  
+  const [showJsonPanel, setShowJsonPanel] = useState(false)
+  const [showHelpModal, setShowHelpModal] = useState(false)
+  const [jsonInput, setJsonInput] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [activeTab, setActiveTab] = useState<'tile' | 'collision'>('tile')
+  const [isFocused, setIsFocused] = useState(false)
+  
+  // Refs
+  const workspaceRef = useRef<HTMLDivElement>(null)
+  const backCanvasRef = useRef<HTMLCanvasElement>(null)
+  const frontCanvasRef = useRef<HTMLCanvasElement>(null)
+  const collisionCanvasRef = useRef<HTMLCanvasElement>(null)
+  const selectCanvasRef = useRef<HTMLCanvasElement>(null)
+  const gridCanvasRef = useRef<HTMLCanvasElement>(null)
+  
+  const spriteCanvasRef = useRef<HTMLCanvasElement>(null)
+  const spriteImgRef = useRef<HTMLImageElement>(null)
+  const spriteContainerRef = useRef<HTMLDivElement>(null)
+
+  // Tracking temporary states for drawing
+  const isDrawingCollision = useRef(false)
+  const collisionStartCoords = useRef({ x: 0, y: 0 })
+
+  // 1. Initial configuration and load
+  useEffect(() => {
+    store.loadFromLocalStorage()
+    // Default grass bg tile image
+    const bgTile = new Image()
+    bgTile.src = bgImg
+    bgTile.onload = () => {
+      drawAllLayers()
+    }
+  }, [])
+
+  // 2. Refresh workspace drawing on state updates
+  useEffect(() => {
+    drawAllLayers()
+  }, [
+    store.width,
+    store.height,
+    store.styles,
+    store.isMoveArr,
+    store.opacityB,
+    store.opacityF,
+    store.opacityM,
+    store.gridX,
+    store.gridY,
+    store.mapObjects,
+    store.objectNum
+  ])
+
+  // 3. Render Sprite Selection overlay
+  const drawSpriteSelection = useCallback(() => {
+    const canvas = spriteCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (store.sourceX !== false && store.sourceY !== false) {
+      ctx.beginPath()
+      ctx.rect(store.sourceX, store.sourceY, store.sourceW, store.sourceH)
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.4)' // purple translucent overlay
+      ctx.fill()
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = '#a855f7' // purple border
+      ctx.stroke()
+    }
+  }, [store.sourceX, store.sourceY, store.sourceW, store.sourceH])
+
+  useEffect(() => {
+    drawSpriteSelection()
+  }, [store.sourceX, store.sourceY, store.sourceW, store.sourceH, store.sprites])
+
+  // Auto-resize palette canvas when active sheet loads
+  const handleSpriteImgLoad = () => {
+    const img = spriteImgRef.current
+    const canvas = spriteCanvasRef.current
+    if (img && canvas) {
+      canvas.width = img.naturalWidth || 256
+      canvas.height = img.naturalHeight || 8000
+      drawSpriteSelection()
+    }
+  }
+
+  // Draw layers onto canvases
+  const drawAllLayers = () => {
+    drawBackgroundLayer()
+    drawForegroundLayer()
+    drawCollisionLayer()
+    drawSelectOutline()
+    drawGridLines()
+  }
+
+  const drawBackgroundLayer = () => {
+    const canvas = backCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, store.width, store.height)
+    ctx.globalAlpha = store.opacityB
+
+    // Draw grid grass repeating tiles
+    const bgTile = new Image()
+    bgTile.src = bgImg
+    if (bgTile.complete) {
+      const tileW = 32
+      const tileH = 32
+      const cols = Math.ceil(store.width / tileW)
+      const rows = Math.ceil(store.height / tileH)
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          ctx.drawImage(bgTile, 0, 0, 32, 32, c * tileW, r * tileH, tileW, tileH)
+        }
+      }
+    }
+
+    // Draw background objects (z !== 2)
+    store.styles.forEach((tile) => {
+      if (tile.z === 2) return
+      const sheet = new Image()
+      sheet.src = IMAGES[tile.b]
+      if (sheet.complete) {
+        ctx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
+      } else {
+        sheet.onload = () => {
+          // Redraw on complete
+          drawBackgroundLayer()
+        }
+      }
+    })
+    ctx.globalAlpha = 1
+  }
+
+  const drawForegroundLayer = () => {
+    const canvas = frontCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, store.width, store.height)
+    ctx.globalAlpha = store.opacityF
+
+    // Draw foreground objects (z === 2)
+    store.styles.forEach((tile) => {
+      if (tile.z !== 2) return
+      const sheet = new Image()
+      sheet.src = IMAGES[tile.b]
+      if (sheet.complete) {
+        ctx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
+      } else {
+        sheet.onload = () => {
+          drawForegroundLayer()
+        }
+      }
+    })
+    ctx.globalAlpha = 1
+  }
+
+  const drawCollisionLayer = () => {
+    const canvas = collisionCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, store.width, store.height)
+    ctx.globalAlpha = store.opacityM
+
+    // Draw collisions
+    store.isMoveArr.forEach((c) => {
+      ctx.beginPath()
+      ctx.rect(c.x, c.y, c.w, c.h)
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.5)' // semi-transparent cyan
+      ctx.fill()
+      ctx.lineWidth = 1
+      ctx.strokeStyle = '#0ea5e9'
+      ctx.stroke()
+    })
+    ctx.globalAlpha = 1
+  }
+
+  const drawSelectOutline = () => {
+    const canvas = selectCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, store.width, store.height)
+
+    // Highlight selected item
+    if (store.mapObjects === 1) {
+      const tile = store.styles[store.objectNum]
+      if (tile) {
+        ctx.beginPath()
+        ctx.rect(tile.l, tile.t, tile.w, tile.h)
+        ctx.lineWidth = 2
+        ctx.strokeStyle = '#f59e0b' // yellow border for tile
+        ctx.setLineDash([4, 4])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+    } else if (store.mapObjects === 2) {
+      const col = store.isMoveArr[store.objectNum]
+      if (col) {
+        ctx.beginPath()
+        ctx.rect(col.x, col.y, col.w, col.h)
+        ctx.lineWidth = 2
+        ctx.strokeStyle = '#ef4444' // red border for collision
+        ctx.setLineDash([4, 4])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+    }
+  }
+
+  const drawGridLines = () => {
+    const canvas = gridCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, store.width, store.height)
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)' // slate border grid
+    ctx.lineWidth = 0.5
+
+    const tileW = 32
+    const tileH = 32
+
+    // Draw vertical lines
+    if (store.gridX) {
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.4)'
+      ctx.font = '9px monospace'
+      ctx.textAlign = 'center'
+      for (let x = tileW; x < store.width; x += tileW) {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, store.height)
+        ctx.stroke()
+        // Label x
+        ctx.fillText(x.toString(), x, 12)
+      }
+    }
+
+    // Draw horizontal lines
+    if (store.gridY) {
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.4)'
+      ctx.font = '9px monospace'
+      ctx.textAlign = 'left'
+      for (let y = tileH; y < store.height; y += tileH) {
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(store.width, y)
+        ctx.stroke()
+        // Label y
+        ctx.fillText(y.toString(), 4, y - 2)
+      }
+    }
+  }
+
+  // Handle Palette Sprite Click
+  const handleSpriteMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = spriteCanvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+
+    // Grid coordinates
+    const gridX = 32 * Math.floor(clickX / 32)
+    const gridY = 32 * Math.floor(clickY / 32)
+
+    if (e.button === 0) {
+      // Left click: set start or range selection
+      if (store.sourceX === false || store.sourceY === false) {
+        store.setSpriteSelection(gridX, gridY, 32, 32)
+      } else {
+        const srcX = store.sourceX
+        const srcY = store.sourceY
+        let w = store.sourceW
+        let h = store.sourceH
+        let x = srcX
+        let y = srcY
+
+        if (gridX >= srcX) {
+          w = gridX - srcX + 32
+        } else {
+          x = gridX
+          w = srcX - gridX + 32
+        }
+
+        if (gridY >= srcY) {
+          h = gridY - srcY + 32
+        } else {
+          y = gridY
+          h = srcY - gridY + 32
+        }
+
+        store.setSpriteSelection(x, y, w, h)
+      }
+    } else {
+      // Right click: reset selection
+      store.setSpriteSelection(false, false, 32, 32)
+    }
+  }
+
+  // Handle Workspace Map Click
+  const handleMapMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = selectCanvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+
+    // Aligned to 32px
+    const gridX = 32 * Math.floor(clickX / 32)
+    const gridY = 32 * Math.floor(clickY / 32)
+
+    if (store.sourceX !== false && store.sourceY !== false) {
+      // We have active tile selection: DRAW on grid!
+      const isForeground = e.button === 2 // Right click draws foreground
+      store.addTile({
+        n: store.objectName || 'Unamed Tile',
+        l: gridX,
+        t: gridY,
+        w: store.sourceW,
+        h: store.sourceH,
+        b: store.sprites,
+        x: store.sourceX,
+        y: store.sourceY,
+        z: isForeground ? 2 : undefined
+      })
+    } else {
+      // No active tile selected: select or start collision box
+      const isAltPressed = e.altKey
+      
+      if (isAltPressed) {
+        // Start drawing collision box
+        if (e.button === 0) {
+          isDrawingCollision.current = true
+          collisionStartCoords.current = { x: clickX, y: clickY }
+          
+          // Selection context
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.clearRect(0, 0, store.width, store.height)
+          }
+        }
+      } else {
+        // Selection detection
+        let clickedIdx = -1
+        
+        if (e.button === 0) {
+          // Left click selects styles
+          store.styles.forEach((tile, index) => {
+            if (
+              clickX >= tile.l && clickX <= tile.l + tile.w &&
+              clickY >= tile.t && clickY <= tile.t + tile.h
+            ) {
+              clickedIdx = index
+            }
+          })
+          if (clickedIdx !== -1) {
+            store.selectElement(1, clickedIdx)
+            setActiveTab('tile')
+          } else {
+            store.selectElement(null, 0)
+          }
+        } else if (e.button === 2) {
+          // Right click selects collisions
+          e.preventDefault()
+          store.isMoveArr.forEach((col, index) => {
+            if (
+              clickX >= col.x && clickX <= col.x + col.w &&
+              clickY >= col.y && clickY <= col.y + col.h
+            ) {
+              clickedIdx = index
+            }
+          })
+          if (clickedIdx !== -1) {
+            store.selectElement(2, clickedIdx)
+            setActiveTab('collision')
+          } else {
+            store.selectElement(null, 0)
+          }
+        }
+      }
+    }
+  }
+
+  // Handle Drag / Draw Collision
+  const handleMapMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingCollision.current) return
+    const canvas = selectCanvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+
+    const startX = collisionStartCoords.current.x
+    const startY = collisionStartCoords.current.y
+
+    const drawX = Math.min(startX, clickX)
+    const drawY = Math.min(startY, clickY)
+    const drawW = Math.abs(clickX - startX)
+    const drawH = Math.abs(clickY - startY)
+
+    // Render transparent guide block
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      drawSelectOutline() // keep standard select outline
+      ctx.beginPath()
+      ctx.rect(drawX, drawY, drawW, drawH)
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.4)'
+      ctx.fill()
+      ctx.strokeStyle = '#0ea5e9'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    }
+  }
+
+  const handleMapMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingCollision.current) return
+    isDrawingCollision.current = false
+    const canvas = selectCanvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+
+    const startX = collisionStartCoords.current.x
+    const startY = collisionStartCoords.current.y
+
+    const finalX = Math.min(startX, clickX)
+    const finalY = Math.min(startY, clickY)
+    const finalW = Math.abs(clickX - startX)
+    const finalH = Math.abs(clickY - startY)
+
+    if (finalW > 4 && finalH > 4) {
+      store.addCollision({
+        n: store.objectName || 'Collision Area',
+        x: finalX,
+        y: finalY,
+        w: finalW,
+        h: finalH
+      })
+      setActiveTab('collision')
+    }
+    drawSelectOutline()
+  }
+
+  // Keyboard navigation / Shortcuts
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (showJsonPanel || !isFocused) return
+
+    // Avoid running inputs override hotkeys
+    const targetTag = (e.target as HTMLElement).tagName
+    if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT') {
+      return
+    }
+
+    const panSpeed = 32
+    switch (e.key.toLowerCase()) {
+      case 'g':
+        store.toggleGrid('X')
+        store.toggleGrid('Y')
+        break
+      case 'f':
+        store.setOpacity('F', store.opacityF === 0 ? 1 : 0)
+        break
+      case 'b':
+        store.setOpacity('B', store.opacityB === 0 ? 1 : 0)
+        break
+      case 'm':
+        store.setOpacity('M', store.opacityM === 0 ? 1 : 0)
+        break
+      case 'a':
+      case 'arrowleft':
+        e.preventDefault()
+        store.panMap(panSpeed, 0)
+        break
+      case 'd':
+      case 'arrowright':
+        e.preventDefault()
+        store.panMap(-panSpeed, 0)
+        break
+      case 'w':
+      case 'arrowup':
+        e.preventDefault()
+        store.panMap(0, panSpeed)
+        break
+      case 's':
+        if (e.altKey) {
+          e.preventDefault()
+          store.saveToLocalStorage()
+          alert('地圖已成功儲存至本地快取！')
+        } else {
+          e.preventDefault()
+          store.panMap(0, -panSpeed)
+        }
+        break
+      case 'arrowdown':
+        e.preventDefault()
+        store.panMap(0, -panSpeed)
+        break
+      case 'delete':
+        if (store.mapObjects !== null) {
+          store.deleteElement(store.mapObjects, store.objectNum)
+        }
+        break
+      case 'c':
+        if (e.altKey) {
+          e.preventDefault()
+          if (confirm('確定要清除所有地圖貼圖與碰撞區域嗎？')) {
+            store.clearMap()
+          }
+        }
+        break
+      case 'l':
+        if (e.altKey) {
+          e.preventDefault()
+          store.loadFromLocalStorage()
+        }
+        break
+    }
+  }, [store, showJsonPanel, isFocused])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [handleKeyDown])
+
+  // Load Map JSON Input
+  const handleLoadJson = () => {
+    try {
+      const parsed = JSON.parse(jsonInput)
+      const success = store.loadMapJson(parsed)
+      if (success) {
+        alert('地圖載入成功！')
+        setShowJsonPanel(false)
+      } else {
+        alert('載入失敗：格式不正確。')
+      }
+    } catch (e) {
+      alert('JSON 格式解析錯誤！')
+    }
+  }
+
+  // Copy map data
+  const handleCopyJson = () => {
+    const data = {
+      map: { width: store.width, height: store.height },
+      styles: store.styles,
+      isMove: store.isMoveArr,
+      npc: store.npcArr
+    }
+    navigator.clipboard.writeText(JSON.stringify(data, null, '\t'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  // Export current layers as canvas screenshots
+  const exportCanvas = (type: 'F' | 'B') => {
+    const canvas = type === 'F' ? frontCanvasRef.current : backCanvasRef.current
+    if (!canvas) return
+    const link = document.createElement('a')
+    link.download = `map_${type === 'F' ? 'front' : 'back'}_${Date.now()}.png`
+    link.href = canvas.toDataURL()
+    link.click()
+  }
+
+  // Palette scroll wheel support
+  const handlePaletteWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const scrollAmount = e.deltaY > 0 ? 64 : -64
+    if (spriteContainerRef.current) {
+      spriteContainerRef.current.scrollTop += scrollAmount
+    }
+  }
+
+  // Inspector Form edits
+  const handleTileEdit = (field: keyof MapTile, value: any) => {
+    if (store.mapObjects === 1) {
+      store.updateElementProps(1, store.objectNum, { [field]: value })
+    }
+  }
+
+  const handleCollisionEdit = (field: keyof MapCollision, value: any) => {
+    if (store.mapObjects === 2) {
+      store.updateElementProps(2, store.objectNum, { [field]: value })
+    }
+  }
+
+  // Compile JSON map string
+  const currentMapJson = JSON.stringify({
+    map: { width: store.width, height: store.height },
+    styles: store.styles,
+    isMove: store.isMoveArr,
+    npc: store.npcArr
+  }, null, '\t')
+
+  const activeElement = store.mapObjects === 1 
+    ? store.styles[store.objectNum] 
+    : store.mapObjects === 2 
+      ? store.isMoveArr[store.objectNum] 
+      : null
+
+  return (
+    <div className="flex flex-col min-h-screen text-slate-100 font-sans select-none pb-20 animate-fade-in" data-testid="page-map-developer">
+      
+      {/* Top Tools Area */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 mb-5 shadow-2xl backdrop-blur-md flex flex-wrap gap-5 justify-between items-center relative z-20">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-tr from-purple-500 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-purple-500/20">
+            <Layers className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white m-0 leading-normal">
+              2D 地圖與場景開發器
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              React 19 等寬網格圖層場景編輯工具
+            </p>
+          </div>
+        </div>
+
+        {/* Global Controls */}
+        <div className="flex flex-wrap gap-2.5">
+          <Button 
+            variant="outline"
+            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+            onClick={() => setShowHelpModal(true)}
+          >
+            <HelpCircle className="h-4 w-4 mr-2" />
+            快速鍵說明
+          </Button>
+          <Button 
+            variant="outline"
+            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+            onClick={() => setShowJsonPanel(!showJsonPanel)}
+          >
+            <FileJson className="h-4 w-4 mr-2" />
+            導入 / 導出 JSON
+          </Button>
+          <Button 
+            variant="outline"
+            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+            onClick={() => store.loadFromLocalStorage()}
+          >
+            <FolderOpen className="h-4 w-4 mr-2" />
+            讀取暫存 (Alt+L)
+          </Button>
+          <Button 
+            className="bg-purple-600 text-white hover:bg-purple-700 font-semibold"
+            onClick={() => {
+              store.saveToLocalStorage()
+              alert('地圖已成功儲存至本地快取！')
+            }}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            儲存地圖 (Alt+S)
+          </Button>
+        </div>
+      </div>
+
+      {/* JSON Collapsible Input panel */}
+      {showJsonPanel && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5 shadow-2xl animate-slide-in relative z-20">
+          <h3 className="text-sm font-semibold mb-3 text-purple-400 flex items-center gap-2">
+            <FileJson className="h-4 w-4" /> 地圖 JSON 代碼工具
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs text-slate-400">當前地圖代碼 (匯出)</span>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={handleCopyJson} 
+                  className="h-7 text-xs text-purple-400 hover:text-purple-300 hover:bg-slate-800"
+                >
+                  <Copy className="h-3 w-3 mr-1" />
+                  {copied ? '已複製' : '複製 JSON'}
+                </Button>
+              </div>
+              <textarea 
+                className="w-full h-44 rounded-xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-emerald-400 focus:outline-none"
+                readOnly
+                value={currentMapJson}
+              />
+            </div>
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs text-slate-400">載入地圖 JSON (匯入)</span>
+                <Button 
+                  size="sm"
+                  onClick={handleLoadJson}
+                  className="h-7 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold"
+                >
+                  <Upload className="h-3 w-3 mr-1" />
+                  解析並載入
+                </Button>
+              </div>
+              <textarea 
+                className="w-full h-44 rounded-xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-slate-300 focus:border-purple-500 focus:outline-none"
+                placeholder="在此貼上舊地圖匯出的 JSON 代碼..."
+                value={jsonInput}
+                onChange={(e) => setJsonInput(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Workspace Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 relative z-10">
+        
+        {/* Left: Palette Panel (3 columns) */}
+        <div className="lg:col-span-3 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <span className="text-sm font-semibold flex items-center gap-2">
+              <Layers className="h-4 w-4 text-purple-400" />
+              圖庫拼圖區
+            </span>
+            <select 
+              className="bg-slate-950 border border-slate-800 rounded-lg text-xs px-2.5 py-1.5 outline-none focus:border-purple-500 font-sans cursor-pointer text-slate-300"
+              value={store.sprites} 
+              onChange={(e) => store.selectSpriteSheet(Number(e.target.value))}
+            >
+              <option value={0}>NPC (角色)</option>
+              <option value={1}>拼圖一 (Tileset 1)</option>
+              <option value={2}>拼圖二 (Tileset 2)</option>
+            </select>
+          </div>
+
+          {/* Palette Viewport */}
+          <div 
+            ref={spriteContainerRef}
+            onWheel={handlePaletteWheel}
+            className="flex-1 max-h-[500px] lg:max-h-[680px] overflow-y-auto relative bg-slate-950/80 p-2.5 scrollbar-thin"
+          >
+            <div className="relative border border-slate-800/60 rounded-xl overflow-hidden">
+              <canvas 
+                ref={spriteCanvasRef}
+                onMouseDown={handleSpriteMouseDown}
+                onContextMenu={(e) => e.preventDefault()}
+                className="absolute top-0 left-0 z-10 cursor-crosshair"
+              />
+              <img 
+                ref={spriteImgRef}
+                src={IMAGES[store.sprites]} 
+                onLoad={handleSpriteImgLoad}
+                className="w-full h-auto block pointer-events-none select-none"
+                alt="tiles"
+              />
+            </div>
+          </div>
+          
+          <div className="p-3 bg-slate-950/50 border-t border-slate-800 text-[10px] text-slate-400 space-y-1">
+            <p className="font-semibold text-purple-400">💡 選取提示：</p>
+            <p>• 點選第一個格點，再點選第二個格點可框選多格子貼圖。</p>
+            <p>• 按滑鼠右鍵可取消圖庫選擇，進入地圖物件編輯模式。</p>
+          </div>
+        </div>
+
+        {/* Center: Canvas Workspace (6 columns) */}
+        <div className="lg:col-span-6 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl backdrop-blur-md overflow-hidden relative min-h-[550px] lg:min-h-[720px]">
+          
+          {/* Workspace info & Controls */}
+          <div className="p-4 border-b border-slate-800 bg-slate-950/20 flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold flex items-center gap-2">
+                <Grid className="h-4 w-4 text-emerald-400" />
+                場景工作區 
+              </span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                isFocused 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 animate-pulse' 
+                  : 'bg-slate-800 border-slate-700 text-slate-400'
+              }`}>
+                {isFocused ? '● 鍵盤控制已啟用' : '點擊畫布以啟用鍵盤'}
+              </span>
+            </div>
+            
+            {/* Opacities control toggles */}
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-400">背景層:</span>
+                <input 
+                  type="range" min="0" max="1" step="0.1"
+                  className="w-12 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                  value={store.opacityB}
+                  onChange={(e) => store.setOpacity('B', Number(e.target.value))}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-400">前景層:</span>
+                <input 
+                  type="range" min="0" max="1" step="0.1"
+                  className="w-12 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                  value={store.opacityF}
+                  onChange={(e) => store.setOpacity('F', Number(e.target.value))}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-400">碰撞層:</span>
+                <input 
+                  type="range" min="0" max="1" step="0.1"
+                  className="w-12 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                  value={store.opacityM}
+                  onChange={(e) => store.setOpacity('M', Number(e.target.value))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Canvas Containment area */}
+          <div 
+            ref={workspaceRef}
+            tabIndex={0}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            className="flex-1 relative overflow-auto bg-slate-950 p-5 outline-none scrollbar-thin"
+          >
+            {/* Translate-based map wrapper */}
+            <div 
+              className="relative shadow-2xl border border-slate-800 transition-transform duration-75"
+              style={{
+                width: store.width,
+                height: store.height,
+                transform: `translate3d(${store.mapLeft}px, ${store.mapTop}px, 0)`
+              }}
+            >
+              {/* Layer 1: Background Canvas */}
+              <canvas 
+                ref={backCanvasRef}
+                width={store.width}
+                height={store.height}
+                className="absolute top-0 left-0 z-0 pointer-events-none"
+              />
+
+              {/* Layer 2: Foreground Canvas */}
+              <canvas 
+                ref={frontCanvasRef}
+                width={store.width}
+                height={store.height}
+                className="absolute top-0 left-0 z-10 pointer-events-none"
+              />
+
+              {/* Layer 3: Collision Blocks */}
+              <canvas 
+                ref={collisionCanvasRef}
+                width={store.width}
+                height={store.height}
+                className="absolute top-0 left-0 z-20 pointer-events-none"
+              />
+
+              {/* Layer 4: Selection Outline & Input Capture */}
+              <canvas 
+                ref={selectCanvasRef}
+                width={store.width}
+                height={store.height}
+                onMouseDown={handleMapMouseDown}
+                onMouseMove={handleMapMouseMove}
+                onMouseUp={handleMapMouseUp}
+                onContextMenu={(e) => e.preventDefault()}
+                className="absolute top-0 left-0 z-30 cursor-cell"
+              />
+
+              {/* Layer 5: Grid Labels */}
+              <canvas 
+                ref={gridCanvasRef}
+                width={store.width}
+                height={store.height}
+                className="absolute top-0 left-0 z-40 pointer-events-none"
+              />
+            </div>
+          </div>
+
+          {/* Map coordinate Statusbar */}
+          <div className="p-3 bg-slate-950/80 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+            <div className="flex gap-4">
+              <span>畫布寬度: <strong className="text-emerald-400">{store.width}px</strong></span>
+              <span>畫布高度: <strong className="text-emerald-400">{store.height}px</strong></span>
+              <span>平移偏移: <strong className="text-purple-400">X: {store.mapLeft} | Y: {store.mapTop}</strong></span>
+            </div>
+            <div className="flex gap-2.5">
+              <span>放置名稱: <strong className="text-purple-400">{store.objectName || 'Unamed'}</strong></span>
+              <span>選定元素種類: <strong className="text-emerald-400">{store.mapObjects === 1 ? '地圖貼圖' : store.mapObjects === 2 ? '碰撞區域' : '無'}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Inspector and Editor Panel (3 columns) */}
+        <div className="lg:col-span-3 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
+          
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <span className="text-sm font-semibold flex items-center gap-2">
+              <Settings className="h-4 w-4 text-purple-400" />
+              屬性視察器
+            </span>
+          </div>
+
+          {/* Inspector Tabs */}
+          <div className="flex border-b border-slate-800">
+            <button 
+              onClick={() => setActiveTab('tile')}
+              className={`flex-1 py-2 text-xs font-semibold ${activeTab === 'tile' ? 'bg-purple-600/10 text-purple-400 border-b border-purple-500' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              地圖貼圖 ({store.styles.length})
+            </button>
+            <button 
+              onClick={() => setActiveTab('collision')}
+              className={`flex-1 py-2 text-xs font-semibold ${activeTab === 'collision' ? 'bg-purple-600/10 text-purple-400 border-b border-purple-500' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              碰撞區域 ({store.isMoveArr.length})
+            </button>
+          </div>
+
+          <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs">
+            
+            {/* Map Global Config section */}
+            <div className="space-y-2 border-b border-slate-800 pb-4">
+              <h4 className="font-semibold text-slate-300">⚙️ 地圖全域設定</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400">地圖寬度 (Width)</label>
+                  <input 
+                    type="number"
+                    value={store.width}
+                    onChange={(e) => store.setMapSize(Number(e.target.value) || 0, store.height)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">地圖高度 (Height)</label>
+                  <input 
+                    type="number"
+                    value={store.height}
+                    onChange={(e) => store.setMapSize(store.width, Number(e.target.value) || 0)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-slate-400">預設放置名稱</label>
+                <input 
+                  type="text"
+                  placeholder="新物件名稱"
+                  value={store.objectName}
+                  onChange={(e) => store.setObjectName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => store.toggleGrid('X')}
+                  className={`h-8 border-slate-800 text-[10px] ${store.gridX ? 'bg-purple-600/10 text-purple-400 border-purple-500/30' : 'text-slate-300'}`}
+                >
+                  X 格線標示: {store.gridX ? '開' : '關'}
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => store.toggleGrid('Y')}
+                  className={`h-8 border-slate-800 text-[10px] ${store.gridY ? 'bg-purple-600/10 text-purple-400 border-purple-500/30' : 'text-slate-300'}`}
+                >
+                  Y 格線標示: {store.gridY ? '開' : '關'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Element Properties Form */}
+            {activeElement ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-purple-400">
+                    ℹ️ {store.mapObjects === 1 ? '貼圖物件' : '碰撞區域'} 屬性編輯
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-mono">ID: {store.objectNum}</span>
+                </div>
+
+                {store.mapObjects === 1 ? (
+                  // MapTile (styles) Edit Panel
+                  <>
+                    <div>
+                      <label className="text-[10px] text-slate-400">物件名稱</label>
+                      <input 
+                        type="text"
+                        value={(activeElement as MapTile).n || ''}
+                        onChange={(e) => handleTileEdit('n', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">畫布 X 座標</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapTile).l}
+                          onChange={(e) => handleTileEdit('l', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">畫布 Y 座標</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapTile).t}
+                          onChange={(e) => handleTileEdit('t', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">物件寬度</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapTile).w}
+                          onChange={(e) => handleTileEdit('w', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">物件高度</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapTile).h}
+                          onChange={(e) => handleTileEdit('h', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">圖庫 X 座標</label>
+                        <input 
+                          type="number"
+                          readOnly
+                          value={(activeElement as MapTile).x}
+                          className="w-full bg-slate-950/40 border border-slate-800 rounded-lg p-1.5 font-mono text-slate-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">圖庫 Y 座標</label>
+                        <input 
+                          type="number"
+                          readOnly
+                          value={(activeElement as MapTile).y}
+                          className="w-full bg-slate-950/40 border border-slate-800 rounded-lg p-1.5 font-mono text-slate-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">使用的圖庫</label>
+                        <input 
+                          type="text"
+                          readOnly
+                          value={(activeElement as MapTile).b === 0 ? 'NPC' : (activeElement as MapTile).b === 1 ? '拼圖一' : '拼圖二'}
+                          className="w-full bg-slate-950/40 border border-slate-800 rounded-lg p-1.5 text-slate-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">前後層屬性</label>
+                        <select
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
+                          value={(activeElement as MapTile).z === 2 ? '2' : '0'}
+                          onChange={(e) => handleTileEdit('z', e.target.value === '2' ? 2 : undefined)}
+                        >
+                          <option value="0">後層 (背景層)</option>
+                          <option value="2">前層 (遮罩前景)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // MapCollision (isMove) Edit Panel
+                  <>
+                    <div>
+                      <label className="text-[10px] text-slate-400">區域名稱</label>
+                      <input 
+                        type="text"
+                        value={(activeElement as MapCollision).n || ''}
+                        onChange={(e) => handleCollisionEdit('n', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">X 座標</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapCollision).x}
+                          onChange={(e) => handleCollisionEdit('x', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">Y 座標</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapCollision).y}
+                          onChange={(e) => handleCollisionEdit('y', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">寬度</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapCollision).w}
+                          onChange={(e) => handleCollisionEdit('w', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">高度</label>
+                        <input 
+                          type="number"
+                          value={(activeElement as MapCollision).h}
+                          onChange={(e) => handleCollisionEdit('h', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400">觸發事件 ID</label>
+                      <input 
+                        type="number"
+                        placeholder="無"
+                        value={(activeElement as MapCollision).e ?? ''}
+                        onChange={(e) => handleCollisionEdit('e', e.target.value !== '' ? Number(e.target.value) : undefined)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">傳送地圖 ID</label>
+                        <input 
+                          type="number"
+                          placeholder="無"
+                          value={(activeElement as MapCollision).cm ?? ''}
+                          onChange={(e) => handleCollisionEdit('cm', e.target.value !== '' ? Number(e.target.value) : undefined)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">傳送地圖點</label>
+                        <input 
+                          type="number"
+                          placeholder="無"
+                          value={(activeElement as MapCollision).cmm ?? ''}
+                          onChange={(e) => handleCollisionEdit('cmm', e.target.value !== '' ? Number(e.target.value) : undefined)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="flex gap-2 pt-4">
+                  <Button 
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold"
+                    onClick={() => {
+                      if (store.mapObjects !== null) {
+                        store.deleteElement(store.mapObjects, store.objectNum)
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    刪除此物件
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="h-48 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-xl text-slate-500 bg-slate-950/20">
+                <Info className="h-6 w-6 mb-2 text-slate-600" />
+                <p className="text-center px-4">請點選畫布上的貼圖物件或碰撞區域進行視察</p>
+              </div>
+            )}
+
+            {/* Screenshots & Quick tools */}
+            <div className="space-y-2 border-t border-slate-800 pt-4">
+              <h4 className="font-semibold text-slate-300">📸 匯出場景快照</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => exportCanvas('B')}
+                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  導出背景層 (.png)
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="outline"
+                  onClick={() => exportCanvas('F')}
+                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  導出前景層 (.png)
+                </Button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      {/* Help Modal Overlay */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-scale-in">
+            <div className="flex items-center gap-3 mb-4">
+              <Keyboard className="h-6 w-6 text-purple-400" />
+              <h3 className="text-lg font-bold text-white">地圖編輯器 快速鍵說明</h3>
+            </div>
+            
+            <div className="space-y-3.5 text-xs text-slate-300">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>網格線切換</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">G</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>前景遮罩顯示/隱藏</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">F</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>背景底圖顯示/隱藏</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">B</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>碰撞區域顯示/隱藏</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">M</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>畫布平移控制</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">W / A / S / D 或 方向鍵</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>刪除選取之物件</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Delete</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>快速劃分碰撞區域</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + 滑鼠左鍵拖曳</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>儲存地圖至本地暫存</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + S</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>自本地載入暫存紀錄</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + L</kbd>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>清除地圖與碰撞區</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + C</kbd>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-end">
+              <Button 
+                onClick={() => setShowHelpModal(false)}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+              >
+                關閉說明
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+export default MapDeveloper
