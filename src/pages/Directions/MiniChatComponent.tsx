@@ -183,7 +183,7 @@ export function MiniChat({ style }: MiniChatProps) {
 
         {/* Input Bar or Login Action */}
         {authLoading ? (
-          <div className="border-t border-slate-200 dark:border-slate-850 p-3 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-center">
+          <div className="border-t border-slate-200 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-center">
             <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
           </div>
         ) : isLogin ? (
@@ -208,7 +208,7 @@ export function MiniChat({ style }: MiniChatProps) {
             </button>
             <button
               onClick={clearMessages}
-              className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-750 text-slate-500 dark:text-slate-400 rounded-xl transition-all duration-200 cursor-pointer"
+              className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl transition-all duration-200 cursor-pointer"
               title="清除"
               data-testid="minichat-clear"
             >

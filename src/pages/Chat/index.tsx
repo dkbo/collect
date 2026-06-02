@@ -186,7 +186,7 @@ export function ChatPage() {
                         className={`text-sm px-4 py-2.5 rounded-2xl shadow-sm break-words leading-relaxed ${
                           isSelf
                             ? 'bg-purple-600 text-white rounded-br-md'
-                            : 'bg-white dark:bg-slate-850 text-slate-700 dark:text-slate-300 rounded-bl-md border border-slate-200/60 dark:border-slate-700/50'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-bl-md border border-slate-200/60 dark:border-slate-700/50'
                         }`}
                       >
                         {msg.message}

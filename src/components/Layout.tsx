@@ -194,7 +194,7 @@ export function Layout() {
       {/* Footer */}
       <footer className="relative max-w-6xl mx-auto px-4 py-8 text-center w-full mt-16 transition-colors duration-300">
         <div className="section-divider mb-6" />
-        <p className="text-xs text-slate-500 dark:text-slate-600">
+        <p className="text-xs text-slate-500 dark:text-slate-500">
           © 2026 DKBO&apos;s Collect.
         </p>
       </footer>

@@ -133,69 +133,7 @@ html {
   scroll-behavior: smooth;
 }
 
-body {
-  margin: 0;
-}
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code:not(pre code),
-.counter {
-  font-family: var(--mono);
-  display: inline;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code:not(pre code) {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
-}
-
-/* Ensure SyntaxHighlighter pre/code blocks preserve line breaks */
-pre code {
-  display: block;
-  white-space: pre-wrap !important;
-  font-family: var(--mono);
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
-  color: inherit;
-}
-
-pre {
-  white-space: pre-wrap !important;
-  overflow-x: auto;
-}
 
 @theme inline {
   --font-heading: var(--font-sans);
@@ -272,15 +210,81 @@ pre {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Custom variables overrides for dark mode readability */
+  --text: oklch(0.82 0.015 280);
+  --text-h: oklch(0.985 0 0);
+  --code-bg: oklch(0.28 0.02 280);
+  --accent-bg: rgba(170, 59, 255, 0.15);
+  --accent-border: rgba(170, 59, 255, 0.4);
+  --social-bg: rgba(255, 255, 255, 0.05);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;}
+    @apply border-border outline-ring/50;
+  }
   body {
-    @apply bg-background text-foreground;}
+    margin: 0;
+    @apply bg-background text-foreground;
+  }
   html {
-    @apply font-sans;}
+    scroll-behavior: smooth;
+    @apply font-sans;
+  }
+  h1,
+  h2 {
+    font-family: var(--heading);
+    font-weight: 500;
+    color: var(--text-h);
+  }
+  h1 {
+    font-size: 56px;
+    letter-spacing: -1.68px;
+    margin: 32px 0;
+    @media (max-width: 1024px) {
+      font-size: 36px;
+      margin: 20px 0;
+    }
+  }
+  h2 {
+    font-size: 24px;
+    line-height: 118%;
+    letter-spacing: -0.24px;
+    margin: 0 0 8px;
+    @media (max-width: 1024px) {
+      font-size: 20px;
+    }
+  }
+  p {
+    margin: 0;
+  }
+  code:not(pre code),
+  .counter {
+    font-family: var(--mono);
+    display: inline;
+    border-radius: 4px;
+    color: var(--text-h);
+  }
+  code:not(pre code) {
+    font-size: 15px;
+    line-height: 135%;
+    padding: 4px 8px;
+    background: var(--code-bg);
+  }
+  pre code {
+    display: block;
+    white-space: pre-wrap !important;
+    font-family: var(--mono);
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+  }
+  pre {
+    white-space: pre-wrap !important;
+    overflow-x: auto;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════

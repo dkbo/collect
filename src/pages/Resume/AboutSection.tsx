@@ -113,7 +113,7 @@ export function AboutSection() {
             </div>
             
             {/* Bio introduction */}
-            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-350 leading-relaxed text-justify">
+            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed text-justify">
               {bioText}
             </p>
           </div>
@@ -136,12 +136,12 @@ export function AboutSection() {
         {/* Info Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm w-full">
           {/* Class Card */}
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
               <User className="w-4.5 h-4.5 shrink-0" />
             </div>
             <div className="text-left">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Class
               </span>
               <span className="font-semibold text-xs md:text-sm text-slate-800 dark:text-slate-200">
@@ -151,12 +151,12 @@ export function AboutSection() {
           </div>
 
           {/* Level Card */}
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
               <Calendar className="w-4.5 h-4.5 shrink-0" />
             </div>
             <div className="text-left">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Level
               </span>
               <span className="font-semibold text-xs md:text-sm text-slate-800 dark:text-slate-200">
@@ -168,14 +168,14 @@ export function AboutSection() {
           {/* Email Card (Clickable) */}
           <a 
             href="mailto:dk880842@gmail.com" 
-            className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/30 dark:hover:border-purple-400/30 hover:bg-purple-500/5 dark:hover:bg-purple-500/5 transition-all duration-300 group/item cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/30 dark:hover:border-purple-400/30 hover:bg-purple-500/5 dark:hover:bg-purple-500/5 transition-all duration-300 group/item cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             aria-label="寄信給盧宏寶"
           >
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
               <Mail className="w-4.5 h-4.5 shrink-0" />
             </div>
             <div className="overflow-hidden text-left">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 Email
                 <ExternalLink className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity duration-300" />
               </span>
@@ -186,12 +186,12 @@ export function AboutSection() {
           </a>
 
           {/* Location Card */}
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
               <MapPin className="w-4.5 h-4.5 shrink-0" />
             </div>
             <div className="text-left">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Location
               </span>
               <span className="font-semibold text-xs md:text-sm text-slate-800 dark:text-slate-200">
