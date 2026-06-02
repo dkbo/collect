@@ -4,7 +4,7 @@ import { Compass, MapPin, Navigation, Info, X } from 'lucide-react'
 import { useDirectionsStore } from '@/store/useDirectionsStore'
 import type { LatLng } from '@/store/useDirectionsStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import MiniChat from './MiniChatComponent'
+
 
 // Dynamic Google Maps Script Loader
 const loadGoogleMapsScript = (callback: () => void) => {
@@ -56,7 +56,7 @@ function getCustomOverlayClass(google: any) {
         <div class="geoDialog bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-lg text-xs max-w-[180px] leading-relaxed absolute top-[-95px] left-1/2 -translate-x-1/2 opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-normal break-words">
           ${this.message}
         </div>
-        <div class="geoImg cursor-pointer p-0.5 bg-white dark:bg-slate-800 rounded-full border border-slate-300 dark:border-slate-700 shadow-md w-11 h-11 flex items-center justify-center overflow-hidden hover:scale-115 transition-transform duration-200">
+        <div class="geoImg cursor-pointer p-0.5 bg-white dark:bg-slate-800 rounded-full border border-slate-300 dark:border-slate-700 shadow-md w-11 h-11 flex items-center justify-center overflow-hidden hover:scale-115 transition-transform duration-200" role="button" tabindex="0" aria-label="查看玩家資訊">
           <img src="${this.image}" class="w-full h-full rounded-full object-cover" alt="User" />
         </div>
       `
@@ -71,6 +71,12 @@ function getCustomOverlayClass(google: any) {
       const imgWrapper = div.querySelector('.geoImg')
       if (imgWrapper) {
         imgWrapper.addEventListener('click', this.toggleDialog, false)
+        imgWrapper.addEventListener('keydown', (e: any) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            this.toggleDialog(e)
+          }
+        }, false)
       }
 
       const panes = this.getPanes()
@@ -260,12 +266,34 @@ const darkMapStyles = [
   },
 ]
 
+const MOCK_ROUTE_STEPS = [
+  "沿主幹道向東北方向行駛，前行 500 公尺。",
+  "於下一個十字路口向右轉，進入中山路，前行 1.2 公里。",
+  "持續直行，經過中油加油站後，靠左側車道行駛。",
+  "於環島處選擇第二出口，進入復興路，前行 800 公尺。",
+  "抵達目的地，目的地即在您的右側，旅途愉快！"
+] as const
+
 export function DirectionsPage() {
   const { origin, destination, latLng, setDirections, setLatLng } = useDirectionsStore()
   const { theme } = useThemeStore()
   const [isMapLoaded, setIsMapLoaded] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [showTextFallback, setShowTextFallback] = useState(false)
+
+  useEffect(() => {
+    if (isMapLoaded) {
+      const handle = requestAnimationFrame(() => {
+        setShowTextFallback(false)
+      })
+      return () => cancelAnimationFrame(handle)
+    }
+    const timer = setTimeout(() => {
+      setShowTextFallback(true)
+    }, 4500)
+    return () => clearTimeout(timer)
+  }, [isMapLoaded])
   
   const mapRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -313,7 +341,18 @@ export function DirectionsPage() {
         })
       }
 
-      const errorCallback = () => {
+      const errorCallback = (error?: GeolocationPositionError) => {
+        let msg = "已使用預設中心點（桃園中壢）。您可以手動輸入出發地。"
+        if (error) {
+          if (error.code === error.PERMISSION_DENIED) {
+            msg = "定位授權遭拒。已將起點設為預設位置（桃園中壢），您可手動輸入起點。"
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            msg = "無法獲取您當前的位置。已自動預設為桃園中壢，您可手動輸入起點。"
+          } else if (error.code === error.TIMEOUT) {
+            msg = "定位請求超時。已使用預設起點（桃園中壢），您可手動輸入起點。"
+          }
+        }
+        setErrorMessage(msg)
         // Fallback to Taoyuan default coordinate
         const pos = { lat: 24.962, lng: 121.218 }
         geocoder.geocode({ location: pos }, (results: any, status: string) => {
@@ -534,8 +573,29 @@ export function DirectionsPage() {
 
   return (
     <div className="relative w-full h-[calc(100vh-140px)] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-2xl bg-slate-950">
-      {/* Map Rendering Div */}
-      <div id="map" ref={mapRef} className="w-full h-full absolute inset-0 z-0" />
+      {/* Map Rendering Div or Text-Only Fallback */}
+      {showTextFallback ? (
+        <div className="w-full h-full absolute inset-0 z-0 flex flex-col items-center justify-center p-8 bg-slate-900 text-slate-300 text-center select-text">
+          <Info className="h-10 w-10 text-amber-500 mb-4 animate-bounce" aria-hidden="true" />
+          <h3 className="text-lg font-bold text-white mb-2">地圖服務載入逾時</h3>
+          <p className="text-xs text-slate-400 max-w-sm mb-4">
+            由於無法正常載入 Google Maps API，已自動切換為「文字路線導覽模式」。您仍可於上方輸入起迄點進行模擬規劃。
+          </p>
+          {origin && destination && (
+            <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 max-w-md w-full text-left space-y-2">
+              <div className="text-xs text-purple-400 font-bold">預估路程：約 3.8 公里 (8 分鐘)</div>
+              <div className="text-xs font-semibold text-slate-200">文字行車指引（模擬）：</div>
+              <ul className="list-decimal list-inside text-[11px] space-y-1 text-slate-400">
+                {MOCK_ROUTE_STEPS.map((step, idx) => (
+                  <li key={idx}>{step}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div id="map" ref={mapRef} className="w-full h-full absolute inset-0 z-0" />
+      )}
 
       {/* Floating Control Box */}
       <div
@@ -544,7 +604,7 @@ export function DirectionsPage() {
       >
         {/* Origin Input */}
         <div className="relative flex items-center bg-white/90 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-inner">
-          <Compass className="h-5 w-5 text-indigo-500 mr-2.5 flex-shrink-0" />
+          <Compass className="h-5 w-5 text-indigo-500 mr-2.5 flex-shrink-0" aria-hidden="true" />
           <input
             ref={originInputRef}
             className="w-full bg-transparent text-sm focus:outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
@@ -554,12 +614,13 @@ export function DirectionsPage() {
             onKeyDown={(e) => handleKeyDown(e, true)}
             placeholder="起點（可輸入位址，或使用當前定位）"
             data-testid="directions-origin"
+            aria-label="起點"
           />
         </div>
 
         {/* Destination Input */}
         <div className="relative flex items-center bg-white/90 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-inner">
-          <MapPin className="h-5 w-5 text-rose-500 mr-2.5 flex-shrink-0" />
+          <MapPin className="h-5 w-5 text-rose-500 mr-2.5 flex-shrink-0" aria-hidden="true" />
           <input
             ref={destInputRef}
             className="w-full bg-transparent text-sm focus:outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
@@ -569,6 +630,7 @@ export function DirectionsPage() {
             onKeyDown={(e) => handleKeyDown(e, false)}
             placeholder="終點"
             data-testid="directions-destination"
+            aria-label="終點"
           />
         </div>
 
@@ -591,22 +653,20 @@ export function DirectionsPage() {
       >
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm z-30">
           <h2 className="text-base font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <Navigation className="h-5 w-5 text-purple-600 dark:text-purple-400 animate-pulse" />
+            <Navigation className="h-5 w-5 text-purple-600 dark:text-purple-400 animate-pulse" aria-hidden="true" />
             導航指引
           </h2>
           <button
             onClick={() => setShowPanel(false)}
-            className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg transition-colors cursor-pointer"
-            aria-label="Close directions list"
+            className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+            aria-label="關閉導航面板"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-sans" />
       </div>
 
-      {/* MiniChat Widget Widget */}
-      <MiniChat style={{ left: 16 }} />
     </div>
   )
 }

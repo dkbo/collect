@@ -4,7 +4,7 @@
   "description": "<p>本頁面主要放置過去及未來所開發網頁時所運用到的工具。</p>",
   "type": "module",
   "scripts": {
-    "start": "vite",
+    "start": "vite --open",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -16,7 +16,6 @@
     "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "firebase": "^12.14.0",
     "lucide-react": "^1.17.0",
     "radix-ui": "^1.4.3",
     "react": "^19.2.6",

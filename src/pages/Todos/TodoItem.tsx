@@ -45,6 +45,13 @@ export function TodoItem({
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleCompleted()
+    }
+  }
+
   const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       updateTodo(e.currentTarget.value, object.timestamp)
@@ -70,14 +77,18 @@ export function TodoItem({
     <li className={itemClasses} data-testid={`todo-item-${index}`}>
       {/* Complete Checkbox & Text */}
       <div 
-        className="flex items-center gap-3 flex-1 select-none py-1"
+        className="flex items-center gap-3 flex-1 select-none py-1 focus-visible:ring-2 focus-visible:ring-purple-500 rounded-md outline-none"
         onMouseDown={handleCompleted}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="button"
+        aria-label={object.completed ? `標記 "${object.value}" 為未完成` : `標記 "${object.value}" 為已完成`}
       >
         <div className="flex-shrink-0 cursor-pointer text-slate-400 dark:text-slate-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors duration-200">
           {object.completed ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 fill-emerald-500/10" />
+            <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 fill-emerald-500/10" aria-hidden="true" />
           ) : (
-            <Circle className="h-5 w-5" />
+            <Circle className="h-5 w-5" aria-hidden="true" />
           )}
         </div>
         
@@ -92,9 +103,23 @@ export function TodoItem({
               onKeyDown={handleEditKeyDown}
               onMouseDown={(e) => e.stopPropagation()}
               data-testid={`todo-edit-input-${index}`}
+              aria-label="編輯待辦事項內容"
             />
           ) : (
-            <span className={`text-slate-700 dark:text-slate-300 break-words block text-base font-medium transition-all duration-300 ${object.completed ? 'line-through opacity-60' : ''}`}>
+            <span 
+              className={`text-slate-700 dark:text-slate-300 break-words block text-base font-medium transition-all duration-300 cursor-text ${object.completed ? 'line-through opacity-60' : ''}`}
+              title={object.completed ? undefined : "雙擊以編輯"}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                if (!object.completed) {
+                  toggleEdit(object.timestamp)
+                }
+              }}
+              onMouseDown={(e) => {
+                // If double click target is active, we don't want it to toggle completion on single click
+                e.stopPropagation()
+              }}
+            >
               {object.value}
             </span>
           )}
@@ -106,21 +131,21 @@ export function TodoItem({
         {!object.completed && (
           <button
             onClick={() => toggleEdit(object.timestamp)}
-            className="p-2 text-slate-400 dark:text-slate-500 hover:text-purple-500 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-all duration-200 cursor-pointer"
-            aria-label="Edit todo"
+            className="p-2 text-slate-400 dark:text-slate-500 hover:text-purple-500 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+            aria-label="編輯待辦事項"
             data-testid={`todo-edit-btn-${index}`}
           >
-            <Edit className="h-4.5 w-4.5" />
+            <Edit className="h-4.5 w-4.5" aria-hidden="true" />
           </button>
         )}
         
         <button
           onClick={() => deleteTodoAsync(object.timestamp)}
-          className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-all duration-200 cursor-pointer"
-          aria-label="Delete todo"
+          className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+          aria-label="刪除待辦事項"
           data-testid={`todo-delete-btn-${index}`}
         >
-          <Trash2 className="h-4.5 w-4.5" />
+          <Trash2 className="h-4.5 w-4.5" aria-hidden="true" />
         </button>
       </div>
     </li>

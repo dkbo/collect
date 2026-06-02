@@ -114,6 +114,7 @@ export function PastSection() {
               alt="Developer workspace showing VS Code editor"
               className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105"
               data-testid="about-bg-image"
+              loading="lazy"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
           </div>

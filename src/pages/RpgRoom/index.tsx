@@ -12,7 +12,8 @@ import {
   Compass,
   MessageSquare,
   Maximize2,
-  Minimize2
+  Minimize2,
+  RotateCcw
 } from 'lucide-react'
 import { useRpgStore } from '@/store/useRpgStore'
 import { isMoveObject } from '@/pages/RpgRoom/constants/isMove'
@@ -46,6 +47,8 @@ export function RpgRoom() {
 
   const [showInstructions, setShowInstructions] = useState(false)
   const [imagesLoaded, setImagesLoaded] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const isPausedRef = useRef(false)
 
   // Canvas refs
   const canvasContainerRef = useRef<HTMLDivElement>(null)
@@ -393,6 +396,29 @@ export function RpgRoom() {
       return
     }
 
+    if (isPausedRef.current) {
+      const playerCanvas = playerCanvasRef.current
+      if (playerCanvas) {
+        const playerCtx = playerCanvas.getContext('2d')
+        if (playerCtx) {
+          playerCtx.fillStyle = 'rgba(15, 23, 42, 0.6)'
+          playerCtx.fillRect(0, 0, playerCanvas.width, playerCanvas.height)
+          
+          playerCtx.fillStyle = '#f59e0b'
+          playerCtx.font = 'bold 28px sans-serif'
+          playerCtx.textAlign = 'center'
+          playerCtx.textBaseline = 'middle'
+          playerCtx.fillText('遊戲暫停中', playerCanvas.width / 2, playerCanvas.height / 2)
+          
+          playerCtx.font = '14px sans-serif'
+          playerCtx.fillStyle = '#cbd5e1'
+          playerCtx.fillText('點擊「繼續遊戲」或按 P 鍵恢復', playerCanvas.width / 2, playerCanvas.height / 2 + 40)
+        }
+      }
+      requestRef.current = requestAnimationFrame(loop)
+      return
+    }
+
     const p = playerRef.current
     const id = mapIdRef.current
     const speed = p.s
@@ -491,6 +517,18 @@ export function RpgRoom() {
       setShowInstructions((prev) => !prev)
       return
     }
+
+    if (e.keyCode === 80) { // P Key
+      e.preventDefault()
+      setIsPaused((prev) => {
+        const val = !prev
+        isPausedRef.current = val
+        return val
+      })
+      return
+    }
+
+    if (isPausedRef.current) return
 
     if ([32, 37, 38, 39, 40].includes(e.keyCode)) {
       e.preventDefault()
@@ -602,6 +640,32 @@ export function RpgRoom() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const restartGame = () => {
+    setIsPaused(false)
+    isPausedRef.current = false
+    resetRpg()
+    mapIdRef.current = 0
+    isTransSenceRef.current = true
+    setMap(0, true)
+    setTransSence(true)
+    const spawn = isMoveObject[0].map.in[0]
+    playerRef.current.px = spawn.x
+    playerRef.current.py = spawn.y
+    playerRef.current.left = false
+    playerRef.current.right = false
+    playerRef.current.up = false
+    playerRef.current.down = false
+    playerRef.current.sx = 0
+    playerRef.current.sy = 0
+
+    loadMapImages(0).then(() => {
+      setImagesLoaded(true)
+      isTransSenceRef.current = false
+      setTransSence(false)
+      drawGame()
+    })
+  }
+
   return (
     <div className="max-w-5xl mx-auto pb-12" data-testid="page-rpgroom">
       {/* Title Header */}
@@ -613,6 +677,44 @@ export function RpgRoom() {
           以經典 2D RPG 角色扮演大師風格實作的個人虛擬展間。探索地圖並與地标/NPC進行對話互動。
         </p>
       </header>
+
+      {/* Game Menu Actions */}
+      <div className="flex flex-wrap items-center gap-2 mb-4 justify-between select-none">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowInstructions(true)}
+            className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
+          >
+            <HelpCircle className="size-3.5" aria-hidden="true" />
+            遊戲說明
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setIsPaused((prev) => {
+                const val = !prev
+                isPausedRef.current = val
+                return val
+              })
+            }}
+            className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl"
+          >
+            {isPaused ? "繼續遊戲" : "暫停遊戲"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={restartGame}
+            className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
+          >
+            <RotateCcw className="size-3.5" aria-hidden="true" />
+            重新開始
+          </Button>
+        </div>
+      </div>
 
       {/* Arcade cabinet wrapper */}
       <div className="rpg-cabinet">

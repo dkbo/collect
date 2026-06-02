@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Gamepad2, RotateCcw, Shield, Coins, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Maximize2, Minimize2 } from 'lucide-react'
+import { Gamepad2, RotateCcw, Shield, Coins, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Maximize2, Minimize2, HelpCircle } from 'lucide-react'
 import { useThemeStore } from '@/store/useThemeStore'
 
 const GAME_WIDTH = 800
@@ -23,6 +23,7 @@ interface GameState {
   hp: number
   score: number
   isActive: boolean
+  isPaused?: boolean
 }
 
 export function MiniGame() {
@@ -39,6 +40,8 @@ export function MiniGame() {
 
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [showInstructions, setShowInstructions] = useState(false)
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -74,15 +77,30 @@ export function MiniGame() {
     wall: [],
     hp: 10,
     score: 0,
-    isActive: true
+    isActive: true,
+    isPaused: false
   })
 
   const keydown = (e: KeyboardEvent) => {
     // Prevent default scroll behavior for game control keys
-    if ([32, 37, 38, 39, 40].includes(e.keyCode)) {
+    if ([32, 37, 38, 39, 40, 27, 80].includes(e.keyCode)) {
       e.preventDefault()
     }
     const s = stateRef.current
+
+    if (e.keyCode === 27 || e.keyCode === 80) { // Esc or P
+      if (s.hp > 0) {
+        setIsPaused((prev) => {
+          const val = !prev
+          s.isPaused = val
+          return val
+        })
+      }
+      return
+    }
+
+    if (s.isPaused) return
+
     switch (e.keyCode) {
       case 32: // Space
         s.bow.push({ x: 15 + s.x, y: s.y + s.w / 2 })
@@ -135,6 +153,27 @@ export function MiniGame() {
     const s = stateRef.current
     // Stop the loop instantly if component is unmounted / page switched
     if (!s.isActive) return
+
+    if (s.isPaused) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.7)'
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+      
+      ctx.fillStyle = '#a855f7'
+      ctx.shadowColor = '#a855f7'
+      ctx.shadowBlur = 15
+      ctx.font = 'bold 36px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('遊戲暫停中', GAME_WIDTH / 2, GAME_HEIGHT / 2)
+      
+      ctx.font = '16px sans-serif'
+      ctx.fillStyle = '#94a3b8'
+      ctx.shadowBlur = 0
+      ctx.fillText('按 P 鍵或 ESC 繼續遊戲', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50)
+      
+      requestRef.current = requestAnimationFrame(animation)
+      return
+    }
 
     // Clear Canvas
     ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
@@ -276,6 +315,7 @@ export function MiniGame() {
   }
 
   const startGame = () => {
+    setIsPaused(false)
     stateRef.current = {
       x: 50,
       y: 200,
@@ -287,7 +327,8 @@ export function MiniGame() {
       wall: [],
       hp: 10,
       score: 0,
-      isActive: true
+      isActive: true,
+      isPaused: false
     }
     setScore(0)
     setHp(10)
@@ -332,18 +373,59 @@ export function MiniGame() {
         className="relative border-4 border-slate-800 dark:border-slate-700 rounded-3xl bg-slate-900 shadow-2xl p-4 md:p-6 overflow-hidden max-w-3xl mx-auto transition-all duration-300"
       >
         
+        {/* Game Menu Actions */}
+        <div className="flex flex-wrap items-center gap-2 mb-4 justify-between border-b border-slate-800/60 pb-3 select-none">
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowInstructions(true)}
+              className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-950/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
+            >
+              <HelpCircle className="size-3.5" aria-hidden="true" />
+              遊戲說明
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const s = stateRef.current
+                if (hp > 0) {
+                  setIsPaused((prev) => {
+                    const val = !prev
+                    s.isPaused = val
+                    return val
+                  })
+                }
+              }}
+              className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-950/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl"
+            >
+              {isPaused ? "繼續遊戲" : "暫停遊戲"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={startGame}
+              className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-950/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
+            >
+              <RotateCcw className="size-3.5" aria-hidden="true" />
+              重新開始
+            </Button>
+          </div>
+        </div>
+
         {/* Score and Stats header inside console */}
         <div className="flex justify-between items-center bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 mb-4 select-none">
           <div className="flex items-center gap-2 text-rose-500 font-bold text-xs sm:text-sm">
-            <Shield className="size-4 animate-pulse" />
+            <Shield className="size-4 animate-pulse" aria-hidden="true" />
             <span>生命值: {hp}</span>
           </div>
           <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs sm:text-sm">
-            <Coins className="size-4" />
+            <Coins className="size-4" aria-hidden="true" />
             <span>得分: {score}</span>
           </div>
           <div className="flex items-center gap-2 text-amber-500 font-bold text-xs sm:text-sm">
-            <Sparkles className="size-4" />
+            <Sparkles className="size-4" aria-hidden="true" />
             <span>最高紀錄: {highScore}</span>
           </div>
         </div>
@@ -365,7 +447,7 @@ export function MiniGame() {
             className="absolute top-4 right-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
             aria-label="切換全螢幕"
           >
-            {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            {isFullscreen ? <Minimize2 className="size-4" aria-hidden="true" /> : <Maximize2 className="size-4" aria-hidden="true" />}
           </Button>
           {hp > 0 ? (
             <canvas 
@@ -381,7 +463,7 @@ export function MiniGame() {
               onClick={startGame}
               data-testid="gameover-screen"
             >
-              <Gamepad2 className="size-16 text-rose-500 mb-4 animate-bounce group-hover:scale-110 transition-transform" />
+              <Gamepad2 className="size-16 text-rose-500 mb-4 animate-bounce group-hover:scale-110 transition-transform" aria-hidden="true" />
               <div className="text-4xl sm:text-5xl font-black text-rose-600 uppercase tracking-widest select-none">
                 Game Over
               </div>
@@ -396,7 +478,7 @@ export function MiniGame() {
                   startGame()
                 }}
               >
-                <RotateCcw className="mr-2 size-4" />
+                <RotateCcw className="mr-2 size-4" aria-hidden="true" />
                 重新開始
               </Button>
             </div>
@@ -419,7 +501,7 @@ export function MiniGame() {
                 onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.up = false }}
                 aria-label="戰機向上移動"
               >
-                <ArrowUp className="size-5" />
+                <ArrowUp className="size-5" aria-hidden="true" />
               </Button>
               <div />
               <Button
@@ -432,7 +514,7 @@ export function MiniGame() {
                 onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.left = false }}
                 aria-label="戰機向左移動"
               >
-                <ArrowLeft className="size-5" />
+                <ArrowLeft className="size-5" aria-hidden="true" />
               </Button>
               <div className="flex items-center justify-center text-[11px] text-slate-500 font-extrabold uppercase select-none">
                 D-Pad
@@ -447,7 +529,7 @@ export function MiniGame() {
                 onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.right = false }}
                 aria-label="戰機向右移動"
               >
-                <ArrowRight className="size-5" />
+                <ArrowRight className="size-5" aria-hidden="true" />
               </Button>
               <div />
               <Button
@@ -460,7 +542,7 @@ export function MiniGame() {
                 onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.down = false }}
                 aria-label="戰機向下移動"
               >
-                <ArrowDown className="size-5" />
+                <ArrowDown className="size-5" aria-hidden="true" />
               </Button>
               <div />
             </div>
@@ -489,6 +571,49 @@ export function MiniGame() {
           </div>
         </div>
       </div>
+
+      {/* Help Modal */}
+      {showInstructions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-scale-in text-slate-100">
+            <div className="flex items-center gap-3 mb-4">
+              <Gamepad2 className="h-6 w-6 text-purple-400" aria-hidden="true" />
+              <h3 className="text-lg font-bold text-white">復古射擊 遊戲說明</h3>
+            </div>
+            
+            <div className="space-y-3.5 text-xs text-slate-300">
+              <p className="leading-relaxed">
+                這是一款復古風格的太空射擊小遊戲，考驗您的反應能力。
+              </p>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span>移動戰機</span>
+                <kbd className="px-2 py-0.5 rounded bg-slate-950 text-purple-400 border border-slate-800 font-mono">W A S D / ↑ ↓ ← →</kbd>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span>開火發射</span>
+                <kbd className="px-2 py-0.5 rounded bg-slate-950 text-purple-400 border border-slate-800 font-mono">空白鍵 (Space)</kbd>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span>暫停 / 繼續</span>
+                <kbd className="px-2 py-0.5 rounded bg-slate-950 text-purple-400 border border-slate-800 font-mono">Esc 或 P 鍵</kbd>
+              </div>
+              <div className="text-[11px] text-slate-400 bg-slate-950/40 p-3 rounded-lg border border-slate-800/40 leading-normal">
+                <span className="font-bold text-rose-500 block mb-1">⚠️ 遊戲規則</span>
+                避開或擊碎迎面而來的紅色障礙物。若紅色障礙物突破最左側防線，生命值將會扣減 1 點。生命值歸零則遊戲結束。
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-end">
+              <Button 
+                onClick={() => setShowInstructions(false)}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold cursor-pointer"
+              >
+                開始遊戲
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

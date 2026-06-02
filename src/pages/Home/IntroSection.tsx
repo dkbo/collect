@@ -15,7 +15,7 @@ export function IntroSection() {
       data-testid="home-intro"
     >
       <h2 className="home-card-header">
-        <User className="w-5 h-5 mr-2 shrink-0" />
+        <User className="w-5 h-5 mr-2 shrink-0" aria-hidden="true" />
         簡介
       </h2>
 
@@ -31,7 +31,7 @@ export function IntroSection() {
               key={label}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/5 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/15 dark:border-purple-500/20 transition-colors duration-200 cursor-default"
             >
-              <Icon className="w-3 h-3" />
+              <Icon className="w-3 h-3" aria-hidden="true" />
               {label}
             </span>
           ))}

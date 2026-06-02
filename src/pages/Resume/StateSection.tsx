@@ -35,7 +35,7 @@ function Chart({ color, percent, text }: ChartProps) {
   }
 
   return (
-    <div className="flex flex-col items-center p-2 group">
+    <div className="flex flex-col items-center p-2 group" role="img" aria-label={`${text} 熟練度 ${percent}%`}>
       <div className="relative size-24 sm:size-28 md:size-32 transition-transform duration-300 group-hover:scale-105">
         <svg className="size-full -rotate-90" viewBox="0 0 120 120">
           {/* Background circle */}

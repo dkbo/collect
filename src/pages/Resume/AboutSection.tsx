@@ -66,7 +66,7 @@ export function AboutSection() {
       data-testid="resume-about"
     >
       <h2 className="resume-card-header flex items-center justify-center gap-2">
-        <Sparkles className="w-4 h-4 text-purple-200 animate-pulse" />
+        <Sparkles className="w-4 h-4 text-purple-200 animate-pulse" aria-hidden="true" />
         <span>關於我 (About Me)</span>
       </h2>
       
@@ -87,6 +87,7 @@ export function AboutSection() {
                 alt="盧宏寶 頭像" 
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-115"
                 data-testid="resume-avatar-image"
+                loading="lazy"
               />
             </div>
           </div>
@@ -97,7 +98,7 @@ export function AboutSection() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 justify-center sm:justify-start">
                 <h3 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-1.5 justify-center sm:justify-start">
                   盧宏寶
-                  <Award className="w-5 h-5 text-amber-500 animate-bounce" style={{ animationDuration: '3s' }} />
+                  <Award className="w-5 h-5 text-amber-500 animate-bounce" style={{ animationDuration: '3s' }} aria-hidden="true" />
                 </h3>
                 <div className="flex justify-center sm:justify-start">
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -138,7 +139,7 @@ export function AboutSection() {
           {/* Class Card */}
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
-              <User className="w-4.5 h-4.5 shrink-0" />
+              <User className="w-4.5 h-4.5 shrink-0" aria-hidden="true" />
             </div>
             <div className="text-left">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -153,7 +154,7 @@ export function AboutSection() {
           {/* Level Card */}
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
-              <Calendar className="w-4.5 h-4.5 shrink-0" />
+              <Calendar className="w-4.5 h-4.5 shrink-0" aria-hidden="true" />
             </div>
             <div className="text-left">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -172,12 +173,12 @@ export function AboutSection() {
             aria-label="寄信給盧宏寶"
           >
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
-              <Mail className="w-4.5 h-4.5 shrink-0" />
+              <Mail className="w-4.5 h-4.5 shrink-0" aria-hidden="true" />
             </div>
             <div className="overflow-hidden text-left">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 Email
-                <ExternalLink className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity duration-300" />
+                <ExternalLink className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity duration-300" aria-hidden="true" />
               </span>
               <span className="font-semibold text-xs md:text-sm text-slate-800 dark:text-slate-200 block truncate group-hover/item:text-purple-600 dark:group-hover/item:text-purple-400 transition-colors duration-300">
                 dk880842@gmail.com
@@ -188,7 +189,7 @@ export function AboutSection() {
           {/* Location Card */}
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md hover:border-purple-500/20 dark:hover:border-purple-400/20 transition-all duration-300 group/item cursor-pointer">
             <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 dark:text-purple-400 group-hover/item:bg-purple-500/20 transition-colors duration-300">
-              <MapPin className="w-4.5 h-4.5 shrink-0" />
+              <MapPin className="w-4.5 h-4.5 shrink-0" aria-hidden="true" />
             </div>
             <div className="text-left">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">

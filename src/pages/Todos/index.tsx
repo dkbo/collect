@@ -22,6 +22,18 @@ export function TodoList() {
   // Calculate filtered counts for buttons
   const completedCount = todos.filter((todo) => todo.completed).length
 
+  const handleClearCompleted = () => {
+    if (window.confirm("確定要清除所有已完成的待辦事項嗎？")) {
+      clearCompletedAsync()
+    }
+  }
+
+  const handleClearAll = () => {
+    if (window.confirm("確定要清除所有的待辦事項嗎？此動作將會清除所有歷史紀錄，且無法復原！")) {
+      clearAllAsync()
+    }
+  }
+
   return (
     <div id="todos" className="todo-container">
       <div id="todoBox" className="todo-box">
@@ -29,7 +41,7 @@ export function TodoList() {
         <div className="todo-header">
           <div className="flex items-center gap-2.5">
             <div className="bg-gradient-to-tr from-purple-500 to-indigo-500 p-2 rounded-xl shadow-md text-white">
-              <ListTodo className="h-5 w-5" />
+              <ListTodo className="h-5 w-5" aria-hidden="true" />
             </div>
             <h1 className="todo-title">
               Todos ({todos.length})
@@ -40,21 +52,23 @@ export function TodoList() {
           <div id="todoControl" className="todo-controls">
             {completedCount > 0 && (
               <button
-                onClick={clearCompletedAsync}
+                onClick={handleClearCompleted}
                 className="todo-btn-control flex items-center gap-1 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/30"
+                aria-label="清除所有已完成事項"
                 data-testid="todo-clear-completed"
               >
-                <CheckSquare className="h-3.5 w-3.5" />
+                <CheckSquare className="h-3.5 w-3.5" aria-hidden="true" />
                 Clear Completed
               </button>
             )}
             {todos.length > 0 && (
               <button
-                onClick={clearAllAsync}
+                onClick={handleClearAll}
                 className="todo-btn-control flex items-center gap-1 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-500/30"
+                aria-label="清除所有事項"
                 data-testid="todo-clear-all"
               >
-                <Trash className="h-3.5 w-3.5" />
+                <Trash className="h-3.5 w-3.5" aria-hidden="true" />
                 Clear All
               </button>
             )}

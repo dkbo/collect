@@ -116,9 +116,9 @@ export function SearchApi() {
       {/* Search Input Box */}
       <div className="max-w-2xl mx-auto mb-10">
         <div className="relative group/search bg-card/60 backdrop-blur-md rounded-2xl p-2 border border-border shadow-lg transition-all duration-300 focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500/50">
-          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
             <div className="pl-3 text-slate-400">
-              <Search className="size-5" />
+              <Search className="size-5" aria-hidden="true" />
             </div>
             <input
               type="text"
@@ -129,6 +129,7 @@ export function SearchApi() {
               placeholder="請輸入關鍵字搜尋，例如：React..."
               className="flex-1 border-0 bg-transparent py-3 px-3 text-base text-foreground placeholder:text-slate-500 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
               data-testid="search-input-field"
+              aria-label="搜尋關鍵字"
             />
             {inputValue && (
               <Button
@@ -138,7 +139,7 @@ export function SearchApi() {
                 className="size-9 text-slate-400 hover:text-foreground rounded-xl cursor-pointer"
                 aria-label="清除搜尋字詞"
               >
-                <X className="size-4" />
+                <X className="size-4" aria-hidden="true" />
               </Button>
             )}
           </div>
@@ -147,14 +148,15 @@ export function SearchApi() {
         {/* Suggestion tags */}
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs select-none">
           <span className="text-slate-500 font-medium flex items-center gap-1">
-            <Sparkles className="size-3 text-purple-400" />
+            <Sparkles className="size-3 text-purple-400" aria-hidden="true" />
             推薦探索:
           </span>
           {SUGGESTED_KEYWORDS.map((word) => (
             <button
               key={word}
               onClick={() => handleSuggestClick(word)}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg cursor-pointer transition-colors duration-200 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 font-medium"
+              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg cursor-pointer transition-colors duration-200 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 font-medium focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+              aria-label={`搜尋 ${word}`}
             >
               {word}
             </button>
@@ -167,7 +169,7 @@ export function SearchApi() {
         /* Welcome Placeholder Screen */
         <div className="max-w-md mx-auto text-center p-8 bg-card/40 border border-border/80 rounded-2xl backdrop-blur-sm shadow-md animate-fade-in">
           <div className="bg-gradient-to-tr from-purple-500 to-indigo-500 w-12 h-12 rounded-xl shadow-lg flex items-center justify-center text-white mx-auto mb-4">
-            <Globe className="size-6 animate-pulse" />
+            <Globe className="size-6 animate-pulse" aria-hidden="true" />
           </div>
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">等待搜尋中</h3>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
@@ -210,7 +212,7 @@ export function SearchApi() {
             {/* GitHub Error State */}
             {errorGithub && (
               <div className="p-4 border border-rose-500/20 bg-rose-500/5 text-rose-500 dark:text-rose-400 rounded-xl text-sm flex items-start gap-2">
-                <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <span className="font-bold">檢索失敗：</span>
                   <span>{errorGithub} (可能是觸發了 GitHub API 每分鐘請求上限，請稍候重試)</span>
@@ -249,11 +251,11 @@ export function SearchApi() {
 
                       <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 select-none">
                         <div className="flex items-center gap-1 hover:text-amber-500 transition-colors">
-                          <Star className="size-3.5" />
+                          <Star className="size-3.5" aria-hidden="true" />
                           <span>{repo.stargazers_count.toLocaleString()}</span>
                         </div>
                         <div className="flex items-center gap-1 hover:text-blue-500 transition-colors">
-                          <GitFork className="size-3.5" />
+                          <GitFork className="size-3.5" aria-hidden="true" />
                           <span>{repo.forks_count.toLocaleString()}</span>
                         </div>
                       </div>
@@ -274,7 +276,7 @@ export function SearchApi() {
           <div className="space-y-6">
             <div className="flex items-center gap-3 border-b border-border pb-3">
               <div className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 p-2 rounded-xl shadow-sm border border-border/40">
-                <BookOpen className="size-5" />
+                <BookOpen className="size-5" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">維基百科條目</h2>
@@ -298,7 +300,7 @@ export function SearchApi() {
             {/* Wikipedia Error State */}
             {errorWiki && (
               <div className="p-4 border border-rose-500/20 bg-rose-500/5 text-rose-500 dark:text-rose-400 rounded-xl text-sm flex items-start gap-2">
-                <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <span className="font-bold">檢索失敗：</span>
                   <span>{errorWiki}</span>
@@ -316,7 +318,7 @@ export function SearchApi() {
                       className="p-4 rounded-xl border border-border/80 bg-card hover:bg-slate-50/40 dark:hover:bg-slate-900/30 shadow-sm transition-all hover:-translate-y-0.5 duration-200 group"
                     >
                       <div className="flex items-start gap-2">
-                        <CornerDownRight className="size-4 text-purple-500 mt-1 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                        <CornerDownRight className="size-4 text-purple-500 mt-1 shrink-0 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
                         <div className="space-y-1.5 flex-1">
                           <a 
                             href={wikiLinks[i]} 

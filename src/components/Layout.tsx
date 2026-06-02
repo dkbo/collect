@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, Suspense } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { Code2, Sun, Moon, Menu, X } from 'lucide-react'
 import { useThemeStore } from '@/store/useThemeStore'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,6 @@ const NAV_ITEMS = [
   { to: '/search', label: '外部查詢', end: false, testId: 'nav-search' },
   { to: '/todos', label: '代辦事項', end: false, testId: 'nav-todos' },
   { to: '/directions', label: '地圖導覽', end: false, testId: 'nav-directions' },
-  { to: '/chat', label: '多人聊天', end: false, testId: 'nav-chat' },
   { to: '/map-developer', label: '地圖開發', end: false, testId: 'nav-map-developer' },
 ] as const
 
@@ -20,6 +19,77 @@ export function Layout() {
   const { theme, toggleTheme } = useThemeStore()
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const location = useLocation()
+
+  useEffect(() => {
+    const path = location.pathname
+    let title: string
+    let description: string
+    let keywords: string
+
+    if (path === '/') {
+      title = "首頁 | DKBO's Collect"
+      description = "DKBO's Collect - 個人作品集與技術展示。結合 React、TypeScript、Zustand、Firebase 等現代前端開發技術的精選專案彙整。"
+      keywords = "React, firebase, DKBO, 前端, front End, TypeScript, Vite"
+    } else if (path.startsWith('/resume')) {
+      title = "E-履歷 | DKBO's Collect"
+      description = "DKBO (盧宏寶) 的個人履歷。資深前端架構師，專注於 React 生態系、Vite、TypeScript 專案建置與效能優化。"
+      keywords = "DKBO, 履歷, 前端工程師, React, TypeScript, 履歷表"
+    } else if (path.startsWith('/miniGame')) {
+      title = "小遊戲 | DKBO's Collect"
+      description = "趣味休閒網頁小遊戲，展示純前端互動邏輯、鍵盤/滑鼠事件處理與 React 狀態管理。"
+      keywords = "小遊戲, React遊戲, 前端遊戲, 網頁遊戲"
+    } else if (path.startsWith('/rpgroom')) {
+      title = "RPG 遊戲室 | DKBO's Collect"
+      description = "互動式 RPG 虛擬角色遊戲室，支援地圖場景繪製、碰撞邊界、鍵盤移動控制與 NPC 對話系統。"
+      keywords = "RPG, 遊戲室, 虛擬角色, 地圖繪製, Canvas"
+    } else if (path.startsWith('/search')) {
+      title = "外部查詢 | DKBO's Collect"
+      description = "整合外部 API 查詢工具，實作資料檢索、防抖（Debounce）處理與即時搜尋建議。"
+      keywords = "API查詢, 資料檢索, React查詢, 搜尋引擎"
+    } else if (path.startsWith('/todos')) {
+      title = "待辦事項 | DKBO's Collect"
+      description = "現代化的 Todo List 代辦事項管理，整合 Zustand 狀態管理、Firebase 即時資料庫與拖拽排序/篩選功能。"
+      keywords = "Todo List, 待辦事項, Zustand, Firebase"
+    } else if (path.startsWith('/directions')) {
+      title = "地圖導覽 | DKBO's Collect"
+      description = "地圖定位與路線導覽功能，結合第三方地圖 API 與地理定位技術，提供精準的地點查詢。"
+      keywords = "地圖導覽, 地理定位, 路線規劃, Map"
+    } else if (path.startsWith('/map-developer')) {
+      title = "地圖開發工具 | DKBO's Collect"
+      description = "地圖編輯與開發者工具，支援 RPG 地圖場景預覽、網格定位編輯、碰撞邊界設定與 JSON 檔案匯出。"
+      keywords = "地圖開發, RPG地圖編輯器, 地圖編輯器, 開發者工具"
+    } else {
+      title = "404 找不到頁面 | DKBO's Collect"
+      description = "找不到您要求的頁面，請使用導覽列返回首頁。"
+      keywords = "React, firebase, DKBO, 前端, front End, TypeScript, Vite"
+    }
+
+    document.title = title
+
+    // Update meta tags
+    const updateMetaTag = (name: string, value: string, isProperty = false) => {
+      const selector = isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`
+      let el = document.querySelector(selector)
+      if (!el) {
+        el = document.createElement('meta')
+        if (isProperty) {
+          el.setAttribute('property', name)
+        } else {
+          el.setAttribute('name', name)
+        }
+        document.head.appendChild(el)
+      }
+      el.setAttribute('content', value)
+    }
+
+    updateMetaTag('description', description)
+    updateMetaTag('keywords', keywords)
+    updateMetaTag('og:title', title, true)
+    updateMetaTag('og:description', description, true)
+    updateMetaTag('twitter:title', title)
+    updateMetaTag('twitter:description', description)
+  }, [location.pathname])
 
   const handleScroll = useCallback(() => {
     setIsScrolled(window.scrollY > 20)

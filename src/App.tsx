@@ -9,7 +9,7 @@ const RpgRoom = lazy(() => import('@/pages/RpgRoom'))
 const SearchApi = lazy(() => import('@/pages/Search'))
 const TodoList = lazy(() => import('@/pages/Todos'))
 const DirectionsPage = lazy(() => import('@/pages/Directions'))
-const ChatPage = lazy(() => import('@/pages/Chat'))
+
 const MapDeveloper = lazy(() => import('@/pages/MapDeveloper'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -55,10 +55,7 @@ const router = createHashRouter([
         path: 'directions',
         element: <DirectionsPage />,
       },
-      {
-        path: 'chat',
-        element: <ChatPage />,
-      },
+
       {
         path: 'map-developer',
         element: <MapDeveloper />,

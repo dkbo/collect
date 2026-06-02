@@ -645,7 +645,7 @@ export function MapDeveloper() {
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 mb-5 shadow-2xl backdrop-blur-md flex flex-wrap gap-5 justify-between items-center relative z-20">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-tr from-purple-500 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-purple-500/20">
-            <Layers className="h-5 w-5 text-white" />
+            <Layers className="h-5 w-5 text-white" aria-hidden="true" />
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white m-0 leading-normal">
@@ -661,36 +661,40 @@ export function MapDeveloper() {
         <div className="flex flex-wrap gap-2.5">
           <Button 
             variant="outline"
-            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
             onClick={() => setShowHelpModal(true)}
+            aria-label="快速鍵說明"
           >
-            <HelpCircle className="h-4 w-4 mr-2" />
+            <HelpCircle className="h-4 w-4 mr-2" aria-hidden="true" />
             快速鍵說明
           </Button>
           <Button 
             variant="outline"
-            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
             onClick={() => setShowJsonPanel(!showJsonPanel)}
+            aria-label="導入 / 導出 JSON"
           >
-            <FileJson className="h-4 w-4 mr-2" />
+            <FileJson className="h-4 w-4 mr-2" aria-hidden="true" />
             導入 / 導出 JSON
           </Button>
           <Button 
             variant="outline"
-            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
             onClick={() => store.loadFromLocalStorage()}
+            aria-label="讀取暫存"
           >
-            <FolderOpen className="h-4 w-4 mr-2" />
+            <FolderOpen className="h-4 w-4 mr-2" aria-hidden="true" />
             讀取暫存 (Alt+L)
           </Button>
           <Button 
-            className="bg-purple-600 text-white hover:bg-purple-700 font-semibold"
+            className="bg-purple-600 text-white hover:bg-purple-700 font-semibold focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
             onClick={() => {
               store.saveToLocalStorage()
               alert('地圖已成功儲存至本地快取！')
             }}
+            aria-label="儲存地圖"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="h-4 w-4 mr-2" aria-hidden="true" />
             儲存地圖 (Alt+S)
           </Button>
         </div>
@@ -700,7 +704,7 @@ export function MapDeveloper() {
       {showJsonPanel && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5 shadow-2xl animate-slide-in relative z-20">
           <h3 className="text-sm font-semibold mb-3 text-purple-400 flex items-center gap-2">
-            <FileJson className="h-4 w-4" /> 地圖 JSON 代碼工具
+            <FileJson className="h-4 w-4" aria-hidden="true" /> 地圖 JSON 代碼工具
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -710,9 +714,10 @@ export function MapDeveloper() {
                   size="sm" 
                   variant="ghost" 
                   onClick={handleCopyJson} 
-                  className="h-7 text-xs text-purple-400 hover:text-purple-300 hover:bg-slate-800"
+                  className="h-7 text-xs text-purple-400 hover:text-purple-300 hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                  aria-label="複製 JSON"
                 >
-                  <Copy className="h-3 w-3 mr-1" />
+                  <Copy className="h-3 w-3 mr-1" aria-hidden="true" />
                   {copied ? '已複製' : '複製 JSON'}
                 </Button>
               </div>
@@ -720,6 +725,7 @@ export function MapDeveloper() {
                 className="w-full h-44 rounded-xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-emerald-400 focus:outline-none"
                 readOnly
                 value={currentMapJson}
+                aria-label="當前地圖 JSON 代碼匯出"
               />
             </div>
             <div>
@@ -728,9 +734,10 @@ export function MapDeveloper() {
                 <Button 
                   size="sm"
                   onClick={handleLoadJson}
-                  className="h-7 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold"
+                  className="h-7 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                  aria-label="解析並載入"
                 >
-                  <Upload className="h-3 w-3 mr-1" />
+                  <Upload className="h-3 w-3 mr-1" aria-hidden="true" />
                   解析並載入
                 </Button>
               </div>
@@ -739,6 +746,7 @@ export function MapDeveloper() {
                 placeholder="在此貼上舊地圖匯出的 JSON 代碼..."
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
+                aria-label="貼上要匯入的地圖 JSON 代碼"
               />
             </div>
           </div>
@@ -752,7 +760,7 @@ export function MapDeveloper() {
         <div className="lg:col-span-3 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
           <div className="p-4 border-b border-slate-800 flex items-center justify-between">
             <span className="text-sm font-semibold flex items-center gap-2">
-              <Layers className="h-4 w-4 text-purple-400" />
+              <Layers className="h-4 w-4 text-purple-400" aria-hidden="true" />
               圖庫拼圖區
             </span>
             <select 
@@ -803,7 +811,7 @@ export function MapDeveloper() {
           <div className="p-4 border-b border-slate-800 bg-slate-950/20 flex flex-wrap gap-4 items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="text-sm font-semibold flex items-center gap-2">
-                <Grid className="h-4 w-4 text-emerald-400" />
+                <Grid className="h-4 w-4 text-emerald-400" aria-hidden="true" />
                 場景工作區 
               </span>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
@@ -929,7 +937,7 @@ export function MapDeveloper() {
           
           <div className="p-4 border-b border-slate-800 flex items-center justify-between">
             <span className="text-sm font-semibold flex items-center gap-2">
-              <Settings className="h-4 w-4 text-purple-400" />
+              <Settings className="h-4 w-4 text-purple-400" aria-hidden="true" />
               屬性視察器
             </span>
           </div>
@@ -1209,21 +1217,22 @@ export function MapDeveloper() {
 
                 <div className="flex gap-2 pt-4">
                   <Button 
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold"
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
                     onClick={() => {
                       if (store.mapObjects !== null) {
                         store.deleteElement(store.mapObjects, store.objectNum)
                       }
                     }}
+                    aria-label="刪除此物件"
                   >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    <Trash2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
                     刪除此物件
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="h-48 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-xl text-slate-500 bg-slate-950/20">
-                <Info className="h-6 w-6 mb-2 text-slate-600" />
+                <Info className="h-6 w-6 mb-2 text-slate-600" aria-hidden="true" />
                 <p className="text-center px-4">請點選畫布上的貼圖物件或碰撞區域進行視察</p>
               </div>
             )}
@@ -1236,18 +1245,20 @@ export function MapDeveloper() {
                   size="sm"
                   variant="outline"
                   onClick={() => exportCanvas('B')}
-                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white"
+                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                  aria-label="導出背景層圖片"
                 >
-                  <Download className="h-3 w-3 mr-1" />
+                  <Download className="h-3 w-3 mr-1" aria-hidden="true" />
                   導出背景層 (.png)
                 </Button>
                 <Button 
                   size="sm"
                   variant="outline"
                   onClick={() => exportCanvas('F')}
-                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white"
+                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                  aria-label="導出前景層圖片"
                 >
-                  <Download className="h-3 w-3 mr-1" />
+                  <Download className="h-3 w-3 mr-1" aria-hidden="true" />
                   導出前景層 (.png)
                 </Button>
               </div>
@@ -1263,7 +1274,7 @@ export function MapDeveloper() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-scale-in">
             <div className="flex items-center gap-3 mb-4">
-              <Keyboard className="h-6 w-6 text-purple-400" />
+              <Keyboard className="h-6 w-6 text-purple-400" aria-hidden="true" />
               <h3 className="text-lg font-bold text-white">地圖編輯器 快速鍵說明</h3>
             </div>
             

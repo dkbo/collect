@@ -1,7 +1,7 @@
 import IntroSection from '@/pages/Home/IntroSection'
 import PastSection from '@/pages/Home/PastSection'
 import RpgSection from '@/pages/Home/RpgSection'
-import FirebaseSection from '@/pages/Home/FirebaseSection'
+
 import useScrollAnimation from '@/lib/useScrollAnimation'
 
 export function Home() {
@@ -15,7 +15,7 @@ export function Home() {
           DKBO&apos;s Collect
         </h1>
         <p className="hero-subtitle">
-          網站由純前端建置，後端方面結合 firebase 的授權及即時資料庫的特性，重構昔日的作品。主要由 React + React-Router + React-Redux 所構成，隨著經驗的累積會陸續把技術應用在此網頁上。
+          網站由純前端建置，展示各式網頁應用工具與技術實作。主要由 React + React Router + Zustand 所構成，隨著經驗的累積會將新技術應用在此網頁上。
         </p>
       </header>
 
@@ -29,9 +29,6 @@ export function Home() {
         </div>
         <div className="animate-on-scroll animate-fade-in-up animate-stagger-3">
           <RpgSection />
-        </div>
-        <div className="animate-on-scroll animate-fade-in-up animate-stagger-4">
-          <FirebaseSection />
         </div>
       </div>
     </div>

@@ -29,9 +29,7 @@ export default defineConfig({
           ) {
             return 'vendor-syntax'
           }
-          if (id.includes('firebase')) {
-            return 'vendor-firebase'
-          }
+
           if (id.includes('lucide-react') || id.includes('lucide')) {
             return 'vendor-lucide'
           }

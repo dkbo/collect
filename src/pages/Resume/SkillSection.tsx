@@ -13,7 +13,7 @@ const SKILL_ITEMS = [
   { text: 'Joomla', weight: 3 },
   { text: 'Hexo', weight: 3 },
   { text: 'GitHub', weight: 3 },
-  { text: 'Firebase', weight: 3 },
+
   { text: 'Heroku', weight: 3 },
   { text: 'jQuery', weight: 4 },
   { text: 'Socket.io', weight: 4 },

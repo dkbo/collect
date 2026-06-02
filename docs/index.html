@@ -7,17 +7,47 @@
     <meta name="author" content="DKBO" />
     <meta name="description" content="網站由純前端建置，後端方面結合 firebase 的授權及即時資料庫的特性，重構昔日的作品。主要由 React + React-Router + Zustand 所構成，隨著經驗的累積會陸續把技術應用在此網頁上。" />
     <meta name="keywords" content="React,firebase,DKBO,前端,front End,TypeScript,Vite" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://*.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://maps.gstatic.com https://*.googleapis.com https://avatars.githubusercontent.com https://api.dicebear.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://maps.googleapis.com https://*.googleapis.com https://api.github.com https://zh.wikipedia.org https://*.wikipedia.org; frame-src 'self';" />
+    
+    <!-- Preconnect / DNS-Prefetch for speed -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://maps.googleapis.com" />
+    <link rel="preconnect" href="https://api.dicebear.com" />
+
+    <!-- Open Graph / Facebook -->
     <meta property="og:title" content="DKBO's Collect" />
     <meta property="og:description" content="網站由純前端建置，重構昔日的作品。" />
     <meta property="og:locale" content="zh_TW" />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="/collect/favicon.ico" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="DKBO's Collect" />
+    <meta name="twitter:description" content="網站由純前端建置，後端方面結合 firebase 的授權及即時資料庫的特性，重構昔日的作品。主要由 React + React-Router + Zustand 所構成。" />
+    <meta name="twitter:image" content="/collect/favicon.ico" />
+
     <title>DKBO's Collect</title>
-    <script type="module" crossorigin src="/collect/assets/index-Bd6oE_53.js"></script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      "mainEntity": {
+        "@type": "Person",
+        "name": "盧宏寶 (DKBO)",
+        "jobTitle": "Senior Frontend Architect",
+        "description": "前端架構與網頁工具展示作品集",
+        "knowsAbout": ["React", "TypeScript", "Vite", "Zustand", "Firebase"]
+      }
+    }
+    </script>
+    <script type="module" crossorigin src="/collect/assets/index-DHxM0aWV.js"></script>
     <link rel="modulepreload" crossorigin href="/collect/assets/rolldown-runtime-QTnfLwEv.js">
-    <link rel="modulepreload" crossorigin href="/collect/assets/vendor-lucide-CPCLskKq.js">
-    <link rel="modulepreload" crossorigin href="/collect/assets/vendor-react-BNDVFk4O.js">
+    <link rel="modulepreload" crossorigin href="/collect/assets/vendor-lucide-DmJIMssp.js">
+    <link rel="modulepreload" crossorigin href="/collect/assets/vendor-react-B-nkpXQK.js">
     <link rel="modulepreload" crossorigin href="/collect/assets/vendor-others-CYZwMP50.js">
-    <link rel="stylesheet" crossorigin href="/collect/assets/index-CHd9QkVU.css">
+    <link rel="stylesheet" crossorigin href="/collect/assets/index-D2iHFnOk.css">
   </head>
   <body>
     <div id="root"></div>

@@ -22,7 +22,7 @@ function moveAframe() {
 // 定時執行 moveAframe()
 requestAFrame(moveAframe)`
 
-const CODEPEN_URL = 'http://codepen.io/dkbo/pen/vOvWox?editors=0010'
+const CODEPEN_URL = 'https://codepen.io/dkbo/pen/vOvWox?editors=0010'
 
 export function RpgSection() {
   return (
@@ -31,7 +31,7 @@ export function RpgSection() {
       data-testid="home-rpg"
     >
       <h2 className="home-card-header">
-        <Gamepad2 className="w-5 h-5 inline-block mr-2 -mt-0.5" />
+        <Gamepad2 className="w-5 h-5 inline-block mr-2 -mt-0.5" aria-hidden="true" />
         關於遊戲室
       </h2>
 
@@ -100,6 +100,7 @@ export function RpgSection() {
             alt="RPG Game Interface Screenshot Concept"
             className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105"
             data-testid="rpg-pc-image"
+            loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
         </div>
