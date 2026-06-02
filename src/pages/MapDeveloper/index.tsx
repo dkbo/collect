@@ -53,33 +53,7 @@ export function MapDeveloper() {
   const isDrawingCollision = useRef(false)
   const collisionStartCoords = useRef({ x: 0, y: 0 })
 
-  // 1. Initial configuration and load
-  useEffect(() => {
-    store.loadFromLocalStorage()
-    // Default grass bg tile image
-    const bgTile = new Image()
-    bgTile.src = bgImg
-    bgTile.onload = () => {
-      drawAllLayers()
-    }
-  }, [])
 
-  // 2. Refresh workspace drawing on state updates
-  useEffect(() => {
-    drawAllLayers()
-  }, [
-    store.width,
-    store.height,
-    store.styles,
-    store.isMoveArr,
-    store.opacityB,
-    store.opacityF,
-    store.opacityM,
-    store.gridX,
-    store.gridY,
-    store.mapObjects,
-    store.objectNum
-  ])
 
   // 3. Render Sprite Selection overlay
   const drawSpriteSelection = useCallback(() => {
@@ -290,6 +264,36 @@ export function MapDeveloper() {
     }
   }
 
+  // 1. Initial configuration and load
+  useEffect(() => {
+    store.loadFromLocalStorage()
+    // Default grass bg tile image
+    const bgTile = new Image()
+    bgTile.src = bgImg
+    bgTile.onload = () => {
+      drawAllLayers()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 2. Refresh workspace drawing on state updates
+  useEffect(() => {
+    drawAllLayers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    store.width,
+    store.height,
+    store.styles,
+    store.isMoveArr,
+    store.opacityB,
+    store.opacityF,
+    store.opacityM,
+    store.gridX,
+    store.gridY,
+    store.mapObjects,
+    store.objectNum
+  ])
+
   // Handle Palette Sprite Click
   const handleSpriteMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = spriteCanvasRef.current
@@ -309,8 +313,8 @@ export function MapDeveloper() {
       } else {
         const srcX = store.sourceX
         const srcY = store.sourceY
-        let w = store.sourceW
-        let h = store.sourceH
+        let w: number
+        let h: number
         let x = srcX
         let y = srcY
 
@@ -575,7 +579,7 @@ export function MapDeveloper() {
       } else {
         alert('載入失敗：格式不正確。')
       }
-    } catch (e) {
+    } catch {
       alert('JSON 格式解析錯誤！')
     }
   }

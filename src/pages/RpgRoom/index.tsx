@@ -325,22 +325,98 @@ export function RpgRoom() {
       )
     }
 
-    // Render player
-    if (playerImageRef.current && playerImageRef.current.complete) {
-      const nX = 32
-      const nY = 48
-      playerCtx.drawImage(
-        playerImageRef.current,
-        p.sx,
-        p.sy,
-        nX,
-        nY,
-        spx,
-        spy,
-        nX,
-        nY
-      )
+    // Render characters (Y-sorted: player and NPCs)
+    interface RenderableChar {
+      y: number
+      draw: () => void
     }
+
+    const charsToRender: RenderableChar[] = []
+    const nX = 32
+    const nY = 48
+
+    // 1. Add player
+    if (playerImageRef.current && playerImageRef.current.complete) {
+      charsToRender.push({
+        y: p.py + nY,
+        draw: () => {
+          playerCtx.drawImage(
+            playerImageRef.current!,
+            p.sx,
+            p.sy,
+            nX,
+            nY,
+            spx,
+            spy,
+            nX,
+            nY
+          )
+        }
+      })
+    }
+
+    // 2. Add NPCs from map JSON
+    const mapJson = mapsJson[id]
+    if (mapJson && mapJson.npc) {
+      const IMAGES = [
+        playerImageRef.current,
+        tile1ImageRef.current,
+        tile2ImageRef.current,
+      ]
+
+      mapJson.npc.forEach((npc) => {
+        const npcMsg = messageObject[id]?.[npc.e]
+        if (!npcMsg) return // Skip if not an active NPC
+
+        const npcX = npc.pX
+        const npcY = npc.pY
+        const nW = npc.w || 32
+        const nH = npc.h || 48
+
+        let nSpx: number
+        if (w > mapConfig.width) {
+          nSpx = npcX + ((w - mapConfig.width) / 2)
+        } else {
+          nSpx = npcX - msx
+        }
+
+        let nSpy: number
+        if (h > mapConfig.height) {
+          nSpy = npcY + ((h - mapConfig.height) / 2)
+        } else {
+          nSpy = npcY - msy
+        }
+
+        const sheet = IMAGES[npc.b]
+        if (sheet && sheet.complete) {
+          let npcSy = 0
+          if (npc.d === 1) npcSy = 48
+          else if (npc.d === 2) npcSy = 96
+          else if (npc.d === 3) npcSy = 144
+
+          charsToRender.push({
+            y: npcY + nH,
+            draw: () => {
+              playerCtx.drawImage(
+                sheet,
+                0, // stand still frame
+                npcSy,
+                nW,
+                nH,
+                nSpx,
+                nSpy,
+                nW,
+                nH
+              )
+            }
+          })
+        }
+      })
+    }
+
+    // 3. Y-Sort and Draw
+    charsToRender.sort((a, b) => a.y - b.y)
+    charsToRender.forEach((char) => char.draw())
 
     // Render foreground overlay layer from offscreen cache
     if (fgOffscreenCanvasRef.current) {
@@ -465,6 +541,39 @@ export function RpgRoom() {
       }
     })
 
+    // Also check interaction against NPCs in mapJson.npc
+    if (!npcFound) {
+      const mapJson = mapsJson[id]
+      if (mapJson && mapJson.npc) {
+        mapJson.npc.forEach((npc) => {
+          const npcMsg = messageObject[id]?.[npc.e]
+          if (!npcMsg) return
+
+          const a = p.px + nX + x >= npc.pX
+          const b = p.px + x <= npc.pX + npc.w
+          const c = p.py + nY + y >= npc.pY
+          const d = p.py + y <= npc.pY + npc.h
+
+          if (a && b && c && d) {
+            npcFound = true
+            const currentCount = useRpgStore.getState().messageCount
+            const nextCount = currentCount + 1
+
+            if (nextCount <= npcMsg.text.length) {
+              setNpcChat({
+                isChat: true,
+                npcName: npcMsg.name,
+                npcMessage: npcMsg.text[nextCount - 1],
+                messageCount: nextCount,
+              })
+            } else {
+              closeChat()
+            }
+          }
+        })
+      }
+    }
+
     if (!npcFound) {
       if (useRpgStore.getState().isChat) {
         closeChat()
@@ -507,6 +616,7 @@ export function RpgRoom() {
 
     const p = playerRef.current
     const id = mapIdRef.current
+    const mapConfig = isMoveObject[id].map
     const speed = p.s
 
     let dx = 0
@@ -542,6 +652,9 @@ export function RpgRoom() {
       const nextPy = p.py + dy
 
       const canMove = (chkX: number, chkY: number) => {
+        if (chkX < 0 || chkX + nX > mapConfig.width || chkY < 0 || chkY + nY > mapConfig.height) {
+          return false
+        }
         let possible = true
         isMoveObject[id].isMove.forEach((json) => {
           const a = chkX + nX >= json.x
@@ -552,6 +665,23 @@ export function RpgRoom() {
             possible = false
           }
         })
+
+        // Also check collision against NPCs in mapJson.npc
+        const mapJson = mapsJson[id]
+        if (possible && mapJson && mapJson.npc) {
+          mapJson.npc.forEach((npc) => {
+            const npcMsg = messageObject[id]?.[npc.e]
+            if (!npcMsg) return // Skip if not an active NPC
+
+            const a = chkX + nX >= npc.pX
+            const b = chkX <= npc.pX + npc.w
+            const c = chkY + nY >= npc.pY
+            const d = chkY <= npc.pY + npc.h
+            if (a && b && c && d) {
+              possible = false
+            }
+          })
+        }
         return possible
       }
 

@@ -52,7 +52,7 @@ interface MapEditorState {
   // Active document data
   styles: MapTile[]
   isMoveArr: MapCollision[]
-  npcArr: any[]
+  npcArr: unknown[]
   
   // Active editor modes & selections
   mapObjects: 1 | 2 | null // 1 = styles (tiles), 2 = isMove (collision), null = none
@@ -81,7 +81,12 @@ interface MapEditorState {
   setImmediate: (val: boolean) => void
   
   // Load / Save JSON
-  loadMapJson: (json: any) => boolean
+  loadMapJson: (json: {
+    map?: { width?: number; height?: number }
+    styles?: MapTile[]
+    isMove?: MapCollision[]
+    npc?: unknown[]
+  }) => boolean
   clearMap: () => void
   saveToLocalStorage: () => void
   loadFromLocalStorage: () => void
@@ -215,7 +220,7 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
     } else {
       const copy = [...state.isMoveArr]
       if (copy[index]) {
-        copy[index] = { ...copy[index], ...props as any }
+        copy[index] = { ...copy[index], ...props as Partial<MapCollision> }
       }
       return { isMoveArr: copy }
     }
