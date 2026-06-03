@@ -23,13 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
-
+*.local.*
 
 # AI
 /.antigravitycli
 /.agent
 /.agents
-/.claude
 /.codex
 /.github
 /.prompts

@@ -24,6 +24,14 @@ import { aabbIntersect } from '@/pages/RpgRoom/types'
 import { renderMessage } from '@/pages/RpgRoom/lib/messageRenderer'
 
 
+// NPC 碰撞框只取下半身（RPG Maker 慣例：角色可走到 NPC 上方、視覺與其上半身重疊）
+const npcFeetBox = (npc: { pX: number; pY: number; w: number; h: number }) => ({
+  x: npc.pX,
+  y: npc.pY + 24,
+  w: npc.w,
+  h: npc.h - 24,
+})
+
 interface PlayerRefState {
   px: number
   py: number
@@ -401,17 +409,17 @@ export function RpgRoom() {
 
         const sheet = IMAGES[npc.b]
         if (sheet && sheet.complete) {
-          let npcSy = 0
-          if (npc.d === 1) npcSy = 48
-          else if (npc.d === 2) npcSy = 96
-          else if (npc.d === 3) npcSy = 144
+          // npc.y = 哪個角色的起始 y（每個角色佔 192px）；npc.x = walk frame x（0=靜止）
+          const npcBaseY = npc.y ?? 0
+          const dirOffset = npc.d === 1 ? 48 : npc.d === 2 ? 96 : npc.d === 3 ? 144 : 0
+          const npcSy = npcBaseY + dirOffset
 
           charsToRender.push({
             y: npcY + nH,
             draw: () => {
               playerCtx.drawImage(
                 sheet,
-                0, // stand still frame
+                npc.x ?? 0, // walk frame x（0 = 靜止第一格）
                 npcSy,
                 nW,
                 nH,
@@ -553,12 +561,12 @@ export function RpgRoom() {
 
     let npcFound = hitEvent ? advanceChat(hitEvent.e!) : false
 
-    // Also check interaction against NPCs in mapJson.npc
+    // Also check interaction against NPCs in mapJson.npc（碰撞框=下半身，見 npcFeetBox）
     if (!npcFound && mapJson.npc) {
       const hitNpc = mapJson.npc.find(
         (npc) =>
           mapJson.messages?.[npc.e] &&
-          aabbIntersect(p.px + x, p.py + y, nX, nY, { x: npc.pX, y: npc.pY, w: npc.w, h: npc.h })
+          aabbIntersect(p.px + x, p.py + y, nX, nY, npcFeetBox(npc))
       )
       if (hitNpc) {
         npcFound = advanceChat(hitNpc.e)
@@ -659,7 +667,7 @@ export function RpgRoom() {
           return !mapJson.npc.some(
             (npc) =>
               mapJson.messages?.[npc.e] &&
-              aabbIntersect(chkX, chkY, nX, nY, { x: npc.pX, y: npc.pY, w: npc.w, h: npc.h })
+              aabbIntersect(chkX, chkY, nX, nY, npcFeetBox(npc))
           )
         }
         return true
