@@ -1,68 +1,16 @@
-import map0 from './0000_map.json'
-import map1 from './0001_map.json'
-import map2 from './0002_map.json'
-import map3 from './0003_map.json'
+import type { MapJsonData } from '@/pages/RpgRoom/types'
 
-export interface MapStyleTile {
-  n: string
-  l: number
-  t: number
-  w: number
-  h: number
-  b: number
-  x: number
-  y: number
-  z?: number
-}
+// 自動註冊：新增地圖只需放入 data/000N_map.json，不必改 code。
+// 檔名數字前綴即地圖索引，依檔名排序對齊 map.index。
+const modules = import.meta.glob('./[0-9]*_map.json', {
+  eager: true,
+  import: 'default',
+})
 
-export interface MapNpc {
-  b: number
-  type: number
-  pX: number
-  pY: number
-  aX: number
-  aY: number
-  aW: number
-  aH: number
-  mX: number
-  mY: number
-  x: number
-  y: number
-  w: number
-  h: number
-  d: number
-  l: number
-  r: number
-  u: number
-  t: number
-  s: number
-  f: number
-  footSpeed: number
-  isR: boolean
-  isU: boolean
-  isD: boolean
-  isL: boolean
-  isM: boolean
-  e: number
-}
+export const mapsJson: MapJsonData[] = Object.keys(modules)
+  .sort()
+  .map((key) => modules[key] as MapJsonData)
 
-export interface MapJsonData {
-  map: {
-    index: number
-    name: string
-    width: number
-    height: number
-    in: Array<{ x: number; y: number }>
-  }
-  styles: MapStyleTile[]
-  npc?: MapNpc[]
-}
-
-export const mapsJson: MapJsonData[] = [
-  map0 as MapJsonData,
-  map1 as MapJsonData,
-  map2 as MapJsonData,
-  map3 as MapJsonData,
-]
+export type { MapJsonData, MapStyleTile, MapNpc } from '@/pages/RpgRoom/types'
 
 export default mapsJson

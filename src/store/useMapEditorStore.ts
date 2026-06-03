@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { MapNpc, NpcMessage, SpawnPoint } from '@/pages/RpgRoom/types'
 
 export interface MapTile {
   n: string   // name
@@ -10,6 +11,8 @@ export interface MapTile {
   x: number   // sprite source X
   y: number   // sprite source Y
   z?: number  // layer (2: foreground/front, 0 or undefined: background/back)
+  rx?: number // repeat along X (壓縮欄位)
+  ry?: number // repeat along Y (壓縮欄位)
 }
 
 export interface MapCollision {
@@ -24,10 +27,15 @@ export interface MapCollision {
 }
 
 interface MapEditorState {
+  // Map metadata
+  mapIndex: number
+  mapName: string
+  inArr: SpawnPoint[]
+
   // Map dimensions
   width: number
   height: number
-  
+
   // Workarea translations
   mapLeft: number
   mapTop: number
@@ -52,15 +60,22 @@ interface MapEditorState {
   // Active document data
   styles: MapTile[]
   isMoveArr: MapCollision[]
-  npcArr: unknown[]
-  
+  npcArr: MapNpc[]
+  messagesArr: NpcMessage[]
+
   // Active editor modes & selections
-  mapObjects: 1 | 2 | null // 1 = styles (tiles), 2 = isMove (collision), null = none
+  mapObjects: 1 | 2 | 3 | null // 1 = styles (tiles), 2 = isMove (collision), 3 = npc, null = none
   objectNum: number        // index of the selected item in the active array
   objectName: string       // active object name to place
   immediate: boolean       // immediate update drawing flag
-  
+
   // Actions
+  setMapMeta: (index: number, name: string) => void
+  addSpawnPoint: (point: SpawnPoint) => void
+  updateSpawnPoint: (index: number, point: Partial<SpawnPoint>) => void
+  deleteSpawnPoint: (index: number) => void
+  addNpc: (npc: MapNpc) => void
+  updateNpcProps: (index: number, props: Partial<MapNpc>) => void
   setMapSize: (w: number, h: number) => void
   setMapOffset: (left: number, top: number) => void
   panMap: (dx: number, dy: number) => void
@@ -74,18 +89,26 @@ interface MapEditorState {
   // Element drawing
   addTile: (tile: MapTile) => void
   addCollision: (collision: MapCollision) => void
-  deleteElement: (type: 1 | 2, index: number) => void
-  selectElement: (type: 1 | 2 | null, index: number) => void
+  deleteElement: (type: 1 | 2 | 3, index: number) => void
+  selectElement: (type: 1 | 2 | 3 | null, index: number) => void
   updateElementProps: (type: 1 | 2, index: number, props: Partial<MapTile> & Partial<MapCollision>) => void
   setObjectName: (name: string) => void
   setImmediate: (val: boolean) => void
-  
+
   // Load / Save JSON
+  exportMapJson: () => {
+    map: { index: number; name: string; width: number; height: number; in: SpawnPoint[] }
+    styles: MapTile[]
+    isMove: MapCollision[]
+    npc: MapNpc[]
+    messages: NpcMessage[]
+  }
   loadMapJson: (json: {
-    map?: { width?: number; height?: number }
+    map?: { index?: number; name?: string; width?: number; height?: number; in?: SpawnPoint[] }
     styles?: MapTile[]
     isMove?: MapCollision[]
-    npc?: unknown[]
+    npc?: MapNpc[]
+    messages?: NpcMessage[]
   }) => boolean
   clearMap: () => void
   saveToLocalStorage: () => void
@@ -93,10 +116,15 @@ interface MapEditorState {
 }
 
 export const useMapEditorStore = create<MapEditorState>((set, get) => ({
+  // Map metadata
+  mapIndex: 0,
+  mapName: '新地圖',
+  inArr: [],
+
   // Map dimensions
   width: 1920,
   height: 1280,
-  
+
   // Workarea translations
   mapLeft: 0,
   mapTop: 0,
@@ -122,7 +150,8 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
   styles: [],
   isMoveArr: [],
   npcArr: [],
-  
+  messagesArr: [],
+
   // Active editor modes & selections
   mapObjects: null,
   objectNum: 0,
@@ -130,6 +159,33 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
   immediate: false,
 
   // Actions
+  setMapMeta: (mapIndex, mapName) => set({ mapIndex, mapName }),
+
+  addSpawnPoint: (point) => set((state) => ({ inArr: [...state.inArr, point] })),
+
+  updateSpawnPoint: (index, point) => set((state) => {
+    const copy = [...state.inArr]
+    if (copy[index]) copy[index] = { ...copy[index], ...point }
+    return { inArr: copy }
+  }),
+
+  deleteSpawnPoint: (index) => set((state) => {
+    const copy = [...state.inArr]
+    copy.splice(index, 1)
+    return { inArr: copy }
+  }),
+
+  addNpc: (npc) => set((state) => {
+    const updated = [...state.npcArr, npc]
+    return { npcArr: updated, mapObjects: 3, objectNum: updated.length - 1 }
+  }),
+
+  updateNpcProps: (index, props) => set((state) => {
+    const copy = [...state.npcArr]
+    if (copy[index]) copy[index] = { ...copy[index], ...props }
+    return { npcArr: copy }
+  }),
+
   setMapSize: (width, height) => set({ width, height }),
   
   setMapOffset: (mapLeft, mapTop) => set({ mapLeft, mapTop }),
@@ -194,11 +250,19 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
         mapObjects: null,
         objectNum: 0
       }
-    } else {
+    } else if (type === 2) {
       const copy = [...state.isMoveArr]
       copy.splice(index, 1)
       return {
         isMoveArr: copy,
+        mapObjects: null,
+        objectNum: 0
+      }
+    } else {
+      const copy = [...state.npcArr]
+      copy.splice(index, 1)
+      return {
+        npcArr: copy,
         mapObjects: null,
         objectNum: 0
       }
@@ -230,6 +294,24 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
   
   setImmediate: (immediate) => set({ immediate }),
   
+  exportMapJson: () => {
+    const state = get()
+    // 完整 schema：與 RpgRoom data/000N_map.json 相同，匯出即可直接使用
+    return {
+      map: {
+        index: state.mapIndex,
+        name: state.mapName,
+        width: state.width,
+        height: state.height,
+        in: state.inArr,
+      },
+      styles: state.styles,
+      isMove: state.isMoveArr,
+      npc: state.npcArr,
+      messages: state.messagesArr,
+    }
+  },
+
   loadMapJson: (json) => {
     if (!json) return false
     try {
@@ -238,13 +320,18 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
       const styles = Array.isArray(json.styles) ? json.styles : []
       const isMoveArr = Array.isArray(json.isMove) ? json.isMove : []
       const npcArr = Array.isArray(json.npc) ? json.npc : []
-      
+      const messagesArr = Array.isArray(json.messages) ? json.messages : []
+
       set({
+        mapIndex: json.map?.index ?? get().mapIndex,
+        mapName: json.map?.name ?? get().mapName,
+        inArr: Array.isArray(json.map?.in) ? json.map.in : [],
         width: mapWidth,
         height: mapHeight,
         styles,
         isMoveArr,
         npcArr,
+        messagesArr,
         mapObjects: null,
         objectNum: 0
       })
@@ -254,29 +341,22 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
       return false
     }
   },
-  
+
   clearMap: () => set({
     styles: [],
     isMoveArr: [],
     npcArr: [],
+    messagesArr: [],
+    inArr: [],
     mapObjects: null,
     objectNum: 0
   }),
-  
+
   saveToLocalStorage: () => {
     const state = get()
-    const map = {
-      width: state.width,
-      height: state.height
-    }
-    const json = {
-      map,
-      styles: state.styles,
-      isMove: state.isMoveArr,
-      npc: state.npcArr
-    }
+    const json = state.exportMapJson()
     localStorage.setItem('dkbo', JSON.stringify(json))
-    localStorage.setItem('dkbomap', JSON.stringify(map))
+    localStorage.setItem('dkbomap', JSON.stringify({ width: state.width, height: state.height }))
   },
   
   loadFromLocalStorage: () => {

@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useMapEditorStore } from '@/store/useMapEditorStore'
 import type { MapTile, MapCollision } from '@/store/useMapEditorStore'
+import type { MapNpc } from '@/pages/RpgRoom/types'
 
 // Import assets using absolute paths / Vite resolving
 import bgImg from '@/assets/images/map-editor/bg.jpg'
@@ -27,6 +28,41 @@ import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.png'
 
 const IMAGES = [manImg, tile1Img, tile2Img]
 
+// 模組層級單例快取：spritesheet 與草地底圖只載入一次，重繪不再 new Image()
+const sheetCache: (HTMLImageElement | null)[] = [null, null, null]
+let bgTileCache: HTMLImageElement | null = null
+let sheetsPromise: Promise<void> | null = null
+
+const loadSheets = (): Promise<void> => {
+  if (!sheetsPromise) {
+    const loadImage = (src: string): Promise<HTMLImageElement> =>
+      new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = () => resolve(img)
+        img.src = src
+      })
+    sheetsPromise = Promise.all([...IMAGES.map(loadImage), loadImage(bgImg)]).then((imgs) => {
+      sheetCache[0] = imgs[0]
+      sheetCache[1] = imgs[1]
+      sheetCache[2] = imgs[2]
+      bgTileCache = imgs[3]
+    })
+  }
+  return sheetsPromise
+}
+
+// 預設 NPC 樣板（站立、面向下、對話事件 0）
+const createDefaultNpc = (): MapNpc => ({
+  b: 0, type: 0, pX: 64, pY: 64,
+  aX: 32, aY: 32, aW: 160, aH: 160,
+  mX: 0, mY: 0, x: 0, y: 0, w: 32, h: 48,
+  d: 0, l: 1, r: 2, u: 3, t: 0, s: 0, f: 0,
+  footSpeed: 8,
+  isR: false, isU: false, isD: false, isL: false, isM: false,
+  e: 0,
+})
+
 export function MapDeveloper() {
   const store = useMapEditorStore()
   
@@ -34,7 +70,7 @@ export function MapDeveloper() {
   const [showHelpModal, setShowHelpModal] = useState(false)
   const [jsonInput, setJsonInput] = useState('')
   const [copied, setCopied] = useState(false)
-  const [activeTab, setActiveTab] = useState<'tile' | 'collision'>('tile')
+  const [activeTab, setActiveTab] = useState<'tile' | 'collision' | 'npc'>('tile')
   const [isFocused, setIsFocused] = useState(false)
   
   // Refs
@@ -107,17 +143,15 @@ export function MapDeveloper() {
     ctx.clearRect(0, 0, store.width, store.height)
     ctx.globalAlpha = store.opacityB
 
-    // Draw grid grass repeating tiles
-    const bgTile = new Image()
-    bgTile.src = bgImg
-    if (bgTile.complete) {
+    // Draw grid grass repeating tiles (使用模組層級快取)
+    if (bgTileCache && bgTileCache.complete) {
       const tileW = 32
       const tileH = 32
       const cols = Math.ceil(store.width / tileW)
       const rows = Math.ceil(store.height / tileH)
       for (let c = 0; c < cols; c++) {
         for (let r = 0; r < rows; r++) {
-          ctx.drawImage(bgTile, 0, 0, 32, 32, c * tileW, r * tileH, tileW, tileH)
+          ctx.drawImage(bgTileCache, 0, 0, 32, 32, c * tileW, r * tileH, tileW, tileH)
         }
       }
     }
@@ -125,18 +159,26 @@ export function MapDeveloper() {
     // Draw background objects (z !== 2)
     store.styles.forEach((tile) => {
       if (tile.z === 2) return
-      const sheet = new Image()
-      sheet.src = IMAGES[tile.b]
-      if (sheet.complete) {
-        ctx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
-      } else {
-        sheet.onload = () => {
-          // Redraw on complete
-          drawBackgroundLayer()
-        }
-      }
+      drawTile(ctx, tile)
     })
     ctx.globalAlpha = 1
+  }
+
+  // 共用 tile 繪製：使用快取 spritesheet，支援 rx/ry 重複展開
+  const drawTile = (ctx: CanvasRenderingContext2D, tile: MapTile) => {
+    const sheet = sheetCache[tile.b]
+    if (!sheet || !sheet.complete) return
+    const rx = tile.rx ?? 1
+    const ry = tile.ry ?? 1
+    for (let ix = 0; ix < rx; ix++) {
+      for (let iy = 0; iy < ry; iy++) {
+        ctx.drawImage(
+          sheet,
+          tile.x, tile.y, tile.w, tile.h,
+          tile.l + ix * tile.w, tile.t + iy * tile.h, tile.w, tile.h
+        )
+      }
+    }
   }
 
   const drawForegroundLayer = () => {
@@ -151,15 +193,7 @@ export function MapDeveloper() {
     // Draw foreground objects (z === 2)
     store.styles.forEach((tile) => {
       if (tile.z !== 2) return
-      const sheet = new Image()
-      sheet.src = IMAGES[tile.b]
-      if (sheet.complete) {
-        ctx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
-      } else {
-        sheet.onload = () => {
-          drawForegroundLayer()
-        }
-      }
+      drawTile(ctx, tile)
     })
     ctx.globalAlpha = 1
   }
@@ -182,6 +216,44 @@ export function MapDeveloper() {
       ctx.lineWidth = 1
       ctx.strokeStyle = '#0ea5e9'
       ctx.stroke()
+    })
+
+    // Draw NPC markers (位置 + 活動範圍)
+    store.npcArr.forEach((npc, index) => {
+      // 活動範圍（虛線橘框）
+      ctx.beginPath()
+      ctx.rect(npc.aX, npc.aY, npc.aW, npc.aH)
+      ctx.setLineDash([6, 4])
+      ctx.lineWidth = 1
+      ctx.strokeStyle = '#f59e0b'
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // NPC 本體（綠框）
+      ctx.beginPath()
+      ctx.rect(npc.pX, npc.pY, npc.w, npc.h)
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.35)'
+      ctx.fill()
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = '#22c55e'
+      ctx.stroke()
+      ctx.fillStyle = '#22c55e'
+      ctx.font = 'bold 10px monospace'
+      ctx.fillText(`NPC ${index}`, npc.pX, npc.pY - 4)
+    })
+
+    // Draw spawn points (出生點紫色菱形標記)
+    store.inArr.forEach((point, index) => {
+      ctx.beginPath()
+      ctx.rect(point.x, point.y, 32, 48)
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = '#a855f7'
+      ctx.setLineDash([3, 3])
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.fillStyle = '#a855f7'
+      ctx.font = 'bold 10px monospace'
+      ctx.fillText(`in[${index}]`, point.x, point.y - 4)
     })
     ctx.globalAlpha = 1
   }
@@ -267,12 +339,10 @@ export function MapDeveloper() {
   // 1. Initial configuration and load
   useEffect(() => {
     store.loadFromLocalStorage()
-    // Default grass bg tile image
-    const bgTile = new Image()
-    bgTile.src = bgImg
-    bgTile.onload = () => {
+    // 載入快取的 spritesheet 後再繪製
+    loadSheets().then(() => {
       drawAllLayers()
-    }
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -285,6 +355,8 @@ export function MapDeveloper() {
     store.height,
     store.styles,
     store.isMoveArr,
+    store.npcArr,
+    store.inArr,
     store.opacityB,
     store.opacityF,
     store.opacityM,
@@ -584,15 +656,9 @@ export function MapDeveloper() {
     }
   }
 
-  // Copy map data
+  // Copy map data（完整 schema：含 map.index/name/in 與 messages，匯出即可直接使用）
   const handleCopyJson = () => {
-    const data = {
-      map: { width: store.width, height: store.height },
-      styles: store.styles,
-      isMove: store.isMoveArr,
-      npc: store.npcArr
-    }
-    navigator.clipboard.writeText(JSON.stringify(data, null, '\t'))
+    navigator.clipboard.writeText(JSON.stringify(store.exportMapJson(), null, '\t'))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -628,19 +694,24 @@ export function MapDeveloper() {
     }
   }
 
-  // Compile JSON map string
-  const currentMapJson = JSON.stringify({
-    map: { width: store.width, height: store.height },
-    styles: store.styles,
-    isMove: store.isMoveArr,
-    npc: store.npcArr
-  }, null, '\t')
+  // Compile JSON map string（僅面板開啟時計算，避免每次 render 序列化大型地圖）
+  const currentMapJson = showJsonPanel
+    ? JSON.stringify(store.exportMapJson(), null, '\t')
+    : ''
 
-  const activeElement = store.mapObjects === 1 
-    ? store.styles[store.objectNum] 
-    : store.mapObjects === 2 
-      ? store.isMoveArr[store.objectNum] 
+  const activeElement = store.mapObjects === 1
+    ? store.styles[store.objectNum]
+    : store.mapObjects === 2
+      ? store.isMoveArr[store.objectNum]
       : null
+
+  const activeNpc = store.mapObjects === 3 ? store.npcArr[store.objectNum] : null
+
+  const handleNpcEdit = (field: keyof MapNpc, value: number) => {
+    if (store.mapObjects === 3) {
+      store.updateNpcProps(store.objectNum, { [field]: value })
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen text-slate-100 font-sans select-none pb-20 animate-fade-in" data-testid="page-map-developer">
@@ -954,11 +1025,17 @@ export function MapDeveloper() {
             >
               地圖貼圖 ({store.styles.length})
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('collision')}
               className={`flex-1 py-2 text-xs font-semibold ${activeTab === 'collision' ? 'bg-purple-600/10 text-purple-400 border-b border-purple-500' : 'text-slate-400 hover:text-slate-200'}`}
             >
               碰撞區域 ({store.isMoveArr.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('npc')}
+              className={`flex-1 py-2 text-xs font-semibold ${activeTab === 'npc' ? 'bg-purple-600/10 text-purple-400 border-b border-purple-500' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              NPC ({store.npcArr.length})
             </button>
           </div>
 
@@ -967,6 +1044,26 @@ export function MapDeveloper() {
             {/* Map Global Config section */}
             <div className="space-y-2 border-b border-slate-800 pb-4">
               <h4 className="font-semibold text-slate-300">⚙️ 地圖全域設定</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400">地圖索引 (Index)</label>
+                  <input
+                    type="number"
+                    value={store.mapIndex}
+                    onChange={(e) => store.setMapMeta(Number(e.target.value) || 0, store.mapName)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400">地圖名稱 (Name)</label>
+                  <input
+                    type="text"
+                    value={store.mapName}
+                    onChange={(e) => store.setMapMeta(store.mapIndex, e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs"
+                  />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] text-slate-400">地圖寬度 (Width)</label>
@@ -1008,7 +1105,7 @@ export function MapDeveloper() {
                 >
                   X 格線標示: {store.gridX ? '開' : '關'}
                 </Button>
-                <Button 
+                <Button
                   size="sm"
                   variant="outline"
                   onClick={() => store.toggleGrid('Y')}
@@ -1017,10 +1114,187 @@ export function MapDeveloper() {
                   Y 格線標示: {store.gridY ? '開' : '關'}
                 </Button>
               </div>
+
+              {/* Spawn points (in[]) editor */}
+              <div className="pt-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-slate-400">出生點 in[]（索引對應其他地圖的 cmm）</label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => store.addSpawnPoint({ x: 32, y: 32 })}
+                    className="h-6 px-2 border-slate-800 text-[10px] text-purple-400 hover:text-purple-300"
+                  >
+                    + 新增
+                  </Button>
+                </div>
+                {store.inArr.length === 0 && (
+                  <p className="text-[10px] text-slate-500">尚無出生點，遊戲將無法傳送進入此地圖。</p>
+                )}
+                {store.inArr.map((point, index) => (
+                  <div key={index} className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-purple-400 font-mono w-8 shrink-0">[{index}]</span>
+                    <input
+                      type="number"
+                      value={point.x}
+                      onChange={(e) => store.updateSpawnPoint(index, { x: Number(e.target.value) || 0 })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1 font-mono text-[10px]"
+                      aria-label={`出生點 ${index} X`}
+                    />
+                    <input
+                      type="number"
+                      value={point.y}
+                      onChange={(e) => store.updateSpawnPoint(index, { y: Number(e.target.value) || 0 })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1 font-mono text-[10px]"
+                      aria-label={`出生點 ${index} Y`}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => store.deleteSpawnPoint(index)}
+                      className="h-6 w-6 p-0 text-red-400 hover:text-red-300 shrink-0"
+                      aria-label={`刪除出生點 ${index}`}
+                    >
+                      <Trash2 className="h-3 w-3" aria-hidden="true" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Element Properties Form */}
-            {activeElement ? (
+            {/* NPC Editing Panel */}
+            {activeTab === 'npc' ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-emerald-400">🧍 NPC 編輯</h4>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => store.addNpc(createDefaultNpc())}
+                    className="h-7 px-2 border-slate-800 text-[10px] text-emerald-400 hover:text-emerald-300"
+                  >
+                    + 新增 NPC
+                  </Button>
+                </div>
+
+                {store.npcArr.length === 0 ? (
+                  <p className="text-[10px] text-slate-500">尚無 NPC。點「新增 NPC」後在下方表單調整位置與事件。</p>
+                ) : (
+                  <div className="space-y-1">
+                    {store.npcArr.map((npc, index) => (
+                      <button
+                        key={index}
+                        onClick={() => store.selectElement(3, index)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg border text-[10px] font-mono ${
+                          store.mapObjects === 3 && store.objectNum === index
+                            ? 'bg-emerald-600/10 border-emerald-500/40 text-emerald-300'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        NPC {index}｜({npc.pX}, {npc.pY})｜{npc.type === 4 ? '行走' : '站立'}｜事件 e={npc.e}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {activeNpc && (
+                  <div className="space-y-3 border-t border-slate-800 pt-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">位置 X (pX)</label>
+                        <input
+                          type="number"
+                          value={activeNpc.pX}
+                          onChange={(e) => handleNpcEdit('pX', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">位置 Y (pY)</label>
+                        <input
+                          type="number"
+                          value={activeNpc.pY}
+                          onChange={(e) => handleNpcEdit('pY', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400">類型</label>
+                        <select
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
+                          value={activeNpc.type}
+                          onChange={(e) => handleNpcEdit('type', Number(e.target.value))}
+                        >
+                          <option value={0}>站立</option>
+                          <option value={4}>行走</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400">朝向 (d)</label>
+                        <select
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
+                          value={activeNpc.d}
+                          onChange={(e) => handleNpcEdit('d', Number(e.target.value))}
+                        >
+                          <option value={0}>下</option>
+                          <option value={1}>左</option>
+                          <option value={2}>右</option>
+                          <option value={3}>上</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400">對話事件索引 (e，對應 messages[e])</label>
+                      <input
+                        type="number"
+                        value={activeNpc.e}
+                        onChange={(e) => handleNpcEdit('e', Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400">活動範圍 (aX / aY / aW / aH，行走型用)</label>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {(['aX', 'aY', 'aW', 'aH'] as const).map((field) => (
+                          <input
+                            key={field}
+                            type="number"
+                            value={activeNpc[field]}
+                            onChange={(e) => handleNpcEdit(field, Number(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono text-[10px]"
+                            aria-label={field}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400">步行速度 (footSpeed)</label>
+                      <input
+                        type="number"
+                        value={activeNpc.footSpeed}
+                        onChange={(e) => handleNpcEdit('footSpeed', Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
+                      />
+                    </div>
+
+                    <Button
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold"
+                      onClick={() => store.deleteElement(3, store.objectNum)}
+                      aria-label="刪除此 NPC"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      刪除此 NPC
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : activeElement ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-purple-400">

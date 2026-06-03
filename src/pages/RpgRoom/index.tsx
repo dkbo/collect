@@ -16,12 +16,12 @@ import {
   RotateCcw
 } from 'lucide-react'
 import { useRpgStore } from '@/store/useRpgStore'
-import { isMoveObject } from '@/pages/RpgRoom/constants/isMove'
-import { messageObject } from '@/pages/RpgRoom/constants/message'
 import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.png'
 import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.png'
 import bgImg from '@/assets/images/map-editor/bg.jpg'
 import { mapsJson } from '@/pages/RpgRoom/data'
+import { aabbIntersect } from '@/pages/RpgRoom/types'
+import { renderMessage } from '@/pages/RpgRoom/lib/messageRenderer'
 
 
 interface PlayerRefState {
@@ -101,7 +101,7 @@ export function RpgRoom() {
     w: number,
     h: number
   ) => {
-    const mapConfig = isMoveObject[id].map
+    const mapConfig = mapsJson[id].map
     const senceWidth = mapConfig.width
     const senceHeight = mapConfig.height
 
@@ -202,9 +202,9 @@ export function RpgRoom() {
 
   // Pre-render map JSON into offscreen canvases for drawing performance
   const prepareMapCanvases = (id: number) => {
-    const mapConfig = isMoveObject[id].map
     const mapJson = mapsJson[id]
     if (!mapJson) return
+    const mapConfig = mapJson.map
 
     if (!bgOffscreenCanvasRef.current) {
       bgOffscreenCanvasRef.current = document.createElement('canvas')
@@ -250,12 +250,24 @@ export function RpgRoom() {
       const sheet = IMAGES[tile.b]
       if (!sheet || !sheet.complete) return
 
-      if (tile.z === 2) {
-        // Foreground overlay layer
-        fgCtx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
-      } else {
-        // Background base layer
-        bgCtx.drawImage(sheet, tile.x, tile.y, tile.w, tile.h, tile.l, tile.t, tile.w, tile.h)
+      const ctx = tile.z === 2 ? fgCtx : bgCtx
+      // rx/ry 壓縮欄位：同貼圖沿 X/Y 平鋪展開
+      const rx = tile.rx ?? 1
+      const ry = tile.ry ?? 1
+      for (let ix = 0; ix < rx; ix++) {
+        for (let iy = 0; iy < ry; iy++) {
+          ctx.drawImage(
+            sheet,
+            tile.x,
+            tile.y,
+            tile.w,
+            tile.h,
+            tile.l + ix * tile.w,
+            tile.t + iy * tile.h,
+            tile.w,
+            tile.h
+          )
+        }
       }
     })
   }
@@ -292,7 +304,7 @@ export function RpgRoom() {
 
     const p = playerRef.current
     const id = mapIdRef.current
-    const mapConfig = isMoveObject[id].map
+    const mapConfig = mapsJson[id].map
 
     if (coordsRef.current) {
       coordsRef.current.innerText = `X: ${p.px}, Y: ${p.py}`
@@ -365,7 +377,7 @@ export function RpgRoom() {
       ]
 
       mapJson.npc.forEach((npc) => {
-        const npcMsg = messageObject[id]?.[npc.e]
+        const npcMsg = mapJson.messages?.[npc.e]
         if (!npcMsg) return // Skip if not an active NPC
 
         const npcX = npc.pX
@@ -470,7 +482,7 @@ export function RpgRoom() {
     setMap(targetMapId, true)
 
     // Update coordinates immediately
-    const targetSpawn = isMoveObject[targetMapId].map.in[spawnIndex]
+    const targetSpawn = mapsJson[targetMapId].map.in[spawnIndex]
     playerRef.current.px = targetSpawn.x
     playerRef.current.py = targetSpawn.y
 
@@ -510,67 +522,46 @@ export function RpgRoom() {
     }
 
     const { x, y } = checkOffset
-    let npcFound = false
+    const mapJson = mapsJson[id]
 
-    isMoveObject[id].isMove.forEach((json) => {
-      const a = p.px + nX + x >= json.x
-      const b = p.px + x <= json.x + json.w
-      const c = p.py + nY + y >= json.y
-      const d = p.py + y <= json.y + json.h
+    // 推進對話（messages 以輕量 markup 字串存於地圖 JSON，渲染時轉 ReactNode）
+    const advanceChat = (eventIndex: number): boolean => {
+      const npcJson = mapJson.messages?.[eventIndex]
+      if (!npcJson || !npcJson.text) return false
 
-      if (a && b && c && d) {
-        if (json.e !== undefined && json.e >= 0) {
-          npcFound = true
-          const npcJson = messageObject[id][json.e]
-          if (npcJson && npcJson.text) {
-            const currentCount = useRpgStore.getState().messageCount
-            const nextCount = currentCount + 1
-
-            if (nextCount <= npcJson.text.length) {
-              setNpcChat({
-                isChat: true,
-                npcName: npcJson.name,
-                npcMessage: npcJson.text[nextCount - 1],
-                messageCount: nextCount,
-              })
-            } else {
-              closeChat()
-            }
-          }
-        }
+      const nextCount = useRpgStore.getState().messageCount + 1
+      if (nextCount <= npcJson.text.length) {
+        setNpcChat({
+          isChat: true,
+          npcName: npcJson.name,
+          npcMessage: renderMessage(npcJson.text[nextCount - 1]),
+          messageCount: nextCount,
+        })
+      } else {
+        closeChat()
       }
-    })
+      return true
+    }
+
+    // 面向處的事件碰撞區（some 短路）
+    const hitEvent = mapJson.isMove.find(
+      (json) =>
+        json.e !== undefined &&
+        json.e >= 0 &&
+        aabbIntersect(p.px + x, p.py + y, nX, nY, json)
+    )
+
+    let npcFound = hitEvent ? advanceChat(hitEvent.e!) : false
 
     // Also check interaction against NPCs in mapJson.npc
-    if (!npcFound) {
-      const mapJson = mapsJson[id]
-      if (mapJson && mapJson.npc) {
-        mapJson.npc.forEach((npc) => {
-          const npcMsg = messageObject[id]?.[npc.e]
-          if (!npcMsg) return
-
-          const a = p.px + nX + x >= npc.pX
-          const b = p.px + x <= npc.pX + npc.w
-          const c = p.py + nY + y >= npc.pY
-          const d = p.py + y <= npc.pY + npc.h
-
-          if (a && b && c && d) {
-            npcFound = true
-            const currentCount = useRpgStore.getState().messageCount
-            const nextCount = currentCount + 1
-
-            if (nextCount <= npcMsg.text.length) {
-              setNpcChat({
-                isChat: true,
-                npcName: npcMsg.name,
-                npcMessage: npcMsg.text[nextCount - 1],
-                messageCount: nextCount,
-              })
-            } else {
-              closeChat()
-            }
-          }
-        })
+    if (!npcFound && mapJson.npc) {
+      const hitNpc = mapJson.npc.find(
+        (npc) =>
+          mapJson.messages?.[npc.e] &&
+          aabbIntersect(p.px + x, p.py + y, nX, nY, { x: npc.pX, y: npc.pY, w: npc.w, h: npc.h })
+      )
+      if (hitNpc) {
+        npcFound = advanceChat(hitNpc.e)
       }
     }
 
@@ -616,7 +607,7 @@ export function RpgRoom() {
 
     const p = playerRef.current
     const id = mapIdRef.current
-    const mapConfig = isMoveObject[id].map
+    const mapConfig = mapsJson[id].map
     const speed = p.s
 
     let dx = 0
@@ -651,55 +642,43 @@ export function RpgRoom() {
       const nextPx = p.px + dx
       const nextPy = p.py + dy
 
+      const mapJson = mapsJson[id]
+
       const canMove = (chkX: number, chkY: number) => {
         if (chkX < 0 || chkX + nX > mapConfig.width || chkY < 0 || chkY + nY > mapConfig.height) {
           return false
         }
-        let possible = true
-        isMoveObject[id].isMove.forEach((json) => {
-          const a = chkX + nX >= json.x
-          const b = chkX <= json.x + json.w
-          const c = chkY + nY >= json.y
-          const d = chkY <= json.y + json.h
-          if (a && b && c && d) {
-            possible = false
-          }
-        })
+        // some() 短路：碰到第一個阻擋即返回
+        const blocked = mapJson.isMove.some((json) =>
+          aabbIntersect(chkX, chkY, nX, nY, json)
+        )
+        if (blocked) return false
 
         // Also check collision against NPCs in mapJson.npc
-        const mapJson = mapsJson[id]
-        if (possible && mapJson && mapJson.npc) {
-          mapJson.npc.forEach((npc) => {
-            const npcMsg = messageObject[id]?.[npc.e]
-            if (!npcMsg) return // Skip if not an active NPC
-
-            const a = chkX + nX >= npc.pX
-            const b = chkX <= npc.pX + npc.w
-            const c = chkY + nY >= npc.pY
-            const d = chkY <= npc.pY + npc.h
-            if (a && b && c && d) {
-              possible = false
-            }
-          })
+        if (mapJson.npc) {
+          return !mapJson.npc.some(
+            (npc) =>
+              mapJson.messages?.[npc.e] &&
+              aabbIntersect(chkX, chkY, nX, nY, { x: npc.pX, y: npc.pY, w: npc.w, h: npc.h })
+          )
         }
-        return possible
+        return true
       }
 
       const checkTransition = (chkX: number, chkY: number) => {
-        let transitioned = false
-        isMoveObject[id].isMove.forEach((json) => {
-          const a = chkX + nX >= json.x
-          const b = chkX <= json.x + json.w
-          const c = chkY + nY >= json.y
-          const d = chkY <= json.y + json.h
-          if (a && b && c && d) {
-            if (json.cm !== undefined && json.cm >= 0 && json.cmm !== undefined && json.cmm >= 0) {
-              transitioned = true
-              triggerSceneTransition(json.cm, json.cmm)
-            }
-          }
-        })
-        return transitioned
+        const portal = mapJson.isMove.find(
+          (json) =>
+            json.cm !== undefined &&
+            json.cm >= 0 &&
+            json.cmm !== undefined &&
+            json.cmm >= 0 &&
+            aabbIntersect(chkX, chkY, nX, nY, json)
+        )
+        if (portal) {
+          triggerSceneTransition(portal.cm!, portal.cmm!)
+          return true
+        }
+        return false
       }
 
       if (!checkTransition(nextPx, nextPy)) {
@@ -809,7 +788,7 @@ export function RpgRoom() {
     isTransSenceRef.current = true
 
     // Initialize player starting point
-    const spawn = isMoveObject[0].map.in[0]
+    const spawn = mapsJson[0].map.in[0]
     playerRef.current.px = spawn.x
     playerRef.current.py = spawn.y
     playerRef.current.left = false
@@ -860,7 +839,7 @@ export function RpgRoom() {
     isTransSenceRef.current = true
     setMap(0, true)
     setTransSence(true)
-    const spawn = isMoveObject[0].map.in[0]
+    const spawn = mapsJson[0].map.in[0]
     playerRef.current.px = spawn.x
     playerRef.current.py = spawn.y
     playerRef.current.left = false
@@ -1058,7 +1037,7 @@ export function RpgRoom() {
           <div className="absolute top-4 left-4 z-30 flex flex-col gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-300 font-mono text-xs select-none backdrop-blur-sm">
             <div className="flex items-center gap-1.5">
               <Info className="size-3.5 text-purple-400" />
-              <span>地圖: {isMoveObject[mapId]?.map?.name || '加載中'}</span>
+              <span>地圖: {mapsJson[mapId]?.map?.name || '加載中'}</span>
             </div>
             <div className="text-[10px] text-slate-400 border-t border-slate-800/60 pt-1">
               座標: <span ref={coordsRef}>X: 0, Y: 0</span>
