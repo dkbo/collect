@@ -371,8 +371,11 @@ export function MapDeveloper() {
     const canvas = spriteCanvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const clickY = e.clientY - rect.top
+    // 將 CSS 顯示座標換算回 canvas 自然像素（man.png 128px / tile 256px 在容器內會被 CSS 縮放）
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const clickX = (e.clientX - rect.left) * scaleX
+    const clickY = (e.clientY - rect.top) * scaleY
 
     // Grid coordinates
     const gridX = 32 * Math.floor(clickX / 32)
@@ -856,11 +859,11 @@ export function MapDeveloper() {
             className="flex-1 max-h-[500px] lg:max-h-[680px] overflow-y-auto relative bg-slate-950/80 p-2.5 scrollbar-thin"
           >
             <div className="relative border border-slate-800/60 rounded-xl overflow-hidden">
-              <canvas 
+              <canvas
                 ref={spriteCanvasRef}
                 onMouseDown={handleSpriteMouseDown}
                 onContextMenu={(e) => e.preventDefault()}
-                className="absolute top-0 left-0 z-10 cursor-crosshair"
+                className="absolute top-0 left-0 z-10 cursor-crosshair w-full h-auto"
               />
               <img 
                 ref={spriteImgRef}
