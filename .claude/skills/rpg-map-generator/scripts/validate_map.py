@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """地圖 JSON 驗證器
 
-用法：python3 validate_map.py <map.json 路徑> [更多路徑...]
-省略參數時驗證 src/pages/RpgRoom/data/ 下全部地圖。
+用法：python3 validate_map.py [--stage N] [--allow-one-way] [map.json 路徑...]
+省略路徑時驗證 src/pages/RpgRoom/data/ 下全部地圖。
 
 檢查：schema 完整性、邊界、32px 對齊（警告）、e/cm/cmm 邏輯、
-出生點可行走、傳送雙向配對、NPC 活動範圍。
+出生點可行走、傳送雙向配對、NPC 活動範圍與站位。
 ERROR 即 exit code 1；WARN 不影響 exit code。
+
+--stage N：分階段驗證（配合逐步生成工作流，早期抓錯不誤報「還沒做的部分」）
+  1 = map 區塊 + styles（場景擺設完）
+  2 = + npc/messages（NPC 擺完）
+  3 = + isMove 碰撞/事件、NPC 站位與活動範圍（遮罩設完）
+  4 = 全量：+ 傳送配對、出生點、邊界封閉、messages 引用（預設）
+--allow-one-way：單向傳送降回 WARN（預設是 ERROR）
 """
 import json
 import sys
@@ -36,6 +43,12 @@ def aabb(x, y, w, h, r):
         y + h >= r['y'] and y <= r['y'] + r['h']
 
 
+def overlap(x, y, w, h, r):
+    """嚴格重疊（邊緣接觸不算），用於站位檢查減少誤報"""
+    return x + w > r['x'] and x < r['x'] + r['w'] and \
+        y + h > r['y'] and y < r['y'] + r['h']
+
+
 def load_all_maps():
     """以檔名排序載入全部地圖（索引 = 陣列位置，與 import.meta.glob 一致）"""
     maps = []
@@ -47,7 +60,7 @@ def load_all_maps():
     return maps
 
 
-def validate(file: Path, data: dict, all_maps: list):
+def validate(file: Path, data: dict, all_maps: list, stage: int = 4, allow_one_way: bool = False):
     name = file.name
 
     # 1. schema 完整性
@@ -79,7 +92,7 @@ def validate(file: Path, data: dict, all_maps: list):
 
     if not isinstance(styles, list) or not styles:
         warn(name, 'styles 為空')
-    if 'messages' not in data:
+    if stage >= 2 and 'messages' not in data:
         warn(name, '缺少 messages 欄位（沒有任何對話）')
 
     # 2. styles 邊界 / 對齊 / 圖庫
@@ -107,9 +120,11 @@ def validate(file: Path, data: dict, all_maps: list):
         if z is not None and z != 2:
             warn(name, f'styles[{i}] z={z}（只有 2 = 前景有意義）')
 
-    # 3. isMove 邊界 / 邏輯
+    # 3. isMove 邊界 / 邏輯（stage >= 3）
     blockers = []  # 不含傳送區的阻擋區
     for i, c in enumerate(is_move):
+        if stage < 3:
+            break
         missing = [k for k in ('x', 'y', 'w', 'h') if k not in c]
         if missing:
             err(name, f'isMove[{i}] 缺少欄位 {missing}')
@@ -126,23 +141,26 @@ def validate(file: Path, data: dict, all_maps: list):
             cm, cmm = c['cm'], c['cmm']
             if cm < 0 or cm >= len(all_maps):
                 err(name, f'isMove[{i}] cm={cm} 指向不存在的地圖（共 {len(all_maps)} 張）')
-            else:
+            elif stage >= 4:
                 target = all_maps[cm][1]
                 t_in = target.get('map', {}).get('in', [])
                 if cmm < 0 or cmm >= len(t_in):
                     err(name, f'isMove[{i}] cmm={cmm} 在地圖 {cm} 的 in[]（長度 {len(t_in)}）不存在')
-                # 雙向配對：目標地圖要有回來的傳送區
+                # 雙向配對：目標地圖要有回來的傳送區（單向 = 玩家進得去出不來）
                 back = [b for b in target.get('isMove', []) if b.get('cm') == m['index']]
                 if not back:
-                    warn(name, f'isMove[{i}] 傳送到地圖 {cm}，但該地圖沒有回到本圖的傳送區')
+                    report = warn if allow_one_way else err
+                    report(name, f'isMove[{i}] 傳送到地圖 {cm}，但該地圖沒有回到本圖的傳送區（單向傳送）')
         else:
             blockers.append(c)
         e = c.get('e')
         if e is not None and (e < 0 or e >= len(messages)):
             err(name, f'isMove[{i}] e={e} 沒有對應 messages（長度 {len(messages)}）')
 
-    # 4. NPC
+    # 4. NPC（stage >= 2；站位/活動範圍 vs 碰撞需要 isMove，stage >= 3）
     for i, n in enumerate(npcs):
+        if stage < 2:
+            break
         for k in ('b', 'pX', 'pY', 'w', 'h', 'e', 'type', 'd'):
             if k not in n:
                 err(name, f'npc[{i}] 缺少欄位 {k}')
@@ -153,17 +171,25 @@ def validate(file: Path, data: dict, all_maps: list):
         e = n.get('e', -1)
         if e < 0 or e >= len(messages):
             warn(name, f'npc[{i}] e={e} 沒有對應 messages（NPC 將不會顯示）')
-        if n.get('type') == 4:
+        if stage >= 3 and n.get('type') == 4:
             area = {'x': n.get('aX', 0), 'y': n.get('aY', 0), 'w': n.get('aW', 0), 'h': n.get('aH', 0)}
             for j, c in enumerate(blockers):
                 if aabb(area['x'], area['y'], area['w'], area['h'], c):
                     warn(name, f'npc[{i}] 行走範圍與碰撞區 isMove[{j}]({c.get("n", "?")}) 重疊')
                     break
+        if stage >= 3:
+            # 引擎只取 NPC 下半身碰撞帶（pY+24 起 24px）；與阻擋區重疊 = 視覺卡進家具/牆
+            foot = next((c for j, c in enumerate(blockers)
+                         if overlap(n['pX'], n['pY'] + 24, n['w'], 24, c)), None)
+            if foot:
+                warn(name, f'npc[{i}] 下半身碰撞帶與阻擋區 ({foot.get("n", "?")} {foot["x"]},{foot["y"]}) 重疊，視覺會卡進物件')
         if n.get('pX', 0) % TILE or n.get('pY', 0) % TILE:
             warn(name, f'npc[{i}] 位置 ({n.get("pX")},{n.get("pY")}) 未對齊 32px')
 
-    # 5. 出生點
+    # 5. 出生點（stage >= 4）
     for i, p in enumerate(m.get('in', [])):
+        if stage < 4:
+            break
         if p['x'] < 0 or p['y'] < 0 or p['x'] + PLAYER_W > W or p['y'] + PLAYER_H > H:
             err(name, f'in[{i}] ({p["x"]},{p["y"]}) 超出地圖（角色佔 32×48）')
             continue
@@ -175,37 +201,58 @@ def validate(file: Path, data: dict, all_maps: list):
                              {'x': n['pX'], 'y': n['pY'], 'w': n['w'], 'h': n['h']})), None)
         if hit_npc:
             err(name, f'in[{i}] 與 NPC 位置相交')
-    if not m.get('in'):
+    if stage >= 4 and not m.get('in'):
         warn(name, 'in[] 為空，其他地圖無法傳送進來')
 
-    # 6. 邊界封閉：四邊必須有碰撞或傳送覆蓋（簡化檢查）
-    portals = [c for c in is_move if c.get('cm') is not None]
-    edges = {
-        '上': lambda c: c['y'] <= TILE,
-        '下': lambda c: c['y'] + c['h'] >= H - TILE,
-        '左': lambda c: c['x'] <= TILE,
-        '右': lambda c: c['x'] + c['w'] >= W - TILE,
-    }
-    for label, pred in edges.items():
-        if not any(pred(c) for c in blockers + portals if all(k in c for k in ('x', 'y', 'w', 'h'))):
-            warn(name, f'{label}邊界附近沒有任何碰撞/傳送區，玩家可能沿邊走出場景')
+    # 6. 邊界封閉：四邊必須有碰撞或傳送覆蓋（簡化檢查，stage >= 4）
+    if stage >= 4:
+        portals = [c for c in is_move if c.get('cm') is not None]
+        edges = {
+            '上': lambda c: c['y'] <= TILE,
+            '下': lambda c: c['y'] + c['h'] >= H - TILE,
+            '左': lambda c: c['x'] <= TILE,
+            '右': lambda c: c['x'] + c['w'] >= W - TILE,
+        }
+        for label, pred in edges.items():
+            if not any(pred(c) for c in blockers + portals if all(k in c for k in ('x', 'y', 'w', 'h'))):
+                warn(name, f'{label}邊界附近沒有任何碰撞/傳送區，玩家可能沿邊走出場景')
 
-    # 7. messages
+    # 7. messages（stage >= 2；引用檢查 stage >= 4，事件薄條可能還沒放）
     for i, msg in enumerate(messages):
+        if stage < 2:
+            break
         if not msg.get('name'):
             err(name, f'messages[{i}] 缺少 name')
         texts = msg.get('text')
         if not isinstance(texts, list) or not texts:
             err(name, f'messages[{i}] text 必須是非空字串陣列')
         used = any(c.get('e') == i for c in is_move) or any(n.get('e') == i for n in npcs)
-        if not used:
+        if stage >= 4 and not used:
             warn(name, f'messages[{i}]（{msg.get("name")}）沒有任何 isMove/npc 引用')
 
 
 def main():
+    args = sys.argv[1:]
+    stage = 4
+    allow_one_way = False
+    if '--allow-one-way' in args:
+        allow_one_way = True
+        args.remove('--allow-one-way')
+    if '--stage' in args:
+        i = args.index('--stage')
+        try:
+            stage = int(args[i + 1])
+        except (IndexError, ValueError):
+            print('用法: --stage <1|2|3|4>')
+            sys.exit(1)
+        if stage not in (1, 2, 3, 4):
+            print('--stage 必須是 1~4')
+            sys.exit(1)
+        del args[i:i + 2]
+
     all_maps = load_all_maps()
-    if len(sys.argv) > 1:
-        targets = [Path(a).resolve() for a in sys.argv[1:]]
+    if args:
+        targets = [Path(a).resolve() for a in args]
     else:
         targets = [f for f, _ in all_maps]
     for target in targets:
@@ -216,7 +263,7 @@ def main():
             except (OSError, json.JSONDecodeError) as e:
                 errors.append(f'[{target.name}] ERROR: 無法讀取: {e}')
                 continue
-        validate(match[0], match[1], all_maps)
+        validate(match[0], match[1], all_maps, stage=stage, allow_one_way=allow_one_way)
 
     for w in warnings:
         print(w)

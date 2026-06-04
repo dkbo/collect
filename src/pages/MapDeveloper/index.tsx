@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { useMapEditorStore } from '@/store/useMapEditorStore'
 import type { MapTile, MapCollision } from '@/store/useMapEditorStore'
 import type { MapNpc } from '@/pages/RpgRoom/types'
+import { mapsJson } from '@/pages/RpgRoom/data'
 
 // Import assets using absolute paths / Vite resolving
 import bgImg from '@/assets/images/map-editor/bg.jpg'
@@ -975,6 +976,22 @@ export function MapDeveloper() {
     }
   }
 
+  // 載入現有地圖（RpgRoom data/000N_map.json，深拷貝避免編輯時汙染模組資料）
+  const handleLoadExistingMap = (idx: number) => {
+    const data = mapsJson[idx]
+    if (!data) return
+    const hasContent = store.styles.length > 0 || store.isMoveArr.length > 0 || store.npcArr.length > 0
+    if (hasContent && !confirm(`確定要載入「${data.map.name}」嗎？目前未儲存的編輯內容將被覆蓋。`)) return
+    const cloned = structuredClone(data)
+    store.loadMapJson({
+      ...cloned,
+      // data 檔的 n 為選填，store 需必填字串
+      styles: cloned.styles.map((s) => ({ n: '', ...s })),
+      isMove: cloned.isMove.map((c) => ({ n: '', ...c })),
+    })
+    store.resetView()
+  }
+
   // Copy map data（完整 schema：含 map.index/name/in 與 messages，匯出即可直接使用）
   const handleCopyJson = () => {
     navigator.clipboard.writeText(JSON.stringify(store.exportMapJson(), null, '\t'))
@@ -1053,7 +1070,23 @@ export function MapDeveloper() {
 
         {/* Global Controls */}
         <div className="flex flex-wrap gap-2.5">
-          <Button 
+          <select
+            className="bg-slate-950 border border-slate-800 rounded-lg text-sm px-3 py-1.5 outline-none focus:border-purple-500 font-sans cursor-pointer text-slate-300 hover:text-white hover:bg-slate-800"
+            value=""
+            onChange={(e) => {
+              if (e.target.value === '') return
+              handleLoadExistingMap(Number(e.target.value))
+            }}
+            aria-label="載入現有地圖"
+          >
+            <option value="" disabled>載入現有地圖...</option>
+            {mapsJson.map((m, i) => (
+              <option key={i} value={i}>
+                {m.map.index}. {m.map.name} ({m.map.width}×{m.map.height})
+              </option>
+            ))}
+          </select>
+          <Button
             variant="outline"
             className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
             onClick={() => setShowHelpModal(true)}
