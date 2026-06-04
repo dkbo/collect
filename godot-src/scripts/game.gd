@@ -35,7 +35,10 @@ var camera := Camera2D.new()
 # NPC：節點清單（當前地圖）+ 運行時狀態緩存（依 mapId，跨場景保留走位）
 var npcs: Array[Npc] = []
 var npc_runtimes: Dictionary = {}
-var is_chat := false  # 對話中 NPC 全部定格（Step 8 接上對話流程）
+
+# 對話狀態：NPC 全部定格；頁碼為全域計數（對齊原版 messageCount，移動或無目標時關閉）
+var is_chat := false
+var chat_count := 0
 
 # 場景切換黑幕（CanvasLayer 不受攝影機影響）
 var fade_layer := CanvasLayer.new()
@@ -127,7 +130,9 @@ func _rebuild_npcs(id: int) -> void:
 func _physics_process(_delta: float) -> void:
 	if _paused or _loading or map_data.is_empty():
 		return
-	player.tick(_gather_input(), _can_move, _check_transition)
+	var moved := player.tick(_gather_input(), _can_move, _check_transition)
+	if moved and is_chat:
+		_close_chat()  # 移動即關閉對話（對齊原版）
 
 	# 對話中全部定格（對齊原版 updateNpcs 提前 return）
 	if not is_chat:
@@ -141,6 +146,80 @@ func _physics_process(_delta: float) -> void:
 	if _pos_tick >= 12:
 		_pos_tick = 0
 		Bridge.post("PLAYER_POS", {"x": int(player.px), "y": int(player.py)})
+
+
+# ── 互動/對話（移植原版 handleInteract + advanceChat） ──
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var key := (event as InputEventKey).physical_keycode
+		if (key == KEY_SPACE or key == KEY_ENTER) and not (_paused or _loading or map_data.is_empty()):
+			_interact()
+
+
+func _interact() -> void:
+	# 面向處偏移（speed px，對齊原版 checkOffset）
+	var check := Vector2.ZERO
+	match player.sy:
+		0:
+			check = Vector2(0, Player.SPEED)
+		48:
+			check = Vector2(-Player.SPEED, 0)
+		96:
+			check = Vector2(Player.SPEED, 0)
+		144:
+			check = Vector2(0, -Player.SPEED)
+	var x := player.px + check.x
+	var y := player.py + check.y
+
+	# 面向處的事件碰撞區
+	var found := false
+	for json: Dictionary in map_data["isMove"]:
+		if int(json.get("e", -1)) >= 0 and RpgUtil.aabb_intersect(x, y, NX, NY, json):
+			found = _advance_chat(int(json["e"]))
+			break
+
+	# NPC（下半身碰撞框）；對話時 NPC 轉身面向玩家
+	if not found:
+		for npc in npcs:
+			if RpgUtil.aabb_intersect(x, y, NX, NY, npc.feet_box()):
+				found = _advance_chat(int(npc.data["e"]))
+				if found:
+					npc.face_player(player.sy)
+				break
+
+	if not found and is_chat:
+		_close_chat()
+
+
+## 推進對話頁碼；text 為原始 markup 字串，渲染交給 React（messageRenderer）
+func _advance_chat(event_index: int) -> bool:
+	var messages: Array = map_data.get("messages", [])
+	if event_index < 0 or event_index >= messages.size():
+		return false
+	var msg: Dictionary = messages[event_index]
+	var texts: Array = msg.get("text", [])
+	if texts.is_empty():
+		return false
+
+	chat_count += 1
+	if chat_count <= texts.size():
+		is_chat = true
+		Bridge.post("NPC_CHAT", {
+			"name": String(msg.get("name", "")),
+			"text": String(texts[chat_count - 1]),
+			"page": chat_count,
+			"total": texts.size(),
+		})
+	else:
+		_close_chat()
+	return true
+
+
+func _close_chat() -> void:
+	is_chat = false
+	chat_count = 0
+	Bridge.post("CHAT_CLOSED")
 
 
 # ── 輸入（WASD + 方向鍵；觸控於 Step 9 加入） ──
@@ -268,6 +347,9 @@ func _on_bridge_command(type: String, payload: Dictionary) -> void:
 	match type:
 		"SET_PAUSED":
 			_paused = bool(payload.get("paused", false))
+		"ADVANCE_CHAT":
+			if not (_paused or _loading or map_data.is_empty()):
+				_interact()
 		"RESTART":
 			_transition_to(0, 0)
 		"DEBUG_STATE":

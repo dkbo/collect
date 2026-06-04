@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Compass, Gamepad2, HelpCircle, Info, X } from 'lucide-react'
+import { Compass, Gamepad2, HelpCircle, Info, MessageSquare, X } from 'lucide-react'
 import { useGodotStore } from '@/store/useGodotStore'
 import { onGodotMessage, registerGodotWindow } from '@/lib/godotBridge'
+import { renderMessage } from '@/pages/RpgRoom/lib/messageRenderer'
 
 export function GodotGame() {
-  const { isReady, mapName, setPaused, handleGodotMessage, resetGodot } = useGodotStore()
+  const { isReady, mapName, isChat, npcName, npcText, setPaused, handleGodotMessage, resetGodot } =
+    useGodotStore()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [showInstructions, setShowInstructions] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
@@ -91,6 +93,21 @@ export function GodotGame() {
               <Compass className="size-12 text-purple-500 animate-spin mb-4" />
               <div className="text-white text-base tracking-widest animate-pulse font-mono font-bold select-none">
                 Godot 引擎載入中...
+              </div>
+            </div>
+          )}
+
+          {/* Dialogue Box：Godot 送 NPC_CHAT 觸發，沿用 RpgRoom messageRenderer 與樣式 */}
+          {isChat && (
+            <div className="rpg-chat-box select-text cursor-default" data-testid="rpg-dialogue-box">
+              <div className="font-extrabold text-amber-300 dark:text-amber-400 mb-1 flex items-center gap-1.5 border-b border-white/20 pb-1 text-base select-none">
+                <MessageSquare className="size-4 shrink-0" />
+                <span>{npcName}</span>
+              </div>
+              <div className="font-medium pr-6 min-h-[3.5em]">{renderMessage(npcText)}</div>
+              <div className="absolute bottom-2.5 right-4 flex items-center text-[10px] text-white/50 tracking-wider font-semibold animate-pulse select-none">
+                <span>{isTouchDevice ? '點 A 鈕繼續' : '按 SPACE 繼續'}</span>
+                <span className="ml-1">▼</span>
               </div>
             </div>
           )}
