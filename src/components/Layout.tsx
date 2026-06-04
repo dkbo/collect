@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/resume', label: 'E-履歷', end: false, testId: 'nav-resume' },
   { to: '/miniGame', label: '小遊戲', end: false, testId: 'nav-minigame' },
   { to: '/rpgroom', label: '遊戲室', end: false, testId: 'nav-rpgroom' },
+  { to: '/godot-game', label: 'Godot遊戲', end: false, testId: 'nav-godot-game' },
   { to: '/search', label: '外部查詢', end: false, testId: 'nav-search' },
   { to: '/todos', label: '代辦事項', end: false, testId: 'nav-todos' },
   { to: '/directions', label: '地圖導覽', end: false, testId: 'nav-directions' },
@@ -43,6 +44,10 @@ export function Layout() {
       title = "RPG 遊戲室 | DKBO's Collect"
       description = "互動式 RPG 虛擬角色遊戲室，支援地圖場景繪製、碰撞邊界、鍵盤移動控制與 NPC 對話系統。"
       keywords = "RPG, 遊戲室, 虛擬角色, 地圖繪製, Canvas"
+    } else if (path.startsWith('/godot-game')) {
+      title = "Godot 遊戲 | DKBO's Collect"
+      description = "以 Godot 4 遊戲引擎重構的 RPG 遊戲室，透過 iframe 嵌入與 postMessage 通訊架構，整合地圖探索與 NPC 對話系統。"
+      keywords = "Godot, 遊戲引擎, RPG, iframe, postMessage, WebAssembly"
     } else if (path.startsWith('/search')) {
       title = "外部查詢 | DKBO's Collect"
       description = "整合外部 API 查詢工具，實作資料檢索、防抖（Debounce）處理與即時搜尋建議。"

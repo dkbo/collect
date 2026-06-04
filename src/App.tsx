@@ -6,6 +6,7 @@ const Home = lazy(() => import('@/pages/Home'))
 const Resume = lazy(() => import('@/pages/Resume'))
 const MiniGame = lazy(() => import('@/pages/MiniGame'))
 const RpgRoom = lazy(() => import('@/pages/RpgRoom'))
+const GodotGame = lazy(() => import('@/pages/GodotGame'))
 const SearchApi = lazy(() => import('@/pages/Search'))
 const TodoList = lazy(() => import('@/pages/Todos'))
 const DirectionsPage = lazy(() => import('@/pages/Directions'))
@@ -34,6 +35,10 @@ const router = createHashRouter([
       {
         path: 'rpgroom',
         element: <RpgRoom />,
+      },
+      {
+        path: 'godot-game',
+        element: <GodotGame />,
       },
       {
         path: 'search',

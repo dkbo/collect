@@ -6,7 +6,9 @@
   "scripts": {
     "start": "vite --open",
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "pnpm sync:maps && tsc -b && vite build",
+    "sync:maps": "node scripts/sync-godot-maps.mjs",
+    "godot:export": "pnpm sync:maps && godot --headless --path godot-src --import && godot --headless --path godot-src --export-release Web",
     "lint": "eslint .",
     "preview": "vite preview",
     "scan": "npx repomix --output-show-line-numbers"
