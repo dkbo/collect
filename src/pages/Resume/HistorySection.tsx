@@ -70,12 +70,13 @@ export function HistorySection() {
 
           {/* Staggered Log items */}
           <div className="space-y-1 md:space-y-0 relative">
-            <Log name="光曳資訊有限公司" classor="高階前端工程師" time="2017-2022" index={0} />
-            <Log name="盛大資訊股份有限公司" classor="前端工程師" time="2016-2017" index={1} />
-            <Log name="台灣惠多笑有限公司" classor="網頁工程師" time="2013-2016" index={2} />
-            <Log name="威弘數位工程有限公司" classor="系統工程師" time="2012-2012" index={3} />
-            <Log name="宗賢科技有限公司" classor="系統工程師" time="2011-2012" index={4} />
-            <Log name="正修科技大學" classor="電機學生" time="2006-2010" index={5} />
+            <Log name="中華系統整合股份有限公司" classor="資深前端工程師" time="2022-2025" index={0} />
+            <Log name="光曳資訊有限公司" classor="資深前端工程師" time="2017-2022" index={1} />
+            <Log name="中冠資訊股份有限公司" classor="前端工程師" time="2016-2017" index={2} />
+            <Log name="台灣惠多笑有限公司" classor="前端工程師" time="2013-2016" index={3} />
+            <Log name="崴鴻數位有限公司" classor="系統工程師" time="2012-2012" index={4} />
+            <Log name="宗賢科技有限公司" classor="系統工程師" time="2011-2012" index={5} />
+            <Log name="正修科技大學" classor="電機系 四技畢業" time="2006-2010" index={6} />
           </div>
         </div>
       </div>

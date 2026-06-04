@@ -1,11 +1,12 @@
-import { User, Code2, Globe, Layers } from 'lucide-react'
+import { User, Code2, Bot, Layers, Gamepad2 } from 'lucide-react'
 
 const SKILL_TAGS = [
   { label: 'Vue', icon: Code2 },
   { label: 'React', icon: Code2 },
-  { label: 'WebVR', icon: Globe },
-  { label: 'WebAR', icon: Globe },
-  { label: '區塊鏈', icon: Layers },
+  { label: 'TypeScript', icon: Code2 },
+  { label: 'AI 協作開發', icon: Bot },
+  { label: '網頁遊戲', icon: Gamepad2 },
+  { label: 'Web3', icon: Layers },
 ] as const
 
 export function IntroSection() {
@@ -21,7 +22,7 @@ export function IntroSection() {
 
       <div className="p-6 md:p-8">
         <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm md:text-base">
-          資深前端工程師，用 Vue 及 React 開發過大大小小的專案，未來會想朝著區塊鍊及元宇宙 WebVR WebAR發展，開發更多有趣及有意義的項目。
+          擁有 13+ 年經驗的資深前端工程師，以 Vue 及 React 開發過大型 B2B / B2C 平台、財務系統與 RWD 網頁遊戲等專案，並具備前端架構規劃、效能優化與團隊技術帶領經驗。近年深耕 AI 輔助開發流程（Claude Code、AI Agent Workflow、Vibe Coding），同時持續在 Web3、自動化 Bot 與量化交易等領域實作 Side Project，目標是運用新技術打造更多有趣且有意義的產品。
         </p>
 
         {/* Skill Tags */}

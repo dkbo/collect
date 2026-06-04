@@ -78,9 +78,12 @@ export function StateSection() {
       <h2 className="resume-card-header">狀態</h2>
       <div className="p-6 md:p-8">
         <div className="grid grid-cols-3 gap-2 sm:gap-4 justify-items-center">
-          <Chart color="red" percent={80} text="HTML" />
-          <Chart color="blue" percent={60} text="CSS" />
+          <Chart color="green" percent={92} text="Vue" />
+          <Chart color="blue" percent={85} text="React" />
+          <Chart color="red" percent={82} text="TypeScript" />
+          <Chart color="red" percent={88} text="HTML / CSS" />
           <Chart color="green" percent={90} text="Javascript" />
+          <Chart color="blue" percent={90} text="AI 協作" />
         </div>
       </div>
     </section>

@@ -54,10 +54,11 @@ export function AboutSection() {
   const competencies = [
     { id: 'arch', percentage: 95, label: '前端架構', colorClass: 'stroke-purple-600 dark:stroke-purple-400 drop-shadow-[0_0_4px_rgba(168,85,247,0.4)]', radius: 28, strokeWidth: 5.5 },
     { id: 'uiux', percentage: 90, label: '介面互動', colorClass: 'stroke-indigo-600 dark:stroke-indigo-400 drop-shadow-[0_0_4px_rgba(99,102,241,0.4)]', radius: 28, strokeWidth: 5.5 },
-    { id: 'perf', percentage: 88, label: '效能優化', colorClass: 'stroke-emerald-600 dark:stroke-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.4)]', radius: 28, strokeWidth: 5.5 }
+    { id: 'perf', percentage: 88, label: '效能優化', colorClass: 'stroke-emerald-600 dark:stroke-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.4)]', radius: 28, strokeWidth: 5.5 },
+    { id: 'ai', percentage: 92, label: 'AI 協作開發', colorClass: 'stroke-amber-500 dark:stroke-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.4)]', radius: 28, strokeWidth: 5.5 }
   ]
 
-  const bioText = "專注於前端架構設計與極致 UI/UX 互動。擁有 9 年實戰開發經驗，擅長 React 生態系、TypeScript 效能優化與現代化狀態管理。熱衷於將複雜的需求轉化為高可用、具可維護性的模組化元件。深信優良的程式碼不僅要執行流暢，介面更應如藝術品般精緻且令人驚艷。"
+  const bioText = "擁有超過 13 年資訊相關經驗，其中 10 年以上專注於前端開發與系統架構設計。熟悉 Vue、React、Nuxt、Next.js 等主流框架，參與過大型 B2B / B2C 平台、財務系統與遊戲平台開發，並擔任技術帶領角色，負責程式碼審查與新人培訓。近兩年深耕 AI 輔助開發流程（Claude Code、AI Agent Workflow、Vibe Coding），致力打造穩定、高效且具長期維護性的產品。"
 
   return (
     <section 
@@ -103,7 +104,7 @@ export function AboutSection() {
                 <div className="flex justify-center sm:justify-start">
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    現職中 / 歡迎交流
+                    Open to Work / 歡迎聯繫
                   </span>
                 </div>
               </div>
@@ -146,7 +147,7 @@ export function AboutSection() {
                 Class
               </span>
               <span className="font-semibold text-xs md:text-sm text-slate-800 dark:text-slate-200">
-                高階前端工程師
+                資深前端工程師
               </span>
             </div>
           </div>
@@ -161,7 +162,7 @@ export function AboutSection() {
                 Level
               </span>
               <span className="font-semibold text-xs md:text-sm text-slate-800 dark:text-slate-200">
-                9 年資歷
+                13+ 年資歷
               </span>
             </div>
           </div>
