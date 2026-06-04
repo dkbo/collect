@@ -12,6 +12,7 @@ export type CandyToReactMessage =
 export type ReactToCandyMessage =
   | { type: 'SET_PAUSED'; payload: { paused: boolean } }
   | { type: 'START_LEVEL'; payload: { level: number } }
+  | { type: 'SET_MUTED'; payload: { muted: boolean } }
 
 let candyWindow: Window | null = null
 

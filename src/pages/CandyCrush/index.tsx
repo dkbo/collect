@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Candy, Footprints, HelpCircle, Maximize2, Minimize2, Pause, Play, RotateCcw, Star, Trophy, X } from 'lucide-react'
+import { Candy, Footprints, HelpCircle, Maximize2, Minimize2, Pause, Play, RotateCcw, Star, Trophy, Volume2, VolumeX, X } from 'lucide-react'
 import { useCandyStore } from '@/store/useCandyStore'
 import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
 
@@ -16,7 +16,7 @@ const STAR_TICKS = [
 
 export function CandyCrush() {
   const {
-    isReady, isPaused, setPaused, handleCandyMessage, resetCandy,
+    isReady, isPaused, setPaused, isMuted, setMuted, handleCandyMessage, resetCandy,
     level, score, moves, target, stars,
     isLevelEnd, won, endLevel, endScore, endStars, startLevel,
   } = useCandyStore()
@@ -352,6 +352,17 @@ export function CandyCrush() {
               </div>
             </div>
           )}
+
+          <Button
+            variant="outline"
+            size="icon"
+            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-26' : 'right-37'}`}
+            onClick={() => { setMuted(!isMuted); focusGame() }}
+            aria-label={isMuted ? '開啟音效' : '靜音'}
+            data-testid="candy-mute-btn"
+          >
+            {isMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+          </Button>
 
           <Button
             variant="outline"

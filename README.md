@@ -123,3 +123,5 @@ pnpm dev   # 開 /#/candy-crush 驗收
 - Web 匯出 Threads 必須 OFF（同 RPG，靜態託管限制）；export preset 的 `include_filter` 含 `*.json`（關卡定義）
 - 對外名稱一律「糖果消消樂」（Candy Crush 為 King 商標，僅內部文件沿用慣稱）
 - Bridge 提供 `DEBUG_SET_BOARD` / `DEBUG_GET_BOARD` / `DEBUG_SET_STATE` 指令，供 Playwright 以確定性盤面驗證消除/特殊糖/關卡流程
+- 音效（`assets/sfx/*.wav`）由 `tools/gen_sfx.py` 程式合成（自製無版權），改音色重跑該腳本即可；
+  React 殼 🔊 按鈕經 `SET_MUTED` 指令靜音（偏好存 localStorage）

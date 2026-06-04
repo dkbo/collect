@@ -122,6 +122,7 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 			or not CandyBoard.are_adjacent(a, b):
 		return
 	_state = State.ANIM
+	CandySfx.play("swap")
 	await _animate_swap(a, b)
 	if board.is_special_swap(a, b) or board.would_swap_match(a, b):
 		board.swap(a, b)
@@ -136,6 +137,7 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 		await _check_level_end()
 		_state = State.IDLE
 	else:
+		CandySfx.play("invalid", 1.0, -6.0)
 		await _animate_swap(a, b)  # 無消除 → 回彈
 		_state = State.IDLE
 
@@ -147,12 +149,14 @@ func _check_level_end() -> void:
 	if level_mgr.score >= level_mgr.target:
 		await _sugar_crush()
 		_level_over = true
+		CandySfx.play("win")
 		CandyBridge.post("LEVEL_END", {
 			"won": true, "level": level_mgr.level,
 			"score": level_mgr.score, "stars": level_mgr.stars(),
 		})
 	elif level_mgr.moves_left <= 0:
 		_level_over = true
+		CandySfx.play("lose")
 		CandyBridge.post("LEVEL_END", {
 			"won": false, "level": level_mgr.level,
 			"score": level_mgr.score, "stars": 0,
@@ -165,6 +169,7 @@ func _sugar_crush() -> void:
 	if level_mgr.moves_left <= 0:
 		return
 	_show_banner("Sweet Crush!")
+	CandySfx.play("special")
 	var candidates: Array[Vector2i] = []
 	for y in CandyBoard.SIZE:
 		for x in CandyBoard.SIZE:
@@ -263,6 +268,12 @@ func _resolve(pending := {}, pending_triggers := 0) -> void:
 		pending_triggers = 0
 		level_mgr.score += 40 * triggered
 		_post_state()
+		if not removed.is_empty():
+			CandySfx.play("pop", 1.0 + 0.12 * mini(cascade, 6))  # 連鎖逐層升調
+		if not spawns.is_empty():
+			CandySfx.play("special")
+		if triggered > 0:
+			CandySfx.play("boom", 1.0, -3.0)
 		for cell in spawns:
 			board.set_cell(cell, spawns[cell]["color"])
 			board.set_special(cell, spawns[cell]["special"])
@@ -461,6 +472,7 @@ func _tween_fall(tween: Tween, piece: CandyPiece, to: Vector2i) -> void:
 ## 死局：顯示提示後保留糖果重排。
 func _shuffle_board() -> void:
 	_show_banner("No more moves!")
+	CandySfx.play("swap", 0.7)
 	await get_tree().create_timer(0.9).timeout
 	board.shuffle()
 	for c in pieces:
@@ -508,6 +520,8 @@ func _on_command(type: String, payload: Dictionary) -> void:
 			_paused = bool(payload.get("paused", false))
 			if _paused:
 				_set_selected(NO_CELL)
+		"SET_MUTED":
+			CandySfx.set_muted(bool(payload.get("muted", false)))
 		"START_LEVEL":
 			if _state != State.IDLE:
 				return

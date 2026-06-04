@@ -13,6 +13,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 CandyBridge="*res://scripts/candy_bridge.gd"
+CandySfx="*res://scripts/candy_sfx.gd"
 
 [display]
 
