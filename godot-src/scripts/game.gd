@@ -32,6 +32,10 @@ var fg_layer := MapLayer.new()
 var player: Player
 var camera := Camera2D.new()
 
+# 場景切換黑幕（CanvasLayer 不受攝影機影響）
+var fade_layer := CanvasLayer.new()
+var fade_rect := ColorRect.new()
+
 
 func _ready() -> void:
 	Bridge.command_received.connect(_on_bridge_command)
@@ -55,12 +59,23 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 
-	change_map(0, 0)
+	fade_rect.color = Color.BLACK
+	fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade_layer.add_child(fade_rect)
+	add_child(fade_layer)
+
+	_initial_load()
+
+
+func _initial_load() -> void:
+	_loading = true
+	await change_map(0, 0)
+	await _fade_to(0.0, 0.3)
+	_loading = false
 
 
 ## 切換地圖並把玩家放到 map.in[spawn_index] 落點
 func change_map(id: int, spawn_index: int) -> void:
-	_loading = true
 	var data := await map_loader.load_map(id)
 	if data.is_empty():
 		return
@@ -75,7 +90,6 @@ func change_map(id: int, spawn_index: int) -> void:
 	var spawn: Dictionary = m["in"][spawn_index]
 	player.place(float(spawn["x"]), float(spawn["y"]))
 	_update_camera()
-	_loading = false
 	Bridge.post("MAP_CHANGED", {"mapId": id, "name": String(m["name"])})
 
 
@@ -115,9 +129,33 @@ func _can_move(chk_x: float, chk_y: float) -> bool:
 	return true
 
 
-## 傳送門檢查（Step 6 實作，先回傳 false）
-func _check_transition(_chk_x: float, _chk_y: float) -> bool:
+## 傳送門檢查：踩到 cm/cmm 碰撞區即觸發黑幕換圖（對齊原版 checkTransition）
+func _check_transition(chk_x: float, chk_y: float) -> bool:
+	for json: Dictionary in map_data["isMove"]:
+		if (
+			int(json.get("cm", -1)) >= 0
+			and int(json.get("cmm", -1)) >= 0
+			and RpgUtil.aabb_intersect(chk_x, chk_y, NX, NY, json)
+		):
+			_transition_to(int(json["cm"]), int(json["cmm"]))
+			return true
 	return false
+
+
+func _transition_to(id: int, spawn_index: int) -> void:
+	_loading = true
+	await _fade_to(1.0, 0.2)
+	await change_map(id, spawn_index)
+	# 黑幕停留片刻再淡出（對齊原版 500ms 載入幕）
+	await get_tree().create_timer(0.1).timeout
+	await _fade_to(0.0, 0.2)
+	_loading = false
+
+
+func _fade_to(alpha: float, duration: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(fade_rect, "color:a", alpha, duration)
+	await tw.finished
 
 
 # ── 攝影機（移植原版 updateCamera：跟隨點 + 邊界 + 小地圖置中） ──
@@ -166,4 +204,4 @@ func _on_bridge_command(type: String, payload: Dictionary) -> void:
 		"SET_PAUSED":
 			_paused = bool(payload.get("paused", false))
 		"RESTART":
-			change_map(0, 0)
+			_transition_to(0, 0)
