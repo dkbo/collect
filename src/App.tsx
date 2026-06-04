@@ -11,6 +11,7 @@ const SearchApi = lazy(() => import('@/pages/Search'))
 const TodoList = lazy(() => import('@/pages/Todos'))
 const DirectionsPage = lazy(() => import('@/pages/Directions'))
 
+const CandyCrush = lazy(() => import('@/pages/CandyCrush'))
 const MapDeveloper = lazy(() => import('@/pages/MapDeveloper'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -39,6 +40,10 @@ const router = createHashRouter([
       {
         path: 'godot-game',
         element: <GodotGame />,
+      },
+      {
+        path: 'candy-crush',
+        element: <CandyCrush />,
       },
       {
         path: 'search',

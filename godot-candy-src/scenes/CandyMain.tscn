@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[node name="CandyMain" type="Node2D"]
+
+[node name="BG" type="ColorRect" parent="."]
+offset_right = 960.0
+offset_bottom = 540.0
+color = Color(0.051, 0.09, 0.153, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+offset_right = 960.0
+offset_bottom = 540.0
+
+[node name="Label" type="Label" parent="Center"]
+theme_override_font_sizes/font_size = 36
+text = "糖果消消樂\n載入測試中..."
+horizontal_alignment = 1

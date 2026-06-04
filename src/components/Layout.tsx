@@ -20,6 +20,7 @@ const NAV_ENTRIES: NavEntry[] = [
       { to: '/miniGame', label: '小遊戲', end: false, testId: 'nav-minigame' },
       { to: '/rpgroom', label: '遊戲室', end: false, testId: 'nav-rpgroom' },
       { to: '/godot-game', label: 'Godot遊戲', end: false, testId: 'nav-godot-game' },
+      { to: '/candy-crush', label: '糖果消消樂', end: false, testId: 'nav-candy-crush' },
     ],
   },
   {
@@ -86,6 +87,10 @@ export function Layout() {
       title = "Godot 遊戲 | DKBO's Collect"
       description = "以 Godot 4 遊戲引擎重構的 RPG 遊戲室，透過 iframe 嵌入與 postMessage 通訊架構，整合地圖探索與 NPC 對話系統。"
       keywords = "Godot, 遊戲引擎, RPG, iframe, postMessage, WebAssembly"
+    } else if (path.startsWith('/candy-crush')) {
+      title = "糖果消消樂 | DKBO's Collect"
+      description = "以 Godot 4 打造的 match-3 三消遊戲（Sweet Crush），8×8 盤面、6 色糖果、特殊道具與關卡制，透過 iframe 嵌入與 React HUD 整合。"
+      keywords = "糖果消消樂, 三消遊戲, match-3, Godot, Sweet Crush, 網頁遊戲"
     } else if (path.startsWith('/search')) {
       title = "外部查詢 | DKBO's Collect"
       description = "整合外部 API 查詢工具，實作資料檢索、防抖（Debounce）處理與即時搜尋建議。"

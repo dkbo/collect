@@ -1,0 +1,28 @@
+; Engine configuration file.
+; Godot 4.4 — 糖果消消樂（Web 匯出，嵌入 React iframe）
+
+config_version=5
+
+[application]
+
+config/name="Sweet Crush"
+run/main_scene="res://scenes/CandyMain.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+CandyBridge="*res://scripts/candy_bridge.gd"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=1

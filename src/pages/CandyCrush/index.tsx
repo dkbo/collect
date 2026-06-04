@@ -1,0 +1,248 @@
+import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Candy, HelpCircle, Maximize2, Minimize2, X } from 'lucide-react'
+import { useCandyStore } from '@/store/useCandyStore'
+import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
+
+export function CandyCrush() {
+  const { isReady, isPaused, setPaused, handleCandyMessage, resetCandy } = useCandyStore()
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const screenRef = useRef<HTMLDivElement>(null)
+  const [showInstructions, setShowInstructions] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(
+    () => window.matchMedia('(pointer: coarse)').matches
+  )
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const focusGame = () => {
+    requestAnimationFrame(() => {
+      const frame = iframeRef.current
+      if (!frame) return
+      frame.contentWindow?.focus()
+      frame.contentDocument?.querySelector('canvas')?.focus()
+    })
+  }
+
+  const showInstructionsRef = useRef(false)
+  const toggleInstructions = (open: boolean) => {
+    showInstructionsRef.current = open
+    setShowInstructions(open)
+    setPaused(open)
+    if (!open) focusGame()
+  }
+
+  const togglePause = () => {
+    const { isPaused: paused } = useCandyStore.getState()
+    setPaused(!paused)
+    if (paused) focusGame()
+  }
+
+  useEffect(() => {
+    const unsubscribe = onCandyMessage((msg) => {
+      handleCandyMessage(msg)
+    })
+    return () => {
+      unsubscribe()
+      registerCandyWindow(null)
+      resetCandy()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault()
+        togglePause()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        toggleInstructions(!showInstructionsRef.current)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)')
+    const onChange = (e: MediaQueryListEvent) => setIsTouchDevice(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === screenRef.current)
+      focusGame()
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      screenRef.current?.requestFullscreen().catch((err) => {
+        console.error('Error enabling fullscreen:', err)
+      })
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
+  const handleFrameLoad = () => {
+    const frame = iframeRef.current
+    if (!frame) return
+    registerCandyWindow(frame.contentWindow)
+    frame.focus()
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto pb-12" data-testid="page-candy-crush">
+      <header className="text-center mb-8">
+        <h1 className="text-3xl md:text-5xl font-extrabold bg-gradient-to-r from-pink-500 via-rose-400 to-orange-400 bg-clip-text text-transparent leading-tight">
+          糖果消消樂
+        </h1>
+        <p className="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
+          以 Godot 4 打造的 match-3 三消遊戲。引擎於 iframe 內運行，與 React 透過 postMessage 雙向通訊。
+        </p>
+      </header>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4 justify-between select-none">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => toggleInstructions(true)}
+          className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
+        >
+          <HelpCircle className="size-3.5" aria-hidden="true" />
+          遊戲說明
+        </Button>
+      </div>
+
+      <div className="rpg-cabinet">
+        <div
+          ref={screenRef}
+          className={
+            isFullscreen
+              ? 'fixed inset-0 w-screen h-screen bg-black z-50 border-0 rounded-none select-none'
+              : 'rpg-screen'
+          }
+        >
+          <iframe
+            ref={iframeRef}
+            src={import.meta.env.BASE_URL + 'candy/index.html'}
+            title="糖果消消樂遊戲"
+            className="absolute inset-0 size-full border-0 bg-slate-950"
+            tabIndex={0}
+            onLoad={handleFrameLoad}
+            allow="fullscreen"
+            style={{ touchAction: 'none' }}
+            data-testid="candy-iframe"
+          />
+
+          {!isReady && (
+            <div className="absolute inset-0 bg-black flex flex-col justify-center items-center z-50 animate-fade-in">
+              <Candy className="size-12 text-pink-500 animate-bounce mb-4" />
+              <div className="text-white text-base tracking-widest animate-pulse font-mono font-bold select-none">
+                糖果消消樂載入中...
+              </div>
+            </div>
+          )}
+
+          {isPaused && !showInstructions && (
+            <div
+              className="absolute inset-0 bg-slate-950/60 z-30 flex flex-col justify-center items-center gap-3 cursor-pointer animate-fade-in"
+              onClick={togglePause}
+              data-testid="candy-pause-overlay"
+            >
+              <span className="text-2xl font-extrabold text-pink-400 select-none">遊戲暫停中</span>
+              <span className="text-sm text-slate-300 select-none">點擊畫面或按 P 鍵恢復</span>
+            </div>
+          )}
+
+          {showInstructions && (
+            <div className="absolute inset-0 bg-slate-950/90 z-40 flex flex-col justify-center items-center p-6 text-slate-100 animate-fade-in">
+              <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl relative shadow-2xl">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-3 right-3 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                  onClick={() => toggleInstructions(false)}
+                  aria-label="關閉說明"
+                >
+                  <X className="size-5" />
+                </Button>
+
+                <h3 className="text-xl font-bold text-center border-b border-slate-800 pb-3 mb-4 flex items-center justify-center gap-2">
+                  <Candy className="size-6 text-pink-500" />
+                  操作說明
+                </h3>
+
+                <div className="space-y-4 text-sm leading-relaxed">
+                  {(isTouchDevice
+                    ? [
+                        ['交換糖果', '點選兩顆相鄰糖果，或滑動拖曳'],
+                        ['暫停遊戲', '畫面右上暫停按鈕'],
+                        ['開啟本選單', '畫面右上 ? 按鈕'],
+                      ]
+                    : [
+                        ['交換糖果', '點選兩顆相鄰糖果，或拖曳'],
+                        ['暫停遊戲', 'P 鍵'],
+                        ['開啟本選單', 'ESC 鍵'],
+                      ]
+                  ).map(([label, keys]) => (
+                    <div
+                      key={label}
+                      className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50"
+                    >
+                      <span className="font-semibold text-slate-300">{label}</span>
+                      <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-pink-400 font-mono">
+                        {keys}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="bg-pink-950/30 text-pink-200 p-3 rounded-lg border border-pink-900/30 text-xs mt-4 leading-normal">
+                    <span className="font-bold block mb-1">目標</span>
+                    在步數限制內達到目標分數，消除 3 顆以上相同顏色的糖果得分。特殊糖果可觸發更強力的消除！
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full mt-6 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold rounded-xl cursor-pointer"
+                  onClick={() => toggleInstructions(false)}
+                >
+                  開始遊戲
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            size="icon"
+            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-4' : 'right-15'}`}
+            onClick={toggleFullscreen}
+            aria-label="切換全螢幕"
+          >
+            {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+          </Button>
+
+          {!isFullscreen && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute top-4 right-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
+              onClick={() => toggleInstructions(true)}
+              aria-label="打開操作說明"
+            >
+              <HelpCircle className="size-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default CandyCrush

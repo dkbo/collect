@@ -1,0 +1,11 @@
+ea4bc82a6ad023ab7ee23ee620429895
+::res://::1780568614
+export_presets.cfg::TextFile/TextFile::-1::1780568490::0::1::::<><><>0<>0<><>::
+icon.svg::CompressedTexture2D/CompressedTexture2D::7756967678043371366::1780568494::1780568614::1::::<><><>0<>0<>1372db1fd35129fc4d14aff87e8e0dd7<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
+::res://assets/::1780568476
+::res://assets/candy/::1780568476
+::res://data/::1780568476
+::res://scenes/::1780568510
+CandyMain.tscn::PackedScene/PackedScene::-1::1780568510::0::1::::<><><>0<>0<><>::
+::res://scripts/::1780568614
+candy_bridge.gd::GDScript/GDScript::4359985661246567885::1780568506::0::1::::<>Node<><>0<>0<><>::
