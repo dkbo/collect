@@ -1,26 +1,64 @@
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { Code2, Sun, Moon, Menu, X } from 'lucide-react'
+import { Code2, Sun, Moon, Menu, X, ChevronDown } from 'lucide-react'
 import { useThemeStore } from '@/store/useThemeStore'
 import { Button } from '@/components/ui/button'
 
-const NAV_ITEMS = [
-  { to: '/', label: '首頁', end: true, testId: 'nav-home' },
-  { to: '/resume', label: 'E-履歷', end: false, testId: 'nav-resume' },
-  { to: '/miniGame', label: '小遊戲', end: false, testId: 'nav-minigame' },
-  { to: '/rpgroom', label: '遊戲室', end: false, testId: 'nav-rpgroom' },
-  { to: '/godot-game', label: 'Godot遊戲', end: false, testId: 'nav-godot-game' },
-  { to: '/search', label: '外部查詢', end: false, testId: 'nav-search' },
-  { to: '/todos', label: '代辦事項', end: false, testId: 'nav-todos' },
-  { to: '/directions', label: '地圖導覽', end: false, testId: 'nav-directions' },
-  { to: '/map-developer', label: '地圖開發', end: false, testId: 'nav-map-developer' },
-] as const
+type NavLinkItem = { to: string; label: string; end: boolean; testId: string }
+type NavEntry =
+  | ({ type: 'link' } & NavLinkItem)
+  | { type: 'group'; label: string; testId: string; items: NavLinkItem[] }
+
+const NAV_ENTRIES: NavEntry[] = [
+  { type: 'link', to: '/', label: '首頁', end: true, testId: 'nav-home' },
+  { type: 'link', to: '/resume', label: 'E-履歷', end: false, testId: 'nav-resume' },
+  {
+    type: 'group',
+    label: '遊戲',
+    testId: 'nav-games',
+    items: [
+      { to: '/miniGame', label: '小遊戲', end: false, testId: 'nav-minigame' },
+      { to: '/rpgroom', label: '遊戲室', end: false, testId: 'nav-rpgroom' },
+      { to: '/godot-game', label: 'Godot遊戲', end: false, testId: 'nav-godot-game' },
+    ],
+  },
+  {
+    type: 'group',
+    label: '工具',
+    testId: 'nav-tools',
+    items: [
+      { to: '/search', label: '外部查詢', end: false, testId: 'nav-search' },
+      { to: '/todos', label: 'Todos', end: false, testId: 'nav-todos' },
+      { to: '/directions', label: '地圖導覽', end: false, testId: 'nav-directions' },
+      { to: '/map-developer', label: '地圖開發', end: false, testId: 'nav-map-developer' },
+    ],
+  },
+]
 
 export function Layout() {
   const { theme, toggleTheme } = useThemeStore()
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const navRef = useRef<HTMLElement>(null)
   const location = useLocation()
+
+  // Close dropdown on route change
+  useEffect(() => {
+    setOpenDropdown(null)
+  }, [location.pathname])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!openDropdown) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openDropdown])
 
   useEffect(() => {
     const path = location.pathname
@@ -147,20 +185,62 @@ export function Layout() {
 
             {/* Desktop Navigation */}
             <div className="hidden lg:flex items-center gap-1">
-              <nav className="flex items-center gap-0.5 text-sm font-medium">
-                {NAV_ITEMS.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end}
-                    className={({ isActive }) =>
-                      `nav-link-pill ${isActive ? 'active' : 'inactive'}`
-                    }
-                    data-testid={item.testId}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
+              <nav ref={navRef} className="flex items-center gap-0.5 text-sm font-medium">
+                {NAV_ENTRIES.map((entry) =>
+                  entry.type === 'link' ? (
+                    <NavLink
+                      key={entry.to}
+                      to={entry.to}
+                      end={entry.end}
+                      className={({ isActive }) =>
+                        `nav-link-pill ${isActive ? 'active' : 'inactive'}`
+                      }
+                      data-testid={entry.testId}
+                    >
+                      {entry.label}
+                    </NavLink>
+                  ) : (
+                    <div key={entry.label} className="relative">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenDropdown(openDropdown === entry.label ? null : entry.label)
+                        }
+                        className={`nav-link-pill flex items-center gap-1 cursor-pointer ${
+                          entry.items.some((item) => location.pathname.startsWith(item.to))
+                            ? 'active'
+                            : 'inactive'
+                        }`}
+                        aria-expanded={openDropdown === entry.label}
+                        data-testid={entry.testId}
+                      >
+                        {entry.label}
+                        <ChevronDown
+                          className={`h-3 w-3 transition-transform duration-200 ${
+                            openDropdown === entry.label ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+                      {openDropdown === entry.label && (
+                        <div className="nav-dropdown-panel" data-testid={`${entry.testId}-dropdown`}>
+                          {entry.items.map((item) => (
+                            <NavLink
+                              key={item.to}
+                              to={item.to}
+                              end={item.end}
+                              className={({ isActive }) =>
+                                `nav-dropdown-item ${isActive ? 'active' : 'inactive'}`
+                              }
+                              data-testid={item.testId}
+                            >
+                              {item.label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
               </nav>
 
               <div className="w-px h-6 bg-slate-200 dark:bg-slate-800 mx-2" />
@@ -226,31 +306,47 @@ export function Layout() {
             />
             <nav className="mobile-menu-panel" data-testid="mobile-menu">
               <div className="flex flex-col gap-1">
-                {NAV_ITEMS.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end}
-                    className={({ isActive }) =>
-                      `block px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer ${
-                        isActive
-                          ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 border border-transparent'
-                      }`
-                    }
-                    data-testid={`${item.testId}-mobile`}
-                    onClick={closeMobileMenu}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
+                {NAV_ENTRIES.map((entry) =>
+                  entry.type === 'link' ? (
+                    <NavLink
+                      key={entry.to}
+                      to={entry.to}
+                      end={entry.end}
+                      className={({ isActive }) =>
+                        `mobile-menu-link ${isActive ? 'active' : 'inactive'}`
+                      }
+                      data-testid={`${entry.testId}-mobile`}
+                      onClick={closeMobileMenu}
+                    >
+                      {entry.label}
+                    </NavLink>
+                  ) : (
+                    <div key={entry.label} className="flex flex-col gap-1">
+                      <p className="mobile-menu-group-label">{entry.label}</p>
+                      {entry.items.map((item) => (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={item.end}
+                          className={({ isActive }) =>
+                            `mobile-menu-link pl-7 ${isActive ? 'active' : 'inactive'}`
+                          }
+                          data-testid={`${item.testId}-mobile`}
+                          onClick={closeMobileMenu}
+                        >
+                          {item.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )
+                )}
               </div>
             </nav>
           </>
         )}
 
         {/* Spacer for floating header */}
-        <div className="h-40" />
+        <div className="h-10" />
 
         <main className="relative max-w-6xl mx-auto px-4 pt-6">
           <Suspense fallback={
