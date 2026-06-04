@@ -650,6 +650,22 @@ html {
   @apply text-emerald-400 font-semibold underline underline-offset-4 hover:text-emerald-300;
 }
 
+/* 行動裝置拖曳虛擬搖桿（顯示於觸碰點，pointer-events-none 不攔截觸控） */
+.rpg-joy-base {
+  @apply absolute z-30 size-24 -ml-12 -mt-12 rounded-full border-2 border-white/30 bg-slate-900/30 pointer-events-none select-none;
+}
+
+.rpg-joy-knob {
+  @apply absolute z-30 size-10 -ml-5 -mt-5 rounded-full border border-white/60 bg-white/40 shadow-lg pointer-events-none select-none;
+}
+
+/* 行動裝置螢幕內互動按鈕 */
+.rpg-touch-action {
+  @apply absolute z-30 flex items-center justify-center size-14 rounded-full border border-purple-400/30 bg-gradient-to-br from-pink-500/80 via-purple-600/80 to-indigo-600/80 text-white font-extrabold text-lg shadow-lg shadow-purple-500/30 active:scale-95 transition-all select-none backdrop-blur-sm;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ═══════════════════════════════════════════════════════
    TODOS PAGE
    ═══════════════════════════════════════════════════════ */

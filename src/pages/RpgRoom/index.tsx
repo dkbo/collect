@@ -59,6 +59,7 @@ export function RpgRoom() {
 
   const [showInstructions, setShowInstructions] = useState(false)
   const [imagesLoaded, setImagesLoaded] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [, setIsPaused] = useState(false)
   const isPausedRef = useRef(false)
 
@@ -456,6 +457,15 @@ export function RpgRoom() {
         sHeight
       )
     }
+  }, [])
+
+  // 偵測行動裝置（主要輸入為觸控），並隨裝置狀態變化更新
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)')
+    setIsTouchDevice(mq.matches)
+    const onChange = (e: MediaQueryListEvent) => setIsTouchDevice(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
   }, [])
 
   useEffect(() => {
@@ -865,6 +875,88 @@ export function RpgRoom() {
   }
   void _restartGame // 暫未掛上 UI，保留引用以通過 noUnusedLocals
 
+  // 方向鍵長按事件（滑鼠 + 觸控通用；touchcancel/mouseleave 釋放避免方向卡住）
+  const dirHoldProps = (dir: 'up' | 'down' | 'left' | 'right') => ({
+    onMouseDown: () => { playerRef.current[dir] = true },
+    onMouseUp: () => { playerRef.current[dir] = false },
+    onMouseLeave: () => { playerRef.current[dir] = false },
+    onTouchStart: (e: React.TouchEvent) => { e.preventDefault(); playerRef.current[dir] = true },
+    onTouchEnd: (e: React.TouchEvent) => { e.preventDefault(); playerRef.current[dir] = false },
+    onTouchCancel: () => { playerRef.current[dir] = false },
+    onContextMenu: (e: React.MouseEvent) => { e.preventDefault() },
+  })
+
+  // ── 手遊式拖曳虛擬搖桿：按住畫面任意處拖曳即朝該方向移動 ──
+  const JOY_RADIUS = 48 // 搖桿最大半徑（px）
+  const JOY_DEAD = 12   // 死區，避免輕微抖動誤觸發
+  const joyRef = useRef({ active: false, id: -1, ox: 0, oy: 0 })
+  const joyBaseRef = useRef<HTMLDivElement>(null)
+  const joyKnobRef = useRef<HTMLDivElement>(null)
+
+  const releaseJoystick = () => {
+    const p = playerRef.current
+    p.left = false
+    p.right = false
+    p.up = false
+    p.down = false
+    joyRef.current.active = false
+    joyBaseRef.current?.classList.add('hidden')
+    joyKnobRef.current?.classList.add('hidden')
+  }
+
+  const handleJoyStart = (e: React.TouchEvent) => {
+    if (!isTouchDevice || joyRef.current.active) return
+    // 點到按鈕或對話框時不啟動搖桿
+    if ((e.target as HTMLElement).closest('button, .rpg-chat-box')) return
+    const container = canvasContainerRef.current
+    if (!container) return
+    const t = e.changedTouches[0]
+    const rect = container.getBoundingClientRect()
+    const ox = t.clientX - rect.left
+    const oy = t.clientY - rect.top
+    joyRef.current = { active: true, id: t.identifier, ox, oy }
+    if (joyBaseRef.current && joyKnobRef.current) {
+      joyBaseRef.current.style.left = `${ox}px`
+      joyBaseRef.current.style.top = `${oy}px`
+      joyKnobRef.current.style.left = `${ox}px`
+      joyKnobRef.current.style.top = `${oy}px`
+      joyBaseRef.current.classList.remove('hidden')
+      joyKnobRef.current.classList.remove('hidden')
+    }
+  }
+
+  const handleJoyMove = (e: React.TouchEvent) => {
+    const j = joyRef.current
+    if (!j.active) return
+    const t = Array.from(e.changedTouches).find((t) => t.identifier === j.id)
+    const container = canvasContainerRef.current
+    if (!t || !container) return
+    const rect = container.getBoundingClientRect()
+    let dx = t.clientX - rect.left - j.ox
+    let dy = t.clientY - rect.top - j.oy
+    const dist = Math.hypot(dx, dy)
+    if (dist > JOY_RADIUS) {
+      dx = (dx / dist) * JOY_RADIUS
+      dy = (dy / dist) * JOY_RADIUS
+    }
+    if (joyKnobRef.current) {
+      joyKnobRef.current.style.left = `${j.ox + dx}px`
+      joyKnobRef.current.style.top = `${j.oy + dy}px`
+    }
+    const p = playerRef.current
+    p.left = dx < -JOY_DEAD
+    p.right = dx > JOY_DEAD
+    p.up = dy < -JOY_DEAD
+    p.down = dy > JOY_DEAD
+  }
+
+  const handleJoyEnd = (e: React.TouchEvent) => {
+    const j = joyRef.current
+    if (!j.active) return
+    if (!Array.from(e.changedTouches).some((t) => t.identifier === j.id)) return
+    releaseJoystick()
+  }
+
   return (
     <div className="max-w-5xl mx-auto pb-12" data-testid="page-rpgroom">
       {/* Title Header */}
@@ -895,13 +987,17 @@ export function RpgRoom() {
       {/* Arcade cabinet wrapper */}
       <div className="rpg-cabinet">
         {/* Game console screen */}
-        <div 
-          ref={canvasContainerRef} 
-          className={
-            isFullscreen 
-              ? "fixed inset-0 w-screen h-screen bg-black flex items-center justify-center z-50 border-0 rounded-none select-none" 
+        <div
+          ref={canvasContainerRef}
+          className={`${
+            isFullscreen
+              ? "fixed inset-0 w-screen h-screen bg-black flex items-center justify-center z-50 border-0 rounded-none select-none"
               : "rpg-screen"
-          }
+          }${isTouchDevice ? ' touch-none' : ''}`}
+          onTouchStart={handleJoyStart}
+          onTouchMove={handleJoyMove}
+          onTouchEnd={handleJoyEnd}
+          onTouchCancel={handleJoyEnd}
         >
           {imagesLoaded && (
             <>
@@ -935,7 +1031,7 @@ export function RpgRoom() {
                 {npcMessage}
               </div>
               <div className="absolute bottom-2.5 right-4 flex items-center text-[10px] text-white/50 tracking-wider font-semibold animate-pulse select-none">
-                <span>按 SPACE / 點 A 繼續</span>
+                <span>{isTouchDevice ? '點 A 鈕繼續' : '按 SPACE / 點 A 繼續'}</span>
                 <span className="ml-1">▼</span>
               </div>
             </div>
@@ -961,24 +1057,49 @@ export function RpgRoom() {
                 </h3>
 
                 <div className="space-y-4 text-sm leading-relaxed">
-                  <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
-                    <span className="font-semibold text-slate-300">移動角色</span>
-                    <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
-                      W A S D / 方向鍵
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
-                    <span className="font-semibold text-slate-300">對話/互動</span>
-                    <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
-                      SPACE / ENTER / A 按鈕
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
-                    <span className="font-semibold text-slate-300">開啟本選單</span>
-                    <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
-                      ESC 鍵
-                    </span>
-                  </div>
+                  {isTouchDevice ? (
+                    <>
+                      <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
+                        <span className="font-semibold text-slate-300">移動角色</span>
+                        <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
+                          按住畫面拖曳（虛擬搖桿）
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
+                        <span className="font-semibold text-slate-300">對話/互動</span>
+                        <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
+                          畫面右下 A 按鈕
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
+                        <span className="font-semibold text-slate-300">開啟本選單</span>
+                        <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
+                          畫面右上 ? 按鈕
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
+                        <span className="font-semibold text-slate-300">移動角色</span>
+                        <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
+                          W A S D / 方向鍵
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
+                        <span className="font-semibold text-slate-300">對話/互動</span>
+                        <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
+                          SPACE / ENTER / A 按鈕
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50">
+                        <span className="font-semibold text-slate-300">開啟本選單</span>
+                        <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
+                          ESC 鍵
+                        </span>
+                      </div>
+                    </>
+                  )}
                   <div className="bg-purple-950/30 text-purple-200 p-3 rounded-lg border border-purple-900/30 text-xs mt-4 leading-normal">
                     <span className="font-bold block mb-1">💡 小訣竅</span>
                     走到特定的門口、樓梯或地圖邊界會自動切換地圖。面向告示牌、稻草人或NPC按對話鍵即可觸發交談。
@@ -1029,93 +1150,103 @@ export function RpgRoom() {
               座標: <span ref={coordsRef}>X: 0, Y: 0</span>
             </div>
           </div>
+
+          {/* 行動裝置螢幕內觸控操作（全螢幕時也可操作） */}
+          {isTouchDevice && imagesLoaded && (
+            <>
+              {/* 拖曳虛擬搖桿視覺指示（按住畫面時顯示於觸碰點） */}
+              <div ref={joyBaseRef} className="rpg-joy-base hidden" />
+              <div ref={joyKnobRef} className="rpg-joy-knob hidden" />
+
+              {/* 互動 A 按鈕（對話中上移避免遮擋對話框） */}
+              <button
+                type="button"
+                className={`rpg-touch-action ${isChat ? 'bottom-40' : 'bottom-5'} right-4`}
+                onTouchStart={(e) => { e.preventDefault(); handleInteract() }}
+                onClick={handleInteract}
+                aria-label="對話互動"
+              >
+                A
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Controllers Panel for dual interfaces */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mt-6 p-4 rounded-2xl bg-slate-950 border border-slate-800 shadow-inner">
-          
-          {/* Touch D-pad control block */}
-          <div className="flex items-center gap-4">
-            <div className="grid grid-cols-3 gap-1.5 size-36 shrink-0 select-none">
-              <div />
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { playerRef.current.up = true }}
-                onMouseUp={() => { playerRef.current.up = false }}
-                onTouchStart={(e) => { e.preventDefault(); playerRef.current.up = true }}
-                onTouchEnd={(e) => { e.preventDefault(); playerRef.current.up = false }}
-                aria-label="向上移動"
-              >
-                <ArrowUp className="size-5" />
-              </Button>
-              <div />
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { playerRef.current.left = true }}
-                onMouseUp={() => { playerRef.current.left = false }}
-                onTouchStart={(e) => { e.preventDefault(); playerRef.current.left = true }}
-                onTouchEnd={(e) => { e.preventDefault(); playerRef.current.left = false }}
-                aria-label="向左移動"
-              >
-                <ArrowLeft className="size-5" />
-              </Button>
-              <div className="flex items-center justify-center text-[11px] text-slate-500 font-extrabold uppercase select-none">
-                D-Pad
+        {/* Controllers Panel（行動裝置改用螢幕內觸控操作，不顯示此面板） */}
+        {!isTouchDevice && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mt-6 p-4 rounded-2xl bg-slate-950 border border-slate-800 shadow-inner">
+
+            {/* Mouse D-pad control block */}
+            <div className="flex items-center gap-4">
+              <div className="grid grid-cols-3 gap-1.5 size-36 shrink-0 select-none">
+                <div />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
+                  {...dirHoldProps('up')}
+                  aria-label="向上移動"
+                >
+                  <ArrowUp className="size-5" />
+                </Button>
+                <div />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
+                  {...dirHoldProps('left')}
+                  aria-label="向左移動"
+                >
+                  <ArrowLeft className="size-5" />
+                </Button>
+                <div className="flex items-center justify-center text-[11px] text-slate-500 font-extrabold uppercase select-none">
+                  D-Pad
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
+                  {...dirHoldProps('right')}
+                  aria-label="向右移動"
+                >
+                  <ArrowRight className="size-5" />
+                </Button>
+                <div />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
+                  {...dirHoldProps('down')}
+                  aria-label="向下移動"
+                >
+                  <ArrowDown className="size-5" />
+                </Button>
+                <div />
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { playerRef.current.right = true }}
-                onMouseUp={() => { playerRef.current.right = false }}
-                onTouchStart={(e) => { e.preventDefault(); playerRef.current.right = true }}
-                onTouchEnd={(e) => { e.preventDefault(); playerRef.current.right = false }}
-                aria-label="向右移動"
-              >
-                <ArrowRight className="size-5" />
-              </Button>
-              <div />
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { playerRef.current.down = true }}
-                onMouseUp={() => { playerRef.current.down = false }}
-                onTouchStart={(e) => { e.preventDefault(); playerRef.current.down = true }}
-                onTouchEnd={(e) => { e.preventDefault(); playerRef.current.down = false }}
-                aria-label="向下移動"
-              >
-                <ArrowDown className="size-5" />
-              </Button>
-              <div />
+
+              <div className="text-left text-xs text-slate-500 max-w-[240px] select-none hidden sm:block">
+                <h5 className="font-bold text-slate-400 mb-1">鍵盤玩家快捷鍵</h5>
+                <p>移動：W A S D / 方向鍵</p>
+                <p>互動：空白鍵 (Space) / Enter 鍵</p>
+                <p>說明：ESC 鍵</p>
+              </div>
             </div>
 
-            <div className="text-left text-xs text-slate-500 max-w-[240px] select-none hidden sm:block">
-              <h5 className="font-bold text-slate-400 mb-1">鍵盤玩家快捷鍵</h5>
-              <p>移動：W A S D / 方向鍵</p>
-              <p>互動：空白鍵 (Space) / Enter 鍵</p>
-              <p>說明：ESC 鍵</p>
+            {/* Action button block */}
+            <div className="flex flex-col items-center gap-2">
+              <Button
+                variant="default"
+                className="w-28 h-12 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-600 hover:via-purple-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold shadow-lg shadow-purple-500/30 border border-purple-400/20 shrink-0 cursor-pointer select-none"
+                onClick={handleInteract}
+                aria-label="對話互動"
+              >
+                Action (A)
+              </Button>
+              <span className="text-[10px] text-slate-500 font-medium select-none">點擊互動或按空白鍵交談</span>
             </div>
-          </div>
 
-          {/* Action button block */}
-          <div className="flex flex-col items-center gap-2">
-            <Button
-              variant="default"
-              className="w-28 h-12 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-600 hover:via-purple-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold shadow-lg shadow-purple-500/30 border border-purple-400/20 shrink-0 cursor-pointer select-none"
-              onClick={handleInteract}
-              aria-label="對話互動"
-            >
-              Action (A)
-            </Button>
-            <span className="text-[10px] text-slate-500 font-medium select-none">點擊互動或按空白鍵交談</span>
           </div>
-
-        </div>
+        )}
       </div>
     </div>
   )
