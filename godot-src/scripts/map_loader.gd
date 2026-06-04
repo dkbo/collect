@@ -19,6 +19,9 @@ func load_map(id: int) -> Dictionary:
 			"new URL('maps/%s', window.location.href).href" % fname, true
 		))
 		var req := HTTPRequest.new()
+		# 瀏覽器 fetch 已自動解壓 gzip，關閉 Godot 端二次解壓（否則 GitHub Pages
+		# 回應帶 Content-Encoding: gzip 時 StreamPeerGZIP 會解壓失敗）
+		req.accept_gzip = false
 		add_child(req)
 		req.request(url)
 		var result: Array = await req.request_completed
