@@ -1,0 +1,7 @@
+[
+  { "level": 1, "moves": 15, "target": 1500, "colors": 5 },
+  { "level": 2, "moves": 16, "target": 2500, "colors": 5 },
+  { "level": 3, "moves": 18, "target": 4000, "colors": 6 },
+  { "level": 4, "moves": 18, "target": 5500, "colors": 6 },
+  { "level": 5, "moves": 20, "target": 7500, "colors": 6 }
+]

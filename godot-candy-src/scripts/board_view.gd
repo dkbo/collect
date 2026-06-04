@@ -20,9 +20,11 @@ enum State { IDLE, ANIM }
 const NO_CELL := Vector2i(-1, -1)
 
 var board: CandyBoard
+var level_mgr := LevelManager.new()
 var pieces := {}  # Vector2i -> CandyPiece
-var score := 0
 var _state := State.IDLE
+var _paused := false
+var _level_over := false
 var _selected := NO_CELL
 var _press_cell := NO_CELL  # 按下時的格子（swipe 起點）
 var _press_pos := Vector2.ZERO
@@ -30,9 +32,17 @@ var _swiped := false  # 本次按壓已觸發 swipe，release 不再當點選
 
 
 func _ready() -> void:
-	board = CandyBoard.new(6)
-	_spawn_pieces()
 	CandyBridge.command_received.connect(_on_command)
+	_start_level(1)
+
+
+func _start_level(n: int) -> void:
+	level_mgr.start(n)
+	board = CandyBoard.new(level_mgr.colors)
+	_level_over = false
+	_refresh_pieces()
+	_post_state()
+	_show_banner("Level %d" % level_mgr.level)
 
 
 func _spawn_pieces() -> void:
@@ -59,7 +69,7 @@ static func pos_to_cell(pos: Vector2) -> Vector2i:
 # ---------- 輸入（觸控由 Godot 預設模擬為滑鼠事件） ----------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _state != State.IDLE:
+	if _state != State.IDLE or _paused or _level_over:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		var pos := get_global_mouse_position()
@@ -120,12 +130,60 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 		pieces[b] = tmp
 		_swap_a = a
 		_swap_b = b
+		level_mgr.moves_left -= 1  # 僅有效交換扣步
 		var initial := _special_swap_effect(a, b)
 		await _resolve(initial["cells"], initial["triggered"])
+		await _check_level_end()
 		_state = State.IDLE
 	else:
 		await _animate_swap(a, b)  # 無消除 → 回彈
 		_state = State.IDLE
+
+
+## 結算落定後判定勝敗：達標即過關（剩步轉條紋糖結算）；步數用完未達標失敗。
+func _check_level_end() -> void:
+	if _level_over:
+		return
+	if level_mgr.score >= level_mgr.target:
+		await _sugar_crush()
+		_level_over = true
+		CandyBridge.post("LEVEL_END", {
+			"won": true, "level": level_mgr.level,
+			"score": level_mgr.score, "stars": level_mgr.stars(),
+		})
+	elif level_mgr.moves_left <= 0:
+		_level_over = true
+		CandyBridge.post("LEVEL_END", {
+			"won": false, "level": level_mgr.level,
+			"score": level_mgr.score, "stars": 0,
+		})
+
+
+## Sugar Crush（簡化版）：每剩 1 步將一顆隨機普通糖轉為隨機方向條紋糖，
+## 然後一次觸發全部結算加分。
+func _sugar_crush() -> void:
+	if level_mgr.moves_left <= 0:
+		return
+	_show_banner("Sweet Crush!")
+	var candidates: Array[Vector2i] = []
+	for y in CandyBoard.SIZE:
+		for x in CandyBoard.SIZE:
+			var p := Vector2i(x, y)
+			if board.get_cell(p) >= 0 and board.get_special(p) == CandyBoard.Special.NONE:
+				candidates.append(p)
+	candidates.shuffle()
+	var converted := {}
+	for i in mini(level_mgr.moves_left, candidates.size()):
+		var p := candidates[i]
+		var sp := CandyBoard.Special.STRIPED_H if randi() % 2 == 0 \
+			else CandyBoard.Special.STRIPED_V
+		board.set_special(p, sp)
+		pieces[p].special = sp
+		converted[p] = true
+	level_mgr.moves_left = 0
+	_post_state()
+	await get_tree().create_timer(0.9).timeout
+	await _resolve(converted, 0)
 
 
 ## 特殊交換的初始效果（已 swap 後呼叫）：炸彈+任意 = 清同色、炸彈+炸彈 = 全盤、
@@ -188,7 +246,7 @@ func _resolve(pending := {}, pending_triggers := 0) -> void:
 		pending = {}
 		var spawns := {}  # cell -> {color, special}
 		for g in groups:
-			score += int((60 + 20 * (g["cells"].size() - 3)) * mult)
+			level_mgr.score += int((60 + 20 * (g["cells"].size() - 3)) * mult)
 			for c in g["cells"]:
 				removed[c] = true
 			if g["kind"] != "normal":
@@ -201,7 +259,7 @@ func _resolve(pending := {}, pending_triggers := 0) -> void:
 			removed.erase(cell)
 		var triggered := pending_triggers + _expand_specials(removed, spawns)
 		pending_triggers = 0
-		score += 40 * triggered
+		level_mgr.score += 40 * triggered
 		_post_state()
 		for cell in spawns:
 			board.set_cell(cell, spawns[cell]["color"])
@@ -407,12 +465,30 @@ func _show_banner(text: String) -> void:
 
 func _post_state() -> void:
 	CandyBridge.post("STATE", {
-		"level": 1, "score": score, "moves": 0, "target": 0, "stars": 0,
+		"level": level_mgr.level,
+		"score": level_mgr.score,
+		"moves": level_mgr.moves_left,
+		"target": level_mgr.target,
+		"stars": level_mgr.stars(),
 	})
 
 
 func _on_command(type: String, payload: Dictionary) -> void:
 	match type:
+		"SET_PAUSED":
+			_paused = bool(payload.get("paused", false))
+			if _paused:
+				_set_selected(NO_CELL)
+		"START_LEVEL":
+			if _state != State.IDLE:
+				return
+			_start_level(int(payload.get("level", 1)))
+		"DEBUG_SET_STATE":  # e2e 測試用：直接調整分數/剩步
+			if payload.has("score"):
+				level_mgr.score = int(payload["score"])
+			if payload.has("moves"):
+				level_mgr.moves_left = int(payload["moves"])
+			_post_state()
 		"DEBUG_SET_BOARD":  # e2e 測試用：直接鋪指定盤面（可含特殊糖）
 			if _state != State.IDLE:
 				return
@@ -424,8 +500,11 @@ func _on_command(type: String, payload: Dictionary) -> void:
 					board.special[i] = int(sp[i]) if sp.size() == g.size() else CandyBoard.Special.NONE
 				_refresh_pieces()
 		"DEBUG_GET_BOARD":
-			CandyBridge.post("DEBUG_BOARD",
-				{"grid": board.grid, "special": board.special, "score": score})
+			CandyBridge.post("DEBUG_BOARD", {
+				"grid": board.grid, "special": board.special,
+				"score": level_mgr.score, "moves": level_mgr.moves_left,
+				"level": level_mgr.level,
+			})
 
 
 ## 整盤重建糖果節點（洗牌/載入盤面用）。

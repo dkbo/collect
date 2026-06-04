@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Candy, HelpCircle, Maximize2, Minimize2, X } from 'lucide-react'
+import { Candy, Footprints, HelpCircle, Maximize2, Minimize2, RotateCcw, Star, Trophy, X } from 'lucide-react'
 import { useCandyStore } from '@/store/useCandyStore'
 import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
 
+/** 關卡總數（與 godot-candy-src/data/candy_levels.json 同步） */
+const MAX_LEVEL = 5
+
+/** 星級刻度：達標 1★（50%）、1.5 倍 2★（75%）、2 倍 3★（100%），進度條滿格 = 2 倍目標 */
+const STAR_TICKS = [
+  { star: 1, percent: 50 },
+  { star: 2, percent: 75 },
+  { star: 3, percent: 100 },
+]
+
 export function CandyCrush() {
-  const { isReady, isPaused, setPaused, handleCandyMessage, resetCandy } = useCandyStore()
+  const {
+    isReady, isPaused, setPaused, handleCandyMessage, resetCandy,
+    level, score, moves, target, stars,
+    isLevelEnd, won, endLevel, endScore, endStars, startLevel,
+  } = useCandyStore()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const screenRef = useRef<HTMLDivElement>(null)
   const [showInstructions, setShowInstructions] = useState(false)
@@ -120,6 +134,60 @@ export function CandyCrush() {
         </Button>
       </div>
 
+      {/* HUD：關卡 / 分數進度（星級刻度）/ 剩餘步數 */}
+      <div
+        className="mb-4 bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-3 flex items-center gap-4 select-none shadow-lg"
+        data-testid="candy-hud"
+      >
+        <div className="flex flex-col items-center min-w-14">
+          <span className="text-[10px] text-slate-400 font-semibold tracking-widest">關卡</span>
+          <span className="text-2xl font-extrabold text-pink-400 leading-none" data-testid="hud-level">
+            {level}
+          </span>
+        </div>
+
+        <div className="flex-1 pt-2">
+          <div className="flex justify-between items-baseline text-[11px] text-slate-400 mb-1.5">
+            <span className="font-mono font-bold text-base text-slate-100" data-testid="hud-score">
+              {score.toLocaleString()}
+            </span>
+            <span>
+              目標 <span className="font-mono text-slate-200">{target.toLocaleString()}</span>
+            </span>
+          </div>
+          <div className="relative h-3 bg-slate-800 rounded-full">
+            <div
+              className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-[width] duration-500"
+              style={{ width: `${target > 0 ? Math.min((score / (2 * target)) * 100, 100) : 0}%` }}
+              data-testid="hud-progress"
+            />
+            {STAR_TICKS.map(({ star, percent }) => (
+              <Star
+                key={star}
+                className={`absolute -top-2 size-4 -translate-x-1/2 transition-colors ${
+                  stars >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-600 fill-slate-800'
+                }`}
+                style={{ left: `${percent}%` }}
+                aria-label={`${star} 星刻度`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center min-w-14">
+          <span className="text-[10px] text-slate-400 font-semibold tracking-widest flex items-center gap-0.5">
+            <Footprints className="size-3" aria-hidden="true" />
+            步數
+          </span>
+          <span
+            className={`text-2xl font-extrabold leading-none ${moves <= 5 ? 'text-rose-400' : 'text-slate-100'}`}
+            data-testid="hud-moves"
+          >
+            {moves}
+          </span>
+        </div>
+      </div>
+
       <div className="rpg-cabinet">
         <div
           ref={screenRef}
@@ -158,6 +226,73 @@ export function CandyCrush() {
             >
               <span className="text-2xl font-extrabold text-pink-400 select-none">遊戲暫停中</span>
               <span className="text-sm text-slate-300 select-none">點擊畫面或按 P 鍵恢復</span>
+            </div>
+          )}
+
+          {isLevelEnd && !showInstructions && (
+            <div
+              className="absolute inset-0 bg-slate-950/85 z-30 flex flex-col justify-center items-center gap-4 animate-fade-in p-6"
+              data-testid="candy-result"
+            >
+              <h2 className="text-3xl font-extrabold flex items-center gap-2">
+                {won ? (
+                  <>
+                    <Trophy className="size-8 text-amber-400" aria-hidden="true" />
+                    <span className="text-pink-400">第 {endLevel} 關通關！</span>
+                  </>
+                ) : (
+                  <span className="text-slate-300">步數用完，挑戰失敗</span>
+                )}
+              </h2>
+
+              <div className="flex gap-2" data-testid="result-stars">
+                {[1, 2, 3].map((s) => (
+                  <Star
+                    key={s}
+                    className={`size-10 ${
+                      endStars >= s ? 'text-amber-400 fill-amber-400' : 'text-slate-700 fill-slate-800'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <div className="text-slate-200 text-lg">
+                得分 <span className="font-mono font-bold text-2xl text-white">{endScore.toLocaleString()}</span>
+              </div>
+
+              {won && endLevel >= MAX_LEVEL && (
+                <div className="text-amber-300 font-bold">恭喜全部通關！</div>
+              )}
+
+              <div className="flex gap-3 mt-2">
+                <Button
+                  variant="outline"
+                  className="border-slate-600 text-slate-200 bg-slate-900/80 hover:bg-slate-800 hover:text-white font-bold rounded-xl cursor-pointer"
+                  onClick={() => { startLevel(endLevel); focusGame() }}
+                  data-testid="result-replay"
+                >
+                  <RotateCcw className="size-4" aria-hidden="true" />
+                  重玩本關
+                </Button>
+                {won && endLevel < MAX_LEVEL && (
+                  <Button
+                    className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold rounded-xl cursor-pointer"
+                    onClick={() => { startLevel(endLevel + 1); focusGame() }}
+                    data-testid="result-next"
+                  >
+                    下一關 →
+                  </Button>
+                )}
+                {won && endLevel >= MAX_LEVEL && (
+                  <Button
+                    className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold rounded-xl cursor-pointer"
+                    onClick={() => { startLevel(1); focusGame() }}
+                    data-testid="result-restart"
+                  >
+                    從第 1 關再玩
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
