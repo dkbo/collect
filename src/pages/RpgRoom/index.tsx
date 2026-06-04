@@ -12,8 +12,7 @@ import {
   Compass,
   MessageSquare,
   Maximize2,
-  Minimize2,
-  RotateCcw
+  Minimize2
 } from 'lucide-react'
 import { useRpgStore } from '@/store/useRpgStore'
 import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.png'
@@ -887,29 +886,6 @@ export function RpgRoom() {
           >
             <HelpCircle className="size-3.5" aria-hidden="true" />
             遊戲說明
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setIsPaused((prev) => {
-                const val = !prev
-                isPausedRef.current = val
-                return val
-              })
-            }}
-            className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl"
-          >
-            {isPaused ? "繼續遊戲" : "暫停遊戲"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={restartGame}
-            className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
-          >
-            <RotateCcw className="size-3.5" aria-hidden="true" />
-            重新開始
           </Button>
         </div>
       </div>

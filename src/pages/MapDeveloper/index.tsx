@@ -1,19 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { 
-  Layers, 
-  Settings, 
-  Trash2, 
-  Download, 
-  Upload, 
-  HelpCircle, 
-  Grid, 
-  Save, 
-  FileJson, 
+import {
+  Layers,
+  Settings,
+  Trash2,
+  Download,
+  Upload,
+  HelpCircle,
+  Grid,
+  Save,
+  FileJson,
   Copy,
   Info,
   FolderOpen,
-  Keyboard
+  Keyboard,
+  Maximize2,
+  Minimize2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMapEditorStore } from '@/store/useMapEditorStore'
@@ -72,8 +74,10 @@ export function MapDeveloper() {
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'tile' | 'collision' | 'npc'>('tile')
   const [isFocused, setIsFocused] = useState(false)
-  
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
   // Refs
+  const containerRef = useRef<HTMLDivElement>(null)
   const workspaceRef = useRef<HTMLDivElement>(null)
   const backCanvasRef = useRef<HTMLCanvasElement>(null)
   const frontCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -113,6 +117,24 @@ export function MapDeveloper() {
   useEffect(() => {
     drawSpriteSelection()
   }, [store.sourceX, store.sourceY, store.sourceW, store.sourceH, store.sprites])
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === containerRef.current)
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    const el = containerRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      el.requestFullscreen().catch((err) => console.error('Error enabling fullscreen:', err))
+    } else {
+      document.exitFullscreen()
+    }
+  }
 
   // Auto-resize palette canvas when active sheet loads
   const handleSpriteImgLoad = () => {
@@ -717,7 +739,7 @@ export function MapDeveloper() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen text-slate-100 font-sans select-none pb-20 animate-fade-in" data-testid="page-map-developer">
+    <div ref={containerRef} className="flex flex-col min-h-screen text-slate-100 font-sans select-none pb-20 animate-fade-in" data-testid="page-map-developer">
       
       {/* Top Tools Area */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 mb-5 shadow-2xl backdrop-blur-md flex flex-wrap gap-5 justify-between items-center relative z-20">
@@ -764,7 +786,7 @@ export function MapDeveloper() {
             <FolderOpen className="h-4 w-4 mr-2" aria-hidden="true" />
             讀取暫存 (Alt+L)
           </Button>
-          <Button 
+          <Button
             className="bg-purple-600 text-white hover:bg-purple-700 font-semibold focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
             onClick={() => {
               store.saveToLocalStorage()
@@ -774,6 +796,18 @@ export function MapDeveloper() {
           >
             <Save className="h-4 w-4 mr-2" aria-hidden="true" />
             儲存地圖 (Alt+S)
+          </Button>
+          <Button
+            variant="outline"
+            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+            onClick={toggleFullscreen}
+            aria-label="切換全螢幕"
+          >
+            {isFullscreen ? (
+              <><Minimize2 className="h-4 w-4 mr-2" aria-hidden="true" />離開全螢幕</>
+            ) : (
+              <><Maximize2 className="h-4 w-4 mr-2" aria-hidden="true" />全螢幕開發</>
+            )}
           </Button>
         </div>
       </div>
