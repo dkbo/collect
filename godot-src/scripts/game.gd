@@ -40,7 +40,11 @@ var npc_runtimes: Dictionary = {}
 var is_chat := false
 var chat_count := 0
 
-# 場景切換黑幕（CanvasLayer 不受攝影機影響）
+# 觸控操作層（行動裝置虛擬搖桿 + A 鈕）
+var ui_layer := CanvasLayer.new()
+var touch_controls := TouchControls.new()
+
+# 場景切換黑幕（CanvasLayer 不受攝影機影響，layer 高於觸控層）
 var fade_layer := CanvasLayer.new()
 var fade_rect := ColorRect.new()
 
@@ -67,8 +71,15 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 
+	ui_layer.layer = 1
+	touch_controls.interact_pressed.connect(_on_touch_interact)
+	ui_layer.add_child(touch_controls)
+	add_child(ui_layer)
+
+	fade_layer.layer = 2
 	fade_rect.color = Color.BLACK
 	fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fade_layer.add_child(fade_rect)
 	add_child(fade_layer)
 
@@ -205,6 +216,7 @@ func _advance_chat(event_index: int) -> bool:
 	chat_count += 1
 	if chat_count <= texts.size():
 		is_chat = true
+		touch_controls.set_chat_lift(true)
 		Bridge.post("NPC_CHAT", {
 			"name": String(msg.get("name", "")),
 			"text": String(texts[chat_count - 1]),
@@ -219,18 +231,25 @@ func _advance_chat(event_index: int) -> bool:
 func _close_chat() -> void:
 	is_chat = false
 	chat_count = 0
+	touch_controls.set_chat_lift(false)
 	Bridge.post("CHAT_CLOSED")
 
 
 # ── 輸入（WASD + 方向鍵；觸控於 Step 9 加入） ──
 
 func _gather_input() -> Dictionary:
+	var joy: Dictionary = touch_controls.dir
 	return {
-		"left": Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A),
-		"right": Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D),
-		"up": Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W),
-		"down": Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S),
+		"left": Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A) or joy["left"],
+		"right": Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D) or joy["right"],
+		"up": Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W) or joy["up"],
+		"down": Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S) or joy["down"],
 	}
+
+
+func _on_touch_interact() -> void:
+	if not (_paused or _loading or map_data.is_empty()):
+		_interact()
 
 
 # ── 碰撞（AABB 純邏輯，對齊原版 canMove） ──
@@ -357,4 +376,9 @@ func _on_bridge_command(type: String, payload: Dictionary) -> void:
 			var npc_states: Array = []
 			for npc in npcs:
 				npc_states.append({"px": npc.rt["px"], "py": npc.rt["py"], "mode": npc.rt["mode"], "d": npc.rt["d"]})
-			Bridge.post("DEBUG_STATE", {"mapId": map_id, "px": player.px, "py": player.py, "npcs": npc_states})
+			Bridge.post("DEBUG_STATE", {
+				"mapId": map_id, "px": player.px, "py": player.py, "npcs": npc_states,
+				"touchVisible": touch_controls.visible,
+				"touchSize": [touch_controls.size.x, touch_controls.size.y],
+				"viewport": [get_viewport_rect().size.x, get_viewport_rect().size.y],
+			})
