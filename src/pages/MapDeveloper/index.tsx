@@ -1644,6 +1644,19 @@ export function MapDeveloper() {
                     </div>
 
                     <div>
+                      <label className="text-[10px] text-slate-400">角色外觀 (y，man.png 每隻佔 192px)</label>
+                      <select
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
+                        value={activeNpc.y}
+                        onChange={(e) => handleNpcEdit('y', Number(e.target.value))}
+                      >
+                        {Array.from({ length: 7 }, (_, i) => (
+                          <option key={i} value={i * 192}>角色 {i + 1} (y={i * 192})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
                       <label className="text-[10px] text-slate-400">對話事件索引 (e，對應 messages[e])</label>
                       <input
                         type="number"
@@ -1667,10 +1680,33 @@ export function MapDeveloper() {
                           />
                         ))}
                       </div>
+                      {activeNpc.type === 4 && (
+                        <div className="mt-1.5 space-y-1">
+                          <p className="text-[10px] text-amber-400/90 leading-relaxed">
+                            行走型會在活動範圍（紫框）內隨機走動：範圍須完整包住 NPC（32×48）且不可與碰撞區重疊，否則 NPC 會卡住。
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              // 以目前位置為中心套用 5×4 格活動範圍
+                              store.updateNpcProps(store.objectNum, {
+                                aX: activeNpc.pX - 64,
+                                aY: activeNpc.pY - 48,
+                                aW: 160,
+                                aH: 144,
+                              })
+                            }}
+                            className="h-6 px-2 border-slate-800 text-[10px] text-purple-300 hover:text-purple-200"
+                          >
+                            以目前位置套用預設範圍 (160×144)
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-slate-400">步行速度 (footSpeed)</label>
+                      <label className="text-[10px] text-slate-400">步行速度 (footSpeed，8 = 每幀 1px)</label>
                       <input
                         type="number"
                         value={activeNpc.footSpeed}

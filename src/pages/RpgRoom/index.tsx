@@ -31,6 +31,28 @@ const npcFeetBox = (npc: { pX: number; pY: number; w: number; h: number }) => ({
   h: npc.h - 24,
 })
 
+// 行走 NPC 的運行時狀態（位置/朝向/步幀獨立於地圖 JSON，site 不被改寫）
+interface NpcRuntime {
+  px: number
+  py: number
+  d: number // 目前朝向（0下 1左 2右 3上）
+  sx: number // walk frame x（0/32/64/96）
+  animTick: number
+  mode: 'idle' | 'walk'
+  ticks: number // 目前狀態剩餘 tick
+}
+
+const createNpcRuntimes = (mapId: number): NpcRuntime[] =>
+  (mapsJson[mapId].npc ?? []).map((npc) => ({
+    px: npc.pX,
+    py: npc.pY,
+    d: npc.d,
+    sx: 0,
+    animTick: 0,
+    mode: 'idle',
+    ticks: 30 + Math.floor(Math.random() * 60),
+  }))
+
 interface PlayerRefState {
   px: number
   py: number
@@ -77,6 +99,15 @@ export function RpgRoom() {
   const animationFrameRef = useRef<number>(0)
   const isTransSenceRef = useRef<boolean>(true)
   const mapIdRef = useRef<number>(0)
+
+  // 行走 NPC 運行時狀態（依地圖 id 緩存，跨場景保留走位）
+  const npcRuntimesRef = useRef<Record<number, NpcRuntime[]>>({})
+  const getNpcRuntimes = (id: number): NpcRuntime[] => {
+    if (!npcRuntimesRef.current[id]) {
+      npcRuntimesRef.current[id] = createNpcRuntimes(id)
+    }
+    return npcRuntimesRef.current[id]
+  }
 
   // Assets refs
   const playerImageRef = useRef<HTMLImageElement | null>(null)
@@ -384,12 +415,14 @@ export function RpgRoom() {
         tile2ImageRef.current,
       ]
 
-      mapJson.npc.forEach((npc) => {
+      const npcRuntimes = getNpcRuntimes(mapIdRef.current)
+      mapJson.npc.forEach((npc, npcIdx) => {
         const npcMsg = mapJson.messages?.[npc.e]
         if (!npcMsg) return // Skip if not an active NPC
 
-        const npcX = npc.pX
-        const npcY = npc.pY
+        const rt = npcRuntimes[npcIdx]
+        const npcX = rt?.px ?? npc.pX
+        const npcY = rt?.py ?? npc.pY
         const nW = npc.w || 32
         const nH = npc.h || 48
 
@@ -409,9 +442,10 @@ export function RpgRoom() {
 
         const sheet = IMAGES[npc.b]
         if (sheet && sheet.complete) {
-          // npc.y = 哪個角色的起始 y（每個角色佔 192px）；npc.x = walk frame x（0=靜止）
+          // npc.y = 哪個角色的起始 y（每個角色佔 192px）；frame x 由運行時狀態提供（0=靜止）
           const npcBaseY = npc.y ?? 0
-          const dirOffset = npc.d === 1 ? 48 : npc.d === 2 ? 96 : npc.d === 3 ? 144 : 0
+          const npcDir = rt?.d ?? npc.d
+          const dirOffset = npcDir === 1 ? 48 : npcDir === 2 ? 96 : npcDir === 3 ? 144 : 0
           const npcSy = npcBaseY + dirOffset
 
           charsToRender.push({
@@ -419,7 +453,7 @@ export function RpgRoom() {
             draw: () => {
               playerCtx.drawImage(
                 sheet,
-                npc.x ?? 0, // walk frame x（0 = 靜止第一格）
+                rt?.sx ?? npc.x ?? 0, // walk frame x（0 = 靜止第一格）
                 npcSy,
                 nW,
                 nH,
@@ -572,13 +606,27 @@ export function RpgRoom() {
 
     // Also check interaction against NPCs in mapJson.npc（碰撞框=下半身，見 npcFeetBox）
     if (!npcFound && mapJson.npc) {
-      const hitNpc = mapJson.npc.find(
-        (npc) =>
+      const runtimes = getNpcRuntimes(id)
+      const hitIdx = mapJson.npc.findIndex(
+        (npc, i) =>
           mapJson.messages?.[npc.e] &&
-          aabbIntersect(p.px + x, p.py + y, nX, nY, npcFeetBox(npc))
+          aabbIntersect(p.px + x, p.py + y, nX, nY, npcFeetBox({
+            pX: runtimes[i]?.px ?? npc.pX,
+            pY: runtimes[i]?.py ?? npc.pY,
+            w: npc.w,
+            h: npc.h,
+          }))
       )
-      if (hitNpc) {
+      if (hitIdx !== -1) {
+        const hitNpc = mapJson.npc[hitIdx]
         npcFound = advanceChat(hitNpc.e)
+        // 對話時 NPC 轉身面向玩家（玩家朝向的反向）
+        const rt = runtimes[hitIdx]
+        if (npcFound && rt) {
+          rt.d = p.sy === 0 ? 3 : p.sy === 48 ? 2 : p.sy === 96 ? 1 : 0
+          rt.mode = 'idle'
+          rt.sx = 0
+        }
       }
     }
 
@@ -587,6 +635,83 @@ export function RpgRoom() {
         closeChat()
       }
     }
+  }
+
+  // 行走 NPC 更新：在活動範圍內隨機走/停，避開碰撞區、玩家與其他 NPC
+  const updateNpcs = () => {
+    const id = mapIdRef.current
+    const mapJson = mapsJson[id]
+    if (!mapJson.npc?.length) return
+    if (useRpgStore.getState().isChat) return // 對話中全部定格
+
+    const runtimes = getNpcRuntimes(id)
+    const p = playerRef.current
+
+    mapJson.npc.forEach((npc, i) => {
+      if (npc.type !== 4 || !mapJson.messages?.[npc.e]) return
+      const rt = runtimes[i]
+      if (!rt) return
+      const nW = npc.w || 32
+      const nH = npc.h || 48
+
+      // 狀態機：idle ⇄ walk（隨機時長、隨機方向）
+      if (rt.ticks <= 0) {
+        if (rt.mode === 'walk' || Math.random() < 0.4) {
+          rt.mode = 'idle'
+          rt.sx = 0
+          rt.ticks = 40 + Math.floor(Math.random() * 80)
+        } else {
+          rt.mode = 'walk'
+          rt.d = Math.floor(Math.random() * 4)
+          rt.ticks = 32 + Math.floor(Math.random() * 64)
+        }
+      }
+      rt.ticks--
+      if (rt.mode !== 'walk') return
+
+      const speed = Math.max(1, Math.round((npc.footSpeed || 8) / 8))
+      const delta = [
+        { dx: 0, dy: speed }, // 0 下
+        { dx: -speed, dy: 0 }, // 1 左
+        { dx: speed, dy: 0 }, // 2 右
+        { dx: 0, dy: -speed }, // 3 上
+      ][rt.d]
+      const nx = rt.px + delta.dx
+      const ny = rt.py + delta.dy
+
+      // 活動範圍 + 地圖碰撞（傳送區不擋 NPC）+ 玩家 + 其他 NPC
+      const feet = { x: nx, y: ny + 24, w: nW, h: nH - 24 }
+      const blocked =
+        nx < npc.aX || nx + nW > npc.aX + npc.aW ||
+        ny < npc.aY || ny + nH > npc.aY + npc.aH ||
+        mapJson.isMove.some(
+          (json) => json.cm === undefined && aabbIntersect(feet.x, feet.y, feet.w, feet.h, json)
+        ) ||
+        aabbIntersect(p.px, p.py, 32, 48, feet) ||
+        runtimes.some(
+          (other, j) =>
+            j !== i &&
+            mapJson.messages?.[mapJson.npc![j].e] &&
+            aabbIntersect(feet.x, feet.y, feet.w, feet.h, {
+              x: other.px,
+              y: other.py + 24,
+              w: 32,
+              h: 24,
+            })
+        )
+
+      if (blocked) {
+        rt.mode = 'idle'
+        rt.sx = 0
+        rt.ticks = 30 + Math.floor(Math.random() * 60)
+        return
+      }
+
+      rt.px = nx
+      rt.py = ny
+      rt.animTick = (rt.animTick + 1) % 32
+      rt.sx = Math.floor(rt.animTick / 8) * 32 // 步行幀循環（同玩家節奏）
+    })
   }
 
   // Game loop tick
@@ -671,12 +796,18 @@ export function RpgRoom() {
         )
         if (blocked) return false
 
-        // Also check collision against NPCs in mapJson.npc
+        // Also check collision against NPCs in mapJson.npc（用運行時位置）
         if (mapJson.npc) {
+          const runtimes = getNpcRuntimes(id)
           return !mapJson.npc.some(
-            (npc) =>
+            (npc, i) =>
               mapJson.messages?.[npc.e] &&
-              aabbIntersect(chkX, chkY, nX, nY, npcFeetBox(npc))
+              aabbIntersect(chkX, chkY, nX, nY, npcFeetBox({
+                pX: runtimes[i]?.px ?? npc.pX,
+                pY: runtimes[i]?.py ?? npc.pY,
+                w: npc.w,
+                h: npc.h,
+              }))
           )
         }
         return true
@@ -718,6 +849,7 @@ export function RpgRoom() {
       }
     }
 
+    updateNpcs()
     drawGame()
     requestRef.current = requestAnimationFrame(loop)
   }
