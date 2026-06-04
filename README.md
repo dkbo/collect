@@ -97,3 +97,29 @@ pnpm dev   # 開 /#/godot-game 對照 /#/rpgroom 驗收
 - `rpg_maker_xp(2).png` 長條圖庫以 image importer 匯入為 CPU Image，由 `TileAtlas` 按需切塊
   （整張超過 WebGL 貼圖尺寸上限；勿改回 texture importer）
 - 行為以 `/rpgroom` 為準（座標、碰撞、NPC 狀態機皆 1:1 移植），改動時兩頁對照驗收
+
+## 糖果遊戲開發流程（/candy-crush 頁）
+
+`/candy-crush`（糖果消消樂）為**完全獨立**的 Godot 4.4 match-3 專案，與 RPG 不共用任何場景/腳本/匯出產物；計畫書見 `.prompts/candyCrush.md`。
+
+- 遊戲原始碼：`godot-candy-src/`（`board.gd` 純邏輯可單測；`board_view.gd` 渲染與結算；`level_manager.gd` + `data/candy_levels.json` 關卡定義，進 pck 不需 fetch）
+- 匯出產物：`public/candy/`（進版控；CI 無 Godot 環境，需本機匯出後 commit）
+- React 外殼：`src/pages/CandyCrush/`（HUD/結算面板）、`src/lib/candyBridge.ts`（postMessage 協定 v1，source: `godot-candy`）、`src/store/useCandyStore.ts`
+
+開發循環：
+
+```bash
+# 1. 修改 godot-candy-src/ 腳本、場景或關卡 JSON
+# 2. 跑純邏輯測試（盤面演算法不依賴動畫時序）
+godot --headless --path godot-candy-src --script res://tests/board_test.gd
+# 3. 匯出 Web 版
+pnpm candy:export
+# 4. 本機驗證後 commit public/candy 產物
+pnpm dev   # 開 /#/candy-crush 驗收
+```
+
+注意事項：
+
+- Web 匯出 Threads 必須 OFF（同 RPG，靜態託管限制）；export preset 的 `include_filter` 含 `*.json`（關卡定義）
+- 對外名稱一律「糖果消消樂」（Candy Crush 為 King 商標，僅內部文件沿用慣稱）
+- Bridge 提供 `DEBUG_SET_BOARD` / `DEBUG_GET_BOARD` / `DEBUG_SET_STATE` 指令，供 Playwright 以確定性盤面驗證消除/特殊糖/關卡流程

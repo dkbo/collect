@@ -242,6 +242,8 @@ func _resolve(pending := {}, pending_triggers := 0) -> void:
 		if groups.is_empty() and pending.is_empty() and armed.is_empty():
 			break
 		var mult := 1.0 + 0.5 * cascade
+		if cascade >= 1 and not groups.is_empty():  # 連鎖喝采文字
+			_show_banner(["Sweet!", "Tasty!", "Divine!"][mini(cascade - 1, 2)], 34)
 		var removed := pending
 		pending = {}
 		var spawns := {}  # cell -> {color, special}
@@ -386,7 +388,7 @@ func _most_common_color() -> int:
 	return best
 
 
-## 消除動畫：縮放至 0。
+## 消除動畫：縮放至 0 + 同色粒子噴發。
 func _animate_remove(cells: Array) -> void:
 	var tween := create_tween().set_parallel()
 	for c in cells:
@@ -394,7 +396,34 @@ func _animate_remove(cells: Array) -> void:
 		piece.set_selected(false)
 		tween.tween_property(piece, "scale", Vector2.ZERO, REMOVE_TIME) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		_spawn_burst(piece.position, _piece_burst_color(piece))
 	await tween.finished
+
+
+static func _piece_burst_color(piece: CandyPiece) -> Color:
+	if piece.special == CandyBoard.Special.BOMB:
+		return Color.WHITE
+	return CandyPiece.COLORS[posmod(piece.color_id, CandyPiece.COLORS.size())]
+
+
+## 單格消除粒子（一次性爆發，播完自毀）。
+func _spawn_burst(pos: Vector2, color: Color) -> void:
+	var p := CPUParticles2D.new()
+	p.position = pos
+	p.one_shot = true
+	p.amount = 10
+	p.lifetime = 0.45
+	p.explosiveness = 1.0
+	p.spread = 180.0
+	p.initial_velocity_min = 60.0
+	p.initial_velocity_max = 150.0
+	p.gravity = Vector2(0, 260)
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.0
+	p.color = color
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(p.lifetime + 0.2).timeout.connect(p.queue_free)
 
 
 ## 下落動畫：既有糖果下沉 + 新糖果自盤面上方落入，每格 0.08s、落地微彈跳。
@@ -440,10 +469,10 @@ func _shuffle_board() -> void:
 
 
 ## 盤面中央橫幅文字（漸大淡出）。
-func _show_banner(text: String) -> void:
+func _show_banner(text: String, font_size := 40) -> void:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 40)
+	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", Color("#fbcfe8"))
 	label.add_theme_color_override("font_outline_color", Color("#831843"))
 	label.add_theme_constant_override("outline_size", 8)

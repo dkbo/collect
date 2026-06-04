@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Candy, Footprints, HelpCircle, Maximize2, Minimize2, RotateCcw, Star, Trophy, X } from 'lucide-react'
+import { Candy, Footprints, HelpCircle, Maximize2, Minimize2, Pause, Play, RotateCcw, Star, Trophy, X } from 'lucide-react'
 import { useCandyStore } from '@/store/useCandyStore'
 import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
 
@@ -318,12 +318,12 @@ export function CandyCrush() {
                   {(isTouchDevice
                     ? [
                         ['交換糖果', '點選兩顆相鄰糖果，或滑動拖曳'],
-                        ['暫停遊戲', '畫面右上暫停按鈕'],
+                        ['暫停遊戲', '畫面右上 ⏸ 按鈕'],
                         ['開啟本選單', '畫面右上 ? 按鈕'],
                       ]
                     : [
                         ['交換糖果', '點選兩顆相鄰糖果，或拖曳'],
-                        ['暫停遊戲', 'P 鍵'],
+                        ['暫停遊戲', 'P 鍵或右上 ⏸ 按鈕'],
                         ['開啟本選單', 'ESC 鍵'],
                       ]
                   ).map(([label, keys]) => (
@@ -352,6 +352,17 @@ export function CandyCrush() {
               </div>
             </div>
           )}
+
+          <Button
+            variant="outline"
+            size="icon"
+            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-15' : 'right-26'}`}
+            onClick={togglePause}
+            aria-label={isPaused ? '恢復遊戲' : '暫停遊戲'}
+            data-testid="candy-pause-btn"
+          >
+            {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
+          </Button>
 
           <Button
             variant="outline"
