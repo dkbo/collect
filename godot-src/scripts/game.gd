@@ -32,6 +32,11 @@ var fg_layer := MapLayer.new()
 var player: Player
 var camera := Camera2D.new()
 
+# NPC：節點清單（當前地圖）+ 運行時狀態緩存（依 mapId，跨場景保留走位）
+var npcs: Array[Npc] = []
+var npc_runtimes: Dictionary = {}
+var is_chat := false  # 對話中 NPC 全部定格（Step 8 接上對話流程）
+
 # 場景切換黑幕（CanvasLayer 不受攝影機影響）
 var fade_layer := CanvasLayer.new()
 var fade_rect := ColorRect.new()
@@ -87,16 +92,48 @@ func change_map(id: int, spawn_index: int) -> void:
 	bg_layer.setup(data["styles"], false, w, h, atlases, TEX_GRASS)
 	fg_layer.setup(data["styles"], true, w, h, atlases, TEX_GRASS)
 
+	_rebuild_npcs(id)
+
 	var spawn: Dictionary = m["in"][spawn_index]
 	player.place(float(spawn["x"]), float(spawn["y"]))
 	_update_camera()
 	Bridge.post("MAP_CHANGED", {"mapId": id, "name": String(m["name"])})
 
 
+## 重建當前地圖 NPC 節點（運行時狀態以 mapId 緩存，跨場景保留走位）
+func _rebuild_npcs(id: int) -> void:
+	for npc in npcs:
+		npc.queue_free()
+	npcs.clear()
+
+	var npc_list: Array = map_data.get("npc", [])
+	var messages: Array = map_data.get("messages", [])
+	if not npc_runtimes.has(id):
+		var runtimes: Array = []
+		for npc_data: Dictionary in npc_list:
+			runtimes.append(Npc.create_runtime(npc_data))
+		npc_runtimes[id] = runtimes
+
+	for i in npc_list.size():
+		var npc_data: Dictionary = npc_list[i]
+		var e := int(npc_data.get("e", -1))
+		if e < 0 or e >= messages.size():
+			continue  # 無對話資料者不渲染（對齊原版）
+		var npc := Npc.new(npc_data, npc_runtimes[id][i], atlases[int(npc_data.get("b", 0))])
+		npcs.append(npc)
+		chars.add_child(npc)
+
+
 func _physics_process(_delta: float) -> void:
 	if _paused or _loading or map_data.is_empty():
 		return
 	player.tick(_gather_input(), _can_move, _check_transition)
+
+	# 對話中全部定格（對齊原版 updateNpcs 提前 return）
+	if not is_chat:
+		for npc in npcs:
+			npc.tick(_npc_blocked)
+
 	_update_camera()
 
 	# 座標節流回報（僅供 React HUD 顯示）
@@ -126,7 +163,35 @@ func _can_move(chk_x: float, chk_y: float) -> bool:
 	for json: Dictionary in map_data["isMove"]:
 		if RpgUtil.aabb_intersect(chk_x, chk_y, NX, NY, json):
 			return false
+	# NPC 阻擋（下半身碰撞框）
+	for npc in npcs:
+		if RpgUtil.aabb_intersect(chk_x, chk_y, NX, NY, npc.feet_box()):
+			return false
 	return true
+
+
+## 行走 NPC 阻擋判斷（地圖碰撞區（傳送區不擋）+ 玩家 + 其他 NPC）
+func _npc_blocked(nx: float, ny: float, who: Npc) -> bool:
+	var feet := {
+		"x": nx,
+		"y": ny + Npc.FEET_OFFSET,
+		"w": float(who.data["w"]),
+		"h": float(who.data["h"]) - Npc.FEET_OFFSET,
+	}
+	for json: Dictionary in map_data["isMove"]:
+		if not json.has("cm") and RpgUtil.aabb_intersect(
+			float(feet["x"]), float(feet["y"]), float(feet["w"]), float(feet["h"]), json
+		):
+			return true
+	if RpgUtil.aabb_intersect(player.px, player.py, NX, NY, feet):
+		return true
+	for other in npcs:
+		if other != who and RpgUtil.aabb_intersect(
+			float(feet["x"]), float(feet["y"]), float(feet["w"]), float(feet["h"]),
+			{"x": other.rt["px"], "y": float(other.rt["py"]) + 24.0, "w": 32.0, "h": 24.0}
+		):
+			return true
+	return false
 
 
 ## 傳送門檢查：踩到 cm/cmm 碰撞區即觸發黑幕換圖（對齊原版 checkTransition）
@@ -205,3 +270,9 @@ func _on_bridge_command(type: String, payload: Dictionary) -> void:
 			_paused = bool(payload.get("paused", false))
 		"RESTART":
 			_transition_to(0, 0)
+		"DEBUG_STATE":
+			# 驗收輔助：回報玩家/NPC 運行時狀態（不在正式協定中）
+			var npc_states: Array = []
+			for npc in npcs:
+				npc_states.append({"px": npc.rt["px"], "py": npc.rt["py"], "mode": npc.rt["mode"], "d": npc.rt["d"]})
+			Bridge.post("DEBUG_STATE", {"mapId": map_id, "px": player.px, "py": player.py, "npcs": npc_states})
