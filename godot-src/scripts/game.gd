@@ -1,15 +1,19 @@
 extends Node2D
 
-## 遊戲主控：載入地圖 JSON、建立圖層節點。
-## Step 4：地圖渲染；後續步驟逐步加入玩家、傳送門、NPC 與對話。
+## 遊戲主控：載入地圖 JSON、建立圖層、驅動玩家與攝影機。
+## 以 60Hz 固定 tick（_physics_process）對齊原版 rAF 邏輯，後續步驟加入傳送門、NPC 與對話。
 
 # 圖庫索引對齊地圖 JSON 的 b 欄位：0=man, 1=rpg_maker_xp, 2=rpg_maker_xp2
+# （長條圖庫以 image importer 匯入為 CPU Image，man.png 維持 Texture2D 供 Sprite2D 直用）
 const TEXTURES: Array = [
 	preload("res://assets/man.png"),
 	preload("res://assets/rpg_maker_xp.png"),
 	preload("res://assets/rpg_maker_xp2.png"),
 ]
 const TEX_GRASS := preload("res://assets/bg.jpg")
+
+const NX := 32.0  # 玩家碰撞框寬
+const NY := 48.0  # 玩家碰撞框高
 
 # 長條圖庫切塊快取（見 TileAtlas 註解），啟動時建立一次
 var atlases: Array = []
@@ -18,17 +22,21 @@ var map_loader: MapLoader
 var map_data: Dictionary = {}
 var map_id := 0
 var _paused := false
+var _loading := true
+var _pos_tick := 0  # PLAYER_POS 節流（每 12 tick ≈ 5Hz）
 
 var world := Node2D.new()
 var bg_layer := MapLayer.new()
 var chars := Node2D.new()  # 玩家與 NPC 同掛此節點，Y-sort 取代手寫排序
 var fg_layer := MapLayer.new()
+var player: Player
+var camera := Camera2D.new()
 
 
 func _ready() -> void:
 	Bridge.command_received.connect(_on_bridge_command)
 
-	for tex: Texture2D in TEXTURES:
+	for tex: Resource in TEXTURES:
 		atlases.append(TileAtlas.new(tex))
 
 	map_loader = MapLoader.new()
@@ -40,10 +48,19 @@ func _ready() -> void:
 	world.add_child(fg_layer)
 	add_child(world)
 
-	change_map(0)
+	player = Player.new(TEXTURES[0])
+	chars.add_child(player)
+
+	camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
+	add_child(camera)
+	camera.make_current()
+
+	change_map(0, 0)
 
 
-func change_map(id: int) -> void:
+## 切換地圖並把玩家放到 map.in[spawn_index] 落點
+func change_map(id: int, spawn_index: int) -> void:
+	_loading = true
 	var data := await map_loader.load_map(id)
 	if data.is_empty():
 		return
@@ -54,7 +71,94 @@ func change_map(id: int) -> void:
 	var h := int(m["height"])
 	bg_layer.setup(data["styles"], false, w, h, atlases, TEX_GRASS)
 	fg_layer.setup(data["styles"], true, w, h, atlases, TEX_GRASS)
+
+	var spawn: Dictionary = m["in"][spawn_index]
+	player.place(float(spawn["x"]), float(spawn["y"]))
+	_update_camera()
+	_loading = false
 	Bridge.post("MAP_CHANGED", {"mapId": id, "name": String(m["name"])})
+
+
+func _physics_process(_delta: float) -> void:
+	if _paused or _loading or map_data.is_empty():
+		return
+	player.tick(_gather_input(), _can_move, _check_transition)
+	_update_camera()
+
+	# 座標節流回報（僅供 React HUD 顯示）
+	_pos_tick += 1
+	if _pos_tick >= 12:
+		_pos_tick = 0
+		Bridge.post("PLAYER_POS", {"x": int(player.px), "y": int(player.py)})
+
+
+# ── 輸入（WASD + 方向鍵；觸控於 Step 9 加入） ──
+
+func _gather_input() -> Dictionary:
+	return {
+		"left": Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A),
+		"right": Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D),
+		"up": Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W),
+		"down": Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S),
+	}
+
+
+# ── 碰撞（AABB 純邏輯，對齊原版 canMove） ──
+
+func _can_move(chk_x: float, chk_y: float) -> bool:
+	var m: Dictionary = map_data["map"]
+	if chk_x < 0 or chk_x + NX > float(m["width"]) or chk_y < 0 or chk_y + NY > float(m["height"]):
+		return false
+	for json: Dictionary in map_data["isMove"]:
+		if RpgUtil.aabb_intersect(chk_x, chk_y, NX, NY, json):
+			return false
+	return true
+
+
+## 傳送門檢查（Step 6 實作，先回傳 false）
+func _check_transition(_chk_x: float, _chk_y: float) -> bool:
+	return false
+
+
+# ── 攝影機（移植原版 updateCamera：跟隨點 + 邊界 + 小地圖置中） ──
+
+func _update_camera() -> void:
+	var vp := get_viewport_rect().size
+	var w := vp.x
+	var h := vp.y
+	var m: Dictionary = map_data["map"]
+	var sw := float(m["width"])
+	var sh := float(m["height"])
+	var px := player.px
+	var py := player.py
+
+	# 跟隨點（視窗 3/4 處、取 4 的倍數，對齊原版 mRf/mDw）
+	var m_rf := floorf(w / 2.0 + (w / 4.0 - NX))
+	m_rf -= fmod(m_rf, 4.0)
+	var m_dw := floorf(h / 2.0 + (h / 4.0 - NY))
+	m_dw -= fmod(m_dw, 4.0)
+
+	var msx: float
+	if w > sw or px <= m_rf:
+		msx = 0.0
+	elif px >= sw - NX or (px - m_rf) > (sw - w):
+		msx = sw - w
+	else:
+		msx = px - m_rf
+
+	var msy: float
+	if h > sh or py <= m_dw:
+		msy = 0.0
+	elif py >= sh - NY or (py - m_dw) > (sh - h):
+		msy = sh - h
+	else:
+		msy = py - m_dw
+
+	# 地圖小於視窗時置中顯示
+	camera.position = Vector2(
+		-((w - sw) / 2.0) if w > sw else msx,
+		-((h - sh) / 2.0) if h > sh else msy
+	)
 
 
 func _on_bridge_command(type: String, payload: Dictionary) -> void:
@@ -62,4 +166,4 @@ func _on_bridge_command(type: String, payload: Dictionary) -> void:
 		"SET_PAUSED":
 			_paused = bool(payload.get("paused", false))
 		"RESTART":
-			change_map(0)
+			change_map(0, 0)
