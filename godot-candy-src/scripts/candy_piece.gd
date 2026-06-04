@@ -20,6 +20,12 @@ var color_id := 0:
 		color_id = v
 		queue_redraw()
 
+## CandyBoard.Special 值（0=無、1/2=條紋橫/直、3/4=包裝/已引爆、5=炸彈）
+var special := 0:
+	set(v):
+		special = v
+		queue_redraw()
+
 var _select_tween: Tween
 
 
@@ -38,7 +44,10 @@ func set_selected(selected: bool) -> void:
 
 
 func _draw() -> void:
-	var c := COLORS[color_id % COLORS.size()]
+	if special == CandyBoard.Special.BOMB:
+		_draw_bomb()
+		return
+	var c := COLORS[posmod(color_id, COLORS.size())]
 	var dark := c.darkened(0.35)
 	match color_id % COLORS.size():
 		0:  # 圓
@@ -65,6 +74,33 @@ func _draw() -> void:
 	# 左上高光
 	draw_circle(Vector2(-RADIUS * 0.35, -RADIUS * 0.38), RADIUS * 0.22,
 		Color(1, 1, 1, 0.55))
+	_draw_special_overlay()
+
+
+## 特殊糖標記：條紋 = 三道白條（橫/直）；包裝 = 白色外框（引爆後轉紅）。
+func _draw_special_overlay() -> void:
+	var w := Color(1, 1, 1, 0.85)
+	match special:
+		CandyBoard.Special.STRIPED_H:
+			for dy in [-10.0, 0.0, 10.0]:
+				draw_rect(Rect2(-RADIUS * 0.7, dy - 2.5, RADIUS * 1.4, 5.0), w)
+		CandyBoard.Special.STRIPED_V:
+			for dx in [-10.0, 0.0, 10.0]:
+				draw_rect(Rect2(dx - 2.5, -RADIUS * 0.7, 5.0, RADIUS * 1.4), w)
+		CandyBoard.Special.WRAPPED, CandyBoard.Special.WRAPPED_ARMED:
+			var border := w if special == CandyBoard.Special.WRAPPED else Color("#fb7185")
+			draw_rect(Rect2(-RADIUS - 3, -RADIUS - 3, (RADIUS + 3) * 2, (RADIUS + 3) * 2),
+				border, false, 3.5)
+
+
+## 彩色炸彈：深色球體 + 六色糖粒。
+func _draw_bomb() -> void:
+	draw_circle(Vector2.ZERO, RADIUS + 2.0, Color("#1c1917"))
+	draw_circle(Vector2.ZERO, RADIUS - 1.0, Color("#44403c"))
+	for i in COLORS.size():
+		var a := TAU * i / COLORS.size() + 0.5
+		draw_circle(Vector2(cos(a), sin(a)) * RADIUS * 0.55, 4.0, COLORS[i])
+	draw_circle(Vector2(-RADIUS * 0.35, -RADIUS * 0.38), RADIUS * 0.2, Color(1, 1, 1, 0.4))
 
 
 static func _polygon(sides: int, radius: float, rot: float) -> PackedVector2Array:

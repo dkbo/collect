@@ -13,6 +13,8 @@ func _init() -> void:
 	_test_match_groups()
 	_test_gravity_and_refill()
 	_test_shuffle()
+	_test_group_classification()
+	_test_special_swap_and_gravity()
 	print("board_test: ALL PASS")
 	quit(0)
 
@@ -87,6 +89,60 @@ func _test_shuffle() -> void:
 	var after := b.grid.duplicate()
 	after.sort()
 	assert(before == after, "洗牌應保留原有糖果（多重集不變）")
+
+
+func _test_group_classification() -> void:
+	var b: CandyBoard = CandyBoardScript.new(6)
+	# 4 連 → striped（方向 = 線段方向）
+	_periodic(b)
+	for x in 4:
+		b.set_cell(Vector2i(x, 0), 5)
+	var g: Dictionary = b.find_match_groups()[0]
+	assert(g["kind"] == "striped" and g["horizontal"] == true)
+	# 5 連 → bomb，origin 在中點
+	_periodic(b)
+	for y in range(1, 6):
+		b.set_cell(Vector2i(3, y), 5)
+	g = b.find_match_groups()[0]
+	assert(g["kind"] == "bomb" and g["horizontal"] == false)
+	assert(g["origin"] == Vector2i(3, 3), "5 連 origin 應在中點")
+	# L 形 → wrapped，origin 在交點
+	_periodic(b)
+	for x in 3:
+		b.set_cell(Vector2i(x, 0), 5)
+	for y in 3:
+		b.set_cell(Vector2i(0, y), 5)
+	g = b.find_match_groups()[0]
+	assert(g["kind"] == "wrapped")
+	assert(g["origin"] == Vector2i(0, 0), "L 形 origin 應在交點")
+
+
+func _test_special_swap_and_gravity() -> void:
+	var b: CandyBoard = CandyBoardScript.new(6)
+	_periodic(b)  # 無合法步底盤
+	assert(not b.has_legal_move())
+	# 炸彈與任何相鄰交換皆合法
+	b.set_cell(Vector2i(3, 3), CandyBoard.BOMB_COLOR)
+	b.set_special(Vector2i(3, 3), CandyBoard.Special.BOMB)
+	assert(b.is_special_swap(Vector2i(3, 3), Vector2i(3, 4)))
+	assert(b.has_legal_move(), "有炸彈就不算死局")
+	# 炸彈（色 -2）不得參與顏色配對
+	assert(b.find_matches().is_empty())
+	# 條紋+條紋為合法特殊交換
+	b.set_special(Vector2i(5, 5), CandyBoard.Special.STRIPED_H)
+	b.set_special(Vector2i(5, 6), CandyBoard.Special.STRIPED_V)
+	assert(b.is_special_swap(Vector2i(5, 5), Vector2i(5, 6)))
+	# swap 與重力都要帶著特殊屬性走
+	b.swap(Vector2i(5, 5), Vector2i(5, 6))
+	assert(b.get_special(Vector2i(5, 5)) == CandyBoard.Special.STRIPED_V)
+	_periodic(b)
+	b.special.fill(CandyBoard.Special.NONE)
+	b.set_special(Vector2i(2, 2), CandyBoard.Special.WRAPPED)
+	b.clear_cells([Vector2i(2, 5), Vector2i(2, 6), Vector2i(2, 7)])
+	b.apply_gravity()
+	assert(b.get_special(Vector2i(2, 5)) == CandyBoard.Special.WRAPPED,
+		"重力後特殊屬性應隨糖果下移")
+	assert(b.get_special(Vector2i(2, 2)) == CandyBoard.Special.NONE)
 
 
 func _test_fill_no_matches() -> void:

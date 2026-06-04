@@ -41,6 +41,7 @@ func _spawn_pieces() -> void:
 			var p := Vector2i(x, y)
 			var piece: CandyPiece = CandyPieceScript.new()
 			piece.color_id = board.get_cell(p)
+			piece.special = board.get_special(p)
 			piece.position = cell_to_pos(p)
 			add_child(piece)
 			pieces[p] = piece
@@ -112,35 +113,101 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 		return
 	_state = State.ANIM
 	await _animate_swap(a, b)
-	if board.would_swap_match(a, b):
+	if board.is_special_swap(a, b) or board.would_swap_match(a, b):
 		board.swap(a, b)
 		var tmp: CandyPiece = pieces[a]
 		pieces[a] = pieces[b]
 		pieces[b] = tmp
-		await _resolve()
+		_swap_a = a
+		_swap_b = b
+		var initial := _special_swap_effect(a, b)
+		await _resolve(initial["cells"], initial["triggered"])
 		_state = State.IDLE
 	else:
 		await _animate_swap(a, b)  # 無消除 → 回彈
 		_state = State.IDLE
 
 
+## 特殊交換的初始效果（已 swap 後呼叫）：炸彈+任意 = 清同色、炸彈+炸彈 = 全盤、
+## 條紋+條紋 = 十字（MVP 組合）。參與的特殊糖效果已套用，特殊屬性就地消耗。
+func _special_swap_effect(a: Vector2i, b: Vector2i) -> Dictionary:
+	if not board.is_special_swap(a, b):
+		return {"cells": {}, "triggered": 0}
+	var removed := {}
+	var triggered := 0
+	var bombs: Array[Vector2i] = []
+	if board.get_special(a) == CandyBoard.Special.BOMB:
+		bombs.append(a)
+	if board.get_special(b) == CandyBoard.Special.BOMB:
+		bombs.append(b)
+	if bombs.size() == 2:  # 炸彈+炸彈：全盤清除
+		for y in CandyBoard.SIZE:
+			for x in CandyBoard.SIZE:
+				removed[Vector2i(x, y)] = true
+		triggered = 2
+	elif bombs.size() == 1:  # 炸彈+糖果：清除全盤同色（對方若為特殊糖會鏈式觸發）
+		var bomb := bombs[0]
+		var other := b if bomb == a else a
+		var target_color := board.get_cell(other)
+		removed[bomb] = true
+		for y in CandyBoard.SIZE:
+			for x in CandyBoard.SIZE:
+				if board.get_cell(Vector2i(x, y)) == target_color:
+					removed[Vector2i(x, y)] = true
+		triggered = 1
+	else:  # 條紋+條紋：十字（以交換目標格為中心），兩顆條紋就地消耗
+		for x in CandyBoard.SIZE:
+			removed[Vector2i(x, b.y)] = true
+		for y in CandyBoard.SIZE:
+			removed[Vector2i(b.x, y)] = true
+		triggered = 2
+		board.set_special(a, CandyBoard.Special.NONE)
+		board.set_special(b, CandyBoard.Special.NONE)
+	for c in bombs:
+		board.set_special(c, CandyBoard.Special.NONE)
+	return {"cells": removed, "triggered": triggered}
+
+
 # ---------- 結算（RESOLVE → FALL → CHECK 循環） ----------
 
-## 消除 → 重力下落 → 補位 → 連鎖檢查，直到盤面穩定；最後做死局檢測。
-## 計分：群組 n 顆 = 60 + 20(n-3)，連鎖第 k 層 ×(1 + 0.5k)。
-func _resolve() -> void:
+var _swap_a := NO_CELL  # 最近一次有效交換的兩格（特殊糖生成點）
+var _swap_b := NO_CELL
+
+
+## 消除 → 特殊糖生成/觸發 → 重力下落 → 補位 → 連鎖檢查，直到盤面穩定；最後做死局檢測。
+## 計分：群組 n 顆 = 60 + 20(n-3)，連鎖第 k 層 ×(1 + 0.5k)；特殊糖觸發每顆 +40。
+func _resolve(pending := {}, pending_triggers := 0) -> void:
 	var cascade := 0
 	while true:
 		var groups := board.find_match_groups()
-		if groups.is_empty():
+		var armed := _armed_wrapped_cells()
+		if groups.is_empty() and pending.is_empty() and armed.is_empty():
 			break
 		var mult := 1.0 + 0.5 * cascade
-		var removed := {}
+		var removed := pending
+		pending = {}
+		var spawns := {}  # cell -> {color, special}
 		for g in groups:
 			score += int((60 + 20 * (g["cells"].size() - 3)) * mult)
 			for c in g["cells"]:
 				removed[c] = true
+			if g["kind"] != "normal":
+				var s := _spawn_from_group(g, cascade == 0)
+				if not spawns.has(s["cell"]):
+					spawns[s["cell"]] = s
+		for c in armed:
+			removed[c] = true
+		for cell in spawns:  # 生成格不消除（原地變身特殊糖）
+			removed.erase(cell)
+		var triggered := pending_triggers + _expand_specials(removed, spawns)
+		pending_triggers = 0
+		score += 40 * triggered
 		_post_state()
+		for cell in spawns:
+			board.set_cell(cell, spawns[cell]["color"])
+			board.set_special(cell, spawns[cell]["special"])
+			pieces[cell].color_id = spawns[cell]["color"]
+			pieces[cell].special = spawns[cell]["special"]
 		await _animate_remove(removed.keys())
 		board.clear_cells(removed.keys())
 		for c in removed:
@@ -148,8 +215,117 @@ func _resolve() -> void:
 			pieces.erase(c)
 		await _animate_fall(board.apply_gravity(), board.refill())
 		cascade += 1
+	_swap_a = NO_CELL
+	_swap_b = NO_CELL
 	if not board.has_legal_move():
 		await _shuffle_board()
+
+
+## 群組生成特殊糖：交換層優先生在交換點，連鎖層生在線段中點/交點；
+## 條紋方向交換層依交換方向、連鎖層依線段方向。
+func _spawn_from_group(g: Dictionary, use_swap_cell: bool) -> Dictionary:
+	var cell: Vector2i = g["origin"]
+	var from_swap := false
+	if use_swap_cell:
+		if _swap_b in g["cells"]:
+			cell = _swap_b
+			from_swap = true
+		elif _swap_a in g["cells"]:
+			cell = _swap_a
+			from_swap = true
+	var color: int = g["color"]
+	var sp: int
+	match g["kind"]:
+		"wrapped":
+			sp = CandyBoard.Special.WRAPPED
+		"bomb":
+			sp = CandyBoard.Special.BOMB
+			color = CandyBoard.BOMB_COLOR
+		_:
+			var horizontal: bool = (_swap_a.y == _swap_b.y) if from_swap else g["horizontal"]
+			sp = CandyBoard.Special.STRIPED_H if horizontal else CandyBoard.Special.STRIPED_V
+	return {"cell": cell, "color": color, "special": sp}
+
+
+## 鏈式觸發 removed 集合中的特殊糖，就地擴張集合；回傳觸發顆數。
+## 條紋清行/列；包裝 3×3（第一段後轉 ARMED 留盤，落定後第二段）；
+## 炸彈（被效果波及時）清除全盤最多色。protected = 本層剛生成的特殊糖。
+func _expand_specials(removed: Dictionary, protected: Dictionary) -> int:
+	var triggered := 0
+	var queue: Array[Vector2i] = []
+	for c in removed.keys():
+		if board.get_special(c) != CandyBoard.Special.NONE:
+			queue.append(c)
+	while not queue.is_empty():
+		var c: Vector2i = queue.pop_back()
+		var sp := board.get_special(c)
+		if sp == CandyBoard.Special.NONE:
+			continue
+		triggered += 1
+		var add: Array[Vector2i] = []
+		match sp:
+			CandyBoard.Special.STRIPED_H:
+				for x in CandyBoard.SIZE:
+					add.append(Vector2i(x, c.y))
+			CandyBoard.Special.STRIPED_V:
+				for y in CandyBoard.SIZE:
+					add.append(Vector2i(c.x, y))
+			CandyBoard.Special.WRAPPED:
+				add = _around_3x3(c)
+				board.set_special(c, CandyBoard.Special.WRAPPED_ARMED)
+				pieces[c].special = CandyBoard.Special.WRAPPED_ARMED
+				removed.erase(c)  # 第一段爆完留在盤上
+			CandyBoard.Special.WRAPPED_ARMED:
+				add = _around_3x3(c)
+			CandyBoard.Special.BOMB:
+				var most := _most_common_color()
+				if most >= 0:
+					for y in CandyBoard.SIZE:
+						for x in CandyBoard.SIZE:
+							if board.get_cell(Vector2i(x, y)) == most:
+								add.append(Vector2i(x, y))
+		for cell in add:
+			if cell in removed or cell in protected:
+				continue
+			if board.get_cell(cell) == CandyBoard.EMPTY:
+				continue
+			removed[cell] = true
+			if board.get_special(cell) != CandyBoard.Special.NONE:
+				queue.append(cell)
+	return triggered
+
+
+func _around_3x3(c: Vector2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			var p := c + Vector2i(dx, dy)
+			if CandyBoard.in_bounds(p) and p != c:
+				cells.append(p)
+	return cells
+
+
+func _armed_wrapped_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in CandyBoard.SIZE:
+		for x in CandyBoard.SIZE:
+			if board.get_special(Vector2i(x, y)) == CandyBoard.Special.WRAPPED_ARMED:
+				cells.append(Vector2i(x, y))
+	return cells
+
+
+func _most_common_color() -> int:
+	var counts := {}
+	for c in board.grid:
+		if c >= 0:
+			counts[c] = counts.get(c, 0) + 1
+	var best := -1
+	var best_n := 0
+	for c in counts:
+		if counts[c] > best_n:
+			best_n = counts[c]
+			best = c
+	return best
 
 
 ## 消除動畫：縮放至 0。
@@ -202,6 +378,7 @@ func _shuffle_board() -> void:
 	board.shuffle()
 	for c in pieces:
 		pieces[c].color_id = board.get_cell(c)
+		pieces[c].special = board.get_special(c)
 
 
 ## 盤面中央橫幅文字（漸大淡出）。
@@ -236,16 +413,19 @@ func _post_state() -> void:
 
 func _on_command(type: String, payload: Dictionary) -> void:
 	match type:
-		"DEBUG_SET_BOARD":  # e2e 測試用：直接鋪指定盤面
+		"DEBUG_SET_BOARD":  # e2e 測試用：直接鋪指定盤面（可含特殊糖）
 			if _state != State.IDLE:
 				return
 			var g: Array = payload.get("grid", [])
+			var sp: Array = payload.get("special", [])
 			if g.size() == CandyBoard.SIZE * CandyBoard.SIZE:
 				for i in g.size():
 					board.grid[i] = int(g[i])
+					board.special[i] = int(sp[i]) if sp.size() == g.size() else CandyBoard.Special.NONE
 				_refresh_pieces()
 		"DEBUG_GET_BOARD":
-			CandyBridge.post("DEBUG_BOARD", {"grid": board.grid, "score": score})
+			CandyBridge.post("DEBUG_BOARD",
+				{"grid": board.grid, "special": board.special, "score": score})
 
 
 ## 整盤重建糖果節點（洗牌/載入盤面用）。
