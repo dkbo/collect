@@ -59,7 +59,7 @@ export function RpgRoom() {
 
   const [showInstructions, setShowInstructions] = useState(false)
   const [imagesLoaded, setImagesLoaded] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
+  const [, setIsPaused] = useState(false)
   const isPausedRef = useRef(false)
 
   // Canvas refs
@@ -838,7 +838,8 @@ export function RpgRoom() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const restartGame = () => {
+  // 保留供未來重新開始按鈕使用
+  const _restartGame = () => {
     setIsPaused(false)
     isPausedRef.current = false
     resetRpg()
@@ -862,6 +863,7 @@ export function RpgRoom() {
     setTransSence(false)
     drawGame()
   }
+  void _restartGame // 暫未掛上 UI，保留引用以通過 noUnusedLocals
 
   return (
     <div className="max-w-5xl mx-auto pb-12" data-testid="page-rpgroom">

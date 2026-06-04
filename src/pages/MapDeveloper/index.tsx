@@ -93,6 +93,52 @@ export function MapDeveloper() {
   const isDrawingCollision = useRef(false)
   const collisionStartCoords = useRef({ x: 0, y: 0 })
 
+  // 圖庫反查捲動：切換圖庫後須等 img onLoad 重設 canvas 尺寸才能捲動
+  const pendingScrollToRef = useRef<{ x: number; y: number } | null>(null)
+
+  // 拖拉 / 平移 / 雙指縮放暫存
+  const dragRef = useRef<null | {
+    kind: 1 | 2 | 3
+    index: number
+    grabDX: number
+    grabDY: number
+    origPX?: number
+    origPY?: number
+    origAX?: number
+    origAY?: number
+  }>(null)
+  const panRef = useRef<null | {
+    startX: number
+    startY: number
+    origLeft: number
+    origTop: number
+    moved: boolean
+  }>(null)
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pinchDistRef = useRef(0)
+  const PAN_THRESHOLD = 5
+
+  // 將 client 座標換算為地圖座標（getBoundingClientRect 已含 translate + scale）
+  const toMapCoords = useCallback((clientX: number, clientY: number) => {
+    const canvas = selectCanvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height)
+    }
+  }, [])
+
+  // 捲動圖庫面板使指定來源座標置中（依 CSS 縮放比例換算）
+  const scrollPaletteTo = useCallback((srcY: number) => {
+    const img = spriteImgRef.current
+    const cont = spriteContainerRef.current
+    if (!img || !cont || !img.naturalHeight) return
+    const rect = img.getBoundingClientRect()
+    const dispScale = rect.height / img.naturalHeight
+    cont.scrollTop = Math.max(0, srcY * dispScale - cont.clientHeight / 2)
+  }, [])
+
 
 
   // 3. Render Sprite Selection overlay
@@ -112,11 +158,22 @@ export function MapDeveloper() {
       ctx.strokeStyle = '#a855f7' // purple border
       ctx.stroke()
     }
-  }, [store.sourceX, store.sourceY, store.sourceW, store.sourceH])
+    // 地圖選取物件的圖庫來源反查高亮（橘色虛線，與紫色選取區分）
+    if (store.highlightX !== false && store.highlightY !== false) {
+      ctx.beginPath()
+      ctx.rect(store.highlightX, store.highlightY, store.highlightW, store.highlightH)
+      ctx.setLineDash([5, 3])
+      ctx.lineWidth = 2
+      ctx.strokeStyle = '#f59e0b'
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+  }, [store.sourceX, store.sourceY, store.sourceW, store.sourceH, store.highlightX, store.highlightY, store.highlightW, store.highlightH])
 
   useEffect(() => {
     drawSpriteSelection()
-  }, [store.sourceX, store.sourceY, store.sourceW, store.sourceH, store.sprites])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.sourceX, store.sourceY, store.sourceW, store.sourceH, store.sprites, store.highlightX, store.highlightY, store.highlightW, store.highlightH])
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -124,6 +181,28 @@ export function MapDeveloper() {
     }
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  // 滾輪縮放：React onWheel 為 passive 無法 preventDefault，須用原生監聽
+  useEffect(() => {
+    const el = workspaceRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
+      useMapEditorStore.getState().zoomAt(factor, e.clientX - rect.left, e.clientY - rect.top)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // 以工作區中心為錨縮放（鍵盤 / 按鈕用）
+  const zoomAtCenter = useCallback((factor: number) => {
+    const el = workspaceRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    useMapEditorStore.getState().zoomAt(factor, rect.width / 2, rect.height / 2)
   }, [])
 
   const toggleFullscreen = () => {
@@ -144,8 +223,22 @@ export function MapDeveloper() {
       canvas.width = img.naturalWidth || 256
       canvas.height = img.naturalHeight || 8000
       drawSpriteSelection()
+      // 圖庫切換完成後執行反查捲動
+      if (pendingScrollToRef.current) {
+        scrollPaletteTo(pendingScrollToRef.current.y)
+        pendingScrollToRef.current = null
+      }
     }
   }
+
+  // 圖庫未切換（onLoad 不會觸發）時的反查捲動；切換中（img 尚未載入完成）則交給 onLoad
+  useEffect(() => {
+    if (store.highlightY !== false && pendingScrollToRef.current && spriteImgRef.current?.complete) {
+      scrollPaletteTo(pendingScrollToRef.current.y)
+      pendingScrollToRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.highlightX, store.highlightY, store.sprites])
 
   // Draw layers onto canvases
   const drawAllLayers = () => {
@@ -251,6 +344,15 @@ export function MapDeveloper() {
       ctx.stroke()
       ctx.setLineDash([])
 
+      // NPC 實際圖片（與 RpgRoom 遊戲端渲染一致：y + 朝向偏移）
+      const sheet = sheetCache[npc.b]
+      if (sheet && sheet.complete) {
+        const dirOffset = npc.d === 1 ? 48 : npc.d === 2 ? 96 : npc.d === 3 ? 144 : 0
+        const nW = npc.w || 32
+        const nH = npc.h || 48
+        ctx.drawImage(sheet, npc.x ?? 0, (npc.y ?? 0) + dirOffset, nW, nH, npc.pX, npc.pY, nW, nH)
+      }
+
       // NPC 本體（綠框）
       ctx.beginPath()
       ctx.rect(npc.pX, npc.pY, npc.w, npc.h)
@@ -307,6 +409,17 @@ export function MapDeveloper() {
         ctx.rect(col.x, col.y, col.w, col.h)
         ctx.lineWidth = 2
         ctx.strokeStyle = '#ef4444' // red border for collision
+        ctx.setLineDash([4, 4])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+    } else if (store.mapObjects === 3) {
+      const npc = store.npcArr[store.objectNum]
+      if (npc) {
+        ctx.beginPath()
+        ctx.rect(npc.pX - 2, npc.pY - 2, (npc.w || 32) + 4, (npc.h || 48) + 4)
+        ctx.lineWidth = 2
+        ctx.strokeStyle = '#22c55e' // green border for npc
         ctx.setLineDash([4, 4])
         ctx.stroke()
         ctx.setLineDash([])
@@ -437,13 +550,29 @@ export function MapDeveloper() {
     }
   }
 
-  // Handle Workspace Map Click
-  const handleMapMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Handle Workspace Map Pointer Down（滑鼠 + 觸控）
+  const handleMapPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = selectCanvasRef.current
     if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const clickY = e.clientY - rect.top
+
+    // 追蹤多指：第二指落下進入雙指縮放，取消拖拉/平移
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointersRef.current.size === 2) {
+      dragRef.current = null
+      panRef.current = null
+      isDrawingCollision.current = false
+      const pts = [...pointersRef.current.values()]
+      pinchDistRef.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+      return
+    }
+    if (pointersRef.current.size > 2) return
+
+    try {
+      canvas.setPointerCapture(e.pointerId)
+    } catch {
+      // 部分環境（合成事件）不支援 pointer capture，忽略即可
+    }
+    const { x: clickX, y: clickY } = toMapCoords(e.clientX, e.clientY)
 
     // Aligned to 32px
     const gridX = 32 * Math.floor(clickX / 32)
@@ -464,15 +593,15 @@ export function MapDeveloper() {
         z: isForeground ? 2 : undefined
       })
     } else {
-      // No active tile selected: select or start collision box
+      // No active tile selected: select / drag / pan or start collision box
       const isAltPressed = e.altKey
-      
+
       if (isAltPressed) {
         // Start drawing collision box
         if (e.button === 0) {
           isDrawingCollision.current = true
           collisionStartCoords.current = { x: clickX, y: clickY }
-          
+
           // Selection context
           const ctx = canvas.getContext('2d')
           if (ctx) {
@@ -482,8 +611,36 @@ export function MapDeveloper() {
       } else {
         // Selection detection
         let clickedIdx = -1
-        
+
         if (e.button === 0) {
+          // NPC 命中優先（NPC 較小且常疊在貼圖上）
+          store.npcArr.forEach((npc, index) => {
+            const nW = npc.w || 32
+            const nH = npc.h || 48
+            if (
+              clickX >= npc.pX && clickX <= npc.pX + nW &&
+              clickY >= npc.pY && clickY <= npc.pY + nH
+            ) {
+              clickedIdx = index
+            }
+          })
+          if (clickedIdx !== -1) {
+            const npc = store.npcArr[clickedIdx]
+            store.selectElement(3, clickedIdx)
+            setActiveTab('npc')
+            dragRef.current = {
+              kind: 3,
+              index: clickedIdx,
+              grabDX: clickX - npc.pX,
+              grabDY: clickY - npc.pY,
+              origPX: npc.pX,
+              origPY: npc.pY,
+              origAX: npc.aX,
+              origAY: npc.aY
+            }
+            return
+          }
+
           // Left click selects styles
           store.styles.forEach((tile, index) => {
             if (
@@ -494,10 +651,47 @@ export function MapDeveloper() {
             }
           })
           if (clickedIdx !== -1) {
+            const tile = store.styles[clickedIdx]
             store.selectElement(1, clickedIdx)
             setActiveTab('tile')
-          } else {
-            store.selectElement(null, 0)
+            // 圖庫反查：切換到對應圖庫並捲動高亮來源位置（不寫 sourceX，維持選取模式）
+            pendingScrollToRef.current = { x: tile.x, y: tile.y }
+            store.selectSpriteSheet(tile.b)
+            store.setPaletteHighlight(tile.x, tile.y, tile.w, tile.h)
+            dragRef.current = {
+              kind: 1,
+              index: clickedIdx,
+              grabDX: clickX - tile.l,
+              grabDY: clickY - tile.t
+            }
+            return
+          }
+
+          // 點中已選取的碰撞區域可直接左鍵/觸控拖拉
+          if (store.mapObjects === 2) {
+            const col = store.isMoveArr[store.objectNum]
+            if (
+              col &&
+              clickX >= col.x && clickX <= col.x + col.w &&
+              clickY >= col.y && clickY <= col.y + col.h
+            ) {
+              dragRef.current = {
+                kind: 2,
+                index: store.objectNum,
+                grabDX: clickX - col.x,
+                grabDY: clickY - col.y
+              }
+              return
+            }
+          }
+
+          // 空白區：準備平移（pointerup 時若未移動才取消選取）
+          panRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            origLeft: store.mapLeft,
+            origTop: store.mapTop,
+            moved: false
           }
         } else if (e.button === 2) {
           // Right click selects collisions
@@ -511,8 +705,16 @@ export function MapDeveloper() {
             }
           })
           if (clickedIdx !== -1) {
+            const col = store.isMoveArr[clickedIdx]
             store.selectElement(2, clickedIdx)
             setActiveTab('collision')
+            // 右鍵也可直接拖拉碰撞區域
+            dragRef.current = {
+              kind: 2,
+              index: clickedIdx,
+              grabDX: clickX - col.x,
+              grabDY: clickY - col.y
+            }
           } else {
             store.selectElement(null, 0)
           }
@@ -521,14 +723,72 @@ export function MapDeveloper() {
     }
   }
 
-  // Handle Drag / Draw Collision
-  const handleMapMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Handle Drag / Pan / Pinch / Draw Collision
+  const handleMapPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // 雙指縮放
+    if (pointersRef.current.size === 2 && pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const pts = [...pointersRef.current.values()]
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+      if (pinchDistRef.current > 0 && dist > 0) {
+        const workspace = workspaceRef.current
+        if (workspace) {
+          const rect = workspace.getBoundingClientRect()
+          const midX = (pts[0].x + pts[1].x) / 2 - rect.left
+          const midY = (pts[0].y + pts[1].y) / 2 - rect.top
+          store.zoomAt(dist / pinchDistRef.current, midX, midY)
+        }
+      }
+      pinchDistRef.current = dist
+      return
+    }
+
+    // 拖拉選取物件
+    if (dragRef.current) {
+      const { x: clickX, y: clickY } = toMapCoords(e.clientX, e.clientY)
+      const drag = dragRef.current
+      if (drag.kind === 1) {
+        // 貼圖：對齊 32px 格線
+        const l = 32 * Math.round((clickX - drag.grabDX) / 32)
+        const t = 32 * Math.round((clickY - drag.grabDY) / 32)
+        store.updateElementProps(1, drag.index, { l, t })
+      } else if (drag.kind === 2) {
+        // 碰撞區域：自由移動
+        store.updateElementProps(2, drag.index, {
+          x: Math.round(clickX - drag.grabDX),
+          y: Math.round(clickY - drag.grabDY)
+        })
+      } else {
+        // NPC：本體與活動範圍同步位移（以原始值計算避免漂移）
+        const nx = Math.round(clickX - drag.grabDX)
+        const ny = Math.round(clickY - drag.grabDY)
+        store.updateNpcProps(drag.index, {
+          pX: nx,
+          pY: ny,
+          aX: (drag.origAX ?? 0) + (nx - (drag.origPX ?? 0)),
+          aY: (drag.origAY ?? 0) + (ny - (drag.origPY ?? 0))
+        })
+      }
+      return
+    }
+
+    // 空白區平移
+    if (panRef.current) {
+      const pan = panRef.current
+      const dx = e.clientX - pan.startX
+      const dy = e.clientY - pan.startY
+      if (!pan.moved && Math.hypot(dx, dy) > PAN_THRESHOLD) pan.moved = true
+      if (pan.moved) {
+        store.setMapOffset(pan.origLeft + dx, pan.origTop + dy)
+      }
+      return
+    }
+
+    // 繪製碰撞框預覽
     if (!isDrawingCollision.current) return
     const canvas = selectCanvasRef.current
     if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const clickY = e.clientY - rect.top
+    const { x: clickX, y: clickY } = toMapCoords(e.clientX, e.clientY)
 
     const startX = collisionStartCoords.current.x
     const startY = collisionStartCoords.current.y
@@ -552,14 +812,34 @@ export function MapDeveloper() {
     }
   }
 
-  const handleMapMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMapPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    pointersRef.current.delete(e.pointerId)
+    if (pointersRef.current.size < 2) pinchDistRef.current = 0
+
+    const canvas = selectCanvasRef.current
+    if (canvas?.hasPointerCapture(e.pointerId)) {
+      canvas.releasePointerCapture(e.pointerId)
+    }
+
+    // 結束拖拉
+    if (dragRef.current) {
+      dragRef.current = null
+      return
+    }
+
+    // 結束平移；原地點擊空白區 → 取消選取
+    if (panRef.current) {
+      if (!panRef.current.moved) {
+        store.selectElement(null, 0)
+      }
+      panRef.current = null
+      return
+    }
+
     if (!isDrawingCollision.current) return
     isDrawingCollision.current = false
-    const canvas = selectCanvasRef.current
     if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const clickY = e.clientY - rect.top
+    const { x: clickX, y: clickY } = toMapCoords(e.clientX, e.clientY)
 
     const startX = collisionStartCoords.current.x
     const startY = collisionStartCoords.current.y
@@ -572,10 +852,10 @@ export function MapDeveloper() {
     if (finalW > 4 && finalH > 4) {
       store.addCollision({
         n: store.objectName || 'Collision Area',
-        x: finalX,
-        y: finalY,
-        w: finalW,
-        h: finalH
+        x: Math.round(finalX),
+        y: Math.round(finalY),
+        w: Math.round(finalW),
+        h: Math.round(finalH)
       })
       setActiveTab('collision')
     }
@@ -636,6 +916,20 @@ export function MapDeveloper() {
         e.preventDefault()
         store.panMap(0, -panSpeed)
         break
+      case '+':
+      case '=':
+        e.preventDefault()
+        zoomAtCenter(1.1)
+        break
+      case '-':
+      case '_':
+        e.preventDefault()
+        zoomAtCenter(1 / 1.1)
+        break
+      case '0':
+        e.preventDefault()
+        store.resetView()
+        break
       case 'delete':
         if (store.mapObjects !== null) {
           store.deleteElement(store.mapObjects, store.objectNum)
@@ -656,7 +950,7 @@ export function MapDeveloper() {
         }
         break
     }
-  }, [store, showJsonPanel, isFocused])
+  }, [store, showJsonPanel, isFocused, zoomAtCenter])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -937,6 +1231,35 @@ export function MapDeveloper() {
             
             {/* Opacities control toggles */}
             <div className="flex flex-wrap items-center gap-3 text-xs">
+              {/* Zoom controls（觸控裝置亦可操作） */}
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => zoomAtCenter(1 / 1.1)}
+                  className="h-6 w-6 p-0 border-slate-800 text-slate-300 hover:text-white"
+                  aria-label="縮小"
+                >
+                  −
+                </Button>
+                <button
+                  onClick={() => store.resetView()}
+                  className="text-[10px] text-emerald-400 font-mono w-12 text-center hover:text-emerald-300"
+                  aria-label="重設縮放"
+                  title="點擊重設縮放 (0)"
+                >
+                  {Math.round(store.scale * 100)}%
+                </button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => zoomAtCenter(1.1)}
+                  className="h-6 w-6 p-0 border-slate-800 text-slate-300 hover:text-white"
+                  aria-label="放大"
+                >
+                  +
+                </Button>
+              </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-slate-400">背景層:</span>
                 <input 
@@ -973,15 +1296,16 @@ export function MapDeveloper() {
             tabIndex={0}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            className="flex-1 relative overflow-auto bg-slate-950 p-5 outline-none scrollbar-thin"
+            className="flex-1 relative overflow-hidden bg-slate-950 p-5 outline-none touch-none"
           >
-            {/* Translate-based map wrapper */}
-            <div 
-              className="relative shadow-2xl border border-slate-800 transition-transform duration-75"
+            {/* Translate + Scale map wrapper */}
+            <div
+              className="relative shadow-2xl border border-slate-800"
               style={{
                 width: store.width,
                 height: store.height,
-                transform: `translate3d(${store.mapLeft}px, ${store.mapTop}px, 0)`
+                transform: `translate3d(${store.mapLeft}px, ${store.mapTop}px, 0) scale(${store.scale})`,
+                transformOrigin: '0 0'
               }}
             >
               {/* Layer 1: Background Canvas */}
@@ -1009,15 +1333,16 @@ export function MapDeveloper() {
               />
 
               {/* Layer 4: Selection Outline & Input Capture */}
-              <canvas 
+              <canvas
                 ref={selectCanvasRef}
                 width={store.width}
                 height={store.height}
-                onMouseDown={handleMapMouseDown}
-                onMouseMove={handleMapMouseMove}
-                onMouseUp={handleMapMouseUp}
+                onPointerDown={handleMapPointerDown}
+                onPointerMove={handleMapPointerMove}
+                onPointerUp={handleMapPointerUp}
+                onPointerCancel={handleMapPointerUp}
                 onContextMenu={(e) => e.preventDefault()}
-                className="absolute top-0 left-0 z-30 cursor-cell"
+                className="absolute top-0 left-0 z-30 cursor-cell touch-none"
               />
 
               {/* Layer 5: Grid Labels */}
@@ -1035,11 +1360,12 @@ export function MapDeveloper() {
             <div className="flex gap-4">
               <span>畫布寬度: <strong className="text-emerald-400">{store.width}px</strong></span>
               <span>畫布高度: <strong className="text-emerald-400">{store.height}px</strong></span>
-              <span>平移偏移: <strong className="text-purple-400">X: {store.mapLeft} | Y: {store.mapTop}</strong></span>
+              <span>平移偏移: <strong className="text-purple-400">X: {Math.round(store.mapLeft)} | Y: {Math.round(store.mapTop)}</strong></span>
+              <span>縮放: <strong className="text-emerald-400">{Math.round(store.scale * 100)}%</strong></span>
             </div>
             <div className="flex gap-2.5">
               <span>放置名稱: <strong className="text-purple-400">{store.objectName || 'Unamed'}</strong></span>
-              <span>選定元素種類: <strong className="text-emerald-400">{store.mapObjects === 1 ? '地圖貼圖' : store.mapObjects === 2 ? '碰撞區域' : '無'}</strong></span>
+              <span>選定元素種類: <strong className="text-emerald-400">{store.mapObjects === 1 ? '地圖貼圖' : store.mapObjects === 2 ? '碰撞區域' : store.mapObjects === 3 ? 'NPC' : '無'}</strong></span>
             </div>
           </div>
         </div>
@@ -1612,7 +1938,15 @@ export function MapDeveloper() {
               </div>
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span>畫布平移控制</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">W / A / S / D 或 方向鍵</kbd>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">W / A / S / D 或 方向鍵 或 拖曳空白區</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>畫布縮放</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">滾輪 / 雙指縮放 / + − 0</kbd>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>移動物件（NPC / 貼圖 / 碰撞）</span>
+                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">點選後直接拖曳</kbd>
               </div>
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span>刪除選取之物件</span>

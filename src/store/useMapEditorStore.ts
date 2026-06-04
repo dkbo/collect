@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import type { MapNpc, NpcMessage, SpawnPoint } from '@/pages/RpgRoom/types'
 
+// 工作區縮放範圍
+const MIN_SCALE = 0.25
+const MAX_SCALE = 3
+
 export interface MapTile {
   n: string   // name
   l: number   // map left X
@@ -39,7 +43,8 @@ interface MapEditorState {
   // Workarea translations
   mapLeft: number
   mapTop: number
-  
+  scale: number
+
   // Layer visibility & settings
   opacityF: number // front layer (0 to 1)
   opacityB: number // back layer (0 to 1)
@@ -56,7 +61,13 @@ interface MapEditorState {
   
   // Sprite list scroll position
   spriteScrollTop: number
-  
+
+  // Palette highlight（地圖選取物件時反查圖庫來源，與 sourceX/sourceY 分離以維持選取模式）
+  highlightX: number | false
+  highlightY: number | false
+  highlightW: number
+  highlightH: number
+
   // Active document data
   styles: MapTile[]
   isMoveArr: MapCollision[]
@@ -79,12 +90,15 @@ interface MapEditorState {
   setMapSize: (w: number, h: number) => void
   setMapOffset: (left: number, top: number) => void
   panMap: (dx: number, dy: number) => void
+  zoomAt: (factor: number, anchorX: number, anchorY: number) => void
+  resetView: () => void
   setOpacity: (layer: 'F' | 'B' | 'M', val: number) => void
   toggleGrid: (axis: 'X' | 'Y') => void
   
   selectSpriteSheet: (sheet: number) => void
   setSpriteSelection: (x: number | false, y: number | false, w?: number, h?: number) => void
   setSpriteScrollTop: (top: number) => void
+  setPaletteHighlight: (x: number | false, y: number | false, w?: number, h?: number) => void
   
   // Element drawing
   addTile: (tile: MapTile) => void
@@ -128,7 +142,8 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
   // Workarea translations
   mapLeft: 0,
   mapTop: 0,
-  
+  scale: 1,
+
   // Layer visibility & settings
   opacityF: 1,
   opacityB: 1,
@@ -145,7 +160,13 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
   
   // Sprite list scroll position
   spriteScrollTop: 0,
-  
+
+  // Palette highlight
+  highlightX: false,
+  highlightY: false,
+  highlightW: 32,
+  highlightH: 32,
+
   // Active document data
   styles: [],
   isMoveArr: [],
@@ -194,7 +215,21 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
     mapLeft: state.mapLeft + dx,
     mapTop: state.mapTop + dy
   })),
-  
+
+  // 以錨點（相對工作區左上的螢幕座標）為中心縮放，錨點下的地圖點維持不動
+  zoomAt: (factor, anchorX, anchorY) => set((state) => {
+    const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, state.scale * factor))
+    if (next === state.scale) return {}
+    const k = next / state.scale
+    return {
+      scale: next,
+      mapLeft: anchorX - (anchorX - state.mapLeft) * k,
+      mapTop: anchorY - (anchorY - state.mapTop) * k
+    }
+  }),
+
+  resetView: () => set({ scale: 1, mapLeft: 0, mapTop: 0 }),
+
   setOpacity: (layer, val) => {
     if (layer === 'F') set({ opacityF: val })
     else if (layer === 'B') set({ opacityB: val })
@@ -218,10 +253,20 @@ export const useMapEditorStore = create<MapEditorState>((set, get) => ({
     sourceX: x,
     sourceY: y,
     sourceW: w,
-    sourceH: h
+    sourceH: h,
+    // 手動選取素材時清除反查高亮
+    highlightX: false,
+    highlightY: false
   }),
-  
+
   setSpriteScrollTop: (spriteScrollTop) => set({ spriteScrollTop }),
+
+  setPaletteHighlight: (x, y, w = 32, h = 32) => set({
+    highlightX: x,
+    highlightY: y,
+    highlightW: w,
+    highlightH: h
+  }),
   
   addTile: (tile) => set((state) => {
     const updatedStyles = [...state.styles, tile]
