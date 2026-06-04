@@ -166,6 +166,11 @@ func _input(event: InputEvent) -> void:
 		var key := (event as InputEventKey).physical_keycode
 		if (key == KEY_SPACE or key == KEY_ENTER) and not (_paused or _loading or map_data.is_empty()):
 			_interact()
+		# 鍵盤焦點在 iframe 內：暫停/說明鍵轉發給 React 外殼處理（回送 SET_PAUSED）
+		elif key == KEY_P:
+			Bridge.post("UI_KEY", {"key": "pause"})
+		elif key == KEY_ESCAPE:
+			Bridge.post("UI_KEY", {"key": "help"})
 
 
 func _interact() -> void:

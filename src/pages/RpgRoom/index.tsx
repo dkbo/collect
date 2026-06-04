@@ -81,7 +81,9 @@ export function RpgRoom() {
 
   const [showInstructions, setShowInstructions] = useState(false)
   const [imagesLoaded, setImagesLoaded] = useState(false)
-  const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(
+    () => window.matchMedia('(pointer: coarse)').matches
+  )
   const [, setIsPaused] = useState(false)
   const isPausedRef = useRef(false)
 
@@ -496,7 +498,6 @@ export function RpgRoom() {
   // 偵測行動裝置（主要輸入為觸控），並隨裝置狀態變化更新
   useEffect(() => {
     const mq = window.matchMedia('(pointer: coarse)')
-    setIsTouchDevice(mq.matches)
     const onChange = (e: MediaQueryListEvent) => setIsTouchDevice(e.matches)
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)

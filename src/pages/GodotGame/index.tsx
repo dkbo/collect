@@ -1,20 +1,77 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Compass, Gamepad2, HelpCircle, Info, MessageSquare, X } from 'lucide-react'
+import {
+  Compass,
+  Gamepad2,
+  HelpCircle,
+  Info,
+  Maximize2,
+  MessageSquare,
+  Minimize2,
+  X,
+} from 'lucide-react'
 import { useGodotStore } from '@/store/useGodotStore'
 import { onGodotMessage, registerGodotWindow } from '@/lib/godotBridge'
 import { renderMessage } from '@/pages/RpgRoom/lib/messageRenderer'
 
 export function GodotGame() {
-  const { isReady, mapName, isChat, npcName, npcText, setPaused, handleGodotMessage, resetGodot } =
-    useGodotStore()
+  const {
+    isReady,
+    mapName,
+    playerX,
+    playerY,
+    isPaused,
+    isChat,
+    npcName,
+    npcText,
+    setPaused,
+    handleGodotMessage,
+    resetGodot,
+  } = useGodotStore()
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const screenRef = useRef<HTMLDivElement>(null)
   const [showInstructions, setShowInstructions] = useState(false)
-  const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(
+    () => window.matchMedia('(pointer: coarse)').matches
+  )
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
-  // 訂閱 Godot iframe 事件並轉發進 Store
+  // 關閉面板/遮罩後把鍵盤焦點還給 Godot（同源 iframe，聚焦引擎綁定鍵盤的 canvas）
+  const focusGame = () => {
+    requestAnimationFrame(() => {
+      const frame = iframeRef.current
+      if (!frame) return
+      frame.contentWindow?.focus()
+      frame.contentDocument?.querySelector('canvas')?.focus()
+    })
+  }
+
+  // 說明面板開關同步暫停 Godot（ref 鏡像供 UI_KEY 訂閱閉包讀取最新值）
+  const showInstructionsRef = useRef(false)
+  const toggleInstructions = (open: boolean) => {
+    showInstructionsRef.current = open
+    setShowInstructions(open)
+    setPaused(open)
+    if (!open) focusGame()
+  }
+
+  // P 鍵暫停切換（按鍵由 Godot 轉發 UI_KEY 而來）
+  const togglePause = () => {
+    const { isPaused: paused } = useGodotStore.getState()
+    setPaused(!paused)
+    if (paused) focusGame()
+  }
+
+  // 訂閱 Godot iframe 事件：UI_KEY 由外殼處理，其餘轉發進 Store
   useEffect(() => {
-    const unsubscribe = onGodotMessage(handleGodotMessage)
+    const unsubscribe = onGodotMessage((msg) => {
+      if (msg.type === 'UI_KEY') {
+        if (msg.payload.key === 'pause') togglePause()
+        else toggleInstructions(!showInstructionsRef.current)
+        return
+      }
+      handleGodotMessage(msg)
+    })
     return () => {
       unsubscribe()
       registerGodotWindow(null)
@@ -23,14 +80,49 @@ export function GodotGame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 偵測行動裝置（僅控制說明文案差異，操作本體在 Godot iframe 內）
+  // 鍵盤後備：焦點在父頁面時 P/ESC 仍可操作（焦點在 iframe 時由 Godot 轉發 UI_KEY）
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault()
+        togglePause()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        toggleInstructions(!showInstructionsRef.current)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 偵測行動裝置變化（僅控制說明文案差異，操作本體在 Godot iframe 內）
   useEffect(() => {
     const mq = window.matchMedia('(pointer: coarse)')
-    setIsTouchDevice(mq.matches)
     const onChange = (e: MediaQueryListEvent) => setIsTouchDevice(e.matches)
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
+
+  // 全螢幕（fullscreen API 包 rpg-screen 容器，iframe 跟著撐滿）
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === screenRef.current)
+      focusGame()
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      screenRef.current?.requestFullscreen().catch((err) => {
+        console.error('Error enabling fullscreen:', err)
+      })
+    } else {
+      document.exitFullscreen()
+    }
+  }
 
   // iframe 載入完成：註冊通訊窗口並聚焦讓鍵盤輸入直達 Godot
   const handleFrameLoad = () => {
@@ -38,13 +130,6 @@ export function GodotGame() {
     if (!frame) return
     registerGodotWindow(frame.contentWindow)
     frame.focus()
-  }
-
-  // 說明面板開關同步暫停 Godot；關閉後把鍵盤焦點還給 iframe
-  const toggleInstructions = (open: boolean) => {
-    setShowInstructions(open)
-    setPaused(open)
-    if (!open) iframeRef.current?.focus()
   }
 
   return (
@@ -75,7 +160,14 @@ export function GodotGame() {
       {/* Arcade cabinet wrapper */}
       <div className="rpg-cabinet">
         {/* Game console screen: Godot Web Export iframe */}
-        <div className="rpg-screen">
+        <div
+          ref={screenRef}
+          className={
+            isFullscreen
+              ? 'fixed inset-0 w-screen h-screen bg-black z-50 border-0 rounded-none select-none'
+              : 'rpg-screen'
+          }
+        >
           <iframe
             ref={iframeRef}
             src={import.meta.env.BASE_URL + 'godot/index.html'}
@@ -109,6 +201,18 @@ export function GodotGame() {
                 <span>{isTouchDevice ? '點 A 鈕繼續' : '按 SPACE 繼續'}</span>
                 <span className="ml-1">▼</span>
               </div>
+            </div>
+          )}
+
+          {/* 暫停遮罩（P 鍵切換，點擊恢復） */}
+          {isPaused && !showInstructions && (
+            <div
+              className="absolute inset-0 bg-slate-950/60 z-30 flex flex-col justify-center items-center gap-3 cursor-pointer animate-fade-in"
+              onClick={togglePause}
+              data-testid="godot-pause-overlay"
+            >
+              <span className="text-2xl font-extrabold text-amber-500 select-none">遊戲暫停中</span>
+              <span className="text-sm text-slate-300 select-none">點擊畫面或按 P 鍵恢復</span>
             </div>
           )}
 
@@ -171,21 +275,41 @@ export function GodotGame() {
             </div>
           )}
 
-          {/* Floating Instructions HUD button on upper-right screen */}
+          {/* Floating Fullscreen button on upper-right screen */}
           <Button
             variant="outline"
             size="icon"
-            className="absolute top-4 right-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
-            onClick={() => toggleInstructions(true)}
-            aria-label="打開操作說明"
+            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-4' : 'right-15'}`}
+            onClick={toggleFullscreen}
+            aria-label="切換全螢幕"
           >
-            <HelpCircle className="size-4" />
+            {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
           </Button>
 
-          {/* Info HUD display on upper-left screen showing engine/map status */}
-          <div className="absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-300 font-mono text-xs select-none backdrop-blur-sm pointer-events-none">
-            <Info className="size-3.5 text-purple-400" />
-            <span>{isReady ? `地圖: ${mapName || '加載中'}` : '引擎未連線'}</span>
+          {/* Floating Instructions HUD button on upper-right screen */}
+          {!isFullscreen && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute top-4 right-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
+              onClick={() => toggleInstructions(true)}
+              aria-label="打開操作說明"
+            >
+              <HelpCircle className="size-4" />
+            </Button>
+          )}
+
+          {/* Info HUD display on upper-left screen showing map/coords */}
+          <div className="absolute top-4 left-4 z-30 flex flex-col gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-300 font-mono text-xs select-none backdrop-blur-sm pointer-events-none">
+            <div className="flex items-center gap-1.5">
+              <Info className="size-3.5 text-purple-400" />
+              <span>{isReady ? `地圖: ${mapName || '加載中'}` : '引擎未連線'}</span>
+            </div>
+            {isReady && (
+              <div className="text-[10px] text-slate-400 border-t border-slate-800/60 pt-1">
+                座標: X: {playerX}, Y: {playerY}
+              </div>
+            )}
           </div>
         </div>
       </div>
