@@ -10,8 +10,83 @@ func _init() -> void:
 	_test_fill_no_matches()
 	_test_find_matches_patterns()
 	_test_swap_and_legal_moves()
+	_test_match_groups()
+	_test_gravity_and_refill()
+	_test_shuffle()
 	print("board_test: ALL PASS")
 	quit(0)
+
+
+## 鋪 4 色週期盤面（任意相鄰皆不同色，保證無三連、無合法步）
+static func _periodic(b: CandyBoard) -> void:
+	for y in 8:
+		for x in 8:
+			b.set_cell(Vector2i(x, y), (x % 2) + 2 * (y % 2))
+
+
+func _test_match_groups() -> void:
+	var b: CandyBoard = CandyBoardScript.new(6)
+	_periodic(b)
+	# 兩個獨立群組：row0 橫 3 連（色5）+ col7 直 4 連（色4）
+	for x in 3:
+		b.set_cell(Vector2i(x, 0), 5)
+	for y in range(2, 6):
+		b.set_cell(Vector2i(7, y), 4)
+	var groups := b.find_match_groups()
+	assert(groups.size() == 2, "應有 2 個群組，實得 %d" % groups.size())
+	var sizes := [groups[0]["cells"].size(), groups[1]["cells"].size()]
+	sizes.sort()
+	assert(sizes == [3, 4])
+	# L 形：再讓 (0,1)(0,2) 同色 5 → 與 row0 三連合併為一組 5 格
+	b.set_cell(Vector2i(0, 1), 5)
+	b.set_cell(Vector2i(0, 2), 5)
+	groups = b.find_match_groups()
+	assert(groups.size() == 2)
+	for g in groups:
+		if g["color"] == 5:
+			assert(g["cells"].size() == 5, "L 形應合併為 5 格群組")
+			assert(g["runs"].size() == 2, "L 形應由橫直兩線段組成")
+
+
+func _test_gravity_and_refill() -> void:
+	var b: CandyBoard = CandyBoardScript.new(6)
+	_periodic(b)
+	# 挖掉 col2 的 y=5,6,7 與 col4 的 y=3
+	b.clear_cells([Vector2i(2, 5), Vector2i(2, 6), Vector2i(2, 7), Vector2i(4, 3)])
+	var snapshot_col2: Array[int] = []
+	for y in 5:
+		snapshot_col2.append(b.get_cell(Vector2i(2, y)))
+	var moves := b.apply_gravity()
+	assert(moves.size() == 5 + 3, "col2 上方 5 顆 + col4 上方 3 顆下移，實得 %d" % moves.size())
+	# col2 原 y=0..4 應落至 y=3..7，順序不變
+	for i in 5:
+		assert(b.get_cell(Vector2i(2, i + 3)) == snapshot_col2[i], "重力後順序應保持")
+	# 空格應集中在頂部
+	for x in [2, 4]:
+		var empties := 0
+		for y in 8:
+			if b.get_cell(Vector2i(x, y)) == CandyBoard.EMPTY:
+				assert(y < 3, "空格應在頂部")
+				empties += 1
+	var spawns := b.refill()
+	assert(spawns.size() == 4, "應補 4 顆")
+	for y in 8:
+		for x in 8:
+			assert(b.get_cell(Vector2i(x, y)) != CandyBoard.EMPTY, "補位後不得有空格")
+
+
+func _test_shuffle() -> void:
+	var b: CandyBoard = CandyBoardScript.new(6)
+	_periodic(b)  # 死局盤面
+	assert(not b.has_legal_move())
+	var before := b.grid.duplicate()
+	before.sort()
+	b.shuffle()
+	assert(b.find_matches().is_empty(), "洗牌後不得有現成三連")
+	assert(b.has_legal_move(), "洗牌後須有合法步")
+	var after := b.grid.duplicate()
+	after.sort()
+	assert(before == after, "洗牌應保留原有糖果（多重集不變）")
 
 
 func _test_fill_no_matches() -> void:
