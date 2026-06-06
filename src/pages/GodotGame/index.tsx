@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useGodotStore } from '@/store/useGodotStore'
 import { onGodotMessage, registerGodotWindow } from '@/lib/godotBridge'
+import { useFullscreen } from '@/lib/useFullscreen'
 import { renderMessage } from '@/pages/RpgRoom/lib/messageRenderer'
 
 export function GodotGame() {
@@ -34,7 +35,6 @@ export function GodotGame() {
   const [isTouchDevice, setIsTouchDevice] = useState(
     () => window.matchMedia('(pointer: coarse)').matches
   )
-  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // 關閉面板/遮罩後把鍵盤焦點還給 Godot（同源 iframe，聚焦引擎綁定鍵盤的 canvas）
   const focusGame = () => {
@@ -104,25 +104,9 @@ export function GodotGame() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  // 全螢幕（fullscreen API 包 rpg-screen 容器，iframe 跟著撐滿）
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement === screenRef.current)
-      focusGame()
-    }
-    document.addEventListener('fullscreenchange', onFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
-  }, [])
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      screenRef.current?.requestFullscreen().catch((err) => {
-        console.error('Error enabling fullscreen:', err)
-      })
-    } else {
-      document.exitFullscreen()
-    }
-  }
+  // 全螢幕（包 rpg-screen 容器，iframe 跟著撐滿）：
+  // 原生 API 不可用（iPhone Safari）時自動 fallback 成 CSS 偽全螢幕
+  const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef, focusGame)
 
   // iframe 載入完成：註冊通訊窗口並聚焦讓鍵盤輸入直達 Godot
   const handleFrameLoad = () => {
@@ -164,7 +148,7 @@ export function GodotGame() {
           ref={screenRef}
           className={
             isFullscreen
-              ? 'fixed inset-0 w-screen h-screen bg-black z-50 border-0 rounded-none select-none'
+              ? 'fixed inset-0 w-screen h-dvh bg-black z-50 border-0 rounded-none select-none'
               : 'rpg-screen'
           }
         >
@@ -275,29 +259,31 @@ export function GodotGame() {
             </div>
           )}
 
-          {/* Floating Fullscreen button on upper-right screen */}
-          <Button
-            variant="outline"
-            size="icon"
-            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-4' : 'right-15'}`}
-            onClick={toggleFullscreen}
-            aria-label="切換全螢幕"
-          >
-            {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-          </Button>
-
-          {/* Floating Instructions HUD button on upper-right screen */}
-          {!isFullscreen && (
+          {/* 浮動按鈕列（safe-area 感知，避開瀏海/圓角） */}
+          <div className="absolute z-30 flex gap-2 top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))]">
             <Button
               variant="outline"
               size="icon"
-              className="absolute top-4 right-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
-              onClick={() => toggleInstructions(true)}
-              aria-label="打開操作說明"
+              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
+              onClick={toggleFullscreen}
+              aria-label="切換全螢幕"
+              data-testid="godot-fullscreen-btn"
             >
-              <HelpCircle className="size-4" />
+              {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
             </Button>
-          )}
+
+            {!isFullscreen && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
+                onClick={() => toggleInstructions(true)}
+                aria-label="打開操作說明"
+              >
+                <HelpCircle className="size-4" />
+              </Button>
+            )}
+          </div>
 
           {/* Info HUD display on upper-left screen showing map/coords */}
           <div className="absolute top-4 left-4 z-30 flex flex-col gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-300 font-mono text-xs select-none backdrop-blur-sm pointer-events-none">

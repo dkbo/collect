@@ -4,11 +4,5 @@
 
 [node name="CandyMain" type="Node2D"]
 
-[node name="BG" type="ColorRect" parent="."]
-offset_right = 960.0
-offset_bottom = 540.0
-color = Color(0.051, 0.09, 0.153, 1)
-mouse_filter = 2
-
 [node name="BoardView" type="Node2D" parent="."]
 script = ExtResource("1_board_view")

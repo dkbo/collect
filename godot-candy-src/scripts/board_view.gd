@@ -2,12 +2,14 @@ class_name BoardView
 extends Node2D
 
 ## 盤面渲染與操作：依 CandyBoard 狀態生成 CandyPiece、棋盤格背景與裝飾邊框；
-## 處理點選交換與拖曳 swipe。56px 格、448×448 盤面置中於 960×540。
+## 處理點選交換與拖曳 swipe。56px 格、448×448 盤面以節點原點為中心，
+## _layout() 依 viewport 尺寸動態置中縮放（手機直式也能滿版）。
 ## 狀態機 IDLE → SWAP →（Step 4 接 RESOLVE → FALL → CHECK），動畫中鎖輸入。
 
 const CELL := 56.0
 const BOARD_PX := CELL * CandyBoard.SIZE
-const ORIGIN := Vector2((960.0 - BOARD_PX) / 2.0, (540.0 - BOARD_PX) / 2.0)
+const ORIGIN := Vector2(-BOARD_PX / 2.0, -BOARD_PX / 2.0)
+const DESIGN_MIN := 540.0  # 設計基準：min(viewport 邊長) = 540 時 scale = 1
 const SWAP_TIME := 0.15
 const REMOVE_TIME := 0.2
 const FALL_PER_CELL := 0.08
@@ -33,7 +35,16 @@ var _swiped := false  # 本次按壓已觸發 swipe，release 不再當點選
 
 func _ready() -> void:
 	CandyBridge.command_received.connect(_on_command)
+	get_viewport().size_changed.connect(_layout)
+	_layout()
 	_start_level(1)
+
+
+## 依 viewport 尺寸置中並等比縮放（stretch=expand 下直式螢幕 viewport 會拉長）。
+func _layout() -> void:
+	var vp := get_viewport_rect().size
+	position = vp / 2.0
+	scale = Vector2.ONE * (minf(vp.x, vp.y) / DESIGN_MIN)
 
 
 func _start_level(n: int) -> void:
@@ -72,7 +83,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _state != State.IDLE or _paused or _level_over:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		var pos := get_global_mouse_position()
+		var pos := get_local_mouse_position()
 		if event.pressed:
 			_press_cell = pos_to_cell(pos)
 			_press_pos = pos
@@ -82,7 +93,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_on_click(pos_to_cell(pos))
 			_press_cell = NO_CELL
 	elif event is InputEventMouseMotion and _press_cell != NO_CELL and not _swiped:
-		var delta := get_global_mouse_position() - _press_pos
+		var delta := get_local_mouse_position() - _press_pos
 		if delta.length() >= SWIPE_THRESHOLD:
 			_swiped = true
 			var dir := Vector2i(signi(roundi(delta.x)), 0) \
@@ -491,7 +502,7 @@ func _show_banner(text: String, font_size := 40) -> void:
 	label.z_index = 10
 	add_child(label)
 	await get_tree().process_frame  # 等 label 取得尺寸再置中
-	label.position = Vector2(480, 270) - label.size / 2
+	label.position = -label.size / 2  # 節點原點即盤面中心
 	label.pivot_offset = label.size / 2
 	label.scale = Vector2.ONE * 0.5
 	var tween := create_tween()

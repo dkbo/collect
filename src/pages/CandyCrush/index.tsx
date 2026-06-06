@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Candy, Footprints, HelpCircle, Maximize2, Minimize2, Pause, Play, RotateCcw, Star, Trophy, Volume2, VolumeX, X } from 'lucide-react'
 import { useCandyStore } from '@/store/useCandyStore'
 import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
+import { useFullscreen } from '@/lib/useFullscreen'
 
 /** 關卡總數（與 godot-candy-src/data/candy_levels.json 同步） */
 const MAX_LEVEL = 5
@@ -26,7 +27,6 @@ export function CandyCrush() {
   const [isTouchDevice, setIsTouchDevice] = useState(
     () => window.matchMedia('(pointer: coarse)').matches
   )
-  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const focusGame = () => {
     requestAnimationFrame(() => {
@@ -85,24 +85,8 @@ export function CandyCrush() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement === screenRef.current)
-      focusGame()
-    }
-    document.addEventListener('fullscreenchange', onFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
-  }, [])
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      screenRef.current?.requestFullscreen().catch((err) => {
-        console.error('Error enabling fullscreen:', err)
-      })
-    } else {
-      document.exitFullscreen()
-    }
-  }
+  // 全螢幕：原生 API 不可用（iPhone Safari）時自動 fallback 成 CSS 偽全螢幕
+  const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef, focusGame)
 
   const handleFrameLoad = () => {
     const frame = iframeRef.current
@@ -193,7 +177,7 @@ export function CandyCrush() {
           ref={screenRef}
           className={
             isFullscreen
-              ? 'fixed inset-0 w-screen h-screen bg-black z-50 border-0 rounded-none select-none'
+              ? 'fixed inset-0 w-screen h-dvh bg-black z-50 border-0 rounded-none select-none'
               : 'rpg-screen'
           }
         >
@@ -353,49 +337,53 @@ export function CandyCrush() {
             </div>
           )}
 
-          <Button
-            variant="outline"
-            size="icon"
-            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-26' : 'right-37'}`}
-            onClick={() => { setMuted(!isMuted); focusGame() }}
-            aria-label={isMuted ? '開啟音效' : '靜音'}
-            data-testid="candy-mute-btn"
-          >
-            {isMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-15' : 'right-26'}`}
-            onClick={togglePause}
-            aria-label={isPaused ? '恢復遊戲' : '暫停遊戲'}
-            data-testid="candy-pause-btn"
-          >
-            {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className={`absolute top-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md ${isFullscreen ? 'right-4' : 'right-15'}`}
-            onClick={toggleFullscreen}
-            aria-label="切換全螢幕"
-          >
-            {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-          </Button>
-
-          {!isFullscreen && (
+          {/* 浮動按鈕列（safe-area 感知，避開瀏海/圓角） */}
+          <div className="absolute z-30 flex gap-2 top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))]">
             <Button
               variant="outline"
               size="icon"
-              className="absolute top-4 right-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
-              onClick={() => toggleInstructions(true)}
-              aria-label="打開操作說明"
+              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
+              onClick={() => { setMuted(!isMuted); focusGame() }}
+              aria-label={isMuted ? '開啟音效' : '靜音'}
+              data-testid="candy-mute-btn"
             >
-              <HelpCircle className="size-4" />
+              {isMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
             </Button>
-          )}
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
+              onClick={togglePause}
+              aria-label={isPaused ? '恢復遊戲' : '暫停遊戲'}
+              data-testid="candy-pause-btn"
+            >
+              {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
+              onClick={toggleFullscreen}
+              aria-label="切換全螢幕"
+              data-testid="candy-fullscreen-btn"
+            >
+              {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            </Button>
+
+            {!isFullscreen && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
+                onClick={() => toggleInstructions(true)}
+                aria-label="打開操作說明"
+              >
+                <HelpCircle className="size-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
