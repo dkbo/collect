@@ -230,3 +230,4 @@ export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
 }
 
 export type { GameNetMessage, NetEvent, NetEventMap, NetTransport } from './types'
+export { createNoopTransport } from './noopTransport'

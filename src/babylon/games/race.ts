@@ -79,6 +79,8 @@ class RaceScene implements GameModule {
   /** result 階段已停留毫秒數（host 計時自動開新局） */
   private resultElapsed = 0
 
+  private decorations: Mesh[] = []
+
   // HUD：上方圈數、中央橫幅（倒數/結算）
   private hud!: TextPanel
   private banner!: TextPanel
@@ -161,6 +163,8 @@ class RaceScene implements GameModule {
     const smat = new StandardMaterial('smat', scene)
     smat.diffuseColor = Color3.White()
     startLine.material = smat
+
+    this.buildDecorations()
 
     // 自車
     this.spawnIdx = Math.max(0, ctx.players.findIndex((p) => p.id === ctx.selfId))
@@ -319,6 +323,148 @@ class RaceScene implements GameModule {
     }
   }
 
+  // ---- 場地裝飾 ----
+
+  private buildDecorations(): void {
+    const { scene } = this.ctx
+    const d = this.decorations
+
+    const add = (m: Mesh) => { d.push(m); return m }
+
+    // --- 共用材質 ---
+    const barrierMat = new StandardMaterial('barrier-mat', scene)
+    barrierMat.diffuseColor = new Color3(0.35, 0.35, 0.38)
+
+    const curbRed = new StandardMaterial('curb-red', scene)
+    curbRed.diffuseColor = new Color3(0.9, 0.15, 0.1)
+    const curbWhite = new StandardMaterial('curb-white', scene)
+    curbWhite.diffuseColor = new Color3(0.95, 0.95, 0.95)
+
+    const trunkMat = new StandardMaterial('trunk-mat', scene)
+    trunkMat.diffuseColor = new Color3(0.45, 0.3, 0.15)
+    const canopyMat = new StandardMaterial('canopy-mat', scene)
+    canopyMat.diffuseColor = new Color3(0.15, 0.5, 0.2)
+
+    const bushMat = new StandardMaterial('bush-mat', scene)
+    bushMat.diffuseColor = new Color3(0.1, 0.4, 0.15)
+
+    const rockMat = new StandardMaterial('rock-mat', scene)
+    rockMat.diffuseColor = new Color3(0.5, 0.48, 0.45)
+
+    const standMat = new StandardMaterial('stand-mat', scene)
+    standMat.diffuseColor = new Color3(0.6, 0.58, 0.55)
+    const seatMat = new StandardMaterial('seat-mat', scene)
+    seatMat.diffuseColor = new Color3(0.2, 0.35, 0.65)
+
+    const pitMat = new StandardMaterial('pit-mat', scene)
+    pitMat.diffuseColor = new Color3(0.85, 0.85, 0.82)
+    const roofMat = new StandardMaterial('roof-mat', scene)
+    roofMat.diffuseColor = new Color3(0.8, 0.2, 0.15)
+
+    // --- 1. 護欄：內圈 36 個 + 外圈 48 個 ---
+    const placeRing = (r: number, count: number, w: number, h: number, depth: number, mat: StandardMaterial) => {
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2
+        const b = add(MeshBuilder.CreateBox(`barrier-${r.toFixed(0)}-${i}`, { width: w, height: h, depth }, scene))
+        b.position.set(Math.sin(a) * r, h / 2, Math.cos(a) * r)
+        b.rotation.y = a
+        b.material = mat
+      }
+    }
+    placeRing(R_INNER - 0.6, 36, 1.3, 0.6, 0.3, barrierMat)
+    placeRing(R_OUTER + 0.6, 48, 1.3, 0.6, 0.3, barrierMat)
+
+    // --- 2. 路緣石：紅白交替 ---
+    const placeCurb = (r: number, count: number) => {
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2
+        const b = add(MeshBuilder.CreateBox(`curb-${r.toFixed(0)}-${i}`, { width: 0.9, height: 0.05, depth: 0.4 }, scene))
+        b.position.set(Math.sin(a) * r, 0.03, Math.cos(a) * r)
+        b.rotation.y = a
+        b.material = i % 2 === 0 ? curbRed : curbWhite
+      }
+    }
+    placeCurb(R_INNER, 36)
+    placeCurb(R_OUTER, 48)
+
+    // --- 3. 樹木：場地四角各 3 棵 ---
+    const treeSpots = [
+      [-22, -22], [-24, -18], [-20, -24],
+      [22, -22], [24, -18], [20, -24],
+      [-22, 22], [-24, 18], [-20, 24],
+      [22, 22], [24, 18], [20, 24],
+    ]
+    for (const [tx, tz] of treeSpots) {
+      const trunk = add(MeshBuilder.CreateCylinder(`trunk-${tx}-${tz}`, { height: 1.8, diameter: 0.45 }, scene))
+      trunk.position.set(tx, 0.9, tz)
+      trunk.material = trunkMat
+      const canopy = add(MeshBuilder.CreateSphere(`canopy-${tx}-${tz}`, { diameter: 2.2 }, scene))
+      canopy.position.set(tx, 2.5, tz)
+      canopy.material = canopyMat
+    }
+
+    // --- 4. 灌木：內場散佈 ---
+    const bushSpots = [
+      [-5, -5], [6, -8], [-8, 4], [3, 7],
+      [-3, -10], [8, 2], [-10, -3], [0, 10],
+    ]
+    for (let i = 0; i < bushSpots.length; i++) {
+      const [bx, bz] = bushSpots[i]
+      const bush = add(MeshBuilder.CreateSphere(`bush-${i}`, { diameter: 1.3 }, scene))
+      bush.position.set(bx, 0.4, bz)
+      bush.scaling.y = 0.55
+      bush.material = bushMat
+    }
+
+    // --- 5. 岩石：場地邊緣 ---
+    const rockSpots = [
+      [-25, 0, 1.0], [25, 0, 0.8], [0, -25, 0.9],
+      [0, 25, 0.7], [-18, -20, 0.6], [18, 20, 0.8],
+    ]
+    for (let i = 0; i < rockSpots.length; i++) {
+      const [rx, rz, s] = rockSpots[i]
+      const rock = add(MeshBuilder.CreateBox(`rock-${i}`, { size: s }, scene))
+      rock.position.set(rx, s * 0.4, rz)
+      rock.rotation.y = i * 1.2
+      rock.scaling.set(1, 0.7, 1.2)
+      rock.material = rockMat
+    }
+
+    // --- 6. 看台：+x 側 ---
+    const standX = 26
+    const standZ = 0
+    // 底座
+    const standBase = add(MeshBuilder.CreateBox('stand-base', { width: 14, height: 1, depth: 5 }, scene))
+    standBase.position.set(standX, 0.5, standZ)
+    standBase.material = standMat
+    // 三層階梯座位
+    for (let row = 0; row < 3; row++) {
+      const seat = add(MeshBuilder.CreateBox(`stand-seat-${row}`, { width: 12, height: 0.5, depth: 1.2 }, scene))
+      seat.position.set(standX, 1.25 + row * 0.6, standZ - 1.5 + row * 1.2)
+      seat.material = seatMat
+    }
+    // 頂棚
+    const roof = add(MeshBuilder.CreateBox('stand-roof', { width: 14, height: 0.15, depth: 6 }, scene))
+    roof.position.set(standX, 3.5, standZ)
+    roof.material = standMat
+
+    // --- 7. 維修站：-x 側 ---
+    const pitX = -26
+    const pitZ = 0
+    // 主體
+    const pitBody = add(MeshBuilder.CreateBox('pit-body', { width: 7, height: 2.8, depth: 5 }, scene))
+    pitBody.position.set(pitX, 1.4, pitZ)
+    pitBody.material = pitMat
+    // 屋頂
+    const pitRoof = add(MeshBuilder.CreateBox('pit-roof', { width: 8, height: 0.2, depth: 6 }, scene))
+    pitRoof.position.set(pitX, 2.9, pitZ)
+    pitRoof.material = roofMat
+    // 門口
+    const pitDoor = add(MeshBuilder.CreateBox('pit-door', { width: 2.5, height: 2.2, depth: 0.1 }, scene))
+    pitDoor.position.set(pitX, 1.1, pitZ + 2.55)
+    pitDoor.material = roofMat
+  }
+
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
@@ -330,6 +476,8 @@ class RaceScene implements GameModule {
     this.peerCars.clear()
     this.hud.dispose()
     this.banner.dispose()
+    for (const m of this.decorations) m.dispose()
+    this.decorations = []
   }
 }
 

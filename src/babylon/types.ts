@@ -7,6 +7,21 @@ export interface GamePlayer {
   name: string
 }
 
+/** 覆蓋層按鈕（如「重新開始」） */
+export interface OverlayAction {
+  label: string
+  onClick: () => void
+  variant?: 'primary' | 'secondary'
+}
+
+/** 遊戲自畫面內彈出的 React 覆蓋層（陣亡/結算等情境的 UI 介面） */
+export interface GameOverlay {
+  title: string
+  /** 副標，支援多行（\n）；如結算名次 */
+  subtitle?: string
+  actions: OverlayAction[]
+}
+
 /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
 export interface GameContext {
   scene: Scene
@@ -14,6 +29,8 @@ export interface GameContext {
   selfId: string
   role: 'host' | 'guest'
   players: GamePlayer[]
+  /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
+  setOverlay?: (overlay: GameOverlay | null) => void
 }
 
 /**

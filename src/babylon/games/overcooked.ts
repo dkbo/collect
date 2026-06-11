@@ -1,11 +1,15 @@
 import {
   ArcRotateCamera,
   Color3,
+  Color4,
+  DynamicTexture,
   HemisphericLight,
+  Mesh,
   MeshBuilder,
+  ParticleSystem,
   StandardMaterial,
+  Texture,
   Vector3,
-  type Mesh,
 } from '@babylonjs/core'
 import type { GameContext, GameModule } from '@/babylon/types'
 import type { GameNetMessage } from '@/core/webrtc'
@@ -26,6 +30,7 @@ import {
   GRID_H,
   GRID_W,
   STATIONS,
+  RECIPES,
   applyUse,
   buildView,
   createKitchen,
@@ -76,6 +81,25 @@ const ING_NAME: Record<Ing, string> = { v: '蔬菜', m: '肉' }
 const itemName = (it: Item): string =>
   it.kind === 'raw' ? `${ING_NAME[it.ing]}（生）` : it.kind === 'chop' ? `${ING_NAME[it.ing]}（已切）` : `${ING_NAME[it.ing]}湯`
 
+interface Avatar {
+  root: Mesh
+  legL: Mesh
+  legR: Mesh
+  armL: Mesh
+  armR: Mesh
+  walkPhase: number
+  amp: number
+  yaw: number
+  prevX: number
+  prevZ: number
+}
+
+interface FloatingText {
+  mesh: Mesh
+  life: number
+  vy: number
+}
+
 class OvercookedScene implements GameModule {
   readonly gameId = 'overcooked'
   private ctx!: GameContext
@@ -92,8 +116,8 @@ class OvercookedScene implements GameModule {
   private lastUse = 0
   private resultElapsed = 0
 
-  private selfMesh?: Mesh
-  private peerMeshes = new Map<string, Mesh>()
+  private selfAvatar?: Avatar
+  private peerAvatars = new Map<string, Avatar>()
   private handMeshes = new Map<string, Mesh>() // playerId → 頭上手持物
   private slotMeshes = new Map<string, Mesh>() // 站點 id → 檯面物品
   private itemMats = new Map<string, StandardMaterial>()
@@ -101,6 +125,12 @@ class OvercookedScene implements GameModule {
   private hud!: TextPanel
   private banner!: TextPanel
   private ordersPanel!: TextPanel
+  private recipePanel!: TextPanel
+  private floatingTexts: FloatingText[] = []
+
+  private decorations: Mesh[] = []
+  private steamSystems: ParticleSystem[] = []
+  private sparkSystem: ParticleSystem | null = null
 
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase()
@@ -132,13 +162,79 @@ class OvercookedScene implements GameModule {
     return mat
   }
 
-  private makePlayer(id: string): Mesh {
-    const m = MeshBuilder.CreateBox(`pl-${id}`, { width: 1, height: 1.2, depth: 1 }, this.ctx.scene)
-    m.position.y = 0.6
-    const mat = new StandardMaterial(`pl-mat-${id}`, this.ctx.scene)
-    mat.diffuseColor = this.colorFor(id)
-    m.material = mat
-    return m
+  private makePlayer(id: string): Avatar {
+    const scene = this.ctx.scene
+    const color = this.colorFor(id)
+
+    const bodyMat = new StandardMaterial(`pl-mat-${id}`, scene)
+    bodyMat.diffuseColor = color
+    const limbMat = new StandardMaterial(`pl-limb-${id}`, scene)
+    limbMat.diffuseColor = color.scale(0.55)
+    const faceMat = new StandardMaterial(`pl-face-${id}`, scene)
+    faceMat.diffuseColor = new Color3(0.12, 0.13, 0.18)
+
+    const root = new Mesh(`pl-${id}`, scene)
+    root.position.y = 0
+
+    const body = MeshBuilder.CreateBox(`pl-body-${id}`, { width: 0.6, height: 0.55, depth: 0.45 }, scene)
+    body.material = bodyMat
+    body.parent = root
+    body.position.set(0, 0.78, 0)
+
+    const head = MeshBuilder.CreateSphere(`pl-head-${id}`, { diameter: 0.74 }, scene)
+    head.material = bodyMat
+    head.parent = root
+    head.position.set(0, 1.32, 0)
+
+    const face = MeshBuilder.CreateBox(`pl-face-${id}`, { width: 0.5, height: 0.22, depth: 0.1 }, scene)
+    face.material = faceMat
+    face.parent = root
+    face.position.set(0, 1.3, 0.33)
+
+    const mkLeg = (sx: number): Mesh => {
+      const leg = MeshBuilder.CreateBox(`pl-leg-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.26, height: 0.5, depth: 0.3 }, scene)
+      leg.material = limbMat
+      leg.parent = root
+      leg.position.set(sx * 0.16, 0.25, 0)
+      leg.setPivotPoint(new Vector3(0, 0.25, 0))
+      return leg
+    }
+    const legL = mkLeg(-1)
+    const legR = mkLeg(1)
+
+    const mkArm = (sx: number): Mesh => {
+      const arm = MeshBuilder.CreateBox(`pl-arm-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.18, height: 0.46, depth: 0.2 }, scene)
+      arm.material = limbMat
+      arm.parent = root
+      arm.position.set(sx * 0.42, 0.78, 0)
+      arm.setPivotPoint(new Vector3(0, 0.23, 0))
+      return arm
+    }
+    const armL = mkArm(-1)
+    const armR = mkArm(1)
+
+    return { root, legL, legR, armL, armR, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
+  }
+
+  private animateAvatar(av: Avatar, dtMs: number): void {
+    const dx = av.root.position.x - av.prevX
+    const dz = av.root.position.z - av.prevZ
+    av.prevX = av.root.position.x
+    av.prevZ = av.root.position.z
+
+    const moving = Math.hypot(dx, dz) > dtMs * 0.0005
+    if (moving) av.yaw = Math.atan2(dx, dz)
+    av.root.rotation.y = av.yaw
+
+    const ease = Math.min(1, dtMs * 0.012)
+    av.amp += ((moving ? 1 : 0) - av.amp) * ease
+    if (av.amp > 0.01) av.walkPhase += dtMs * 0.013
+
+    const swing = Math.sin(av.walkPhase) * 0.7 * av.amp
+    av.legL.rotation.x = swing
+    av.legR.rotation.x = -swing
+    av.armL.rotation.x = -swing
+    av.armR.rotation.x = swing
   }
 
   /** 玩家圓身 vs 外圈檯面碰撞 */
@@ -199,7 +295,12 @@ class OvercookedScene implements GameModule {
       cellToWorld(st.cy, GRID_H) - pos.z
     )
     if (d > USE_RANGE + 0.6) return // 寬限：對端位置有傳輸延遲
-    applyUse(this.kitchen, playerId, stationId, performance.now())
+    const changed = applyUse(this.kitchen, playerId, stationId, performance.now())
+    if (changed && st.kind === 'serve') {
+      const sparkPos = new Vector3(cellToWorld(st.cx, GRID_W), 1.5, cellToWorld(st.cy, GRID_H))
+      this.triggerServeSpark(sparkPos)
+      this.triggerScoreFloat(sparkPos, '+20')
+    }
   }
 
   onNetworkMessage(from: string, msg: GameNetMessage): void {
@@ -257,10 +358,14 @@ class OvercookedScene implements GameModule {
       }
     }
 
-    this.selfMesh = this.makePlayer(ctx.selfId)
+    this.buildDecorations()
+    this.initParticles()
+
+    this.selfAvatar = this.makePlayer(ctx.selfId)
     this.hud = createTextPanel(scene, this.camera, 'hud', 5, 0.7, new Vector3(0, 2.6, 8))
     this.banner = createTextPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
     this.ordersPanel = createTextPanel(scene, this.camera, 'orders', 3, 1.6, new Vector3(-3.4, 1.9, 8))
+    this.recipePanel = createTextPanel(scene, this.camera, 'recipes', 3, 2.2, new Vector3(3.4, 1.9, 8))
 
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
@@ -348,31 +453,36 @@ class OvercookedScene implements GameModule {
     const view = this.currentView()
 
     // 自己
-    if (this.selfMesh) {
-      this.selfMesh.position.x = this.state.x
-      this.selfMesh.position.z = this.state.z
+    if (this.selfAvatar) {
+      this.selfAvatar.root.position.x = this.state.x
+      this.selfAvatar.root.position.z = this.state.z
+      this.animateAvatar(this.selfAvatar, deltaMs)
     }
+
+    this.updateSteam()
+    this.updateCamera()
 
     // 遠端：增刪 + 插值
     const ids = new Set(this.own.remoteIds())
-    for (const [id, m] of this.peerMeshes) {
+    for (const [id, a] of this.peerAvatars) {
       if (ids.has(id)) continue
-      m.dispose()
+      a.root.dispose(false, true)
       this.handMeshes.get(id)?.dispose()
       this.handMeshes.delete(id)
-      this.peerMeshes.delete(id)
+      this.peerAvatars.delete(id)
     }
     for (const id of ids) {
-      let m = this.peerMeshes.get(id)
-      if (!m) {
-        m = this.makePlayer(id)
-        this.peerMeshes.set(id, m)
+      let a = this.peerAvatars.get(id)
+      if (!a) {
+        a = this.makePlayer(id)
+        this.peerAvatars.set(id, a)
       }
       const s = this.own.sampleRemote(id)
       if (s) {
-        m.position.x = s.a.x + (s.b.x - s.a.x) * s.alpha
-        m.position.z = s.a.z + (s.b.z - s.a.z) * s.alpha
+        a.root.position.x = s.a.x + (s.b.x - s.a.x) * s.alpha
+        a.root.position.z = s.a.z + (s.b.z - s.a.z) * s.alpha
       }
+      this.animateAvatar(a, deltaMs)
     }
 
     if (view) {
@@ -382,12 +492,12 @@ class OvercookedScene implements GameModule {
         if (mesh) this.updateItemMesh(mesh, sv.item, sv.progress)
       }
       // 手持物（自己 + 遠端，浮在頭上）
-      const holders: Array<[string, Mesh | undefined]> = [
-        [this.ctx.selfId, this.selfMesh],
-        ...[...this.peerMeshes.entries()],
+      const holders: Array<[string, Avatar | undefined]> = [
+        [this.ctx.selfId, this.selfAvatar],
+        ...[...this.peerAvatars.entries()],
       ]
-      for (const [pid, body] of holders) {
-        if (!body) continue
+      for (const [pid, av] of holders) {
+        if (!av) continue
         let hm = this.handMeshes.get(pid)
         if (!hm) {
           hm = MeshBuilder.CreateBox(`hand-${pid}`, { size: 0.5 }, this.ctx.scene)
@@ -397,23 +507,42 @@ class OvercookedScene implements GameModule {
         if (item) {
           hm.setEnabled(true)
           hm.material = this.itemMat(item)
-          hm.position.set(body.position.x, 1.7, body.position.z)
+          hm.position.set(av.root.position.x, 1.9, av.root.position.z)
         } else {
           hm.setEnabled(false)
         }
       }
     }
 
-    // HUD / 訂單 / 橫幅
+    // 飄字效果
+    this.updateFloatingTexts(deltaMs)
+
+    // HUD / 訂單 / 食譜 / 橫幅
     if (phase === 'playing' && view) {
       const myItem = view.hands[this.ctx.selfId]
       const handNote = myItem ? `・手持 ${itemName(myItem)}` : ''
       this.hud.draw(`分數 ${view.score}・剩 ${Math.ceil(view.remainMs / 1000)}s${handNote}`, 44)
-      const lines = view.orders.map((o, i) => `${i + 1}. ${ING_NAME[o.ing]}湯 ${Math.ceil(o.remainMs / 1000)}s`)
+      const lines = view.orders.map((o, i) => {
+        const recipe = RECIPES.find((r) => r.id === o.recipeId)
+        const name = recipe?.name ?? `${ING_NAME[o.ing]}湯`
+        const remain = Math.ceil(o.remainMs / 1000)
+        return `${i + 1}. ${name} ${remain}s`
+      })
       this.ordersPanel.draw(lines.length ? ['📋 訂單', ...lines].join('\n') : '📋 訂單\n（暫無）', 36)
+      // 食譜面板：顯示所有可用食譜
+      const recipeLines = RECIPES.map((r) => {
+        const steps = r.steps.map((st) => {
+          if (st.type === 'chop' && st.ing) return `切${ING_NAME[st.ing]}`
+          if (st.type === 'cook' && st.ing) return `煮${ING_NAME[st.ing]}`
+          return `混合`
+        }).join(' → ')
+        return `${r.name}(${r.score})\n  ${steps}`
+      })
+      this.recipePanel.draw(['📖 食譜', ...recipeLines].join('\n'), 32)
     } else {
       this.hud.draw('')
       this.ordersPanel.draw('')
+      this.recipePanel.draw('')
     }
 
     if (phase === 'countdown') {
@@ -445,6 +574,265 @@ class OvercookedScene implements GameModule {
     }
   }
 
+  // ---- 場地裝飾 ----
+
+  private buildDecorations(): void {
+    const { scene } = this.ctx
+    const d = this.decorations
+    const add = (m: Mesh) => { d.push(m); return m }
+
+    // --- 地板磁磚 ---
+    const tileLight = new StandardMaterial('tile-light', scene)
+    tileLight.diffuseColor = new Color3(0.72, 0.7, 0.65)
+    const tileDark = new StandardMaterial('tile-dark', scene)
+    tileDark.diffuseColor = new Color3(0.65, 0.63, 0.58)
+    for (let cy = 0; cy < GRID_H; cy++) {
+      for (let cx = 0; cx < GRID_W; cx++) {
+        if (isBorder(cx, cy)) continue
+        const tile = add(MeshBuilder.CreateBox(`tile-${cx}-${cy}`, { width: CELL * 0.95, height: 0.02, depth: CELL * 0.95 }, scene))
+        tile.position.set(cellToWorld(cx, GRID_W), 0.01, cellToWorld(cy, GRID_H))
+        tile.material = (cx + cy) % 2 === 0 ? tileLight : tileDark
+      }
+    }
+
+    // --- 四面牆壁 ---
+    const wallMat = new StandardMaterial('wall-mat', scene)
+    wallMat.diffuseColor = new Color3(0.82, 0.78, 0.7)
+    const wallH = 2.5
+    const wallThick = 0.3
+    const gw = GRID_W * CELL
+    const gh = GRID_H * CELL
+    const walls = [
+      { w: gw + wallThick * 2, h: wallH, d: wallThick, x: 0, z: -gh / 2 - wallThick / 2 },
+      { w: gw + wallThick * 2, h: wallH, d: wallThick, x: 0, z: gh / 2 + wallThick / 2 },
+      { w: wallThick, h: wallH, d: gh, x: -gw / 2 - wallThick / 2, z: 0 },
+      { w: wallThick, h: wallH, d: gh, x: gw / 2 + wallThick / 2, z: 0 },
+    ]
+    for (let i = 0; i < walls.length; i++) {
+      const w = walls[i]
+      const wall = add(MeshBuilder.CreateBox(`wall-${i}`, { width: w.w, height: w.h, depth: w.d }, scene))
+      wall.position.set(w.x, w.h / 2, w.z)
+      wall.material = wallMat
+    }
+
+    // --- 踢腳線 ---
+    const baseMat = new StandardMaterial('base-mat', scene)
+    baseMat.diffuseColor = new Color3(0.4, 0.38, 0.35)
+    const baseH = 0.3
+    const bases = [
+      { w: gw + wallThick * 2, h: baseH, d: wallThick + 0.1, x: 0, z: -gh / 2 - wallThick / 2 },
+      { w: gw + wallThick * 2, h: baseH, d: wallThick + 0.1, x: 0, z: gh / 2 + wallThick / 2 },
+      { w: wallThick + 0.1, h: baseH, d: gh, x: -gw / 2 - wallThick / 2, z: 0 },
+      { w: wallThick + 0.1, h: baseH, d: gh, x: gw / 2 + wallThick / 2, z: 0 },
+    ]
+    for (let i = 0; i < bases.length; i++) {
+      const b = bases[i]
+      const base = add(MeshBuilder.CreateBox(`base-${i}`, { width: b.w, height: b.h, depth: b.d }, scene))
+      base.position.set(b.x, b.h / 2, b.z)
+      base.material = baseMat
+    }
+
+    // --- 站點裝飾 ---
+    const potMat = new StandardMaterial('pot-deco-mat', scene)
+    potMat.diffuseColor = new Color3(0.18, 0.18, 0.22)
+    const boardMat = new StandardMaterial('board-deco-mat', scene)
+    boardMat.diffuseColor = new Color3(0.75, 0.6, 0.35)
+    const bellMat = new StandardMaterial('bell-mat', scene)
+    bellMat.diffuseColor = new Color3(0.9, 0.8, 0.2)
+
+    for (const s of STATIONS) {
+      const bx = cellToWorld(s.cx, GRID_W)
+      const bz = cellToWorld(s.cy, GRID_H)
+      if (s.kind === 'pot') {
+        // 鍋子：扁圓柱
+        const pot = add(MeshBuilder.CreateCylinder(`pot-${s.id}`, { height: 0.4, diameter: 1.2 }, scene))
+        pot.position.set(bx, 1.2, bz)
+        pot.material = potMat
+        // 把手
+        const handle = add(MeshBuilder.CreateBox(`pot-handle-${s.id}`, { width: 0.6, height: 0.1, depth: 0.15 }, scene))
+        handle.position.set(bx + 0.8, 1.3, bz)
+        handle.material = potMat
+      } else if (s.kind === 'board') {
+        // 砧板：扁長方體
+        const board = add(MeshBuilder.CreateBox(`board-${s.id}`, { width: 1.2, height: 0.12, depth: 0.8 }, scene))
+        board.position.set(bx, 1.15, bz)
+        board.material = boardMat
+        // 刀
+        const knife = add(MeshBuilder.CreateBox(`knife-${s.id}`, { width: 0.08, height: 0.04, depth: 0.6 }, scene))
+        knife.position.set(bx + 0.5, 1.25, bz)
+        const knifeMat = new StandardMaterial(`knife-mat-${s.id}`, scene)
+        knifeMat.diffuseColor = new Color3(0.7, 0.7, 0.72)
+        knife.material = knifeMat
+      } else if (s.kind === 'serve') {
+        // 出餐口鈴鐺
+        const bell = add(MeshBuilder.CreateSphere(`bell-${s.id}`, { diameter: 0.5 }, scene))
+        bell.position.set(bx, 1.35, bz)
+        bell.material = bellMat
+        const bellBase = add(MeshBuilder.CreateBox(`bell-base-${s.id}`, { width: 0.6, height: 0.15, depth: 0.6 }, scene))
+        bellBase.position.set(bx, 1.1, bz)
+        bellBase.material = bellMat
+      }
+    }
+
+    // --- 掛鉤架（上牆） ---
+    const rackMat = new StandardMaterial('rack-mat', scene)
+    rackMat.diffuseColor = new Color3(0.35, 0.3, 0.25)
+    const rackY = 2.0
+    // 上牆掛架
+    const rack1 = add(MeshBuilder.CreateBox('rack-top', { width: 6, height: 0.1, depth: 0.15 }, scene))
+    rack1.position.set(0, rackY, -gh / 2 - 0.1)
+    rack1.material = rackMat
+    // 掛鉤
+    for (let i = -2; i <= 2; i++) {
+      const hook = add(MeshBuilder.CreateCylinder(`hook-${i}`, { height: 0.3, diameter: 0.06 }, scene))
+      hook.position.set(i * 1.2, rackY - 0.2, -gh / 2 - 0.1)
+      hook.material = rackMat
+    }
+
+    // --- 時鐘（左牆） ---
+    const clockMat = new StandardMaterial('clock-mat', scene)
+    clockMat.diffuseColor = new Color3(0.9, 0.88, 0.85)
+    const clock = add(MeshBuilder.CreateCylinder('clock', { height: 0.1, diameter: 1.0 }, scene))
+    clock.position.set(-gw / 2 - 0.2, 2.0, 0)
+    clock.rotation.z = Math.PI / 2
+    clock.material = clockMat
+    const clockRim = add(MeshBuilder.CreateTorus('clock-rim', { diameter: 1.0, thickness: 0.08, tessellation: 32 }, scene))
+    clockRim.position.set(-gw / 2 - 0.15, 2.0, 0)
+    clockRim.rotation.z = Math.PI / 2
+    const rimMat = new StandardMaterial('clock-rim-mat', scene)
+    rimMat.diffuseColor = new Color3(0.3, 0.3, 0.3)
+    clockRim.material = rimMat
+  }
+
+  private initParticles(): void {
+    const { scene } = this.ctx
+
+    // 蒸汽粒子材質（共用）
+    const steamTex = new Texture('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', scene)
+
+    // 為每個 pot 站點建立蒸汽系統
+    for (const s of STATIONS) {
+      if (s.kind !== 'pot') continue
+      const ps = new ParticleSystem(`steam-${s.id}`, 15, scene)
+      ps.particleTexture = steamTex
+      ps.emitter = new Vector3(cellToWorld(s.cx, GRID_W), 1.6, cellToWorld(s.cy, GRID_H))
+      ps.minEmitBox = new Vector3(-0.3, 0, -0.3)
+      ps.maxEmitBox = new Vector3(0.3, 0, 0.3)
+      ps.color1 = new Color4(0.9, 0.9, 0.95, 1)
+      ps.color2 = new Color4(0.8, 0.8, 0.85, 1)
+      ps.colorDead = new Color4(0.7, 0.7, 0.75, 0)
+      ps.minSize = 0.15
+      ps.maxSize = 0.4
+      ps.minLifeTime = 0.5
+      ps.maxLifeTime = 1.2
+      ps.emitRate = 0
+      ps.direction1 = new Vector3(-0.2, 1, -0.2)
+      ps.direction2 = new Vector3(0.2, 1.5, 0.2)
+      ps.minEmitPower = 0.3
+      ps.maxEmitPower = 0.6
+      ps.updateSpeed = 0.01
+      ps.gravity = new Vector3(0, 0.2, 0)
+      ps.blendMode = ParticleSystem.BLENDMODE_STANDARD
+      ps.start()
+      this.steamSystems.push(ps)
+    }
+
+    // 出餐閃光
+    this.sparkSystem = new ParticleSystem('spark', 30, scene)
+    this.sparkSystem.particleTexture = steamTex
+    this.sparkSystem.minEmitBox = new Vector3(-0.3, 0, -0.3)
+    this.sparkSystem.maxEmitBox = new Vector3(0.3, 0, 0.3)
+    this.sparkSystem.color1 = new Color4(1, 0.9, 0.2, 1)
+    this.sparkSystem.color2 = new Color4(1, 0.7, 0.1, 1)
+    this.sparkSystem.colorDead = new Color4(1, 0.5, 0, 0)
+    this.sparkSystem.minSize = 0.1
+    this.sparkSystem.maxSize = 0.25
+    this.sparkSystem.minLifeTime = 0.3
+    this.sparkSystem.maxLifeTime = 0.6
+    this.sparkSystem.emitRate = 0
+    this.sparkSystem.direction1 = new Vector3(-1, 2, -1)
+    this.sparkSystem.direction2 = new Vector3(1, 3, 1)
+    this.sparkSystem.minEmitPower = 1
+    this.sparkSystem.maxEmitPower = 2
+    this.sparkSystem.updateSpeed = 0.01
+    this.sparkSystem.gravity = new Vector3(0, -3, 0)
+    this.sparkSystem.blendMode = ParticleSystem.BLENDMODE_STANDARD
+    this.sparkSystem.start()
+  }
+
+  private updateSteam(): void {
+    const view = this.currentView()
+    if (!view) return
+    let si = 0
+    for (const s of STATIONS) {
+      if (s.kind !== 'pot') continue
+      const ps = this.steamSystems[si++]
+      if (!ps) continue
+      const sv = view.slots.find((sl) => sl.id === s.id)
+      const cooking = sv?.item != null && sv.progress < 1
+      ps.emitRate = cooking ? 12 : 0
+    }
+  }
+
+  private triggerServeSpark(pos: Vector3): void {
+    if (!this.sparkSystem) return
+    this.sparkSystem.emitter = pos.clone()
+    this.sparkSystem.emitRate = 60
+    setTimeout(() => { if (this.sparkSystem) this.sparkSystem.emitRate = 0 }, 300)
+  }
+
+  private updateFloatingTexts(dt: number): void {
+    const dtSec = dt * 0.001
+    this.floatingTexts = this.floatingTexts.filter((ft) => {
+      ft.life -= dtSec
+      ft.mesh.position.y += ft.vy * dtSec
+      ft.vy -= 2 * dtSec
+      if (ft.life <= 0) {
+        ft.mesh.dispose()
+        return false
+      }
+      return true
+    })
+  }
+
+  private triggerScoreFloat(pos: Vector3, text: string): void {
+    const scene = this.ctx.scene
+    const plane = MeshBuilder.CreatePlane(`float-${Date.now()}`, { width: 2, height: 0.6 }, scene)
+    plane.position = pos.add(new Vector3(0, 2.2, 0))
+    plane.billboardMode = Mesh.BILLBOARDMODE_ALL
+    const dt = new DynamicTexture(`float-tex-${Date.now()}`, { width: 256, height: 64 }, scene, false)
+    const ctx2d = dt.getContext() as CanvasRenderingContext2D
+    ctx2d.fillStyle = '#fbbf24'
+    ctx2d.font = 'bold 40px sans-serif'
+    ctx2d.textAlign = 'center'
+    ctx2d.fillText(text, 128, 48)
+    dt.update()
+    const mat = new StandardMaterial(`float-mat-${Date.now()}`, scene)
+    mat.diffuseTexture = dt
+    mat.emissiveColor = new Color3(1, 0.85, 0.2)
+    mat.disableLighting = true
+    mat.backFaceCulling = false
+    plane.material = mat
+    this.floatingTexts.push({ mesh: plane, life: 1.2, vy: 1.5 })
+  }
+
+  private updateCamera(): void {
+    let cx = this.state.x
+    let cz = this.state.z
+    let count = 1
+    for (const [, a] of this.peerAvatars) {
+      cx += a.root.position.x
+      cz += a.root.position.z
+      count++
+    }
+    cx /= count
+    cz /= count
+    const t = this.camera.target
+    const lerp = 0.03
+    t.x += (cx - t.x) * lerp
+    t.z += (cz - t.z) * lerp
+  }
+
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
@@ -453,16 +841,25 @@ class OvercookedScene implements GameModule {
     this.flow.dispose()
     this.snapSender?.stop()
     this.snapReceiver?.dispose()
-    this.selfMesh?.dispose()
-    for (const m of this.peerMeshes.values()) m.dispose()
-    this.peerMeshes.clear()
+    this.selfAvatar?.root.dispose(false, true)
+    for (const a of this.peerAvatars.values()) a.root.dispose(false, true)
+    this.peerAvatars.clear()
     for (const m of this.handMeshes.values()) m.dispose()
     this.handMeshes.clear()
     for (const m of this.slotMeshes.values()) m.dispose()
     this.slotMeshes.clear()
+    for (const ft of this.floatingTexts) ft.mesh.dispose()
+    this.floatingTexts = []
     this.hud.dispose()
     this.banner.dispose()
     this.ordersPanel.dispose()
+    this.recipePanel.dispose()
+    for (const m of this.decorations) m.dispose()
+    this.decorations = []
+    for (const ps of this.steamSystems) ps.dispose()
+    this.steamSystems = []
+    this.sparkSystem?.dispose()
+    this.sparkSystem = null
   }
 }
 

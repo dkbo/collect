@@ -1,26 +1,24 @@
-import { useEffect, useState } from 'react'
-import { Check, Copy, Crown, Gamepad2, LogOut, Send, Swords, Users, Wifi } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, Copy, Crown, Gamepad2, LogOut, Maximize2, Minimize2, Send, Swords, Users, Wifi } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRoomStore } from '@/store/useRoomStore'
 import { useNetStore } from '@/store/useNetStore'
-import { MAX_PLAYERS, type GameType } from '@/core/room'
+import { useFullscreen } from '@/lib/useFullscreen'
+import { MAX_PLAYERS } from '@/core/room'
+import { getGameMeta } from '@/babylon/games/catalog'
 import BabylonCanvas from './BabylonCanvas'
 
-/** 對戰遊戲清單（後續擴充於此登記） */
-const GAMES: { id: GameType; label: string; desc: string }[] = [
-  { id: 'tank', label: '坦克對戰', desc: 'Babylon.js 2.5D・移動 + 射擊 + HP' },
-  { id: 'race', label: '極速賽車', desc: '環道 3 圈衝線・WASD / 方向鍵駕駛' },
-  { id: 'bomber', label: '炸彈超人', desc: '放彈炸箱拼生存・空白鍵放炸彈' },
-  { id: 'overcooked', label: '廚房快手', desc: '合作做菜拼出餐・E / 空白鍵互動' },
-]
-
-/** 房間：房號分享、玩家列表、房主選遊戲/開局、離開 */
+/** 房間：房號分享、玩家列表、開局/等待、離開（遊戲於建房時鎖定） */
 export function Room() {
-  const { roomId, room, players, selfId, leave, selectGame, startGame } = useRoomStore()
+  const { roomId, room, players, selfId, leave, startGame } = useRoomStore()
   const isHost = useRoomStore((s) => s.isHost())
   const { status, openPeers, log, connect, disconnect, ping } = useNetStore()
   const transport = useNetStore((s) => s.transport)
   const [copied, setCopied] = useState(false)
+
+  // 全螢幕：原生 API 不可用（iPhone Safari）時自動 fallback 成 CSS 偽全螢幕
+  const screenRef = useRef<HTMLDivElement>(null)
+  const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef)
 
   const isPlaying = room?.status === 'playing'
 
@@ -99,34 +97,23 @@ export function Room() {
         </ul>
       </div>
 
-      {/* 遊戲選擇 */}
+      {/* 遊戲（建房時鎖定，唯讀顯示） */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
           <Gamepad2 className="size-4 text-purple-400" aria-hidden="true" />
-          選擇遊戲
+          遊戲
         </div>
-        <div className="space-y-2">
-          {GAMES.map((g) => {
-            const active = room?.gameType === g.id
-            return (
-              <button
-                key={g.id}
-                onClick={() => isHost && void selectGame(g.id)}
-                disabled={!isHost}
-                className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
-                  active
-                    ? 'border-indigo-500 bg-indigo-500/10'
-                    : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
-                } ${isHost ? 'cursor-pointer' : 'cursor-default'}`}
-                data-testid={`battle-game-${g.id}`}
-              >
-                <div className="text-sm font-bold text-slate-100">{g.label}</div>
-                <div className="text-xs text-slate-400">{g.desc}</div>
-              </button>
-            )
-          })}
-        </div>
-        {!isHost && <p className="mt-3 text-xs text-slate-500">由房主選擇遊戲</p>}
+        {room && (
+          <div
+            className="rounded-xl border border-indigo-500/60 bg-indigo-500/10 px-4 py-3"
+            data-testid={`battle-game-${room.gameType}`}
+          >
+            <div className="text-sm font-bold text-slate-100">
+              {getGameMeta(room.gameType)?.label ?? room.gameType}
+            </div>
+            <div className="text-xs text-slate-400">{getGameMeta(room.gameType)?.desc}</div>
+          </div>
+        )}
       </div>
 
       {/* 開局 / 等待 */}
@@ -159,17 +146,37 @@ export function Room() {
           </div>
 
           {transport && selfId && (
-            <BabylonCanvas
-              gameType={room?.gameType ?? 'tank'}
-              net={transport}
-              selfId={selfId}
-              role={isHost ? 'host' : 'guest'}
-              players={players.map((p) => ({ id: p.id, name: p.name }))}
-            />
+            <div
+              ref={screenRef}
+              className={
+                isFullscreen
+                  ? 'fixed inset-0 z-50 w-screen h-dvh bg-black'
+                  : 'relative w-full overflow-hidden rounded-xl h-[65dvh] sm:h-auto sm:aspect-video'
+              }
+            >
+              <BabylonCanvas
+                gameType={room?.gameType ?? 'tank'}
+                net={transport}
+                selfId={selfId}
+                role={isHost ? 'host' : 'guest'}
+                players={players.map((p) => ({ id: p.id, name: p.name }))}
+              />
+              {/* 浮動全螢幕鈕（safe-area 感知，避開瀏海/圓角） */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="absolute z-10 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))]"
+                onClick={toggleFullscreen}
+                aria-label="切換全螢幕"
+                data-testid="battle-fullscreen-btn"
+              >
+                {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+              </Button>
+            </div>
           )}
 
           <p className="text-xs text-indigo-300/70">
-            倒數結束後以 WASD / 方向鍵移動你的方塊（先點一下畫面取得焦點）；其他玩家的方塊即時同步。
+            倒數結束後操作：電腦用 WASD / 方向鍵（先點一下畫面取得焦點），手機用畫面左下虛擬搖桿與右下動作鈕；其他玩家即時同步。
           </p>
 
           <ul

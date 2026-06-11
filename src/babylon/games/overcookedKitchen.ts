@@ -13,6 +13,26 @@ export interface Item {
   ing: Ing
 }
 
+export type RecipeStepType = 'chop' | 'cook' | 'combine'
+export interface RecipeStep {
+  type: RecipeStepType
+  ing?: Ing
+  ings?: Ing[]
+}
+export interface Recipe {
+  id: string
+  name: string
+  steps: RecipeStep[]
+  score: number
+}
+
+export const RECIPES: Recipe[] = [
+  { id: 'veg-soup', name: '蔬菜湯', steps: [{ type: 'chop', ing: 'v' }, { type: 'cook', ing: 'v' }], score: 20 },
+  { id: 'meat-soup', name: '肉湯', steps: [{ type: 'chop', ing: 'm' }, { type: 'cook', ing: 'm' }], score: 20 },
+  { id: 'combo-soup', name: '蔬菜肉湯', steps: [{ type: 'chop', ing: 'v' }, { type: 'chop', ing: 'm' }, { type: 'combine', ings: ['v', 'm'] }, { type: 'cook', ing: 'v' }], score: 40 },
+  { id: 'meat-plate', name: '烤肉拼盤', steps: [{ type: 'chop', ing: 'm' }, { type: 'cook', ing: 'm' }, { type: 'combine', ings: ['m', 'v'] }], score: 35 },
+]
+
 export type StationKind = 'crate' | 'board' | 'pot' | 'serve' | 'counter'
 export interface StationDef {
   id: string
@@ -65,6 +85,7 @@ export interface SlotState {
 
 export interface Order {
   id: number
+  recipeId: string
   ing: Ing
   expiresAt: number
 }
@@ -211,9 +232,11 @@ export const tickKitchen = (k: Kitchen, now: number, rand: () => number): boolea
 
   // 補單
   if (now >= k.nextOrderAt && k.orders.length < MAX_ORDERS) {
+    const recipe = RECIPES[Math.floor(rand() * RECIPES.length)]
     k.orders.push({
       id: k.nextOrderId++,
-      ing: rand() < 0.5 ? 'v' : 'm',
+      recipeId: recipe.id,
+      ing: recipe.steps[0].ing ?? 'v',
       expiresAt: now + ORDER_LIFE_MS,
     })
     k.nextOrderAt = now + ORDER_EVERY_MS
@@ -234,7 +257,7 @@ export interface SlotView {
 export interface KitchenView {
   slots: SlotView[]
   hands: Record<string, Item | null>
-  orders: { ing: Ing; remainMs: number }[]
+  orders: { recipeId: string; ing: Ing; remainMs: number }[]
   score: number
   delivered: number
   remainMs: number
@@ -251,7 +274,7 @@ export const buildView = (k: Kitchen, now: number): KitchenView => ({
     return { id: s.id, item: slot.item, progress }
   }),
   hands: { ...k.hands },
-  orders: k.orders.map((o) => ({ ing: o.ing, remainMs: Math.max(0, o.expiresAt - now) })),
+  orders: k.orders.map((o) => ({ recipeId: o.recipeId, ing: o.ing, remainMs: Math.max(0, o.expiresAt - now) })),
   score: k.score,
   delivered: k.delivered,
   remainMs: Math.max(0, k.roundEndAt - now),

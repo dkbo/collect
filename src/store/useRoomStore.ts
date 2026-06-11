@@ -40,7 +40,7 @@ interface RoomStore {
   notice: string | null
 
   isHost: () => boolean
-  create: (name: string) => Promise<void>
+  create: (name: string, gameType?: GameType) => Promise<void>
   join: (roomId: string, name: string) => Promise<void>
   leave: () => Promise<void>
   selectGame: (gameType: GameType) => Promise<void>
@@ -94,10 +94,10 @@ export const useRoomStore = create<RoomStore>((set, get) => {
       return !!selfId && room?.hostId === selfId
     },
 
-    create: async (name) => {
+    create: async (name, gameType) => {
       set({ busy: true, error: null, notice: null })
       try {
-        const { roomId, selfId } = await createRoom(name)
+        const { roomId, selfId } = await createRoom(name, gameType)
         set({ roomId, selfId, busy: false })
         startSubs(roomId)
       } catch (err) {
