@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// 多人對戰房間 Security Rules（Phase 1 控制平面）
+// 部署：Firebase Console → Firestore → Rules，或 `firebase deploy --only firestore:rules`
+// 原則：須匿名登入；房間任何登入者可讀（憑房號加入）；房間文件僅房主可改/刪；
+//      玩家文件僅本人可寫（playerId == 自己的 uid）。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /rooms/{roomId} {
+      // 已登入者皆可讀（需要讀房間才能憑房號加入）
+      allow read: if request.auth != null;
+
+      // 建房者必須把自己設為 hostId
+      allow create: if request.auth != null
+                    && request.resource.data.hostId == request.auth.uid;
+
+      // 僅房主可更新（改 gameType / status）或刪除房間
+      allow update, delete: if request.auth != null
+                            && resource.data.hostId == request.auth.uid;
+
+      match /players/{playerId} {
+        // 房內成員列表，已登入者可讀
+        allow read: if request.auth != null;
+
+        // 玩家僅能建立/修改/刪除「自己」那筆（playerId 必須等於自己的 uid）
+        allow create, update, delete: if request.auth != null
+                                      && playerId == request.auth.uid;
+      }
+
+      // WebRTC signaling：點對點傳遞 offer/answer/ice
+      match /signals/{signalId} {
+        // 僅收訊端可讀/刪除寄給自己的 signal（搭配 where('to','==',uid) 查詢）
+        allow read, delete: if request.auth != null
+                            && resource.data.to == request.auth.uid;
+        // 寄件者必須把 from 設為自己
+        allow create: if request.auth != null
+                      && request.resource.data.from == request.auth.uid;
+      }
+    }
+  }
+}

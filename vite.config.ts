@@ -33,6 +33,14 @@ export default defineConfig({
           if (id.includes('lucide-react') || id.includes('lucide')) {
             return 'vendor-lucide'
           }
+          // firebase 體積大且僅 /battle（lazy）使用，獨立成 chunk 以免進初始載入
+          if (id.includes('/firebase/') || id.includes('@firebase')) {
+            return 'vendor-firebase'
+          }
+          // Babylon.js 體積大且僅 /battle（lazy）使用，獨立成 chunk
+          if (id.includes('@babylonjs')) {
+            return 'vendor-babylon'
+          }
           if (
             id.includes('react') ||
             id.includes('scheduler') ||

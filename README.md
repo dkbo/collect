@@ -125,3 +125,36 @@ pnpm dev   # 開 /#/candy-crush 驗收
 - Bridge 提供 `DEBUG_SET_BOARD` / `DEBUG_GET_BOARD` / `DEBUG_SET_STATE` 指令，供 Playwright 以確定性盤面驗證消除/特殊糖/關卡流程
 - 音效（`assets/sfx/*.wav`）由 `tools/gen_sfx.py` 程式合成（自製無版權），改音色重跑該腳本即可；
   React 殼 🔊 按鈕經 `SET_MUTED` 指令靜音（偏好存 localStorage）
+
+## 多人對戰頁（/battle）開發流程
+
+`/battle` 為 1~4 人即時對戰平台，與既有 Godot 遊戲互不相關。
+架構分層見 `plan/multiplayer_battle_page_babylon_webrtc_firebase.md`：
+Firebase = 控制平面、WebRTC = 傳輸層、Babylon.js = 表現層（在 React JS context 內直跑，**不走** iframe/postMessage）。
+
+目前進度：**Phase 1（控制平面）+ Phase 2（WebRTC 傳輸層）**。Babylon 引擎（Phase 3+）尚未接入。
+
+- 控制平面：`src/core/firebase/`（匿名登入 + Firestore client）、`src/core/room/`（房間 CRUD + 訂閱）
+- 傳輸層：`src/core/room/signaling.ts`（Firestore signaling）、`src/core/webrtc/`（full-mesh DataChannel → `NetTransport`）
+- 狀態：`src/store/useRoomStore.ts`（房間）、`src/store/useNetStore.ts`（連線 + ping demo）；UI：`src/pages/Battle/`
+- 資料模型：`rooms/{roomId}` + `rooms/{roomId}/players/{playerId}` + `rooms/{roomId}/signals/{id}`（playerId = 匿名 uid）
+- 連線方式：每對 peer 由 uid 較小者發 offer（防 glare）；negotiated DataChannel（id0 reliable / id1 unreliable）；STUN 無 TURN（對稱 NAT 可能連不上）
+- 驗證：房主「開始對戰」後各端建立 mesh，房間面板可按 **Ping** 測往返 RTT（多分頁開同房號驗證）
+
+### Firebase 設定（首次使用）
+
+```bash
+# 1. Firebase Console 建立專案，啟用 Authentication → Anonymous、建立 Firestore Database
+# 2. 部署安全規則（內容見專案根 firestore.rules）
+#    Console → Firestore → Rules 貼上，或 firebase deploy --only firestore:rules
+# 3. 複製設定範本並填入專案值（.env.local 已被 .gitignore 忽略）
+cp .env.example .env.local   # 填入 VITE_FIREBASE_*
+# 4. 啟動，開 /#/battle
+pnpm dev
+```
+
+注意事項：
+
+- `.env.local` 未填或缺 `VITE_FIREBASE_API_KEY` 時，`/battle` 顯示「尚未設定 Firebase」提示而非崩潰
+- Web App config 會打包進前端屬公開資訊，存取控管一律靠 `firestore.rules`（務必先部署 Rules 並啟用 Anonymous 登入）
+- firebase SDK 體積大，已於 `vite.config.ts` 拆為獨立 `vendor-firebase` chunk，僅隨 lazy 的 `/battle` 載入

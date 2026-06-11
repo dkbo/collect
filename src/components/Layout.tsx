@@ -21,6 +21,7 @@ const NAV_ENTRIES: NavEntry[] = [
       { to: '/rpgroom', label: '遊戲室', end: false, testId: 'nav-rpgroom' },
       { to: '/godot-game', label: 'Godot遊戲', end: false, testId: 'nav-godot-game' },
       { to: '/candy-crush', label: '糖果消消樂', end: false, testId: 'nav-candy-crush' },
+      { to: '/battle', label: '多人對戰', end: false, testId: 'nav-battle' },
     ],
   },
   {
@@ -91,6 +92,10 @@ export function Layout() {
       title = "糖果消消樂 | DKBO's Collect"
       description = "以 Godot 4 打造的 match-3 三消遊戲（Sweet Crush），8×8 盤面、6 色糖果、特殊道具與關卡制，透過 iframe 嵌入與 React HUD 整合。"
       keywords = "糖果消消樂, 三消遊戲, match-3, Godot, Sweet Crush, 網頁遊戲"
+    } else if (path.startsWith('/battle')) {
+      title = "多人對戰 | DKBO's Collect"
+      description = "1~4 人即時多人對戰平台。Firebase 管理房間與配對，WebRTC 點對點傳輸，Babylon.js 渲染戰場，部署於 GitHub Pages。"
+      keywords = "多人對戰, WebRTC, Firebase, Babylon.js, 即時遊戲, P2P, 線上對戰"
     } else if (path.startsWith('/search')) {
       title = "外部查詢 | DKBO's Collect"
       description = "整合外部 API 查詢工具，實作資料檢索、防抖（Debounce）處理與即時搜尋建議。"

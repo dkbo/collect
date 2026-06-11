@@ -12,6 +12,7 @@ const TodoList = lazy(() => import('@/pages/Todos'))
 const DirectionsPage = lazy(() => import('@/pages/Directions'))
 
 const CandyCrush = lazy(() => import('@/pages/CandyCrush'))
+const Battle = lazy(() => import('@/pages/Battle'))
 const MapDeveloper = lazy(() => import('@/pages/MapDeveloper'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -44,6 +45,10 @@ const router = createHashRouter([
       {
         path: 'candy-crush',
         element: <CandyCrush />,
+      },
+      {
+        path: 'battle',
+        element: <Battle />,
       },
       {
         path: 'search',
