@@ -79,7 +79,7 @@ const SPAWNS: ReadonlyArray<readonly [number, number]> = [
 
 const ING_NAME: Record<Ing, string> = { v: '蔬菜', m: '肉' }
 const itemName = (it: Item): string =>
-  it.kind === 'raw' ? `${ING_NAME[it.ing]}（生）` : it.kind === 'chop' ? `${ING_NAME[it.ing]}（已切）` : `${ING_NAME[it.ing]}湯`
+  it.kind === 'raw' ? `${ING_NAME[it.ing]}（生）` : it.kind === 'chop' ? `${ING_NAME[it.ing]}（已切）` : it.kind === 'burnt' ? `${ING_NAME[it.ing]}（焦了）` : `${ING_NAME[it.ing]}湯`
 
 interface Avatar {
   root: Mesh
@@ -146,6 +146,7 @@ class OvercookedScene implements GameModule {
   }
 
   private itemColor(it: Item): Color3 {
+    if (it.kind === 'burnt') return new Color3(0.2, 0.18, 0.15)
     if (it.kind === 'soup') return it.ing === 'v' ? new Color3(0.3, 0.62, 0.95) : new Color3(0.95, 0.6, 0.2)
     const base = it.ing === 'v' ? new Color3(0.2, 0.7, 0.3) : new Color3(0.85, 0.28, 0.28)
     return it.kind === 'chop' ? Color3.Lerp(base, Color3.White(), 0.4) : base

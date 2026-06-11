@@ -7,7 +7,7 @@
  */
 
 export type Ing = 'v' | 'm' // 蔬菜 / 肉
-export type ItemKind = 'raw' | 'chop' | 'soup'
+export type ItemKind = 'raw' | 'chop' | 'soup' | 'burnt'
 export interface Item {
   kind: ItemKind
   ing: Ing
@@ -105,6 +105,7 @@ export interface Kitchen {
 export const ROUND_MS = 120_000
 export const CHOP_MS = 1500
 export const COOK_MS = 3000
+export const OVERCOOK_MS = 5000
 export const ORDER_LIFE_MS = 40_000
 export const ORDER_EVERY_MS = 8000
 export const MAX_ORDERS = 3
@@ -187,7 +188,7 @@ export const applyUse = (k: Kitchen, playerId: string, stationId: string, now: n
       k.hands[playerId] = null
       return true
     }
-    if (hand === null && slot.item?.kind === 'soup' && isReady(slot, now)) {
+    if (hand === null && (slot.item?.kind === 'soup' || slot.item?.kind === 'burnt') && isReady(slot, now)) {
       k.hands[playerId] = slot.item
       slot.item = null
       return true
@@ -214,12 +215,17 @@ export const applyUse = (k: Kitchen, playerId: string, stationId: string, now: n
  * 回傳是否回合結束（時間到）。rand 由呼叫端注入（host 用 Math.random）。
  */
 export const tickKitchen = (k: Kitchen, now: number, rand: () => number): boolean => {
-  // 加工完成：board raw→chop、pot chop→soup
+  // 加工完成：board raw→chop、pot chop→soup、pot soup→burnt
   for (const s of STATIONS) {
     const slot = k.slots[s.id]
     if (!slot?.item || slot.busyUntil > now) continue
     if (s.kind === 'board' && slot.item.kind === 'raw') slot.item = { kind: 'chop', ing: slot.item.ing }
-    else if (s.kind === 'pot' && slot.item.kind === 'chop') slot.item = { kind: 'soup', ing: slot.item.ing }
+    else if (s.kind === 'pot' && slot.item.kind === 'chop') {
+      slot.item = { kind: 'soup', ing: slot.item.ing }
+      slot.busyUntil = now + OVERCOOK_MS
+    } else if (s.kind === 'pot' && slot.item.kind === 'soup') {
+      slot.item = { kind: 'burnt', ing: slot.item.ing }
+    }
   }
 
   // 訂單逾期
