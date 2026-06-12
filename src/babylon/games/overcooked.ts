@@ -13,7 +13,8 @@ import {
 } from '@babylonjs/core'
 import type { GameContext, GameModule } from '@/babylon/types'
 import type { GameNetMessage } from '@/core/webrtc'
-import { createTextPanel, type TextPanel } from '@/babylon/hud'
+import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
 import {
   createFixedTicker,
   createGameFlow,
@@ -115,6 +116,8 @@ class OvercookedScene implements GameModule {
   private state: PlayerState = { x: 0, z: 0 }
   private lastUse = 0
   private resultElapsed = 0
+  /** 上一幀 view（diff 觸發音效；host/guest 同一機制） */
+  private prevView: KitchenView | null = null
 
   private selfAvatar?: Avatar
   private peerAvatars = new Map<string, Avatar>()
@@ -364,7 +367,7 @@ class OvercookedScene implements GameModule {
 
     this.selfAvatar = this.makePlayer(ctx.selfId)
     this.hud = createTextPanel(scene, this.camera, 'hud', 5, 0.7, new Vector3(0, 2.6, 8))
-    this.banner = createTextPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+    this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
     this.ordersPanel = createTextPanel(scene, this.camera, 'orders', 3, 1.6, new Vector3(-3.4, 1.9, 8))
     this.recipePanel = createTextPanel(scene, this.camera, 'recipes', 3, 2.2, new Vector3(3.4, 1.9, 8))
 
@@ -375,6 +378,7 @@ class OvercookedScene implements GameModule {
     this.respawn()
 
     this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role })
+    attachFlowAudio(this.flow, 'overcooked', { resultSfx: () => 'round_end' })
     this.flow.onChange((s) => {
       if (s.phase === 'countdown') this.respawn()
       if (s.phase === 'playing' && ctx.role === 'host') {
@@ -449,9 +453,33 @@ class OvercookedScene implements GameModule {
     mesh.scaling.set(s, s, s)
   }
 
+  /** view diff → 音效：廚房事件不掛純邏輯層（guest 只有快照），改比對前後 view */
+  private diffViewAudio(view: KitchenView | null): void {
+    const prev = this.prevView
+    this.prevView = view
+    if (!prev || !view) return
+    if (view.delivered > prev.delivered) playSfx('serve')
+    if (view.orders.length > prev.orders.length) playSfx('order_new')
+    else if (view.orders.length < prev.orders.length && view.delivered === prev.delivered) playSfx('order_fail')
+    const prevItems = new Map(prev.slots.map((s) => [s.id, s.item?.kind ?? null]))
+    for (const sv of view.slots) {
+      const a = prevItems.get(sv.id) ?? null
+      const b = sv.item?.kind ?? null
+      if (a === b) continue
+      if (sv.id.startsWith('board') && b === 'raw') playSfx('chop')
+      else if (sv.id.startsWith('pot') && a === 'chop' && b === 'soup') playSfx('cook_done')
+      else if (sv.id.startsWith('pot') && b === 'burnt') playSfx('burnt')
+    }
+    const hadItem = prev.hands[this.ctx.selfId] != null
+    if (!hadItem && view.hands[this.ctx.selfId] != null) playSfx('pickup')
+  }
+
   update(deltaMs: number): void {
     const phase = this.flow.state.phase
     const view = this.currentView()
+
+    if (phase === 'playing') this.diffViewAudio(view)
+    else this.prevView = view // 非對局中（重開新局等）只同步基準，不發音
 
     // 自己
     if (this.selfAvatar) {
@@ -837,6 +865,7 @@ class OvercookedScene implements GameModule {
   dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
+    stopAllAudio()
     this.ticker.stop()
     this.own.stop()
     this.flow.dispose()

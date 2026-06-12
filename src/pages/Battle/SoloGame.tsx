@@ -34,7 +34,7 @@ export function SoloGame({ game, onExit }: SoloGameProps) {
   const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef)
 
   return (
-    <div className="max-w-lg mx-auto space-y-4" data-testid="battle-solo">
+    <div className="space-y-4" data-testid="battle-solo">
       <div className="flex items-center justify-between">
         <button
           onClick={onExit}
@@ -52,7 +52,7 @@ export function SoloGame({ game, onExit }: SoloGameProps) {
         className={
           isFullscreen
             ? 'fixed inset-0 z-50 w-screen h-dvh bg-black'
-            : 'relative aspect-video rounded-2xl overflow-hidden border border-slate-800 shadow-xl'
+            : 'relative w-full rounded-2xl overflow-hidden border border-slate-800 shadow-xl h-[75dvh] sm:h-[80dvh]'
         }
       >
         <BabylonCanvas

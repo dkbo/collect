@@ -21,9 +21,12 @@ interface BabylonCanvasProps {
  * key 對應遊戲端 e.key.toLowerCase() 後的比對值。
  */
 const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
-  tank: [],
+  tank: [{ label: '🔥', key: ' ' }],
   race: [],
-  bomber: [{ label: '💣', key: ' ' }],
+  bomber: [
+    { label: '💣', key: ' ' },
+    { label: '🧤', key: 'f' },
+  ],
   overcooked: [{ label: '✋', key: 'e' }],
 }
 

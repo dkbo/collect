@@ -19,6 +19,6 @@ export const GAME_CATALOG: GameMeta[] = [
 export const getGameMeta = (id: GameType): GameMeta | undefined =>
   GAME_CATALOG.find((g) => g.id === id)
 
-/** 封面圖路徑（public/game-covers/<id>.jpg，含 /collect/ base） */
+/** 封面圖路徑（public/game-covers/<id>.webp，含 /collect/ base） */
 export const coverUrl = (id: GameType): string =>
-  `${import.meta.env.BASE_URL}game-covers/${id}.jpg`
+  `${import.meta.env.BASE_URL}game-covers/${id}.webp`

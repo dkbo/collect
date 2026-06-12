@@ -42,7 +42,7 @@ export function Room() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-5" data-testid="battle-room">
+    <div className="space-y-5" data-testid="battle-room">
       {/* 房號 */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl text-center">
         <p className="text-xs font-semibold tracking-widest text-slate-400 mb-2">房號</p>
@@ -119,39 +119,17 @@ export function Room() {
       {/* 開局 / 等待 */}
       {isPlaying ? (
         <div
-          className="rounded-2xl border border-indigo-800/50 bg-indigo-950/30 p-5 space-y-3"
+          className="space-y-3"
           data-testid="battle-playing"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold text-indigo-200">
-              <Wifi
-                className={`size-4 ${status === 'connected' ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`}
-                aria-hidden="true"
-              />
-              {status === 'connected' ? 'P2P 已連線' : status === 'connecting' ? '連線中…' : '單人房'}
-              <span className="text-indigo-300/70 font-normal" data-testid="net-peer-count">
-                {openPeers.length} / {Math.max(players.length - 1, 0)} 對端
-              </span>
-            </div>
-            <Button
-              size="sm"
-              onClick={ping}
-              disabled={openPeers.length === 0}
-              className="h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs cursor-pointer disabled:opacity-50"
-              data-testid="net-ping-btn"
-            >
-              <Send className="size-3.5" aria-hidden="true" />
-              Ping
-            </Button>
-          </div>
-
+          {/* 遊戲畫面 — 盡量放大 */}
           {transport && selfId && (
             <div
               ref={screenRef}
               className={
                 isFullscreen
                   ? 'fixed inset-0 z-50 w-screen h-dvh bg-black'
-                  : 'relative w-full overflow-hidden rounded-xl h-[65dvh] sm:h-auto sm:aspect-video'
+                  : 'relative w-full overflow-hidden rounded-2xl border border-slate-800 shadow-xl h-[75dvh] sm:h-[80dvh]'
               }
             >
               <BabylonCanvas
@@ -161,7 +139,7 @@ export function Room() {
                 role={isHost ? 'host' : 'guest'}
                 players={players.map((p) => ({ id: p.id, name: p.name }))}
               />
-              {/* 浮動全螢幕鈕（safe-area 感知，避開瀏海/圓角） */}
+              {/* 浮動全螢幕鈕 */}
               <Button
                 variant="outline"
                 size="icon"
@@ -175,24 +153,56 @@ export function Room() {
             </div>
           )}
 
+          {/* 連線狀態 + 操作說明（橫列） */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm font-semibold text-indigo-200">
+              <Wifi
+                className={`size-4 ${status === 'connected' ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`}
+                aria-hidden="true"
+              />
+              {status === 'connected' ? 'P2P 已連線' : status === 'connecting' ? '連線中…' : '單人房'}
+              <span className="text-indigo-300/70 font-normal" data-testid="net-peer-count">
+                {openPeers.length} / {Math.max(players.length - 1, 0)} 對端
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={ping}
+                disabled={openPeers.length === 0}
+                className="h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs cursor-pointer disabled:opacity-50"
+                data-testid="net-ping-btn"
+              >
+                <Send className="size-3.5" aria-hidden="true" />
+                Ping
+              </Button>
+            </div>
+          </div>
+
           <p className="text-xs text-indigo-300/70">
-            倒數結束後操作：電腦用 WASD / 方向鍵（先點一下畫面取得焦點），手機用畫面左下虛擬搖桿與右下動作鈕；其他玩家即時同步。
+            WASD / 方向鍵操作（先點一下畫面取得焦點），手機用虛擬搖桿與動作鈕。
           </p>
 
-          <ul
-            className="max-h-40 overflow-y-auto space-y-1 font-mono text-[11px] text-indigo-100/90"
-            data-testid="net-log"
-          >
-            {log.length === 0 ? (
-              <li className="text-indigo-300/50">尚無訊息，按 Ping 測試往返延遲</li>
-            ) : (
-              log.map((entry) => (
-                <li key={entry.id} className="border-l-2 border-indigo-700/50 pl-2">
-                  {entry.text}
-                </li>
-              ))
-            )}
-          </ul>
+          {/* 網路 log（可收合） */}
+          <details className="group">
+            <summary className="text-xs text-indigo-300/50 cursor-pointer hover:text-indigo-300/80 transition-colors">
+              網路訊息 ({log.length})
+            </summary>
+            <ul
+              className="max-h-32 overflow-y-auto space-y-1 font-mono text-[11px] text-indigo-100/90 mt-2"
+              data-testid="net-log"
+            >
+              {log.length === 0 ? (
+                <li className="text-indigo-300/50">尚無訊息</li>
+              ) : (
+                log.map((entry) => (
+                  <li key={entry.id} className="border-l-2 border-indigo-700/50 pl-2">
+                    {entry.text}
+                  </li>
+                ))
+              )}
+            </ul>
+          </details>
         </div>
       ) : isHost ? (
         <Button

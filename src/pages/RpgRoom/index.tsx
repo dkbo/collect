@@ -15,9 +15,9 @@ import {
   Minimize2
 } from 'lucide-react'
 import { useRpgStore } from '@/store/useRpgStore'
-import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.png'
-import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.png'
-import bgImg from '@/assets/images/map-editor/bg.jpg'
+import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.webp'
+import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.webp'
+import bgImg from '@/assets/images/map-editor/bg.webp'
 import { mapsJson } from '@/pages/RpgRoom/data'
 import { aabbIntersect } from '@/pages/RpgRoom/types'
 import { renderMessage } from '@/pages/RpgRoom/lib/messageRenderer'
@@ -215,7 +215,7 @@ export function RpgRoom() {
       const charImg = new Image()
       charImg.onload = checkResolve
       charImg.onerror = checkResolve
-      charImg.src = import.meta.env.BASE_URL + 'rpg/man.png'
+      charImg.src = import.meta.env.BASE_URL + 'rpg/man.webp'
       playerImageRef.current = charImg
 
       // 2. Spritesheet tile 1

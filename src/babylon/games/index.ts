@@ -4,13 +4,13 @@ import { createPlaceholderScene } from './placeholderScene'
 import { createRaceScene } from './race'
 import { createBomberScene } from './bomber'
 import { createOvercookedScene } from './overcooked'
+import { createTankScene } from './tank'
 
 /**
  * gameType → GameModule 工廠。
- * tank 暫指向佔位場景（可移動方塊 demo），實際坦克玩法後續接入。
  */
 const REGISTRY: Record<GameType, GameFactory> = {
-  tank: createPlaceholderScene,
+  tank: createTankScene,
   race: createRaceScene,
   bomber: createBomberScene,
   overcooked: createOvercookedScene,

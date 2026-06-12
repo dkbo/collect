@@ -24,10 +24,10 @@ import type { MapNpc } from '@/pages/RpgRoom/types'
 import { mapsJson } from '@/pages/RpgRoom/data'
 
 // Import assets using absolute paths / Vite resolving
-import bgImg from '@/assets/images/map-editor/bg.jpg'
-import manImg from '@/assets/images/map-editor/man.png'
-import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.png'
-import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.png'
+import bgImg from '@/assets/images/map-editor/bg.webp'
+import manImg from '@/assets/images/map-editor/man.webp'
+import tile1Img from '@/assets/images/map-editor/rpg_maker_xp.webp'
+import tile2Img from '@/assets/images/map-editor/rpg_maker_xp2.webp'
 
 const IMAGES = [manImg, tile1Img, tile2Img]
 

@@ -96,7 +96,7 @@ export function RpgSection() {
         {/* RPG Screenshot Placeholder */}
         <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 aspect-video group/img shadow-md transition-all duration-300">
           <img
-            src={`${import.meta.env.BASE_URL}rpg_pc.jpg`}
+            src={`${import.meta.env.BASE_URL}rpg_pc.webp`}
             alt="RPG Game Interface Screenshot Concept"
             className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105"
             data-testid="rpg-pc-image"
