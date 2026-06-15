@@ -256,6 +256,8 @@ class TankScene implements GameModule {
     this.walls.clear()
     for (let cy = 1; cy < GRID_H; cy += 2) {
       for (let cx = 1; cx < GRID_W; cx += 2) {
+        // 出生角（如 [1,1]）不可放牆，否則該位玩家出生即卡死在牆內
+        if (SPAWN_CORNERS.some(([sx, sy]) => sx === cx && sy === cy)) continue
         this.walls.add(cy * GRID_W + cx)
       }
     }

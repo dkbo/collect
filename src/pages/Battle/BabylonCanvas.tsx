@@ -84,6 +84,13 @@ export function BabylonCanvas({ gameType, net, selfId, role, players }: BabylonC
 
     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
 
+    // 遊戲操作鍵（空白鍵/方向鍵）在 canvas 聚焦時不可觸發頁面捲動
+    const SCROLL_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+    const blockScrollKeys = (e: KeyboardEvent) => {
+      if (SCROLL_KEYS.includes(e.key)) e.preventDefault()
+    }
+    canvas.addEventListener('keydown', blockScrollKeys)
+
     // 視角自適應：遊戲相機以 16:9 橫向構圖調校，畫面比這窄（手機直向）時拉遠
     // ArcRotateCamera 半徑，讓場景水平方向不被裁切、完整塞進可視空間。
     const DESIGN_ASPECT = 16 / 9
@@ -124,6 +131,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, players }: BabylonC
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', resize)
+      canvas.removeEventListener('keydown', blockScrollKeys)
       offMessage()
       engine.stopRenderLoop()
       game.dispose()

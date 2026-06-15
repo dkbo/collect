@@ -12,6 +12,8 @@ export const GRID_H = 11
 export const TILE_EMPTY = 0
 export const TILE_WALL = 1
 export const TILE_CRATE = 2
+/** 硬箱：要炸兩次（第一次降級為 TILE_CRATE，第二次才炸毀） */
+export const TILE_CRATE_HARD = 3
 
 /** 四個出生角（依玩家序分配） */
 export const SPAWN_CORNERS: ReadonlyArray<readonly [number, number]> = [
@@ -43,6 +45,8 @@ export const mulberry32 = (seed: number): (() => number) => {
 }
 
 const CRATE_PROBABILITY = 0.55
+/** 木箱中為硬箱（要炸兩次）的比例 */
+const HARD_CRATE_RATIO = 0.28
 
 /** 出生角淨空區：角落格 + 水平/垂直相鄰各一格 */
 const spawnClearZone = (): Set<number> => {
@@ -67,7 +71,8 @@ export const generateMap = (seed: number): Uint8Array => {
       if (cx % 2 === 1 && cy % 2 === 1) {
         map[i] = TILE_WALL
       } else if (!clear.has(i) && rand() < CRATE_PROBABILITY) {
-        map[i] = TILE_CRATE
+        // 同一條 rand 序列再抽一次決定軟/硬箱，各端決定性一致
+        map[i] = rand() < HARD_CRATE_RATIO ? TILE_CRATE_HARD : TILE_CRATE
       }
     }
   }
@@ -77,8 +82,10 @@ export const generateMap = (seed: number): Uint8Array => {
 export interface BlastResult {
   /** 火焰覆蓋格（含中心；含被炸毀的木箱格） */
   cells: Array<readonly [number, number]>
-  /** 被炸毀的木箱格 */
+  /** 被完全炸毀的軟箱格（會清除並掉道具） */
   destroyed: Array<readonly [number, number]>
+  /** 被擊中但只降級的硬箱格（硬箱 → 軟箱，不掉道具） */
+  damaged: Array<readonly [number, number]>
 }
 
 /** 計算爆炸範圍（不修改 map；炸毀木箱由呼叫端依 destroyed 套用） */
@@ -90,6 +97,7 @@ export const blastCells = (
 ): BlastResult => {
   const cells: Array<readonly [number, number]> = [[cx, cy]]
   const destroyed: Array<readonly [number, number]> = []
+  const damaged: Array<readonly [number, number]> = []
   for (const [dx, dy] of [
     [1, 0],
     [-1, 0],
@@ -103,11 +111,16 @@ export const blastCells = (
       const tile = map[cellIndex(x, y)]
       if (tile === TILE_WALL) break
       cells.push([x, y])
+      // 軟箱：炸毀並截斷；硬箱：只降級並截斷
       if (tile === TILE_CRATE) {
         destroyed.push([x, y])
         break
       }
+      if (tile === TILE_CRATE_HARD) {
+        damaged.push([x, y])
+        break
+      }
     }
   }
-  return { cells, destroyed }
+  return { cells, destroyed, damaged }
 }

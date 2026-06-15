@@ -159,13 +159,76 @@ export const createCountdownPanel = (
   }
 }
 
+/** 文字面板樣式：plain 維持原本整片半透明深色填滿；glass 為毛玻璃／立體玻璃感 */
+export type TextPanelStyle = 'plain' | 'glass'
+
+/** 毛玻璃／立體玻璃感背景：圓角矩形 + 由上而下微漸層 + 內側白色高光描邊 + 外框細線 + 柔和陰影 */
+const drawGlassBackground = (
+  c: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): void => {
+  const pad = Math.min(width, height) * 0.08
+  const x = pad
+  const y = pad
+  const w = width - pad * 2
+  const h = height - pad * 2
+  const r = Math.min(w, h) * 0.32
+
+  const roundRect = () => {
+    c.beginPath()
+    c.roundRect(x, y, w, h, r)
+  }
+
+  // 投影：柔和陰影營造浮起的立體感
+  c.save()
+  c.shadowColor = 'rgba(0,0,0,0.4)'
+  c.shadowBlur = h * 0.22
+  c.shadowOffsetY = h * 0.08
+
+  // 半透明填色 + 由上而下微漸層
+  const grad = c.createLinearGradient(0, y, 0, y + h)
+  grad.addColorStop(0, 'rgba(56,72,104,0.42)')
+  grad.addColorStop(1, 'rgba(15,23,42,0.5)')
+  roundRect()
+  c.fillStyle = grad
+  c.fill()
+  c.restore()
+
+  // 外框細線
+  roundRect()
+  c.strokeStyle = 'rgba(148,163,184,0.5)'
+  c.lineWidth = Math.max(1, h * 0.018)
+  c.stroke()
+
+  // 內側白色低 alpha 高光描邊（上半弧較亮，模擬玻璃反光）
+  c.save()
+  roundRect()
+  c.clip()
+  c.beginPath()
+  c.roundRect(x + h * 0.04, y + h * 0.04, w - h * 0.08, h - h * 0.08, r * 0.9)
+  c.strokeStyle = 'rgba(255,255,255,0.22)'
+  c.lineWidth = Math.max(1, h * 0.03)
+  c.stroke()
+  // 頂部高光帶
+  const hi = c.createLinearGradient(0, y, 0, y + h * 0.5)
+  hi.addColorStop(0, 'rgba(255,255,255,0.18)')
+  hi.addColorStop(1, 'rgba(255,255,255,0)')
+  c.beginPath()
+  c.roundRect(x, y, w, h * 0.5, r)
+  c.fillStyle = hi
+  c.fill()
+  c.restore()
+}
+
 export const createTextPanel = (
   scene: Scene,
   camera: Camera,
   name: string,
   w: number,
   h: number,
-  pos: Vector3
+  pos: Vector3,
+  style: TextPanelStyle = 'plain'
 ): TextPanel => {
   const plane = MeshBuilder.CreatePlane(
     name,
@@ -207,12 +270,26 @@ export const createTextPanel = (
       const fontPx = px * scale
 
       ctx2d.font = `bold ${fontPx}px sans-serif`
-      ctx2d.fillStyle = 'rgba(15,23,42,0.55)'
-      if (lines.length) ctx2d.fillRect(0, 0, width, height)
+      if (lines.length) {
+        if (style === 'glass') drawGlassBackground(ctx2d, width, height)
+        else {
+          ctx2d.fillStyle = 'rgba(15,23,42,0.55)'
+          ctx2d.fillRect(0, 0, width, height)
+        }
+      }
+      // 玻璃樣式文字加柔和陰影，提升在透明背景上的可讀性
+      if (style === 'glass') {
+        ctx2d.shadowColor = 'rgba(0,0,0,0.45)'
+        ctx2d.shadowBlur = fontPx * 0.16
+        ctx2d.shadowOffsetY = fontPx * 0.04
+      }
       ctx2d.fillStyle = '#f1f5f9'
       const lineH = fontPx * 1.3
       const y0 = height / 2 - ((lines.length - 1) * lineH) / 2
       lines.forEach((line, i) => ctx2d.fillText(line, width / 2, y0 + i * lineH))
+      ctx2d.shadowColor = 'transparent'
+      ctx2d.shadowBlur = 0
+      ctx2d.shadowOffsetY = 0
       tex.update()
       plane.setEnabled(lines.length > 0)
     },
