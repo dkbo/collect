@@ -1,6 +1,8 @@
 ---
 name: img-to-webp
 description: 使用 Google libwebp CLI (`cwebp`) 將 JPG/PNG 圖片批次轉換為 WebP 格式。當需要壓縮圖片、批次轉檔、或將專案圖片統一為 WebP 時使用。
+model: sonnet
+effort: low
 ---
 
 # JPG/PNG → WebP 轉換 (CLI)

@@ -1,3 +1,12 @@
+---
+name: architecture-review
+description: 架構審查（唯讀）：模組相依、耦合、狀態流、可擴展性。Use when 要審系統設計或大改前評估影響面。forked 到 arch-security-reviewer（opus high）執行。
+context: fork
+agent: arch-security-reviewer
+effort: high
+background: false
+---
+
 # Skill: architecture-review
 
 ## Responsibilities

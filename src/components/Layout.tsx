@@ -45,10 +45,13 @@ export function Layout() {
   const navRef = useRef<HTMLElement>(null)
   const location = useLocation()
 
-  // Close dropdown on route change
-  useEffect(() => {
+  // Close dropdown on route change：在 render 期間比對上一次的 pathname 並重設，
+  // 而不是在 effect 裡 setState（react-hooks/set-state-in-effect 會多一次 cascading render）
+  const [dropdownPath, setDropdownPath] = useState(location.pathname)
+  if (dropdownPath !== location.pathname) {
+    setDropdownPath(location.pathname)
     setOpenDropdown(null)
-  }, [location.pathname])
+  }
 
   // Close dropdown on outside click
   useEffect(() => {

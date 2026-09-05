@@ -7,6 +7,8 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   base: '/collect/',
+  // 5173 被占用時直接報錯，不要悄悄跳 5174（驗證腳本會打錯位址）
+  server: { strictPort: true },
   build: {
     outDir: 'docs',
     emptyOutDir: true,

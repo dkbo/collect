@@ -36,3 +36,6 @@ dist-ssr
 godot-src/.godot/
 godot-candy-src/.godot/
 public/godot/maps/
+
+# Claude Code hooks 狀態
+.claude/.hook-state/

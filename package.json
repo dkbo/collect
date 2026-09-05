@@ -12,7 +12,8 @@
     "candy:export": "godot --headless --path godot-candy-src --import && godot --headless --path godot-candy-src --export-release Web",
     "lint": "eslint .",
     "preview": "vite preview",
-    "scan": "npx repomix --output-show-line-numbers"
+    "scan": "npx repomix --output-show-line-numbers",
+    "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
     "@babylonjs/core": "^9.11.0",

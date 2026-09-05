@@ -1,7 +1,8 @@
 ---
 name: arch-security-reviewer
 description: 架構審查與安全審計（唯讀）。需要審查系統設計、模組相依、可擴展性，或檢查 Firebase 規則、WebRTC signaling、注入/密鑰/權限等安全問題時使用。
-model: inherit
+model: opus
+effort: high
 tools: Read, Grep, Glob, Bash
 ---
 

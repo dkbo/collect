@@ -1,3 +1,10 @@
+---
+name: test-generation
+description: 為本專案撰寫測試（單元／整合／邊界案例，目標 80%+ 覆蓋）。Use when asked to write tests, add coverage, or do TDD.
+model: sonnet
+effort: high
+---
+
 # Skill: test-generation
 
 ## Responsibilities

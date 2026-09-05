@@ -1,6 +1,8 @@
 ---
 name: rpg-scene-image-to-json
 description: 將 2D 俯視場景圖（截圖/AI 繪製稿/手繪 mockup）轉換成 RpgRoom 地圖 JSON。當使用者提供場景圖片並要求轉成遊戲室地圖時使用，例如「根據 [圖片] 製作 [場景名]，出入口設置在 [場景2名]」。不符合格式的圖片防呆拒絕執行。
+model: sonnet
+effort: medium
 ---
 
 # rpg-scene-image-to-json

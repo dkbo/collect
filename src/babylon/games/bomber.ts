@@ -1799,8 +1799,8 @@ class BomberScene implements GameModule {
       const moveToward = (tcx: number, tcy: number): void => {
         const tx = cellToWorld(tcx, GRID_W)
         const tz = cellToWorld(tcy, GRID_H)
-        let dx = tx - pos.x
-        let dz = tz - pos.z
+        const dx = tx - pos.x
+        const dz = tz - pos.z
         const len = Math.hypot(dx, dz)
         if (len < 0.001) return
         const step = Math.min(len, speed * dt)

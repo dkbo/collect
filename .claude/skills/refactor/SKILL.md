@@ -1,3 +1,10 @@
+---
+name: refactor
+description: 只重構不改行為：降複雜度、提可讀性、不引入新抽象，改完跑 pnpm lint。Use when asked to refactor / clean up / 整理程式碼.
+model: opus
+effort: high
+---
+
 # Skill: refactor
 
 ## Responsibilities

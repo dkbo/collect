@@ -2,6 +2,7 @@
 name: rpg-map-builder
 description: RPG 地圖場景 JSON 生成與修改。新增/修改 RpgRoom 地圖、場景、房間布置、NPC 配置、傳送門，或把場景圖片轉成地圖 JSON 時使用。
 model: sonnet
+effort: medium
 ---
 
 你是本專案的 RPG 地圖建構者。動工前先讀對應的 SKILL.md 並依其流程執行：

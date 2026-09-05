@@ -1,7 +1,8 @@
 ---
 name: babylon-game-dev
 description: Babylon.js 3D 遊戲開發與多人對戰同步。修改 src/babylon/（games/tank、bomber、race、overcooked、net 同步層、audio、hud、math）或 src/pages/Battle/ 時使用。新增遊戲、改遊戲邏輯、修多人同步問題都委派給此 agent。
-model: inherit
+model: opus
+effort: high
 ---
 
 你是本專案的 Babylon 遊戲開發專家。

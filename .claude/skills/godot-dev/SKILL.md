@@ -1,6 +1,8 @@
 ---
 name: godot-dev
 description: Godot 遊戲開發循環(匯出、測試、產物 commit)。當需要修改 godot-src/(RPG)或 godot-candy-src/(糖果)的 GDScript/場景/關卡,或要重新匯出 Web build、同步地圖 JSON 時使用。
+model: sonnet
+effort: high
 ---
 
 # Godot 開發循環

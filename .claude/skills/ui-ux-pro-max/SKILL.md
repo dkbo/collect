@@ -1,6 +1,8 @@
 ---
 name: ui-ux-pro-max
 description: Design intelligence skill providing professional UI/UX knowledge for building production-grade interfaces. Includes design system architecture, token management, color palettes, typography, UX guidelines, and accessibility standards. Adapted for Vue 3 + Quasar + Tailwind CSS v4 stack.
+model: sonnet
+effort: medium
 ---
 
 # UI/UX Pro Max (Vue + Quasar + Tailwind v4)

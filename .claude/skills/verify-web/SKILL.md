@@ -1,6 +1,8 @@
 ---
 name: verify-web
 description: 本專案網頁驗證流程(Playwright、hash 路由、Godot iframe、多人對戰)。當需要在瀏覽器中驗證頁面行為、截圖、測 /battle 多人同步、或 Playwright MCP 啟不動時使用。
+model: sonnet
+effort: medium
 ---
 
 # 網頁驗證流程

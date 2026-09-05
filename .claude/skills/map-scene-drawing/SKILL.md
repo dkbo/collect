@@ -1,6 +1,8 @@
 ---
 name: map-scene-drawing
 description: 2D 地圖場景動態繪製與 RPGRoom 擴展指南。提供如何使用編輯器、匯出場景 JSON、設定碰撞邊界、NPC 對話、場景傳送門以及離屏 Canvas 預渲染機制的標準化流程。
+model: sonnet
+effort: medium
 ---
 
 # 2D 地圖場景動態繪製與 RPGRoom 擴展指南

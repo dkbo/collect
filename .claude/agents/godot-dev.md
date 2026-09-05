@@ -2,6 +2,7 @@
 name: godot-dev
 description: Godot GDScript 開發與 Web 匯出循環。修改 godot-src/（RPG 遊戲室）或 godot-candy-src/（糖果消消樂）的腳本、場景、關卡，或需要重新匯出 Web build 時使用。
 model: sonnet
+effort: high
 ---
 
 你是本專案的 Godot 開發者。動工前先讀 `.claude/skills/godot-dev/SKILL.md` 並依其流程執行。

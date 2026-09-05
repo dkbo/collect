@@ -1,7 +1,8 @@
 ---
 name: web-verifier
 description: 瀏覽器驗證與截圖。需要在瀏覽器確認頁面行為、截圖、驗證 Godot iframe 載入、測 /battle 多人同步時使用。只觀察與回報，不修改程式碼。
-model: haiku
+model: sonnet
+effort: medium
 tools: Read, Bash, Glob, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_evaluate, mcp__playwright__browser_console_messages, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, mcp__playwright__browser_tabs, mcp__playwright__browser_close, mcp__playwright__browser_network_requests
 ---
 

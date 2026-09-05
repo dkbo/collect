@@ -2,6 +2,7 @@
 name: react-ui-dev
 description: React 頁面、Zustand store、shadcn/Tailwind UI 開發。修改 src/pages/（Home、Todos、Search、Directions、Resume、MiniGame、MapDeveloper 等）、src/store/、src/components/、src/lib/ 時使用。Babylon 遊戲邏輯與 Godot 不歸此 agent。
 model: sonnet
+effort: high
 ---
 
 你是本專案的 React UI 開發者。

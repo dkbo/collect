@@ -1,7 +1,8 @@
 ---
 name: build-runner
 description: 跑 build/lint/匯出等機械性指令並回報結果。需要 pnpm build、pnpm lint、godot 匯出、地圖同步、確認 docs/ 產物時使用。失敗只回報不修 code。
-model: haiku
+model: sonnet
+effort: low
 tools: Bash, Read, Glob
 ---
 

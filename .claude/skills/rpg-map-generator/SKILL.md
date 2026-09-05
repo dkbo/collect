@@ -1,6 +1,8 @@
 ---
 name: rpg-map-generator
 description: 為 RpgRoom 生成 2D RPG 地圖場景 JSON（房屋外觀、室內房間、布置場景）。當使用者要求新增/修改 RPG 地圖、場景、房間布置、NPC 配置時使用。支援「設計 [長x寬] 的 [風格] 場景，出入口接 [場景名]」參數化需求。
+model: sonnet
+effort: medium
 ---
 
 # rpg-map-generator

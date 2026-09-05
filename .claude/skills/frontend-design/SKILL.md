@@ -1,6 +1,8 @@
 ---
 name: frontend-design
 description: Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when building web components, pages, or applications. Generates creative, polished code and UI design that avoids generic AI aesthetics. Adapted for Vue 3 + Quasar + Tailwind CSS v4 stack.
+model: sonnet
+effort: high
 ---
 
 # Frontend Design Skill (Vue + Quasar + Tailwind v4)
