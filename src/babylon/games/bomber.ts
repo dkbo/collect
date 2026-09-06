@@ -18,6 +18,16 @@ import {
   createFixedTicker,
   createGameFlow,
   createOwnershipSync,
+  isArrayOf,
+  isCell,
+  isCellArray,
+  isIntIn,
+  isNum,
+  isNumIn,
+  isObj,
+  isOneOf,
+  isStr,
+  isStrArray,
   type FixedTicker,
   type GameFlow,
   type OwnershipSync,
@@ -95,6 +105,20 @@ interface RoundResult {
 }
 
 type ItemKind = 'bomb' | 'fire' | 'speed' | 'kick' | 'throw' | 'invincible'
+
+/** 合法道具種類（網路封包驗證用） */
+const ITEM_KINDS = ['bomb', 'fire', 'speed', 'kick', 'throw', 'invincible'] as const
+/** 場上實體（玩家 + bot）數量上限，作為 kills/bots 等陣列的長度上限 */
+const MAX_ENTITIES = 8
+/** 炸彈移動（踢/丟）動畫時間上限（毫秒） */
+const MAX_BOMB_MOVE_MS = 10_000
+
+/** 爆炸掉落的道具 */
+interface Drop {
+  cx: number
+  cy: number
+  kind: ItemKind
+}
 
 interface ItemInfo {
   kind: ItemKind
@@ -1247,34 +1271,109 @@ class BomberScene implements GameModule {
     else if (it.kind === 'invincible') s.invincibleUntil = performance.now() + INVINCIBLE_MS
   }
 
-  /** 收到網路訊息（含 host 本地回放）統一入口 */
+  /**
+   * 收到網路訊息（含 host 本地回放）統一入口。
+   * payload 一律先驗型別與範圍（安全審查 C2）——格座標夾在盤面內、
+   * 陣列限長、數值須為有限數；驗不過即整則丟棄，絕不 throw。
+   */
   private applyMessage(type: string, payload: unknown): void {
+    const p = payload
+    if (!isObj(p)) return
     if (type === 'seed') {
-      const p = payload as { seed: number; bots?: { id: string; name: string }[] }
-      this.bots = p.bots ?? []
+      if (!isNumIn(p.seed, 0, 0xffffffff)) return
+      this.bots = isArrayOf<{ id: string; name: string }>(
+        p.bots,
+        (b) => isObj(b) && isStr(b.id) && isStr(b.name),
+        MAX_ENTITIES
+      )
+        ? (p.bots as { id: string; name: string }[])
+        : []
       this.applySeed(p.seed)
-    } else if (type === 'bots') this.applyBotStates(payload as { states: { id: string; x: number; z: number }[] })
-    else if (type === 'bomb') this.applyBomb(payload as Parameters<BomberScene['applyBomb']>[0])
-    else if (type === 'boom') this.applyBoom(payload as Parameters<BomberScene['applyBoom']>[0])
-    else if (type === 'burn') this.killPlayers((payload as { kills: string[] }).kills)
-    else if (type === 'pickup') this.applyPickup(payload as Parameters<BomberScene['applyPickup']>[0])
-    else if (type === 'bombMove') this.applyBombMove(payload as Parameters<BomberScene['applyBombMove']>[0])
-    else if (type === 'closeWall') this.applyCloseWall(payload as Parameters<BomberScene['applyCloseWall']>[0])
+    } else if (type === 'bots') {
+      if (
+        !isArrayOf<{ id: string; x: number; z: number }>(
+          p.states,
+          (b) => isObj(b) && isStr(b.id) && isNum(b.x) && isNum(b.z),
+          MAX_ENTITIES
+        )
+      )
+        return
+      this.applyBotStates({ states: p.states as { id: string; x: number; z: number }[] })
+    } else if (type === 'bomb') {
+      if (!isStr(p.id) || !isStr(p.owner) || !isCell([p.cx, p.cy], GRID_W, GRID_H)) return
+      this.applyBomb({ id: p.id, cx: p.cx as number, cy: p.cy as number, owner: p.owner })
+    } else if (type === 'boom') {
+      if (!isStr(p.id)) return
+      if (!isCellArray(p.cells, GRID_W, GRID_H) || p.cells.length === 0) return // applyBoom 讀 cells[0]
+      if (!isCellArray(p.destroyed, GRID_W, GRID_H)) return
+      if (p.damaged !== undefined && !isCellArray(p.damaged, GRID_W, GRID_H)) return
+      if (p.itemKills !== undefined && !isCellArray(p.itemKills, GRID_W, GRID_H)) return
+      if (!isStrArray(p.kills, MAX_ENTITIES)) return
+      if (
+        p.drops !== undefined &&
+        !isArrayOf<Drop>(
+          p.drops,
+          (d) =>
+            isObj(d) &&
+            isCell([d.cx, d.cy], GRID_W, GRID_H) &&
+            isOneOf<ItemKind>(d.kind, ITEM_KINDS),
+          GRID_W * GRID_H
+        )
+      )
+        return
+      this.applyBoom({
+        id: p.id,
+        cells: p.cells,
+        destroyed: p.destroyed,
+        damaged: p.damaged as [number, number][] | undefined,
+        itemKills: p.itemKills as [number, number][] | undefined,
+        kills: p.kills,
+        drops: p.drops as Drop[] | undefined,
+      })
+    } else if (type === 'burn') {
+      if (!isStrArray(p.kills, MAX_ENTITIES)) return
+      this.killPlayers(p.kills)
+    } else if (type === 'pickup') {
+      if (!isIntIn(p.ci, 0, GRID_W * GRID_H - 1) || !isStr(p.who)) return
+      this.applyPickup({ ci: p.ci, who: p.who })
+    } else if (type === 'bombMove') {
+      if (!isStr(p.id) || !isCell([p.toCx, p.toCy], GRID_W, GRID_H)) return
+      if (!isNumIn(p.durMs, 0, MAX_BOMB_MOVE_MS) || !isNumIn(p.arc, 0, 10)) return
+      this.applyBombMove({
+        id: p.id,
+        toCx: p.toCx as number,
+        toCy: p.toCy as number,
+        durMs: p.durMs,
+        arc: p.arc,
+      })
+    } else if (type === 'closeWall') {
+      if (!isCell([p.cx, p.cy], GRID_W, GRID_H) || !isStrArray(p.kills, MAX_ENTITIES)) return
+      this.applyCloseWall({ cx: p.cx as number, cy: p.cy as number, kills: p.kills })
+    }
+  }
+
+  /** 是否為本局玩家（host 只受理已知玩家的上行請求） */
+  private isPlayer(id: string): boolean {
+    return this.ctx.players.some((pl) => pl.id === id)
   }
 
   onNetworkMessage(from: string, msg: GameNetMessage): void {
     if (msg.game !== this.gameId) return
+    // ---- guest → host 的上行請求：來源須為本局玩家，payload 驗過才交給 host 裁決 ----
     if (msg.type === 'bombReq') {
-      if (this.ctx.role !== 'host') return
-      const p = msg.payload as { cx: number; cy: number }
-      this.validateBomb(from, p.cx, p.cy)
+      if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
+      const p = msg.payload
+      if (!isObj(p) || !isCell([p.cx, p.cy], GRID_W, GRID_H)) return
+      this.validateBomb(from, p.cx as number, p.cy as number)
       return
     }
     if (msg.type === 'kickReq') {
       // guest 送踢炸彈請求：host 依目前炸彈狀態重新驗證（不信任 guest 格子，僅用方向）
-      if (this.ctx.role !== 'host') return
+      if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
       if (!this.statOf(from).kick) return
-      const p = msg.payload as { cx: number; cy: number; dx: number; dy: number }
+      const p = msg.payload
+      if (!isObj(p) || !isCell([p.cx, p.cy], GRID_W, GRID_H)) return
+      if (!isNum(p.dx) || !isNum(p.dy)) return
       let bomb: BombInfo | null = null
       for (const b of this.bombs.values()) {
         if (b.cx === p.cx && b.cy === p.cy && !b.motion) {
@@ -1287,20 +1386,22 @@ class BomberScene implements GameModule {
     }
     if (msg.type === 'throwReq') {
       // guest 送丟炸彈請求：host 依該玩家當前位置與面向驗證
-      if (this.ctx.role !== 'host') return
+      if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
       if (!this.statOf(from).throw) return
-      const p = msg.payload as { dx: number; dy: number }
+      const p = msg.payload
+      if (!isObj(p) || !isNum(p.dx) || !isNum(p.dy)) return
       this.validateThrow(from, Math.sign(p.dx), Math.sign(p.dy))
       return
     }
     if (msg.type === 'restartReq') {
       // 僅在結算中、或請求者已陣亡時受理，避免對局中誤觸重開
-      if (this.ctx.role !== 'host') return
+      if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
       if (this.flow.state.phase === 'result' || !this.isAlive(from)) this.hostAdvance()
       return
     }
     // seed/bomb/boom 僅信任 host 廣播；guest 之間不互發這些訊息
     if (this.ctx.role === 'host') return
+    if (from !== this.ctx.hostId) return
     this.applyMessage(msg.type, msg.payload)
   }
 
@@ -1448,7 +1549,7 @@ class BomberScene implements GameModule {
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
 
-    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role })
+    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
     attachFlowAudio(this.flow, 'bomber', {
       resultSfx: (r) => ((r as RoundResult | undefined)?.standings?.[0]?.id === ctx.selfId ? 'win' : 'lose'),
     })

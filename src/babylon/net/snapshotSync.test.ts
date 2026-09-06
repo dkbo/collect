@@ -55,6 +55,21 @@ describe('createSnapshotBuffer', () => {
     expect(buf.latest()).toBe(500)
   })
 
+  it('tracks seq per sender, so one peer cannot poison another sender stream', () => {
+    const buf = createSnapshotBuffer<number>(100)
+    buf.push(999999, 1, 'attacker') // 攻擊者送出超大 seq
+    buf.push(1, 42, 'host') // host 的正常 seq 仍須被接受
+    expect(buf.latest()).toBe(42)
+    buf.push(2, 43, 'host')
+    expect(buf.latest()).toBe(43)
+  })
+
+  it('rejects a non-finite seq', () => {
+    const buf = createSnapshotBuffer<number>(100)
+    buf.push(Number.NaN, 7)
+    expect(buf.latest()).toBeNull()
+  })
+
   it('clamps to the newest sample once the playback point catches up to it', () => {
     vi.useFakeTimers()
     const buf = createSnapshotBuffer<number>(100)
@@ -115,7 +130,7 @@ describe('createHostSnapshot', () => {
 describe('createSnapshotReceiver', () => {
   it('feeds matching snap messages into the buffer', () => {
     const { transport, emit } = createFakeTransport()
-    const { buffer } = createSnapshotReceiver<{ x: number }>({ net: transport, game: 'g1' })
+    const { buffer } = createSnapshotReceiver<{ x: number }>({ net: transport, game: 'g1', hostId: 'peerA' })
 
     const msg: GameNetMessage = { game: 'g1', type: 'snap', seq: 1, payload: { x: 7 } }
     emit('message', 'peerA', msg)
@@ -125,7 +140,7 @@ describe('createSnapshotReceiver', () => {
 
   it('ignores messages for a different game or type', () => {
     const { transport, emit } = createFakeTransport()
-    const { buffer } = createSnapshotReceiver<{ x: number }>({ net: transport, game: 'g1' })
+    const { buffer } = createSnapshotReceiver<{ x: number }>({ net: transport, game: 'g1', hostId: 'peerA' })
 
     emit('message', 'peerA', { game: 'other', type: 'snap', seq: 1, payload: { x: 1 } })
     emit('message', 'peerA', { game: 'g1', type: 'own', seq: 1, payload: { x: 1 } })
@@ -133,9 +148,20 @@ describe('createSnapshotReceiver', () => {
     expect(buffer.latest()).toBeNull()
   })
 
+  it('ignores snap messages from a peer that is not the host (C1 host authority)', () => {
+    const { transport, emit } = createFakeTransport()
+    const { buffer } = createSnapshotReceiver<{ x: number }>({ net: transport, game: 'g1', hostId: 'host' })
+
+    emit('message', 'attacker', { game: 'g1', type: 'snap', seq: 999, payload: { x: 666 } })
+    expect(buffer.latest()).toBeNull()
+
+    emit('message', 'host', { game: 'g1', type: 'snap', seq: 1, payload: { x: 7 } })
+    expect(buffer.latest()).toEqual({ x: 7 })
+  })
+
   it('dispose() unsubscribes so later messages no longer update the buffer', () => {
     const { transport, emit } = createFakeTransport()
-    const { buffer, dispose } = createSnapshotReceiver<{ x: number }>({ net: transport, game: 'g1' })
+    const { buffer, dispose } = createSnapshotReceiver<{ x: number }>({ net: transport, game: 'g1', hostId: 'peerA' })
 
     emit('message', 'peerA', { game: 'g1', type: 'snap', seq: 1, payload: { x: 1 } })
     dispose()

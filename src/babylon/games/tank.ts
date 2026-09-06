@@ -15,6 +15,11 @@ import {
   createFixedTicker,
   createGameFlow,
   createOwnershipSync,
+  isIntIn,
+  isNumIn,
+  isObj,
+  isOneOf,
+  isStr,
   type FixedTicker,
   type GameFlow,
   type OwnershipSync,
@@ -90,6 +95,13 @@ const BULLET_LIFETIME_MS = 2000
 const FIRE_COOLDOWN_MS = 500
 const INIT_HP = 3
 const CRATE_DROP_CHANCE = 0.5
+/** 合法道具種類（網路封包驗證用） */
+const ITEM_KINDS = ['hp', 'speed', 'rapid'] as const
+/** 世界座標容許範圍（場地半徑再放寬一格，擋掉離譜座標） */
+const WORLD_LIMIT = (GRID_W * CELL) / 2 + CELL
+/** 子彈速度上限（擋掉超速外掛封包） */
+const VEL_LIMIT = BULLET_SPEED * 2
+
 const SPAWN_CORNERS: [number, number][] = [
   [1, 1],
   [GRID_W - 2, GRID_H - 2],
@@ -491,52 +503,71 @@ class TankScene implements GameModule {
 
   // ---- 網路訊息 ----
 
+  /** 訊息 payload 一律先驗型別與範圍（安全審查 C2）；驗不過即丟棄該則訊息 */
   private applyMessage(type: string, payload: unknown): void {
-    if (type === 'seed') this.applySeed((payload as { seed: number }).seed)
-    else if (type === 'bullet') {
-      const p = payload as { id: string; owner: string; x: number; z: number; vx: number; vz: number }
+    const p = payload
+    if (!isObj(p)) return
+    if (type === 'seed') {
+      if (!isNumIn(p.seed, 0, 0xffffffff)) return
+      this.applySeed(p.seed)
+    } else if (type === 'bullet') {
+      if (!isStr(p.id) || !isStr(p.owner)) return
+      if (!isNumIn(p.x, -WORLD_LIMIT, WORLD_LIMIT) || !isNumIn(p.z, -WORLD_LIMIT, WORLD_LIMIT)) return
+      if (!isNumIn(p.vx, -VEL_LIMIT, VEL_LIMIT) || !isNumIn(p.vz, -VEL_LIMIT, VEL_LIMIT)) return
       if (!this.bullets.has(p.id)) this.spawnBullet(p.owner, p.x, p.z, p.vx, p.vz)
     } else if (type === 'hit') {
-      const p = payload as { targetId: string; hp: number }
+      if (!isStr(p.targetId) || !isIntIn(p.hp, 0, 99)) return
       const s = this.statOf(p.targetId)
       s.hp = p.hp
       playSfx('tank_hit')
       // 爆炸特效
       this.spawnExplosion(p.targetId)
     } else if (type === 'destroyed') {
-      const p = payload as { targetId: string; killerId: string }
+      if (!isStr(p.targetId)) return
       const s = this.statOf(p.targetId)
       s.alive = false
       playSfx(p.targetId === this.ctx.selfId ? 'death' : 'kill')
       if (p.targetId === this.ctx.selfId) this.selfVisual?.root.setEnabled(false)
       else this.peerVisuals.get(p.targetId)?.root.setEnabled(false)
       // 給击杀者加分
-      if (p.killerId) {
+      if (isStr(p.killerId)) {
         const ks = this.statOf(p.killerId)
         ks.kills++
       }
     } else if (type === 'item') {
-      const p = payload as { cx: number; cy: number; kind: ItemKind }
+      if (!isIntIn(p.cx, 0, GRID_W - 1) || !isIntIn(p.cy, 0, GRID_H - 1)) return
+      if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return
       this.spawnItem(p.cx, p.cy, p.kind)
     } else if (type === 'pickup') {
-      this.applyPickup(payload as { ci: number; who: string })
+      if (!isIntIn(p.ci, 0, GRID_W * GRID_H - 1) || !isStr(p.who)) return
+      this.applyPickup({ ci: p.ci, who: p.who })
     }
+  }
+
+  /** 是否為本局玩家（host 只受理已知玩家的上行請求） */
+  private isPlayer(id: string): boolean {
+    return this.ctx.players.some((pl) => pl.id === id)
   }
 
   onNetworkMessage(from: string, msg: GameNetMessage): void {
     if (msg.game !== this.gameId) return
     if (msg.type === 'shootReq') {
-      if (this.ctx.role !== 'host') return
-      const p = msg.payload as { x: number; z: number; vx: number; vz: number }
+      if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
+      const p = msg.payload
+      if (!isObj(p)) return
+      if (!isNumIn(p.x, -WORLD_LIMIT, WORLD_LIMIT) || !isNumIn(p.z, -WORLD_LIMIT, WORLD_LIMIT)) return
+      if (!isNumIn(p.vx, -VEL_LIMIT, VEL_LIMIT) || !isNumIn(p.vz, -VEL_LIMIT, VEL_LIMIT)) return
       this.spawnBullet(from, p.x, p.z, p.vx, p.vz)
       return
     }
     if (msg.type === 'restartReq') {
-      if (this.ctx.role !== 'host') return
+      if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
       if (this.flow.state.phase === 'result' || !this.isAlive(from)) this.hostRestart()
       return
     }
     if (this.ctx.role === 'host') return
+    // seed/bullet/hit/destroyed/item/pickup 僅信任房主廣播
+    if (from !== this.ctx.hostId) return
     this.applyMessage(msg.type, msg.payload)
   }
 
@@ -620,7 +651,7 @@ class TankScene implements GameModule {
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
 
-    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role })
+    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
     attachFlowAudio(this.flow, 'tank', {
       resultSfx: (r) => ((r as Standing[] | undefined)?.[0]?.id === ctx.selfId ? 'win' : 'lose'),
     })

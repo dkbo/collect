@@ -60,6 +60,7 @@ export function SoloGame({ game, onExit }: SoloGameProps) {
           net={net}
           selfId={SOLO_ID}
           role="host"
+          hostId={SOLO_ID}
           players={players}
         />
         <Button

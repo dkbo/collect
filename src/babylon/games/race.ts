@@ -414,7 +414,7 @@ class RaceScene implements GameModule {
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
 
-    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role })
+    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
     attachFlowAudio(this.flow, 'race', {
       resultSfx: (r) => ((r as Standing[] | undefined)?.[0]?.id === ctx.selfId ? 'win' : 'lose'),
     })

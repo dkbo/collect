@@ -137,6 +137,7 @@ export function Room() {
                 net={transport}
                 selfId={selfId}
                 role={isHost ? 'host' : 'guest'}
+                hostId={room?.hostId ?? selfId}
                 players={players.map((p) => ({ id: p.id, name: p.name }))}
               />
               {/* 浮動全螢幕鈕 */}

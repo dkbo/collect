@@ -13,6 +13,8 @@ interface BabylonCanvasProps {
   net: NetTransport
   selfId: string
   role: 'host' | 'guest'
+  /** 房主 uid：遊戲層據此過濾非房主的權威訊息 */
+  hostId: string
   players: GamePlayer[]
 }
 
@@ -35,7 +37,7 @@ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
  * 依 gameType 實例化 GameModule、把 NetTransport 訊息轉進場景、跑 render loop，
  * 卸載時依序釋放所有資源。遊戲本身與網路同處 JS context，無 iframe/postMessage。
  */
-export function BabylonCanvas({ gameType, net, selfId, role, players }: BabylonCanvasProps) {
+export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
@@ -80,7 +82,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, players }: BabylonC
     const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true })
     const scene = new Scene(engine)
     const game = getGameFactory(gameType)()
-    game.init({ scene, net, selfId, role, players: playersRef.current, setOverlay })
+    game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay })
 
     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
 
@@ -140,7 +142,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, players }: BabylonC
       setOverlay(null)
       ;(window as unknown as Record<string, unknown>).__BATTLE_READY = false
     }
-  }, [gameType, net, selfId, role])
+  }, [gameType, net, selfId, role, hostId])
 
   return (
     <>

@@ -20,6 +20,7 @@ const createFakeMesh = () => {
     }),
     start: vi.fn(),
     stop: vi.fn(),
+    updatePeers: vi.fn(),
   }
   const emit = <E extends NetEvent>(event: E, ...args: Parameters<NetEventMap[E]>) => {
     handlers[event]?.forEach((cb) => cb(...args))

@@ -7,8 +7,13 @@
  * 倒數以「收到訊息當下 + durationMs」本地計時（P2P 延遲低，誤差可忽略）。
  */
 import type { GameNetMessage, NetTransport } from '@/core/webrtc'
+import { isNumIn, isObj, isOneOf } from './guards'
 
 export type FlowPhase = 'lobby' | 'countdown' | 'playing' | 'result'
+
+const FLOW_PHASES = ['lobby', 'countdown', 'playing', 'result'] as const
+/** 倒數上限（毫秒）：擋住惡意/損毀封包送出天文數字造成的卡死 */
+const MAX_COUNTDOWN_MS = 60_000
 
 export interface FlowState {
   phase: FlowPhase
@@ -43,8 +48,10 @@ export const createGameFlow = (opts: {
   /** 遊戲命名空間（= GameModule.gameId） */
   game: string
   role: 'host' | 'guest'
+  /** 房主 uid：guest 只接受來自它的 flow 訊息（安全審查 C1） */
+  hostId: string
 }): GameFlow => {
-  const { net, game, role } = opts
+  const { net, game, role, hostId } = opts
   let state: FlowState = { phase: 'lobby' }
   let countdownEndsAt = 0
   let countdownTimer: ReturnType<typeof setTimeout> | null = null
@@ -81,9 +88,20 @@ export const createGameFlow = (opts: {
     apply(p)
   }
 
-  const offMessage = net.on('message', (_from: string, msg: GameNetMessage) => {
+  const offMessage = net.on('message', (from: string, msg: GameNetMessage) => {
     if (msg.game !== game || msg.type !== 'flow' || role === 'host') return
-    apply(msg.payload as FlowPayload)
+    // 流程轉換只信任房主；其他 peer 送的 flow 一律丟棄（防惡意 guest 強推 result）
+    if (from !== hostId) return
+    const p = msg.payload
+    if (!isObj(p) || !isOneOf<FlowPhase>(p.phase, FLOW_PHASES)) return
+    if (p.durationMs !== undefined && !isNumIn(p.durationMs, 0, MAX_COUNTDOWN_MS)) return
+    // result 只在 result 階段有意義，且必須是結構化資料（遊戲層一律當物件/陣列讀）
+    if (p.phase !== 'result') {
+      apply({ phase: p.phase, durationMs: p.durationMs })
+      return
+    }
+    if (p.result !== undefined && typeof p.result !== 'object') return
+    apply({ phase: p.phase, durationMs: p.durationMs, result: p.result })
   })
 
   // 開局當下 guest 的 DataChannel 可能尚未開啟，broadcast 會漏接；

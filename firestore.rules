@@ -68,6 +68,10 @@ service cloud.firestore {
                       && request.resource.data.from == request.auth.uid
                       && request.resource.data.keys().hasOnly(['from', 'to', 'kind', 'data', 'createdAt'])
                       && request.resource.data.kind in ['offer', 'answer', 'ice']
+                      // createdAt 必須存在且為 serverTimestamp（規則裡等於 request.time），
+                      // 收訊端據此丟棄過期 signal；不能讓寄件者省略或自填時間繞過新鮮度檢查
+                      && 'createdAt' in request.resource.data
+                      && request.resource.data.createdAt == request.time
                       && exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.resource.data.from))
                       && exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.resource.data.to))
                       && request.resource.data.data is map

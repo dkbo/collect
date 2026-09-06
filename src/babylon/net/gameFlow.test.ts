@@ -30,7 +30,7 @@ describe('createGameFlow (host)', () => {
   it('runs lobby -> countdown -> playing, broadcasting each transition', () => {
     vi.useFakeTimers()
     const { transport } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'host' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'host', hostId: 'host' })
 
     flow.startCountdown(1)
     expect(transport.broadcast).toHaveBeenNthCalledWith(1, {
@@ -54,7 +54,7 @@ describe('createGameFlow (host)', () => {
 
   it('endGame() and reset() broadcast result/lobby transitions', () => {
     const { transport } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'host' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'host', hostId: 'host' })
 
     flow.endGame({ score: 42 })
     expect(flow.state).toEqual({ phase: 'result', result: { score: 42 } })
@@ -67,7 +67,7 @@ describe('createGameFlow (host)', () => {
   it('onChange fires on each transition and stops after unsubscribing', () => {
     vi.useFakeTimers()
     const { transport } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'host' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'host', hostId: 'host' })
     const cb = vi.fn()
     const off = flow.onChange(cb)
 
@@ -81,7 +81,7 @@ describe('createGameFlow (host)', () => {
 
   it('ignores incoming flow messages (host is the sole authority)', () => {
     const { transport, emit } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'host' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'host', hostId: 'host' })
 
     emit('message', 'someone', { game: 'g', type: 'flow', payload: { phase: 'result', result: { score: 1 } } })
 
@@ -91,7 +91,7 @@ describe('createGameFlow (host)', () => {
   it('open: sends the current phase (with remaining countdown) to a newly-opened peer, but nothing while lobby', () => {
     vi.useFakeTimers()
     const { transport, emit } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'host' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'host', hostId: 'host' })
 
     emit('open', 'peerA')
     expect(transport.send).not.toHaveBeenCalled()
@@ -117,7 +117,7 @@ describe('createGameFlow (host)', () => {
   it('dispose() clears the pending countdown timer so it never fires', () => {
     vi.useFakeTimers()
     const { transport } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'host' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'host', hostId: 'host' })
 
     flow.startCountdown(1)
     expect(transport.broadcast).toHaveBeenCalledTimes(1)
@@ -133,7 +133,7 @@ describe('createGameFlow (guest)', () => {
   it('applies an incoming countdown message and locally advances to playing without broadcasting', () => {
     vi.useFakeTimers()
     const { transport, emit } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest', hostId: 'host' })
 
     emit('message', 'host', { game: 'g', type: 'flow', payload: { phase: 'countdown', durationMs: 500 } })
     expect(flow.state.phase).toBe('countdown')
@@ -147,7 +147,7 @@ describe('createGameFlow (guest)', () => {
 
   it('host-only operations (startCountdown/endGame/reset) are no-ops for a guest', () => {
     const { transport } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest', hostId: 'host' })
 
     flow.startCountdown(1)
     flow.endGame({ score: 1 })
@@ -157,9 +157,48 @@ describe('createGameFlow (guest)', () => {
     expect(flow.state).toEqual({ phase: 'lobby' })
   })
 
+  it('ignores flow messages that do not come from the host (C1 host authority)', () => {
+    const { transport, emit } = createFakeTransport()
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest', hostId: 'host' })
+
+    emit('message', 'attacker', { game: 'g', type: 'flow', payload: { phase: 'result', result: { hacked: true } } })
+
+    expect(flow.state).toEqual({ phase: 'lobby' })
+  })
+
+  it('drops malformed flow payloads (unknown phase / absurd countdown / non-object)', () => {
+    vi.useFakeTimers()
+    const { transport, emit } = createFakeTransport()
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest', hostId: 'host' })
+
+    emit('message', 'host', { game: 'g', type: 'flow', payload: undefined })
+    emit('message', 'host', { game: 'g', type: 'flow', payload: { phase: 'pwned' } })
+    emit('message', 'host', { game: 'g', type: 'flow', payload: { phase: 'countdown', durationMs: Number.NaN } })
+    emit('message', 'host', { game: 'g', type: 'flow', payload: { phase: 'countdown', durationMs: 1e12 } })
+
+    expect(flow.state).toEqual({ phase: 'lobby' })
+  })
+
+  it('drops a result payload that is not structured data, and ignores result outside the result phase', () => {
+    const { transport, emit } = createFakeTransport()
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest', hostId: 'host' })
+
+    // result 階段但 result 是純量 → 整則丟棄
+    emit('message', 'host', { game: 'g', type: 'flow', payload: { phase: 'result', result: 'pwned' } })
+    expect(flow.state).toEqual({ phase: 'lobby' })
+
+    // 非 result 階段夾帶的 result 一律忽略
+    emit('message', 'host', { game: 'g', type: 'flow', payload: { phase: 'playing', result: { x: 1 } } })
+    expect(flow.state).toEqual({ phase: 'playing', result: undefined })
+
+    // 合法結算資料照常套用
+    emit('message', 'host', { game: 'g', type: 'flow', payload: { phase: 'result', result: [{ id: 'a' }] } })
+    expect(flow.state).toEqual({ phase: 'result', result: [{ id: 'a' }] })
+  })
+
   it('ignores messages for a different game or a non-flow type', () => {
     const { transport, emit } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest', hostId: 'host' })
 
     emit('message', 'host', { game: 'other', type: 'flow', payload: { phase: 'playing' } })
     emit('message', 'host', { game: 'g', type: 'own', payload: { phase: 'playing' } })
@@ -169,7 +208,7 @@ describe('createGameFlow (guest)', () => {
 
   it('dispose() unsubscribes so later messages no longer update state', () => {
     const { transport, emit } = createFakeTransport()
-    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest' })
+    const flow = createGameFlow({ net: transport, game: 'g', role: 'guest', hostId: 'host' })
     const cb = vi.fn()
     flow.onChange(cb)
 

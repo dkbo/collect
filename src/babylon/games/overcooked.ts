@@ -21,6 +21,8 @@ import {
   createHostSnapshot,
   createOwnershipSync,
   createSnapshotReceiver,
+  isObj,
+  isStr,
   type FixedTicker,
   type GameFlow,
   type HostSnapshotSender,
@@ -309,9 +311,14 @@ class OvercookedScene implements GameModule {
 
   onNetworkMessage(from: string, msg: GameNetMessage): void {
     if (msg.game !== this.gameId) return
-    if (msg.type === 'use' && this.ctx.role === 'host') {
-      this.hostUse(from, (msg.payload as { station: string }).station)
-    }
+    // 'use' 是 guest → host 的唯一上行請求：驗來源為本局玩家、payload 為合法字串
+    // （站點是否存在、距離是否夠近由 hostUse 再驗一次）。
+    // 廚房狀態（'snap'）只信任房主，由 createSnapshotReceiver 的 hostId 過濾。
+    if (msg.type !== 'use' || this.ctx.role !== 'host') return
+    if (!this.ctx.players.some((pl) => pl.id === from)) return
+    const p = msg.payload
+    if (!isObj(p) || !isStr(p.station)) return
+    this.hostUse(from, p.station)
   }
 
   // ---- 生命週期 ----
@@ -377,7 +384,7 @@ class OvercookedScene implements GameModule {
     this.kitchen = createKitchen(ctx.players.map((p) => p.id), performance.now())
     this.respawn()
 
-    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role })
+    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
     attachFlowAudio(this.flow, 'overcooked', { resultSfx: () => 'round_end' })
     this.flow.onChange((s) => {
       if (s.phase === 'countdown') this.respawn()
@@ -401,7 +408,7 @@ class OvercookedScene implements GameModule {
       })
       this.snapSender.start()
     } else {
-      this.snapReceiver = createSnapshotReceiver<KitchenView>({ net: ctx.net, game: this.gameId })
+      this.snapReceiver = createSnapshotReceiver<KitchenView>({ net: ctx.net, game: this.gameId, hostId: ctx.hostId })
     }
 
     this.ticker = createFixedTicker(SIM_HZ, (_t, stepMs) => this.simulate(stepMs / 1000))

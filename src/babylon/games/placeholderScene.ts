@@ -90,7 +90,7 @@ class PlaceholderScene implements GameModule {
     window.addEventListener('keyup', this.onKeyUp)
 
     // 工具層：對局流程 + 所有權同步 + 固定步長模擬
-    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role })
+    this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
     this.flow.onChange((s) => {
       ;(window as unknown as Record<string, unknown>).__BATTLE_PHASE = s.phase
     })

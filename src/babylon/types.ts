@@ -28,6 +28,8 @@ export interface GameContext {
   net: NetTransport
   selfId: string
   role: 'host' | 'guest'
+  /** 房主 uid（單人模式即自己）：guest 只信任來自它的權威訊息（安全審查 C1） */
+  hostId: string
   players: GamePlayer[]
   /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
   setOverlay?: (overlay: GameOverlay | null) => void

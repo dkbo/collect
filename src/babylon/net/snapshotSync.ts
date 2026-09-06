@@ -19,8 +19,12 @@ export interface SnapshotPair<T> {
 }
 
 export interface SnapshotBuffer<T> {
-  /** 收到一筆快照（seq 過期即丟棄；以本地時間戳記） */
-  push(seq: number, state: T): void
+  /**
+   * 收到一筆快照（seq 過期即丟棄；以本地時間戳記）。
+   * seq 去重為 per-sender（安全審查 C1）：不同來源各自記錄 lastSeq，
+   * 避免任一 peer 送出超大 seq 就讓其他來源後續快照全被丟棄。
+   */
+  push(seq: number, state: T, from?: string): void
   /** 取回放點（now - delayMs）前後快照；buffer 空回 null */
   sample(): SnapshotPair<T> | null
   /** 最新一筆（無插值），用於初始化或除錯 */
@@ -33,12 +37,14 @@ const TRIM_BEFORE_MS = 1000
 
 export const createSnapshotBuffer = <T>(delayMs = 100): SnapshotBuffer<T> => {
   const entries: { t: number; state: T }[] = []
-  let lastSeq = -1
+  /** 每個來源各自的最後 seq（未指定來源時歸在 '' 這把 key） */
+  const lastSeqBySender = new Map<string, number>()
 
   return {
-    push(seq, state) {
-      if (seq <= lastSeq) return
-      lastSeq = seq
+    push(seq, state, from = '') {
+      if (!Number.isFinite(seq)) return
+      if (seq <= (lastSeqBySender.get(from) ?? -1)) return
+      lastSeqBySender.set(from, seq)
       entries.push({ t: performance.now(), state })
     },
     sample() {
@@ -67,7 +73,7 @@ export const createSnapshotBuffer = <T>(delayMs = 100): SnapshotBuffer<T> => {
     },
     clear() {
       entries.length = 0
-      lastSeq = -1
+      lastSeqBySender.clear()
     },
   }
 }
@@ -108,14 +114,18 @@ export const createHostSnapshot = <T>(opts: {
 export const createSnapshotReceiver = <T>(opts: {
   net: NetTransport
   game: string
+  /** 房主 uid：只接受來自它的全場快照（安全審查 C1） */
+  hostId: string
   /** 插值延遲，預設 100ms（吸收抖動，代價是畫面晚 100ms） */
   delayMs?: number
 }): { buffer: SnapshotBuffer<T>; dispose(): void } => {
-  const { net, game, delayMs = 100 } = opts
+  const { net, game, hostId, delayMs = 100 } = opts
   const buffer = createSnapshotBuffer<T>(delayMs)
-  const off = net.on('message', (_from: string, msg: GameNetMessage) => {
+  const off = net.on('message', (from: string, msg: GameNetMessage) => {
     if (msg.game !== game || msg.type !== 'snap') return
-    buffer.push(msg.seq ?? 0, msg.payload as T)
+    // 全場快照為 host authority 專屬；其他 peer 冒名送 snap 一律丟棄
+    if (from !== hostId) return
+    buffer.push(msg.seq ?? 0, msg.payload as T, from)
   })
   return { buffer, dispose: off }
 }
