@@ -56,6 +56,9 @@ pnpm candy:export
 
 - **Web 匯出 Threads 必須 OFF**:靜態託管(Firebase Hosting)無法回 COOP/COEP header,Threads ON 會直接黑屏
 - 匯出指令已含 `--import`(重建 .godot 快取),首次或資源變動後匯出較慢屬正常
+- 匯出指令尾端會跑 `scripts/godot-webp-shell.mjs`:把 Godot shell 產的 icon / apple-touch-icon / splash PNG 轉 WebP 並改寫 index.html(AGENTS.md 圖片一律 WebP)。**不要手改 index.html 的圖片引用**,重匯出會被蓋掉,規則寫在那支腳本
+- 素材一律 WebP(`godot-src/assets/*.webp`);長條圖庫 `rpg_maker_xp*.webp` 的 `.import` 是 `importer="image"`(CPU Image 供切塊),新增素材時沿用同款 .import 設定
+- `godot --check-only -s` 不會註冊 autoload(Bridge / CandyBridge / CandySfx),單獨檢查用到它們的腳本會報 `Identifier not found`,是工具限制;PostToolUse hook 已濾掉
 - 匯出後 `git status` 確認 `public/godot/` 或 `public/candy/` 產物有更新,連同源碼一起 commit
 
 ## 瀏覽器驗證

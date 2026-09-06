@@ -48,7 +48,12 @@ case "$rel" in
     proj="${rel%%/*}"
     [ "$proj" = godot-src ] && mark dirty-godot-rpg || mark dirty-candy
     out=$(godot --headless --path "$proj" --check-only -s "res://${rel#"$proj"/}" 2>&1)
-    if [ $? -ne 0 ] || printf '%s' "$out" | grep -q 'SCRIPT ERROR\|Parse Error'; then
+    # --check-only 不會註冊 project.godot 的 autoload singleton（Bridge、CandyBridge…），
+    # 「Identifier not found: <autoload>」是工具限制不是錯誤，濾掉；其餘 SCRIPT ERROR / Parse Error 才擋。
+    # 限制：autoload 那行之後的編譯錯誤會被 Godot 一起吞掉，看不到。
+    autoloads=$(sed -n '/^\[autoload\]/,/^\[/p' "$proj/project.godot" | grep -oE '^[A-Za-z_][A-Za-z0-9_]*' | paste -sd'|')
+    [ -n "$autoloads" ] && out=$(printf '%s\n' "$out" | grep -vE "Identifier not found: ($autoloads)\b" || true)
+    if printf '%s' "$out" | grep -q 'SCRIPT ERROR\|Parse Error'; then
       printf 'GDScript 語法檢查未通過（%s）：\n%s\n' "$rel" "$out" >&2
       exit 2
     fi

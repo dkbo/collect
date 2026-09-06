@@ -4,13 +4,13 @@ extends Node2D
 ## 以 60Hz 固定 tick（_physics_process）對齊原版 rAF 邏輯，後續步驟加入傳送門、NPC 與對話。
 
 # 圖庫索引對齊地圖 JSON 的 b 欄位：0=man, 1=rpg_maker_xp, 2=rpg_maker_xp2
-# （長條圖庫以 image importer 匯入為 CPU Image，man.png 維持 Texture2D 供 Sprite2D 直用）
+# （長條圖庫以 image importer 匯入為 CPU Image，man.webp 維持 Texture2D 供 Sprite2D 直用）
 const TEXTURES: Array = [
-	preload("res://assets/man.png"),
-	preload("res://assets/rpg_maker_xp.png"),
-	preload("res://assets/rpg_maker_xp2.png"),
+	preload("res://assets/man.webp"),
+	preload("res://assets/rpg_maker_xp.webp"),
+	preload("res://assets/rpg_maker_xp2.webp"),
 ]
-const TEX_GRASS := preload("res://assets/bg.jpg")
+const TEX_GRASS := preload("res://assets/bg.webp")
 
 const NX := 32.0  # 玩家碰撞框寬
 const NY := 48.0  # 玩家碰撞框高
