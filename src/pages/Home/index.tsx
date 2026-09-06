@@ -1,34 +1,31 @@
-import IntroSection from '@/pages/Home/IntroSection'
-import PastSection from '@/pages/Home/PastSection'
-import RpgSection from '@/pages/Home/RpgSection'
-
 import useScrollAnimation from '@/lib/useScrollAnimation'
+import AboutSection from '@/pages/Home/AboutSection'
+import FooterCta from '@/pages/Home/FooterCta'
+import HeroSection from '@/pages/Home/HeroSection'
+import JourneySection from '@/pages/Home/JourneySection'
+import TechMarquee from '@/pages/Home/TechMarquee'
+import WorksSection from '@/pages/Home/WorksSection'
 
 export function Home() {
   const containerRef = useScrollAnimation()
 
   return (
-    <div className="home-container" data-testid="page-home" ref={containerRef}>
-      {/* Hero Header */}
-      <header className="text-center mb-10 animate-on-scroll animate-fade-in-up">
-        <h1 className="hero-title">
-          DKBO&apos;s Collect
-        </h1>
-        <p className="hero-subtitle">
-          網站由純前端建置，展示各式網頁應用工具與技術實作。主要由 React + React Router + Zustand 所構成，隨著經驗的累積會將新技術應用在此網頁上。
-        </p>
-      </header>
+    <div className="home-container relative" data-testid="page-home" ref={containerRef}>
+      <div className="hero-orb-a" aria-hidden="true" />
+      <div className="hero-orb-b" aria-hidden="true" />
 
-      {/* Content Sections */}
-      <div className="space-y-8">
-        <div className="animate-on-scroll animate-fade-in-up animate-stagger-1">
-          <IntroSection />
+      <div className="relative z-10">
+        <HeroSection />
+        <TechMarquee />
+        <div className="animate-on-scroll animate-fade-in-up">
+          <WorksSection />
         </div>
-        <div className="animate-on-scroll animate-fade-in-up animate-stagger-2">
-          <PastSection />
+        <div className="animate-on-scroll animate-fade-in-up">
+          <AboutSection />
         </div>
-        <div className="animate-on-scroll animate-fade-in-up animate-stagger-3">
-          <RpgSection />
+        <JourneySection />
+        <div className="animate-on-scroll animate-fade-in-up">
+          <FooterCta />
         </div>
       </div>
     </div>

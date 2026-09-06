@@ -25,6 +25,11 @@ export default defineConfig({
         extends: true,
         test: { name: 'core', include: ['src/core/**/*.test.ts'], environment: 'node' },
       },
+      {
+        // pages：首頁作品／時間軸等純資料常數（不含元件）
+        extends: true,
+        test: { name: 'pages', include: ['src/pages/**/*.test.ts'], environment: 'node' },
+      },
     ],
   },
 })
