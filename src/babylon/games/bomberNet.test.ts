@@ -115,6 +115,37 @@ describe('decodeBomberMessage — 畸形封包一律拒收', () => {
   })
 })
 
+/**
+ * host 本地回放（hostBroadcast 內以 { type, ...payload } 直接套用，不再解碼）
+ * 必須與 guest 走 decodeBomberMessage 後得到的物件一致，否則兩端會分歧。
+ */
+describe('host 本地回放與 guest 解碼結果等價', () => {
+  const hostPayloads: [string, Record<string, unknown>][] = [
+    ['seed', { seed: 12345, bots: [{ id: 'bot-0', name: '電腦1' }] }],
+    ['bomb', { id: 'b0', cx: 3, cy: 4, owner: 'p1' }],
+    ['bombMove', { id: 'b0', toCx: 5, toCy: 4, durMs: 240, arc: 0 }],
+    [
+      'boom',
+      {
+        id: 'b0',
+        cells: [[3, 4], [4, 4]],
+        destroyed: [[4, 4]],
+        damaged: [],
+        kills: ['p2'],
+        itemKills: [],
+        drops: [{ cx: 4, cy: 4, kind: 'bomb' }],
+      },
+    ],
+    ['burn', { kills: ['p1'] }],
+    ['pickup', { ci: 30, who: 'p1' }],
+    ['closeWall', { cx: 0, cy: 0, kills: ['p3'] }],
+  ]
+
+  it.each(hostPayloads)('%s', (type, payload) => {
+    expect(decodeBomberMessage(type, payload)).toEqual({ type, ...payload })
+  })
+})
+
 describe('上行請求解碼', () => {
   it('bombReq / kickReq / throwReq 合法值', () => {
     expect(decodeBombReq({ cx: 1, cy: 2 })).toEqual({ cx: 1, cy: 2 })

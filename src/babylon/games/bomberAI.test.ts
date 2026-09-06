@@ -124,6 +124,40 @@ describe('decideBotAction', () => {
     expect(action.type).not.toBe('bomb')
   })
 
+  it('內部格：右側鄰格有箱子就放彈（邊界修正的正向對照）', () => {
+    const map = emptyMap()
+    map[cellIndex(5, 5)] = TILE_CRATE
+
+    expect(decideBotAction(baseInput({ map, cx: 4, cy: 5 }))).toEqual({ type: 'bomb' })
+  })
+
+  it('右邊界：鄰列的箱子不算相鄰（cellIndex 會折到下一列）', () => {
+    const map = emptyMap()
+    // (0,6) 的線性索引 = cellIndex(GRID_W-1, 5) + 1，未做邊界檢查就會被誤讀成右鄰格
+    map[cellIndex(0, 6)] = TILE_CRATE
+
+    expect(decideBotAction(baseInput({ map, cx: GRID_W - 1, cy: 5 }))).not.toEqual({ type: 'bomb' })
+  })
+
+  it('下邊界：越界的下鄰格不算相鄰', () => {
+    const map = emptyMap()
+    // cellIndex(3, GRID_H) 已越出陣列，未檢查邊界時讀到 undefined；
+    // 這裡確認最下排、四周皆空時不會誤判成有箱子可炸
+    expect(
+      decideBotAction(baseInput({ map, cx: 3, cy: GRID_H - 1 }))
+    ).toEqual({ type: 'idle' })
+  })
+
+  it('攻擊位判定同樣不把鄰列的箱子當成右鄰格', () => {
+    const map = emptyMap()
+    map[cellIndex(0, 6)] = TILE_CRATE // 線性索引恰好接在 (GRID_W-1, 5) 之後
+
+    // bot 就在 (GRID_W-1, 5) 隔壁：未做邊界檢查時該格會被誤判為攻擊位而被選為目標
+    const action = decideBotAction(baseInput({ map, cx: GRID_W - 2, cy: 5 }))
+
+    expect(action).not.toEqual({ type: 'move', cx: GRID_W - 1, cy: 5 })
+  })
+
   it('空地圖、無敵人、無道具、無箱子時待命', () => {
     expect(decideBotAction(baseInput())).toEqual({ type: 'idle' })
   })

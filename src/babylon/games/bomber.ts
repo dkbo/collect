@@ -46,6 +46,7 @@ import {
   decodeBomberMessage,
   decodeKickReq,
   decodeThrowReq,
+  type BomberMessage,
   type BomberPayloadMap,
   type BoomPayload,
   type BombMovePayload,
@@ -86,6 +87,7 @@ interface BombMotion {
 }
 
 interface BombInfo {
+  id: string // 與 bombs Map 的 key 相同（applyBomb 是唯一建立處）
   cx: number // 目標/當前所在格（動畫進行中即終點格）
   cy: number
   owner: string
@@ -657,7 +659,8 @@ class BomberScene implements GameModule {
   /** host 本地套用 + 廣播（host 自己的訊息不會回流） */
   private hostBroadcast<T extends keyof BomberPayloadMap>(type: T, payload: BomberPayloadMap[T]): void {
     this.ctx.net.broadcast({ game: this.gameId, type, payload })
-    this.applyMessage(type, payload)
+    // host 自組的 payload 已由 BomberPayloadMap 保證形狀，本地回放不再解碼驗證一次
+    this.applyDecoded({ type, ...payload } as BomberMessage)
   }
 
   /** guest 套用 host 廣播的 bot 位置（更新插值目標，update() 平滑 lerp） */
@@ -834,6 +837,7 @@ class BomberScene implements GameModule {
     fuse.rotation.z = 0.35
     fuse.material = this.itemFireMat // 橘紅 emissive，像點燃的引信
     this.bombs.set(p.id, {
+      id: p.id,
       cx: p.cx,
       cy: p.cy,
       owner: p.owner,
@@ -865,7 +869,7 @@ class BomberScene implements GameModule {
   private validateKick(bomb: BombInfo, dx: number, dy: number): void {
     if (this.ctx.role !== 'host') return
     if (bomb.motion) return // 已在動中不重複踢
-    const id = this.bombIdOf(bomb)
+    const id = bomb.id
     let tx = bomb.cx
     let ty = bomb.cy
     let steps = 0
@@ -901,7 +905,7 @@ class BomberScene implements GameModule {
     for (let i = 1; i <= THROW_MAX_TILES; i++) {
       const nx = pcx + dx * i
       const ny = pcy + dy * i
-      if (this.cellFreeForBomb(nx, ny, this.bombIdOf(target))) {
+      if (this.cellFreeForBomb(nx, ny, target.id)) {
         landCx = nx
         landCy = ny
       }
@@ -909,18 +913,12 @@ class BomberScene implements GameModule {
     if (landCx < 0) return // 無可落點
     const tiles = Math.max(Math.abs(landCx - pcx), Math.abs(landCy - pcy))
     this.hostBroadcast('bombMove', {
-      id: this.bombIdOf(target),
+      id: target.id,
       toCx: landCx,
       toCy: landCy,
       durMs: tiles * THROW_HOP_MS,
       arc: 0.6 + tiles * 0.35, // 拋物線高度隨距離增加
     })
-  }
-
-  /** 反查炸彈 id（bombs 以 id 為 key；BombInfo 未存自身 id 故反查） */
-  private bombIdOf(bomb: BombInfo): string {
-    for (const [id, b] of this.bombs) if (b === bomb) return id
-    return ''
   }
 
   /** 套用炸彈移動（踢滑行 / 丟拋物）：更新邏輯格與動畫，各端依時間插值。 */
@@ -1258,13 +1256,11 @@ class BomberScene implements GameModule {
   }
 
   /**
-   * 收到網路訊息（含 host 本地回放）統一入口。
-   * payload 一律先經 bomberNet 解碼驗證（安全審查 C2）——格座標夾在盤面內、
-   * 陣列限長、數值須為有限數；驗不過即整則丟棄，絕不 throw。
+   * 套用一則「已驗證」的訊息到場景狀態。
+   * guest 走 onNetworkMessage 的 decodeBomberMessage（安全審查 C2）；
+   * host 本地回放的 payload 形狀由 hostBroadcast 的 BomberPayloadMap 保證，直接進來。
    */
-  private applyMessage(type: string, payload: unknown): void {
-    const msg = decodeBomberMessage(type, payload)
-    if (!msg) return
+  private applyDecoded(msg: BomberMessage): void {
     if (msg.type === 'seed') {
       this.bots = msg.bots
       this.applySeed(msg.seed)
@@ -1334,7 +1330,8 @@ class BomberScene implements GameModule {
     // seed/bomb/boom 僅信任 host 廣播；guest 之間不互發這些訊息
     if (this.ctx.role === 'host') return
     if (from !== this.ctx.hostId) return
-    this.applyMessage(msg.type, msg.payload)
+    const decoded = decodeBomberMessage(msg.type, msg.payload)
+    if (decoded) this.applyDecoded(decoded)
   }
 
   // ---- 生命週期 ----

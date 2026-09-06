@@ -12,6 +12,7 @@ import {
   TILE_CRATE_HARD,
   blastCells,
   cellIndex,
+  inBounds,
   isBlocked,
 } from './bomberMap'
 
@@ -136,7 +137,7 @@ export const bfsToGoal = (
     for (const [dx, dy] of dirs) {
       const nx = cur.x + dx
       const ny = cur.y + dy
-      if (nx < 0 || ny < 0 || nx >= GRID_W || ny >= GRID_H) continue
+      if (!inBounds(nx, ny)) continue
       const ci = cellIndex(nx, ny)
       if (visited.has(ci)) continue
       if (!cellWalkable(map, bombs, nx, ny) || blockedFn(nx, ny)) continue
@@ -280,8 +281,10 @@ export const decideBotAction = (input: BotDecisionInput): BotAction => {
   // 放彈判定：以「實際爆風」(blastCells，會被箱子擋住) 判斷能否打到敵人；或相鄰箱子。
   const myBlast = new Set(blastCells(map, cx, cy, fire).cells.map(([x, y]) => cellIndex(x, y)))
   const hitsEnemy = enemyCells.some(([ecx, ecy]) => myBlast.has(cellIndex(ecx, ecy)))
+  // 越界鄰格不算箱子（cellIndex 不檢查邊界，右/下邊界會折到鄰列）
   let adjacentCrate = false
   for (const [dx, dy] of dirs) {
+    if (!inBounds(cx + dx, cy + dy)) continue
     const t = map[cellIndex(cx + dx, cy + dy)]
     if (t === TILE_CRATE || t === TILE_CRATE_HARD) adjacentCrate = true
   }
@@ -301,6 +304,7 @@ export const decideBotAction = (input: BotDecisionInput): BotAction => {
       if (enemyCells.some(([ecx, ecy]) => spotBlast.has(cellIndex(ecx, ecy)))) return true
     }
     for (const [dx, dy] of dirs) {
+      if (!inBounds(gx + dx, gy + dy)) continue
       const t = map[cellIndex(gx + dx, gy + dy)]
       if (t === TILE_CRATE || t === TILE_CRATE_HARD) return true
     }
