@@ -7,9 +7,10 @@ import { WorkShot } from '@/pages/Home/WorkShot'
 import { HERO_TILES, WORKS } from '@/pages/Home/works'
 
 const TILE_LAYOUT = [
-  { className: 'hero-tile hero-tile-a left-10 top-5 w-[340px]', shotClass: 'h-[150px]' },
-  { className: 'hero-tile hero-tile-b left-[236px] top-[200px] w-[260px]', shotClass: 'h-[130px]' },
-  { className: 'hero-tile hero-tile-c left-0 top-[300px] w-[240px]', shotClass: 'h-[92px]' },
+  // 以欄寬百分比定位：#root 只有 1126px，右欄約 520px，固定 px 會溢出被裁
+  { className: 'hero-tile hero-tile-a left-[6%] top-5 w-[62%]', shotClass: 'h-[150px]' },
+  { className: 'hero-tile hero-tile-b right-2 top-[200px] w-[48%]', shotClass: 'h-[130px]' },
+  { className: 'hero-tile hero-tile-c left-0 top-[300px] w-[44%]', shotClass: 'h-[92px]' },
 ] as const
 
 function Stat({ value, suffix, label }: { value: number; suffix?: string; label: string }) {
@@ -87,7 +88,7 @@ export function HeroSection() {
         </div>
 
         {/* 右欄：漂浮預覽卡（lg 以下隱藏） */}
-        <div className="hidden lg:block relative h-[480px]" aria-hidden="true">
+        <div className="hidden lg:block relative h-[480px] pr-2" aria-hidden="true">
           {HERO_TILES.map((work, i) => {
             const layout = TILE_LAYOUT[i]
             if (!layout) return null

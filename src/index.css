@@ -118,11 +118,10 @@
 }
 
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -504,7 +503,7 @@ html {
    HOME PAGE
    ═══════════════════════════════════════════════════════ */
 .home-container {
-  @apply max-w-6xl mx-auto pb-12 overflow-x-clip text-left;
+  @apply max-w-6xl mx-auto pb-12 text-left;
 }
 
 .home-card {
