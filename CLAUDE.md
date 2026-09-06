@@ -26,7 +26,7 @@ Read AGENTS.md first.
 - `SessionStart`：Godot 源碼比 `public/godot`／`public/candy` 產物新、`.env.local` 缺 `VITE_FIREBASE_FIRESTORE_DB` 時注入提示。
 - `PreToolUse` Bash：擋 `pkill -f`、沒帶 `--headless --import` 的手動 `godot --export-*`、手動複製進 `public/godot/maps/`、把 jpg/png 寫進 `src/`／`public/`。`mcp__playwright__*`：本機沒有 `/opt/google/chrome/chrome` 就直接擋下並指向 verify-web 的 chromium 備援。
 - `PostToolUse`（Edit/Write）對剛改的單檔即時檢查：`src/` 的 TS/TSX 跑 `eslint --fix`；`.gd` 跑 `godot --check-only`；RpgRoom 地圖 JSON 驗合法性並**自動跑 sync:maps**；糖果關卡 JSON 驗合法性；`export_presets.cfg` 的 Threads 被改 ON 即擋下；改到 bridge 四個檔任一個會提醒另一邊要同步。
-- `Stop` / `SubagentStop` 只在本 session 真的改過對應區塊時才驗：改 `src/` → `pnpm lint` + `pnpm typecheck`；改糖果 → `board_test.gd`；改 Godot 只提醒要匯出。沒過就把你叫回來。
+- `Stop` / `SubagentStop` 只在本 session 真的改過對應區塊時才驗：改 `src/` → `pnpm lint` + `pnpm typecheck` + `pnpm test`；改糖果 → `board_test.gd`；改 Godot 只提醒要匯出。沒過就把你叫回來。
 
 腳本在 `.claude/hooks/`，狀態在 `.claude/.hook-state/`（已 gitignore）。vite 已設 `strictPort`，5173 被占用會直接報錯而不是換 port。
 
@@ -36,7 +36,7 @@ Read AGENTS.md first.
 
 - `brainstorming`：**只在**需求模糊的新遊戲／新頁面／行為變更前用。明確的 `fix:`、已指定做法、樣式微調、地圖 JSON、Godot 匯出一律跳過。
 - `systematic-debugging`：所有 `fix:` 類任務都套用（先重現、找根因，再改碼）。多人同步問題先用 web-verifier 以兩個獨立 context 重現。
-- `test-driven-development`：只套**有測試框架的純邏輯**——目前只有糖果 `godot-candy-src/scripts/board.gd`（`tests/board_test.gd`）。`src/babylon/` 的 math／net 與 Zustand store 尚未裝 vitest，裝了才套；UI、3D 渲染、GDScript 場景不套，改用 web-verifier 截圖。
+- `test-driven-development`：只套**純邏輯層**——`src/babylon/` 的 math／net、Zustand store（vitest，`*.test.ts` 同目錄）與糖果 `board.gd`（`tests/board_test.gd`）。UI、3D 渲染、GDScript 場景不套，改用 web-verifier 截圖。細節見 `test-generation` skill。
 - `verification-before-completion`：完成定義以 hooks 為準（lint 零錯誤、tsc 乾淨、board_test 全綠、Godot 產物已匯出），不另立標準。
 - `executing-plans` / `subagent-driven-development` / `dispatching-parallel-agents`：派工一律走 `herdr-team` 的路由矩陣與專案 agent，**不要**派 general-purpose subagent。
 - `requesting-code-review`：改派 `arch-security-reviewer`（架構／安全）；一般 diff 正確性由 hooks 與 Lead 核實。

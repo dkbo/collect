@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Stop / SubagentStop：收工前強制驗證（lint 零錯誤 + tsc 型別乾淨 + 糖果邏輯測試全綠）。
-# 三關合計約 18 秒（lint 11s + tsc 5s + board_test 1s）。
+# Stop / SubagentStop：收工前強制驗證（lint 零錯誤 + tsc 型別乾淨 + vitest 全綠 + 糖果邏輯測試全綠）。
+# 四關合計約 20 秒（lint 11s + tsc 5s + vitest 數秒 + board_test 1s）。
 # 只在這次 session 真的改過對應區塊時才跑（由 post-edit-check.sh 留下的 marker 判斷），
 # 純問答／只改文件設定的收工完全不會被拖。
 set -uo pipefail
@@ -24,6 +24,9 @@ if [ -f "$state/dirty" ]; then
   if ! out=$(pnpm typecheck 2>&1); then
     fail+="tsc 型別檢查未通過（pnpm lint 不做型別檢查，這關才會抓到）："$'\n'"$out"$'\n\n'
   fi
+  if ! out=$(pnpm test 2>&1); then
+    fail+="vitest 單元測試未通過："$'\n'"$out"$'\n\n'
+  fi
 fi
 
 if [ -f "$state/dirty-candy" ]; then
@@ -41,7 +44,7 @@ fi
 
 if [ -n "$fail" ]; then
   # 保留 marker：修完再收工時會再驗一次。
-  printf '%s收工被擋下。完成定義是 lint 零錯誤、tsc 乾淨、board_test 全綠，先修好。\n' "$fail" >&2
+  printf '%s收工被擋下。完成定義是 lint 零錯誤、tsc 乾淨、vitest 全綠、board_test 全綠，先修好。\n' "$fail" >&2
   exit 2
 fi
 

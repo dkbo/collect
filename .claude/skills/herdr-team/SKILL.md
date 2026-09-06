@@ -61,7 +61,7 @@ jq -r '.subtype, .is_error, .total_cost_usd, .session_id, .result' "$S/out.json"
 - 唯讀 worker 加 `--disallowedTools Edit Write NotebookEdit`。
 - 寫檔 worker **不帶** `--fallback-model`（primary 是 opus 時最多 `--fallback-model sonnet`）；唯讀 worker 可 `sonnet,haiku`。
 - 追問用 `claude -p --resume <session_id> "…"`，不重派。
-- worker 的 Stop hook（`.claude/hooks/verify-on-stop.sh`）已在改過 `src/` 時跑 lint + typecheck、改過糖果時跑 board_test，Lead 不重跑；`pnpm build` 與 Godot 匯出仍派 `build-runner`。
+- worker 的 Stop hook（`.claude/hooks/verify-on-stop.sh`）已在改過 `src/` 時跑 lint + typecheck + vitest、改過糖果時跑 board_test，Lead 不重跑；`pnpm build` 與 Godot 匯出仍派 `build-runner`。
 - **同一棵樹同時只跑一支會寫檔的 worker**——多支會各自觸發 `verify-on-stop.sh` 並搶 `.claude/.hook-state/`。
 
 ## 4. agy 第二意見
