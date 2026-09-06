@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy, Crown, Gamepad2, LogOut, Maximize2, Minimize2, Send, Swords, Users, Wifi } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Crown, Gamepad2, LogOut, Maximize2, Minimize2, RefreshCw, Send, Swords, Users, Wifi } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRoomStore } from '@/store/useRoomStore'
 import { useNetStore } from '@/store/useNetStore'
@@ -12,7 +12,7 @@ import BabylonCanvas from './BabylonCanvas'
 export function Room() {
   const { roomId, room, players, selfId, leave, startGame } = useRoomStore()
   const isHost = useRoomStore((s) => s.isHost())
-  const { status, openPeers, log, connect, disconnect, ping } = useNetStore()
+  const { status, openPeers, log, connectTimedOut, connect, disconnect, ping, syncPeers } = useNetStore()
   const transport = useNetStore((s) => s.transport)
   const [copied, setCopied] = useState(false)
 
@@ -29,6 +29,19 @@ export function Room() {
     connect(roomId, selfId, peerIds)
     return () => disconnect()
   }, [isPlaying, roomId, selfId, connect, disconnect])
+
+  // 中途加入者：開局後玩家名單變動（新玩家加入/離開）同步給 mesh，補連/斷線
+  useEffect(() => {
+    if (!isPlaying || !selfId) return
+    syncPeers(players.map((p) => p.id).filter((id) => id !== selfId))
+  }, [isPlaying, selfId, players, syncPeers])
+
+  const retryConnect = () => {
+    if (!roomId || !selfId) return
+    disconnect()
+    const peerIds = useRoomStore.getState().players.map((p) => p.id)
+    connect(roomId, selfId, peerIds)
+  }
 
   const copyCode = async () => {
     if (!roomId) return
@@ -179,6 +192,27 @@ export function Room() {
               </Button>
             </div>
           </div>
+
+          {connectTimedOut && (
+            <div
+              className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-rose-800/60 bg-rose-950/40 px-4 py-3"
+              data-testid="net-connect-timeout"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold text-rose-300">
+                <AlertTriangle className="size-4" aria-hidden="true" />
+                連線逾時，請確認網路後重試
+              </div>
+              <Button
+                size="sm"
+                onClick={retryConnect}
+                className="h-8 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs cursor-pointer"
+                data-testid="net-retry-btn"
+              >
+                <RefreshCw className="size-3.5" aria-hidden="true" />
+                重試
+              </Button>
+            </div>
+          )}
 
           <p className="text-xs text-indigo-300/70">
             WASD / 方向鍵操作（先點一下畫面取得焦點），手機用虛擬搖桿與動作鈕。

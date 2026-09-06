@@ -11,6 +11,7 @@ import {
   query,
   serverTimestamp,
   where,
+  type Timestamp,
   type Unsubscribe,
 } from 'firebase/firestore'
 import { getDb } from '@/core/firebase'
@@ -24,6 +25,8 @@ export interface Signal {
   to: string
   kind: SignalKind
   data: unknown
+  /** 伺服器寫入時間戳，供新鮮度檢查（mesh 端以鴨子型別讀取，見計畫 §8） */
+  createdAt?: Timestamp
 }
 
 const signalsRef = (roomId: string) => collection(getDb(), 'rooms', roomId, 'signals')

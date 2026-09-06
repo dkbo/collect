@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MapNpc, NpcMessage, SpawnPoint } from '@/pages/RpgRoom/types'
+import type { MapNpc, NpcMessage, SpawnPoint } from '@/lib/rpg/types'
 
 // 工作區縮放範圍
 const MIN_SCALE = 0.25

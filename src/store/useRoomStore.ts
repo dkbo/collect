@@ -60,7 +60,8 @@ const stopSubs = () => {
   unsubPlayers = null
 }
 
-const initialState = {
+/** 工廠函式：每次呼叫回傳全新物件與陣列實例，避免 reset 之間共用同一份 players 參考 */
+const makeInitial = () => ({
   configured: isFirebaseConfigured,
   selfId: null,
   roomId: null,
@@ -69,7 +70,7 @@ const initialState = {
   busy: false,
   error: null,
   notice: null,
-}
+})
 
 export const useRoomStore = create<RoomStore>((set, get) => {
   const startSubs = (roomId: string) => {
@@ -79,7 +80,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
         // 房間被房主結束/刪除 → 退回大廳並提示（自願離開時已先 stopSubs，不會走到這）
         stopSubs()
         const selfId = get().selfId
-        set({ ...initialState, selfId, notice: '房主已關閉房間' })
+        set({ ...makeInitial(), selfId, notice: '房主已關閉房間' })
         // 房主只能刪自己的玩家文件（見 firestore.rules），其餘成員各自的玩家文件
         // 會留在已刪除的房間下成為孤兒資料，由本人在此清理
         if (selfId) {
@@ -95,7 +96,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
   }
 
   return {
-    ...initialState,
+    ...makeInitial(),
 
     isHost: () => {
       const { room, selfId } = get()
@@ -130,7 +131,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
       const { roomId, selfId } = get()
       const isHost = get().isHost()
       stopSubs() // 先停訂閱，避免房主刪房時 room=null 誤觸「被關閉」提示
-      set({ ...initialState, selfId })
+      set({ ...makeInitial(), selfId })
       if (roomId && selfId) {
         try {
           await leaveRoom(roomId, selfId, isHost)
@@ -165,7 +166,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
 
     reset: () => {
       stopSubs()
-      set({ ...initialState, selfId: get().selfId })
+      set({ ...makeInitial(), selfId: get().selfId })
     },
   }
 })

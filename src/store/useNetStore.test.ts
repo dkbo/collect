@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { NetEvent, NetEventMap } from '@/core/webrtc'
 import { createMesh } from '@/core/webrtc'
 import { useNetStore } from './useNetStore'
@@ -147,5 +147,103 @@ describe('useNetStore', () => {
     // 訂閱已取消：斷線後再 emit 不應影響狀態
     emit('open', 'peerA')
     expect(useNetStore.getState().openPeers).toEqual([])
+  })
+
+  it('disconnect() clears self so a later connect() with a new uid replies to ping with the new id', () => {
+    const first = createFakeMesh()
+    vi.mocked(createMesh).mockReturnValue(first.mesh)
+    useNetStore.getState().connect('room1', 'selfA', ['selfA', 'peerA'])
+    useNetStore.getState().disconnect()
+
+    const second = createFakeMesh()
+    vi.mocked(createMesh).mockReturnValue(second.mesh)
+    useNetStore.getState().connect('room1', 'selfB', ['selfB', 'peerA'])
+
+    second.emit('message', 'peerA', { game: '_sys', type: 'ping', payload: { from: 'peerA', t: 99 } })
+
+    expect(second.mesh.send).toHaveBeenCalledWith('peerA', {
+      game: '_sys',
+      type: 'pong',
+      payload: { from: 'selfB', t: 99 },
+    })
+    // 第一個 mesh 早已 teardown，不該再收到任何呼叫
+    expect(first.mesh.send).not.toHaveBeenCalled()
+  })
+
+  it('does not share the same openPeers/log array instance across connect() calls', () => {
+    const first = createFakeMesh()
+    vi.mocked(createMesh).mockReturnValue(first.mesh)
+    useNetStore.getState().connect('room1', 'self', ['self', 'peerA'])
+    const firstOpenPeers = useNetStore.getState().openPeers
+    const firstLog = useNetStore.getState().log
+
+    useNetStore.getState().disconnect()
+
+    const second = createFakeMesh()
+    vi.mocked(createMesh).mockReturnValue(second.mesh)
+    useNetStore.getState().connect('room1', 'self', ['self', 'peerA'])
+
+    expect(useNetStore.getState().openPeers).not.toBe(firstOpenPeers)
+    expect(useNetStore.getState().log).not.toBe(firstLog)
+  })
+
+  it('syncPeers() forwards the id list to mesh.updatePeers', () => {
+    const { mesh } = createFakeMesh()
+    vi.mocked(createMesh).mockReturnValue(mesh)
+    useNetStore.getState().connect('room1', 'self', ['self', 'peerA'])
+
+    useNetStore.getState().syncPeers(['peerA', 'peerB'])
+
+    expect(mesh.updatePeers).toHaveBeenCalledWith(['peerA', 'peerB'])
+  })
+
+  it('syncPeers() is a no-op when there is no active mesh', () => {
+    expect(() => useNetStore.getState().syncPeers(['peerA'])).not.toThrow()
+  })
+
+  describe('connect timeout', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('sets connectTimedOut after 15s when a multi-peer connect never reaches "connected"', () => {
+      const { mesh } = createFakeMesh()
+      vi.mocked(createMesh).mockReturnValue(mesh)
+
+      useNetStore.getState().connect('room1', 'self', ['self', 'peerA'])
+      expect(useNetStore.getState().connectTimedOut).toBe(false)
+
+      vi.advanceTimersByTime(15_000)
+
+      expect(useNetStore.getState().connectTimedOut).toBe(true)
+    })
+
+    it('does not set connectTimedOut when the peer opens before the timeout', () => {
+      const { mesh, emit } = createFakeMesh()
+      vi.mocked(createMesh).mockReturnValue(mesh)
+
+      useNetStore.getState().connect('room1', 'self', ['self', 'peerA'])
+      emit('open', 'peerA')
+
+      vi.advanceTimersByTime(15_000)
+
+      expect(useNetStore.getState().connectTimedOut).toBe(false)
+    })
+
+    it('disconnect() clears the pending timer and connectTimedOut flag', () => {
+      const { mesh } = createFakeMesh()
+      vi.mocked(createMesh).mockReturnValue(mesh)
+
+      useNetStore.getState().connect('room1', 'self', ['self', 'peerA'])
+      useNetStore.getState().disconnect()
+
+      vi.advanceTimersByTime(15_000)
+
+      expect(useNetStore.getState().connectTimedOut).toBe(false)
+    })
   })
 })

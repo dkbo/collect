@@ -21,12 +21,18 @@ const loadGoogleMapsScript = (callback: () => void) => {
     return
   }
 
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  if (!apiKey) {
+    console.warn('缺少 VITE_GOOGLE_MAPS_API_KEY，未載入 Google Maps（請在 .env.local 設定）')
+    return
+  }
+
   const script = document.createElement('script')
   script.id = 'google-maps-script'
-  script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyAjFqeQJjsCq9yDXA5ArXePCfd-7Qnfams&libraries=places`
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
   script.async = true
   script.defer = true
-  
+
   script.addEventListener('load', callback)
   document.head.appendChild(script)
 }
