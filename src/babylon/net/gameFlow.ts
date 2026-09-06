@@ -15,6 +15,26 @@ const FLOW_PHASES = ['lobby', 'countdown', 'playing', 'result'] as const
 /** 倒數上限（毫秒）：擋住惡意/損毀封包送出天文數字造成的卡死 */
 const MAX_COUNTDOWN_MS = 60_000
 
+/**
+ * 是否受理「重開/推進回合」的請求（bomber 與 tank 共用；host 收 restartReq 與客端 canRestart 同一條規則）。
+ *
+ * - result 階段：任何玩家都能推進到下一局。
+ * - 其他階段（實務上為 playing）：只有在請求者已陣亡、且 playerIds 內沒有任何人類玩家還活著時才受理，
+ *   也就是「只剩 bot 在打」才允許跳過；只要還有一個人類活著就丟棄，避免陣亡者切掉活人的回合。
+ *
+ * playerIds 只放真人（ctx.players），bot 不列入。
+ */
+export const canAdvanceMidRound = (
+  phase: FlowPhase,
+  playerIds: readonly string[],
+  isAlive: (id: string) => boolean,
+  requester: string
+): boolean => {
+  if (phase === 'result') return true
+  if (isAlive(requester)) return false
+  return !playerIds.some((id) => isAlive(id))
+}
+
 export interface FlowState {
   phase: FlowPhase
   /** result 階段的結算資料（host 於 endGame 時帶入，如積分榜） */

@@ -15,6 +15,7 @@ import type { GameNetMessage } from '@/core/webrtc'
 import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
 import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
 import {
+  canAdvanceMidRound,
   createFixedTicker,
   createGameFlow,
   createOwnershipSync,
@@ -676,10 +677,19 @@ class BomberScene implements GameModule {
     }
   }
 
-  /** 可重開的時機：結算畫面，或自己已陣亡（觀戰中） */
+  /** 可重開的時機：結算畫面，或自己已陣亡且場上真人全滅（只剩 bot 在打） */
   private canRestart(): boolean {
-    const phase = this.flow.state.phase
-    return phase === 'result' || (phase === 'playing' && !this.isAlive(this.ctx.selfId))
+    return this.canAdvance(this.ctx.selfId)
+  }
+
+  /** 重開/推進回合的受理條件（host 收 restartReq 與客端提示共用同一條規則） */
+  private canAdvance(requester: string): boolean {
+    return canAdvanceMidRound(
+      this.flow.state.phase,
+      this.ctx.players.map((p) => p.id),
+      (id) => this.isAlive(id),
+      requester
+    )
   }
 
   /** 按 R / 結算按鈕：host 直接推進，guest 送請求給 host（由 host 的 hostAdvance 決定走法） */
@@ -1322,9 +1332,9 @@ class BomberScene implements GameModule {
       return
     }
     if (msg.type === 'restartReq') {
-      // 僅在結算中、或請求者已陣亡時受理，避免對局中誤觸重開
+      // 僅在結算中，或請求者已陣亡且真人全滅（只剩 bot）時受理，避免陣亡者切掉活人的回合
       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
-      if (this.flow.state.phase === 'result' || !this.isAlive(from)) this.hostAdvance()
+      if (this.canAdvance(from)) this.hostAdvance()
       return
     }
     // seed/bomb/boom 僅信任 host 廣播；guest 之間不互發這些訊息

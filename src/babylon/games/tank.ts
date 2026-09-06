@@ -12,6 +12,7 @@ import type { GameNetMessage } from '@/core/webrtc'
 import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
 import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
 import {
+  canAdvanceMidRound,
   createFixedTicker,
   createGameFlow,
   createOwnershipSync,
@@ -24,6 +25,7 @@ import {
   type GameFlow,
   type OwnershipSync,
 } from '@/babylon/net'
+import { validateShootReq } from './tankNet'
 
 /**
  * 坦克對戰（Host Authority 事件制）。
@@ -123,6 +125,8 @@ class TankScene implements GameModule {
 
   private state: TankState = { x: 0, z: 0, ry: 0, turretAngle: 0 }
   private stats = new Map<string, PlayerStat>()
+  /** host：各玩家上次開火時刻（shootReq 冷卻驗證用；每局重置） */
+  private lastShotAt = new Map<string, number>()
   private bullets = new Map<string, BulletInfo>()
   private items = new Map<number, ItemInfo>()
   private walls = new Set<number>()
@@ -288,6 +292,7 @@ class TankScene implements GameModule {
     this.flames = []
 
     // 初始化所有玩家 stats
+    this.lastShotAt.clear()
     for (const p of this.ctx.players) {
       this.stats.set(p.id, {
         hp: INIT_HP,
@@ -452,9 +457,19 @@ class TankScene implements GameModule {
 
   // ---- 重開 ----
 
+  /** 可重開的時機：結算畫面，或自己已毀損且場上其他真人也全毀 */
   private canRestart(): boolean {
-    const phase = this.flow.state.phase
-    return phase === 'result' || (phase === 'playing' && !this.isAlive(this.ctx.selfId))
+    return this.canAdvance(this.ctx.selfId)
+  }
+
+  /** 重開/推進回合的受理條件（host 收 restartReq 與客端提示共用同一條規則） */
+  private canAdvance(requester: string): boolean {
+    return canAdvanceMidRound(
+      this.flow.state.phase,
+      this.ctx.players.map((p) => p.id),
+      (id) => this.isAlive(id),
+      requester
+    )
   }
 
   private requestRestart(): void {
@@ -552,17 +567,27 @@ class TankScene implements GameModule {
   onNetworkMessage(from: string, msg: GameNetMessage): void {
     if (msg.game !== this.gameId) return
     if (msg.type === 'shootReq') {
+      // host 不只驗座標：存活、冷卻、起點與已知位置的距離、速度大小都要重新裁決
       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
-      const p = msg.payload
-      if (!isObj(p)) return
-      if (!isNumIn(p.x, -WORLD_LIMIT, WORLD_LIMIT) || !isNumIn(p.z, -WORLD_LIMIT, WORLD_LIMIT)) return
-      if (!isNumIn(p.vx, -VEL_LIMIT, VEL_LIMIT) || !isNumIn(p.vz, -VEL_LIMIT, VEL_LIMIT)) return
-      this.spawnBullet(from, p.x, p.z, p.vx, p.vz)
+      const now = performance.now()
+      const req = validateShootReq(msg.payload, {
+        alive: this.isAlive(from),
+        lastShotAt: this.lastShotAt.get(from),
+        cooldownMs: FIRE_COOLDOWN_MS * this.statOf(from).rapidMul,
+        knownPos: this.own.latestRemote(from),
+        now,
+        worldLimit: WORLD_LIMIT,
+        bulletSpeed: BULLET_SPEED,
+      })
+      if (!req) return
+      this.lastShotAt.set(from, now)
+      this.spawnBullet(from, req.x, req.z, req.vx, req.vz)
       return
     }
     if (msg.type === 'restartReq') {
+      // 僅在結算中，或請求者已毀損且其他真人也全毀時受理
       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
-      if (this.flow.state.phase === 'result' || !this.isAlive(from)) this.hostRestart()
+      if (this.canAdvance(from)) this.hostRestart()
       return
     }
     if (this.ctx.role === 'host') return

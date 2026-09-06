@@ -12,7 +12,13 @@ export {
   type HostSnapshotSender,
 } from './snapshotSync'
 export { createOwnershipSync, type OwnershipSync } from './ownership'
-export { createGameFlow, type GameFlow, type FlowPhase, type FlowState } from './gameFlow'
+export {
+  createGameFlow,
+  canAdvanceMidRound,
+  type GameFlow,
+  type FlowPhase,
+  type FlowState,
+} from './gameFlow'
 export {
   isObj,
   isNum,

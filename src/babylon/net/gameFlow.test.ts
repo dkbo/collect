@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { NetEvent, NetEventMap, NetTransport } from '@/core/webrtc'
-import { createGameFlow } from './gameFlow'
+import { canAdvanceMidRound, createGameFlow } from './gameFlow'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -217,5 +217,36 @@ describe('createGameFlow (guest)', () => {
 
     expect(cb).not.toHaveBeenCalled()
     expect(flow.state).toEqual({ phase: 'lobby' })
+  })
+})
+
+/**
+ * 重開/推進回合的受理規則（bomber 與 tank 的 host restartReq 與客端 canRestart 共用）。
+ * 目的：保留「死了不想等 bot 打完」，但不讓陣亡者切掉還活著的人的回合。
+ */
+describe('canAdvanceMidRound', () => {
+  const alive = (ids: string[]) => (id: string) => ids.includes(id)
+
+  it('result 階段任何玩家都能推進（含仍存活者）', () => {
+    expect(canAdvanceMidRound('result', ['p1', 'p2'], alive(['p1']), 'p1')).toBe(true)
+    expect(canAdvanceMidRound('result', ['p1', 'p2'], alive(['p1']), 'p2')).toBe(true)
+  })
+
+  it('playing 且還有真人活著 → 陣亡者不能跳過', () => {
+    expect(canAdvanceMidRound('playing', ['p1', 'p2'], alive(['p1']), 'p2')).toBe(false)
+  })
+
+  it('playing 且真人全滅（只剩 bot 在打）→ 陣亡者可跳過', () => {
+    expect(canAdvanceMidRound('playing', ['p1', 'p2'], alive([]), 'p2')).toBe(true)
+  })
+
+  it('playing 且請求者自己還活著 → 不受理', () => {
+    expect(canAdvanceMidRound('playing', ['p1', 'p2'], alive(['p1', 'p2']), 'p1')).toBe(false)
+    // 連自己都還活著時，即使其他人全死也不受理
+    expect(canAdvanceMidRound('playing', ['p1', 'p2'], alive(['p1']), 'p1')).toBe(false)
+  })
+
+  it('單人局：自己陣亡（場上只剩 bot）即可重開', () => {
+    expect(canAdvanceMidRound('playing', ['p1'], alive([]), 'p1')).toBe(true)
   })
 })
