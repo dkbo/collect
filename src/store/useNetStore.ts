@@ -1,5 +1,19 @@
 import { create } from 'zustand'
-import { createMesh, type GameNetMessage, type Mesh, type NetTransport } from '@/core/webrtc'
+import {
+  createMesh,
+  type GameNetMessage,
+  type Mesh,
+  type MeshSignaling,
+  type NetTransport,
+} from '@/core/webrtc'
+import { deleteSignal, sendSignal, subscribeSignals } from '@/core/room/signaling'
+
+/** 注入 mesh 的 signaling 實作：Firestore rooms/{id}/signals（架構審查 G2） */
+const firestoreSignaling: MeshSignaling = {
+  send: (roomId, sig) => sendSignal(roomId, sig),
+  subscribe: (roomId, selfId, onSignal) => subscribeSignals(roomId, selfId, onSignal),
+  delete: (roomId, signalId) => deleteSignal(roomId, signalId),
+}
 
 /** ping demo 系統訊息命名空間（Phase 2 連線驗證用，Phase 4 換成實際遊戲訊息） */
 const SYS = '_sys'
@@ -81,7 +95,7 @@ export const useNetStore = create<NetStore>((set, get) => {
         }, CONNECT_TIMEOUT_MS)
       }
 
-      const m = createMesh({ roomId, selfId, peerIds })
+      const m = createMesh({ roomId, selfId, peerIds, signaling: firestoreSignaling })
       mesh = m
       set({ transport: m })
 

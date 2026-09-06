@@ -6,10 +6,18 @@
  * - DataChannel 採 negotiated（兩端各自以相同 id 建立，免 ondatachannel 協商）：
  *     id 0 = reliable（ordered，指令/事件）
  *     id 1 = unreliable（ordered:false, maxRetransmits:0，位置高頻）
- * - Signaling 經 Firestore（見 core/room/signaling）；ICE 在 remote SDP 設定前先緩衝。
+ * - Signaling 由呼叫端注入（MeshOptions.signaling，實作見 core/room/signaling）；
+ *   ICE 在 remote SDP 設定前先緩衝。
  */
-import { deleteSignal, sendSignal, subscribeSignals, type Signal } from '@/core/room/signaling'
-import type { GameNetMessage, NetEvent, NetEventMap, NetTransport } from './types'
+import type {
+  GameNetMessage,
+  MeshSignaling,
+  NetEvent,
+  NetEventMap,
+  NetTransport,
+  OutgoingSignal,
+  SignalMessage,
+} from './types'
 
 const RTC_CONFIG: RTCConfiguration = {
   // 免費 STUN；無 TURN，對稱 NAT 可能連不上（計畫 §8 已知限制）
@@ -55,9 +63,11 @@ export interface MeshOptions {
   selfId: string
   /** 房內所有玩家 uid（含自己） */
   peerIds: string[]
+  /** signaling 通道實作（Firestore / 測試替身），由呼叫端注入 */
+  signaling: MeshSignaling
 }
 
-export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
+export const createMesh = ({ roomId, selfId, peerIds, signaling }: MeshOptions): Mesh => {
   const peers = new Map<string, PeerConn>()
   /** 房內玩家白名單（含自己）；只有名單內的 uid 能與我方協商連線 */
   let allowed = new Set(peerIds)
@@ -84,8 +94,8 @@ export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
     listeners[event].forEach((cb) => (cb as (...a: unknown[]) => void)(...args))
   }
 
-  const post = (sig: Parameters<typeof sendSignal>[1]) => {
-    if (!stopped) void sendSignal(roomId, sig)
+  const post = (sig: OutgoingSignal) => {
+    if (!stopped) void signaling.send(roomId, sig)
   }
 
   /** 判定 peer 離開：emit close + peerLeave 各一次，關閉連線並從 mesh 移除 */
@@ -212,7 +222,7 @@ export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
    * 型別未在 signaling 模組宣告，這裡以鴨子型別讀取。
    * fail-closed：缺欄位或讀不出毫秒數一律視為過期——合法寫入必定帶得出時間戳。
    */
-  const isStale = (sig: Signal): boolean => {
+  const isStale = (sig: SignalMessage): boolean => {
     const raw = (sig as unknown as { createdAt?: unknown }).createdAt
     if (!raw || typeof raw !== 'object') return true
     const ts = raw as { toMillis?: () => number; seconds?: number }
@@ -251,17 +261,17 @@ export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
     return true
   }
 
-  const handleSignal = async (sig: Signal) => {
+  const handleSignal = async (sig: SignalMessage) => {
     // 白名單：非房內玩家（或冒用自己 uid）的 signal 一律不協商，直接刪除
     if (sig.from === selfId || !allowed.has(sig.from)) {
-      void deleteSignal(roomId, sig.id)
+      void signaling.delete(roomId, sig.id)
       return
     }
     // 重播防護：同一份文件被重複派送（重新訂閱、離線快取）只處理一次
     if (!markHandled(sig.id)) return
     // 新鮮度：逾時殘留的 signal 直接清掉，不拿舊 SDP 重建連線
     if (isStale(sig)) {
-      void deleteSignal(roomId, sig.id)
+      void signaling.delete(roomId, sig.id)
       return
     }
     try {
@@ -296,7 +306,7 @@ export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
       console.warn('[mesh] signal 處理失敗', sig.kind, sig.from, err)
       markGone(sig.from)
     } finally {
-      void deleteSignal(roomId, sig.id)
+      void signaling.delete(roomId, sig.id)
     }
   }
 
@@ -318,7 +328,7 @@ export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
   return {
     start() {
       stopped = false
-      unsubSignals = subscribeSignals(roomId, selfId, (sig) => void handleSignal(sig))
+      unsubSignals = signaling.subscribe(roomId, selfId, (sig) => void handleSignal(sig))
       for (const peerId of allowed) {
         if (peerId === selfId) continue
         announced.add(peerId)
@@ -384,5 +394,14 @@ export const createMesh = ({ roomId, selfId, peerIds }: MeshOptions): Mesh => {
   }
 }
 
-export type { GameNetMessage, NetEvent, NetEventMap, NetTransport } from './types'
+export type {
+  GameNetMessage,
+  MeshSignaling,
+  NetEvent,
+  NetEventMap,
+  NetTransport,
+  OutgoingSignal,
+  SignalKind,
+  SignalMessage,
+} from './types'
 export { createNoopTransport } from './noopTransport'

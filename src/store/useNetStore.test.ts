@@ -40,7 +40,9 @@ describe('useNetStore', () => {
 
     useNetStore.getState().connect('room1', 'self', ['self'])
 
-    expect(createMesh).toHaveBeenCalledWith({ roomId: 'room1', selfId: 'self', peerIds: ['self'] })
+    expect(createMesh).toHaveBeenCalledWith(
+      expect.objectContaining({ roomId: 'room1', selfId: 'self', peerIds: ['self'] })
+    )
     expect(mesh.start).toHaveBeenCalledTimes(1)
     expect(useNetStore.getState().status).toBe('connected')
     expect(useNetStore.getState().transport).toBe(mesh)

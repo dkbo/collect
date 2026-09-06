@@ -18,16 +18,6 @@ import {
   createFixedTicker,
   createGameFlow,
   createOwnershipSync,
-  isArrayOf,
-  isCell,
-  isCellArray,
-  isIntIn,
-  isNum,
-  isNumIn,
-  isObj,
-  isOneOf,
-  isStr,
-  isStrArray,
   type FixedTicker,
   type GameFlow,
   type OwnershipSync,
@@ -44,6 +34,29 @@ import {
   generateMap,
   isBlocked,
 } from './bomberMap'
+import {
+  botAggro,
+  computeDangerMap,
+  decideBotAction,
+  type AiBomb,
+  type AiTuning,
+} from './bomberAI'
+import {
+  decodeBombReq,
+  decodeBomberMessage,
+  decodeKickReq,
+  decodeThrowReq,
+  type BomberPayloadMap,
+  type BoomPayload,
+  type BombMovePayload,
+  type BombPayload,
+  type BotEntry,
+  type BotsPayload,
+  type CloseWallPayload,
+  type Drop,
+  type ItemKind,
+  type PickupPayload,
+} from './bomberNet'
 
 /**
  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
@@ -104,22 +117,6 @@ interface RoundResult {
   championId: string | null // matchOver 時的冠軍 id
 }
 
-type ItemKind = 'bomb' | 'fire' | 'speed' | 'kick' | 'throw' | 'invincible'
-
-/** 合法道具種類（網路封包驗證用） */
-const ITEM_KINDS = ['bomb', 'fire', 'speed', 'kick', 'throw', 'invincible'] as const
-/** 場上實體（玩家 + bot）數量上限，作為 kills/bots 等陣列的長度上限 */
-const MAX_ENTITIES = 8
-/** 炸彈移動（踢/丟）動畫時間上限（毫秒） */
-const MAX_BOMB_MOVE_MS = 10_000
-
-/** 爆炸掉落的道具 */
-interface Drop {
-  cx: number
-  cy: number
-  kind: ItemKind
-}
-
 interface ItemInfo {
   kind: ItemKind
   mesh: Mesh
@@ -174,18 +171,15 @@ const KICK_STEP_MS = 120 // 踢炸彈每滑一格的時間（各端依此插值�
 const THROW_HOP_MS = 110 // 丟炸彈每飛一格的時間
 const THROW_MAX_TILES = 4 // 丟炸彈最遠飛幾格
 
-// 電腦 AI 調校（皆為 host 端決策用的時間視窗，單位 ms）
-const AI_HOT_MS = 850 // 距引爆在此時間內的格視為「即將爆、絕不踏入」
-const AI_FLEE_MS = 1500 // 站在會於此時間內爆的格就立刻開逃
-const AI_ESCAPE_MARGIN_MS = 280 // 逃離自放炸彈須預留的安全餘裕
-const AI_ITEM_MAX_DIST = 8 // 主動撿道具的最遠曼哈頓距離
-
 // 多回合計分制（Best-of-N）：先贏 MATCH_TARGET 場奪冠
 const MATCH_TARGET = 3
 
 // 場地縮小・突然死亡：進 playing 後 SUDDEN_DEATH_MS 啟動，每 CLOSE_INTERVAL_MS 由外圈往內落一格牆
 const SUDDEN_DEATH_MS = 40000
 const CLOSE_INTERVAL_MS = 650
+
+/** 傳給 bomberAI 的場景數值（見 AiTuning） */
+const AI_TUNING: AiTuning = { cellSize: CELL, fuseMs: BOMB_FUSE_MS, flameMs: FLAME_MS }
 
 const cellToWorld = (c: number, count: number): number => (c - (count - 1) / 2) * CELL
 const worldToCell = (w: number, count: number): number => Math.round(w / CELL + (count - 1) / 2)
@@ -228,7 +222,7 @@ class BomberScene implements GameModule {
   private selfAvatar?: Avatar
   private peerAvatars = new Map<string, Avatar>()
   // 電腦玩家（補滿至 4 人）：名冊由 host 決定並隨 seed 廣播
-  private bots: { id: string; name: string }[] = []
+  private bots: BotEntry[] = []
   private botAvatars = new Map<string, Avatar>()
   private botState = new Map<string, { x: number; z: number }>() // host 模擬位置
   private botTarget = new Map<string, { x: number; z: number }>() // guest 插值目標
@@ -283,7 +277,7 @@ class BomberScene implements GameModule {
   }
 
   /** 所有實體（真人 players 在前、bots 在後），上限 4 */
-  private entities(): { id: string; name: string }[] {
+  private entities(): BotEntry[] {
     return [...this.ctx.players, ...this.bots]
   }
 
@@ -292,9 +286,9 @@ class BomberScene implements GameModule {
   }
 
   /** host：依真人數量產生 bot 名冊，補滿至 4 人 */
-  private makeBots(): { id: string; name: string }[] {
+  private makeBots(): BotEntry[] {
     const count = Math.max(0, Math.min(4, 4 - this.ctx.players.length))
-    const bots: { id: string; name: string }[] = []
+    const bots: BotEntry[] = []
     for (let i = 0; i < count; i++) bots.push({ id: `bot-${i}`, name: `電腦${i + 1}` })
     return bots
   }
@@ -661,13 +655,13 @@ class BomberScene implements GameModule {
   // ---- 炸彈協議 ----
 
   /** host 本地套用 + 廣播（host 自己的訊息不會回流） */
-  private hostBroadcast(type: string, payload: unknown): void {
+  private hostBroadcast<T extends keyof BomberPayloadMap>(type: T, payload: BomberPayloadMap[T]): void {
     this.ctx.net.broadcast({ game: this.gameId, type, payload })
     this.applyMessage(type, payload)
   }
 
   /** guest 套用 host 廣播的 bot 位置（更新插值目標，update() 平滑 lerp） */
-  private applyBotStates(p: { states: { id: string; x: number; z: number }[] }): void {
+  private applyBotStates(p: BotsPayload): void {
     for (const s of p.states) {
       const t = this.botTarget.get(s.id)
       if (t) {
@@ -827,7 +821,7 @@ class BomberScene implements GameModule {
     this.hostBroadcast('bomb', { id: `b${this.bombSeq++}`, cx, cy, owner })
   }
 
-  private applyBomb(p: { id: string; cx: number; cy: number; owner: string }): void {
+  private applyBomb(p: BombPayload): void {
     playSfx('bomb_place')
     const scene = this.ctx.scene
     const mesh = MeshBuilder.CreateSphere(`bomb-${p.id}`, { diameter: 1.1 }, scene)
@@ -930,7 +924,7 @@ class BomberScene implements GameModule {
   }
 
   /** 套用炸彈移動（踢滑行 / 丟拋物）：更新邏輯格與動畫，各端依時間插值。 */
-  private applyBombMove(p: { id: string; toCx: number; toCy: number; durMs: number; arc: number }): void {
+  private applyBombMove(p: BombMovePayload): void {
     const b = this.bombs.get(p.id)
     if (!b) return
     playSfx(p.arc > 0 ? 'bomb_place' : 'pickup')
@@ -975,7 +969,7 @@ class BomberScene implements GameModule {
 
     // 木箱炸毀後依機率掉落道具（host 決定）。
     // 機率分佈：基礎三種較常見，能力類（踢/丟）較稀有，無敵中等。
-    const drops: { cx: number; cy: number; kind: ItemKind }[] = []
+    const drops: Drop[] = []
     for (const [cx, cy] of destroyed) {
       if (Math.random() >= ITEM_DROP_CHANCE) continue
       const r = Math.random()
@@ -997,15 +991,7 @@ class BomberScene implements GameModule {
     }
   }
 
-  private applyBoom(p: {
-    id: string
-    cells: [number, number][]
-    destroyed: [number, number][]
-    damaged?: [number, number][]
-    kills: string[]
-    itemKills?: [number, number][]
-    drops?: { cx: number; cy: number; kind: ItemKind }[]
-  }): void {
+  private applyBoom(p: BoomPayload): void {
     playSfx('explosion')
     this.shakeUntil = performance.now() + SHAKE_MS
     const bomb = this.bombs.get(p.id)
@@ -1089,7 +1075,7 @@ class BomberScene implements GameModule {
   }
 
   /** 套用突然死亡落牆（host 本地 + guest 套用）：該格設為牆、清掉既有物件、建落牆 mesh、致死。 */
-  private applyCloseWall(p: { cx: number; cy: number; kills: string[] }): void {
+  private applyCloseWall(p: CloseWallPayload): void {
     const ci = cellIndex(p.cx, p.cy)
     this.map[ci] = TILE_WALL
 
@@ -1255,7 +1241,7 @@ class BomberScene implements GameModule {
   }
 
   /** 套用拾取：移除道具、提升該玩家能力值（上限封頂） */
-  private applyPickup(p: { ci: number; who: string }): void {
+  private applyPickup(p: PickupPayload): void {
     const it = this.items.get(p.ci)
     if (!it) return
     playSfx('pickup')
@@ -1273,82 +1259,29 @@ class BomberScene implements GameModule {
 
   /**
    * 收到網路訊息（含 host 本地回放）統一入口。
-   * payload 一律先驗型別與範圍（安全審查 C2）——格座標夾在盤面內、
+   * payload 一律先經 bomberNet 解碼驗證（安全審查 C2）——格座標夾在盤面內、
    * 陣列限長、數值須為有限數；驗不過即整則丟棄，絕不 throw。
    */
   private applyMessage(type: string, payload: unknown): void {
-    const p = payload
-    if (!isObj(p)) return
-    if (type === 'seed') {
-      if (!isNumIn(p.seed, 0, 0xffffffff)) return
-      this.bots = isArrayOf<{ id: string; name: string }>(
-        p.bots,
-        (b) => isObj(b) && isStr(b.id) && isStr(b.name),
-        MAX_ENTITIES
-      )
-        ? (p.bots as { id: string; name: string }[])
-        : []
-      this.applySeed(p.seed)
-    } else if (type === 'bots') {
-      if (
-        !isArrayOf<{ id: string; x: number; z: number }>(
-          p.states,
-          (b) => isObj(b) && isStr(b.id) && isNum(b.x) && isNum(b.z),
-          MAX_ENTITIES
-        )
-      )
-        return
-      this.applyBotStates({ states: p.states as { id: string; x: number; z: number }[] })
-    } else if (type === 'bomb') {
-      if (!isStr(p.id) || !isStr(p.owner) || !isCell([p.cx, p.cy], GRID_W, GRID_H)) return
-      this.applyBomb({ id: p.id, cx: p.cx as number, cy: p.cy as number, owner: p.owner })
-    } else if (type === 'boom') {
-      if (!isStr(p.id)) return
-      if (!isCellArray(p.cells, GRID_W, GRID_H) || p.cells.length === 0) return // applyBoom 讀 cells[0]
-      if (!isCellArray(p.destroyed, GRID_W, GRID_H)) return
-      if (p.damaged !== undefined && !isCellArray(p.damaged, GRID_W, GRID_H)) return
-      if (p.itemKills !== undefined && !isCellArray(p.itemKills, GRID_W, GRID_H)) return
-      if (!isStrArray(p.kills, MAX_ENTITIES)) return
-      if (
-        p.drops !== undefined &&
-        !isArrayOf<Drop>(
-          p.drops,
-          (d) =>
-            isObj(d) &&
-            isCell([d.cx, d.cy], GRID_W, GRID_H) &&
-            isOneOf<ItemKind>(d.kind, ITEM_KINDS),
-          GRID_W * GRID_H
-        )
-      )
-        return
-      this.applyBoom({
-        id: p.id,
-        cells: p.cells,
-        destroyed: p.destroyed,
-        damaged: p.damaged as [number, number][] | undefined,
-        itemKills: p.itemKills as [number, number][] | undefined,
-        kills: p.kills,
-        drops: p.drops as Drop[] | undefined,
-      })
-    } else if (type === 'burn') {
-      if (!isStrArray(p.kills, MAX_ENTITIES)) return
-      this.killPlayers(p.kills)
-    } else if (type === 'pickup') {
-      if (!isIntIn(p.ci, 0, GRID_W * GRID_H - 1) || !isStr(p.who)) return
-      this.applyPickup({ ci: p.ci, who: p.who })
-    } else if (type === 'bombMove') {
-      if (!isStr(p.id) || !isCell([p.toCx, p.toCy], GRID_W, GRID_H)) return
-      if (!isNumIn(p.durMs, 0, MAX_BOMB_MOVE_MS) || !isNumIn(p.arc, 0, 10)) return
-      this.applyBombMove({
-        id: p.id,
-        toCx: p.toCx as number,
-        toCy: p.toCy as number,
-        durMs: p.durMs,
-        arc: p.arc,
-      })
-    } else if (type === 'closeWall') {
-      if (!isCell([p.cx, p.cy], GRID_W, GRID_H) || !isStrArray(p.kills, MAX_ENTITIES)) return
-      this.applyCloseWall({ cx: p.cx as number, cy: p.cy as number, kills: p.kills })
+    const msg = decodeBomberMessage(type, payload)
+    if (!msg) return
+    if (msg.type === 'seed') {
+      this.bots = msg.bots
+      this.applySeed(msg.seed)
+    } else if (msg.type === 'bots') {
+      this.applyBotStates(msg)
+    } else if (msg.type === 'bomb') {
+      this.applyBomb(msg)
+    } else if (msg.type === 'boom') {
+      this.applyBoom(msg)
+    } else if (msg.type === 'burn') {
+      this.killPlayers(msg.kills)
+    } else if (msg.type === 'pickup') {
+      this.applyPickup(msg)
+    } else if (msg.type === 'bombMove') {
+      this.applyBombMove(msg)
+    } else if (msg.type === 'closeWall') {
+      this.applyCloseWall(msg)
     }
   }
 
@@ -1362,35 +1295,34 @@ class BomberScene implements GameModule {
     // ---- guest → host 的上行請求：來源須為本局玩家，payload 驗過才交給 host 裁決 ----
     if (msg.type === 'bombReq') {
       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
-      const p = msg.payload
-      if (!isObj(p) || !isCell([p.cx, p.cy], GRID_W, GRID_H)) return
-      this.validateBomb(from, p.cx as number, p.cy as number)
+      const req = decodeBombReq(msg.payload)
+      if (!req) return
+      this.validateBomb(from, req.cx, req.cy)
       return
     }
     if (msg.type === 'kickReq') {
       // guest 送踢炸彈請求：host 依目前炸彈狀態重新驗證（不信任 guest 格子，僅用方向）
       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
       if (!this.statOf(from).kick) return
-      const p = msg.payload
-      if (!isObj(p) || !isCell([p.cx, p.cy], GRID_W, GRID_H)) return
-      if (!isNum(p.dx) || !isNum(p.dy)) return
+      const req = decodeKickReq(msg.payload)
+      if (!req) return
       let bomb: BombInfo | null = null
       for (const b of this.bombs.values()) {
-        if (b.cx === p.cx && b.cy === p.cy && !b.motion) {
+        if (b.cx === req.cx && b.cy === req.cy && !b.motion) {
           bomb = b
           break
         }
       }
-      if (bomb) this.validateKick(bomb, Math.sign(p.dx), Math.sign(p.dy))
+      if (bomb) this.validateKick(bomb, Math.sign(req.dx), Math.sign(req.dy))
       return
     }
     if (msg.type === 'throwReq') {
       // guest 送丟炸彈請求：host 依該玩家當前位置與面向驗證
       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
       if (!this.statOf(from).throw) return
-      const p = msg.payload
-      if (!isObj(p) || !isNum(p.dx) || !isNum(p.dy)) return
-      this.validateThrow(from, Math.sign(p.dx), Math.sign(p.dy))
+      const req = decodeThrowReq(msg.payload)
+      if (!req) return
+      this.validateThrow(from, Math.sign(req.dx), Math.sign(req.dy))
       return
     }
     if (msg.type === 'restartReq') {
@@ -1738,155 +1670,24 @@ class BomberScene implements GameModule {
   }
 
   // ---- 電腦玩家 AI（僅 host）----
+  // 尋路與決策為純邏輯，已抽至 bomberAI.ts；此處只負責取快照、套用結果。
 
-  /**
-   * 危險時間圖：每格 → 最早會致命的時刻（performance.now 毫秒）。未列入者代表目前安全。
-   * - 現存火焰：當下即致命（now）。
-   * - 炸彈：以各自引信時刻標記整條爆風；並模擬「連鎖」——某炸彈爆風覆蓋另一炸彈所在格時，
-   *   被覆蓋者的有效引爆時刻提前為觸發者的時刻（迭代到收斂）。
-   * 有了時間維度，bot 才能分辨「剛放下、還很久才爆」與「即將引爆」的格，不再過度膽小。
-   */
-  private computeDangerMap(): Map<number, number> {
-    const now = performance.now()
-    const dmap = new Map<number, number>()
-    const setMin = (ci: number, t: number) => {
-      const cur = dmap.get(ci)
-      if (cur === undefined || t < cur) dmap.set(ci, t)
-    }
-    for (const f of this.flames) if (f.until > now) setMin(cellIndex(f.cx, f.cy), now)
-
-    const arr = [...this.bombs.values()]
-    const eff = arr.map((b) => b.explodeAt)
-    const blasts = arr.map((b) =>
-      blastCells(this.map, b.cx, b.cy, this.statOf(b.owner).fire).cells.map(([x, y]) => cellIndex(x, y)),
-    )
-    // 連鎖傳遞：最多迭代 N 輪（N = 炸彈數）即收斂
-    for (let iter = 0; iter < arr.length; iter++) {
-      let changed = false
-      for (let i = 0; i < arr.length; i++) {
-        for (let j = 0; j < arr.length; j++) {
-          if (i === j) continue
-          if (blasts[i].includes(cellIndex(arr[j].cx, arr[j].cy)) && eff[i] < eff[j]) {
-            eff[j] = eff[i]
-            changed = true
-          }
-        }
-      }
-      if (!changed) break
-    }
-    for (let i = 0; i < arr.length; i++) for (const ci of blasts[i]) setMin(ci, eff[i])
-    return dmap
+  /** 現存炸彈轉為 AI 用的純資料（帶擁有者火力） */
+  private aiBombs(): AiBomb[] {
+    return [...this.bombs.values()].map((b) => ({
+      cx: b.cx,
+      cy: b.cy,
+      fire: this.statOf(b.owner).fire,
+      explodeAt: b.explodeAt,
+    }))
   }
 
-  /** 某格是否可踏入（空地、非阻擋、無炸彈） */
-  private cellWalkable(cx: number, cy: number): boolean {
-    if (isBlocked(this.map, cx, cy)) return false
-    for (const b of this.bombs.values()) if (b.cx === cx && b.cy === cy) return false
-    return true
-  }
-
-  /**
-   * 格圖 BFS：從 (sx,sy) 找到最近滿足 goalFn 的格，回傳第一步鄰格與步數距離。
-   * blockedFn 為真的格不可踏入（也不能當終點）。起點滿足 goalFn 或無路徑皆回 null。
-   * grid 13×11，每幀每隻 bot 跑成本極低。
-   */
-  private bfsToGoal(
-    sx: number,
-    sy: number,
-    goalFn: (cx: number, cy: number) => boolean,
-    blockedFn: (cx: number, cy: number) => boolean,
-  ): { first: [number, number]; dist: number } | null {
-    if (goalFn(sx, sy)) return null
-    const dirs: [number, number][] = [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]
-    const visited = new Set<number>([cellIndex(sx, sy)])
-    const queue: { x: number; y: number; first: [number, number] | null; dist: number }[] = [
-      { x: sx, y: sy, first: null, dist: 0 },
-    ]
-    let head = 0
-    while (head < queue.length) {
-      const cur = queue[head++]
-      for (const [dx, dy] of dirs) {
-        const nx = cur.x + dx
-        const ny = cur.y + dy
-        if (nx < 0 || ny < 0 || nx >= GRID_W || ny >= GRID_H) continue
-        const ci = cellIndex(nx, ny)
-        if (visited.has(ci)) continue
-        if (!this.cellWalkable(nx, ny) || blockedFn(nx, ny)) continue
-        visited.add(ci)
-        const first: [number, number] = cur.first ?? [nx, ny]
-        const dist = cur.dist + 1
-        if (goalFn(nx, ny)) return { first, dist }
-        queue.push({ x: nx, y: ny, first, dist })
-      }
-    }
-    return null
-  }
-
-  /**
-   * bot 在 (cx,cy) 放彈後是否還來得及逃到安全格。
-   * 把「假想新炸彈」（引信 = now + fuse）疊上目前危險圖，BFS 找一個放彈後仍安全、
-   * 且在引信時間內（依移速換算步數）能抵達的格。比舊版只看兩步拓樸更可靠，避免自殺。
-   */
-  private canEscapeAfterBomb(
-    cx: number,
-    cy: number,
-    fire: number,
-    dmap: Map<number, number>,
-    now: number,
-    speed: number,
-  ): boolean {
-    const detonate = now + BOMB_FUSE_MS
-    const blast = new Set(blastCells(this.map, cx, cy, fire).cells.map(([x, y]) => cellIndex(x, y)))
-    const dAt = (gx: number, gy: number): number => {
-      const ci = cellIndex(gx, gy)
-      let t = dmap.get(ci) ?? Infinity
-      if (blast.has(ci)) t = Math.min(t, detonate)
-      return t
-    }
-    const timePerCell = (CELL / speed) * 1000
-    const maxSteps = Math.floor((BOMB_FUSE_MS - AI_ESCAPE_MARGIN_MS) / timePerCell)
-    if (maxSteps < 1) return false
-    const res = this.bfsToGoal(
-      cx,
-      cy,
-      // 終點：放彈後不會被波及（含火焰殘留時間）
-      (gx, gy) => dAt(gx, gy) > detonate + FLAME_MS,
-      // 不穿越即將爆炸的格
-      (gx, gy) => dAt(gx, gy) - now <= AI_HOT_MS,
-    )
-    return !!res && res.dist <= maxSteps
-  }
-
-  /** 每隻 bot 的固定性格（依 id 雜湊），讓三隻電腦行為分歧、不擠成一團 */
-  private botAggro(id: string): number {
-    let h = 0
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
-    return 0.35 + (h % 100) / 100 / 1.6 // 0.35 ~ 0.97
-  }
-
-  /** 對每隻 alive bot 跑 AI：時間感知避險 → 撿道具 → 攻擊放彈 */
+  /** 對每隻 alive bot 跑 AI 決策，並套用移動／放彈 */
   private simulateBots(dt: number): void {
     if (this.bots.length === 0) return
-    const dmap = this.computeDangerMap()
+    const dmap = computeDangerMap(this.map, this.aiBombs(), this.flames, performance.now())
     const now = performance.now()
-    const dirs: [number, number][] = [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]
-    const dAt = (ci: number): number => dmap.get(ci) ?? Infinity
-    const flamingNow = (gx: number, gy: number): boolean => dAt(cellIndex(gx, gy)) <= now
-    const hotSoon = (gx: number, gy: number): boolean => dAt(cellIndex(gx, gy)) - now <= AI_HOT_MS
-    const safeToStand = (gx: number, gy: number): boolean => {
-      const t = dAt(cellIndex(gx, gy))
-      return t === Infinity || t - now > AI_FLEE_MS
-    }
+    const itemCells = new Set(this.items.keys())
 
     for (const bot of this.bots) {
       if (!this.isAlive(bot.id)) continue
@@ -1909,48 +1710,7 @@ class BomberScene implements GameModule {
         pos.z += (dz / len) * step
       }
 
-      // (a) 避險：站在會於 AI_FLEE_MS 內爆的格 → BFS 找最近安全格逃離（只避開當下火焰）。
-      const myDanger = dAt(cellIndex(cx, cy)) - now
-      if (myDanger <= AI_FLEE_MS) {
-        const res = this.bfsToGoal(cx, cy, safeToStand, flamingNow)
-        if (res) {
-          moveToward(res.first[0], res.first[1])
-        } else {
-          // 退路全被堵：朝「最晚才爆」的可走鄰格拖延
-          let best: [number, number] | null = null
-          let bestT = -Infinity
-          for (const [dx, dy] of dirs) {
-            const nx = cx + dx
-            const ny = cy + dy
-            if (!this.cellWalkable(nx, ny) || flamingNow(nx, ny)) continue
-            const t = dAt(cellIndex(nx, ny))
-            if (t > bestT) {
-              bestT = t
-              best = [nx, ny]
-            }
-          }
-          if (best) moveToward(best[0], best[1])
-        }
-        continue
-      }
-
-      // (b) 撿道具：BFS（避開即將爆的格）走向最近道具，撿取/套用交給 detectPickups。
-      if (this.items.size > 0) {
-        const res = this.bfsToGoal(
-          cx,
-          cy,
-          (gx, gy) =>
-            this.items.has(cellIndex(gx, gy)) &&
-            Math.abs(gx - cx) + Math.abs(gy - cy) <= AI_ITEM_MAX_DIST,
-          hotSoon,
-        )
-        if (res) {
-          moveToward(res.first[0], res.first[1])
-          continue
-        }
-      }
-
-      // (c) 攻擊/開路。蒐集 alive 敵人格。
+      // 其他存活實體所在格（自己以外）
       const enemyCells: [number, number][] = []
       for (const e of this.entities()) {
         if (e.id === bot.id || !this.isAlive(e.id)) continue
@@ -1958,79 +1718,27 @@ class BomberScene implements GameModule {
         if (ep) enemyCells.push([worldToCell(ep.x, GRID_W), worldToCell(ep.z, GRID_H)])
       }
 
-      // 放彈判定：以「實際爆風」(blastCells，會被箱子擋住) 判斷能否打到敵人；或相鄰箱子。
-      const myBlast = new Set(blastCells(this.map, cx, cy, stat.fire).cells.map(([x, y]) => cellIndex(x, y)))
-      const hitsEnemy = enemyCells.some(([ecx, ecy]) => myBlast.has(cellIndex(ecx, ecy)))
-      let adjacentCrate = false
-      for (const [dx, dy] of dirs) {
-        const t = this.map[cellIndex(cx + dx, cy + dy)]
-        if (t === TILE_CRATE || t === TILE_CRATE_HARD) adjacentCrate = true
-      }
-      const cooldownOk = now - (this.botBombInput.get(bot.id) ?? 0) > BOMB_INPUT_COOLDOWN_MS * 3
-      if (
-        (adjacentCrate || hitsEnemy) &&
-        cooldownOk &&
-        this.canEscapeAfterBomb(cx, cy, stat.fire, dmap, now, speed)
-      ) {
+      const action = decideBotAction({
+        map: this.map,
+        bombs: this.aiBombs(),
+        danger: dmap,
+        now,
+        cx,
+        cy,
+        speed,
+        fire: stat.fire,
+        aggro: botAggro(bot.id),
+        itemCells,
+        enemyCells,
+        bombReady: now - (this.botBombInput.get(bot.id) ?? 0) > BOMB_INPUT_COOLDOWN_MS * 3,
+        tuning: AI_TUNING,
+      })
+
+      if (action.type === 'move') {
+        moveToward(action.cx, action.cy)
+      } else if (action.type === 'bomb') {
         this.botBombInput.set(bot.id, now)
         this.validateBomb(bot.id, cx, cy)
-        continue // 下一 tick 新炸彈進入危險圖，以 (a) 逃離
-      }
-
-      // 攻擊位：正交相鄰箱子，或站該格放彈其實際爆風能打到敵人。
-      // 性格 aggro 高者更傾向追敵；低者偏好炸箱farm。
-      const aggro = this.botAggro(bot.id)
-      const isAttackSpot = (gx: number, gy: number): boolean => {
-        if (enemyCells.length > 0 && aggro > 0.5) {
-          const spotBlast = new Set(
-            blastCells(this.map, gx, gy, stat.fire).cells.map(([x, y]) => cellIndex(x, y)),
-          )
-          if (enemyCells.some(([ecx, ecy]) => spotBlast.has(cellIndex(ecx, ecy)))) return true
-        }
-        for (const [dx, dy] of dirs) {
-          const t = this.map[cellIndex(gx + dx, gy + dy)]
-          if (t === TILE_CRATE || t === TILE_CRATE_HARD) return true
-        }
-        return false
-      }
-
-      const res = this.bfsToGoal(cx, cy, (gx, gy) => isAttackSpot(gx, gy), hotSoon)
-      if (res) {
-        moveToward(res.first[0], res.first[1])
-      } else {
-        // 找不到攻擊位（多被危險封住）：朝最近箱子/敵人方向、避開即將爆的格走一步
-        let target: [number, number] | null = null
-        let bestDist = Infinity
-        const consider = (tx: number, ty: number) => {
-          const d = Math.abs(tx - cx) + Math.abs(ty - cy)
-          if (d < bestDist) {
-            bestDist = d
-            target = [tx, ty]
-          }
-        }
-        for (let gy = 0; gy < GRID_H; gy++) {
-          for (let gx = 0; gx < GRID_W; gx++) {
-            const t = this.map[cellIndex(gx, gy)]
-            if (t === TILE_CRATE || t === TILE_CRATE_HARD) consider(gx, gy)
-          }
-        }
-        for (const [ecx, ecy] of enemyCells) consider(ecx, ecy)
-        if (target) {
-          const [tx, ty] = target as [number, number]
-          const sx = Math.sign(tx - cx)
-          const sy = Math.sign(ty - cy)
-          const tryAxes: [number, number][] =
-            Math.abs(tx - cx) >= Math.abs(ty - cy) ? [[sx, 0], [0, sy]] : [[0, sy], [sx, 0]]
-          for (const [dx, dy] of tryAxes) {
-            if (dx === 0 && dy === 0) continue
-            const nx = cx + dx
-            const ny = cy + dy
-            if (this.cellWalkable(nx, ny) && !hotSoon(nx, ny)) {
-              moveToward(nx, ny)
-              break
-            }
-          }
-        }
       }
     }
   }

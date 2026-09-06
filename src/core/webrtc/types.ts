@@ -30,3 +30,34 @@ export interface NetTransport {
   broadcastUnreliable(data: GameNetMessage): void
   on<E extends NetEvent>(event: E, cb: NetEventMap[E]): () => void
 }
+
+/** signaling 訊息種類（SDP 交換與 ICE candidate） */
+export type SignalKind = 'offer' | 'answer' | 'ice'
+
+/**
+ * 一則 signaling 訊息（傳輸層無關）。
+ * createdAt 為新鮮度用的時間戳，實作可為任意型別（Firestore Timestamp 等），
+ * mesh 端以鴨子型別讀取（toMillis() / seconds），讀不出即視為過期。
+ */
+export interface SignalMessage {
+  id: string
+  from: string
+  to: string
+  kind: SignalKind
+  data: unknown
+  createdAt?: unknown
+}
+
+/** 尚未帶 id/時間戳的送出內容 */
+export type OutgoingSignal = Omit<SignalMessage, 'id' | 'createdAt'>
+
+/**
+ * signaling 通道抽象（架構審查 G2）。
+ * core/webrtc 不再直接相依 Firestore：由呼叫端（useNetStore）注入實作，
+ * 測試則注入假物件。
+ */
+export interface MeshSignaling {
+  send(roomId: string, sig: OutgoingSignal): Promise<unknown>
+  subscribe(roomId: string, selfId: string, onSignal: (sig: SignalMessage) => void): () => void
+  delete(roomId: string, signalId: string): Promise<void>
+}

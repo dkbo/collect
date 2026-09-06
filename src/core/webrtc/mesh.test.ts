@@ -1,31 +1,31 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { Signal } from '@/core/room/signaling'
+import { createMesh, type MeshSignaling, type SignalMessage as Signal } from './index'
 
 /**
  * mesh 的 signaling 閘門測試（安全審查 B1/B3/B4）。
  *
- * Firestore signaling 整組 mock 掉；RTCPeerConnection 以最小假物件替身，
- * 因此不需要真的 WebRTC 堆疊即可驗證白名單、去重、新鮮度與生命週期。
+ * signaling 由 MeshOptions 注入（架構審查 G2），這裡直接傳假物件；
+ * RTCPeerConnection 以最小假物件替身，因此不需要真的 WebRTC 堆疊即可
+ * 驗證白名單、去重、新鮮度與生命週期。
  */
 
-const h = vi.hoisted(() => ({
+const h = {
   sendSignal:
     vi.fn<(roomId: string, sig: { from: string; to: string; kind: string; data: unknown }) => Promise<void>>(),
   deleteSignal: vi.fn<(roomId: string, signalId: string) => Promise<void>>(),
   onSignal: null as ((sig: Signal) => void) | null,
   unsub: vi.fn(),
-}))
+}
 
-vi.mock('@/core/room/signaling', () => ({
-  sendSignal: h.sendSignal,
-  deleteSignal: h.deleteSignal,
-  subscribeSignals: (_roomId: string, _selfId: string, cb: (sig: Signal) => void) => {
+/** 注入 mesh 的假 signaling：把訂閱回呼留給測試手動觸發 */
+const fakeSignaling: MeshSignaling = {
+  send: (roomId, sig) => h.sendSignal(roomId, sig),
+  subscribe: (_roomId, _selfId, cb) => {
     h.onSignal = cb
     return h.unsub
   },
-}))
-
-const { createMesh } = await import('./index')
+  delete: (roomId, signalId) => h.deleteSignal(roomId, signalId),
+}
 
 interface FakeChannel {
   id: number
@@ -99,7 +99,7 @@ afterEach(() => {
 
 /** selfId 固定為 'b'：'a' 比我小（由對方發 offer），'c'/'d' 比我大（由我發 offer） */
 const makeMesh = (peerIds = ['a', 'b', 'c']) =>
-  createMesh({ roomId: 'room1', selfId: 'b', peerIds })
+  createMesh({ roomId: 'room1', selfId: 'b', peerIds, signaling: fakeSignaling })
 
 describe('createMesh — peer 白名單', () => {
   it('start() 只對名單內、uid 較大的 peer 發起連線，並對每個 peer 發 peerJoin', () => {

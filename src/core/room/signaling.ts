@@ -15,8 +15,9 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { getDb } from '@/core/firebase'
+import type { SignalKind } from '@/core/webrtc'
 
-export type SignalKind = 'offer' | 'answer' | 'ice'
+export type { SignalKind }
 
 /** signals/{id} 文件（data 依 kind 為 SDP 或 ICE candidate 的純物件） */
 export interface Signal {
