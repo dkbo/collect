@@ -30,7 +30,6 @@ dist-ssr
 /.agent
 /.agents
 /.codex
-/.github
 /.prompts
 # Godot（編輯器快取不進版控；public/godot/maps 由 sync:maps 產生）
 godot-src/.godot/
