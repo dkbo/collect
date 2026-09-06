@@ -1,0 +1,1 @@
+var e=[{id:`tank`,label:`坦克對戰`,desc:`Babylon.js 2.5D・移動 + 射擊 + HP`},{id:`race`,label:`極速賽車`,desc:`環道 3 圈衝線・WASD / 方向鍵駕駛`},{id:`bomber`,label:`炸彈超人`,desc:`放彈炸箱拼生存・空白鍵放炸彈`},{id:`overcooked`,label:`廚房快手`,desc:`合作做菜拼出餐・E / 空白鍵互動`}],t=t=>e.find(e=>e.id===t),n=e=>`/collect/game-covers/${e}.webp`;export{n,t as r,e as t};
