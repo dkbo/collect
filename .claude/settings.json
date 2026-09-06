@@ -69,5 +69,9 @@
         ]
       }
     ]
+  },
+  "plansDirectory": "./.claude/plans",
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true
   }
 }

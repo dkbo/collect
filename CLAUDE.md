@@ -29,3 +29,16 @@ Read AGENTS.md first.
 - `Stop` / `SubagentStop` 只在本 session 真的改過對應區塊時才驗：改 `src/` → `pnpm lint` + `pnpm typecheck`；改糖果 → `board_test.gd`；改 Godot 只提醒要匯出。沒過就把你叫回來。
 
 腳本在 `.claude/hooks/`，狀態在 `.claude/.hook-state/`（已 gitignore）。vite 已設 `strictPort`，5173 被占用會直接報錯而不是換 port。
+
+# Superpowers
+
+已裝 `superpowers` plugin（`superpowers:<name>`）。它是**流程 skill**，本專案的規範與 agent team 才是主體。衝突時優先序：**AGENTS.md ＞ `.claude/agents/*` ＞ `.claude/skills/*` ＞ Superpowers**。
+
+- `brainstorming`：**只在**需求模糊的新遊戲／新頁面／行為變更前用。明確的 `fix:`、已指定做法、樣式微調、地圖 JSON、Godot 匯出一律跳過。
+- `systematic-debugging`：所有 `fix:` 類任務都套用（先重現、找根因，再改碼）。多人同步問題先用 web-verifier 以兩個獨立 context 重現。
+- `test-driven-development`：只套**有測試框架的純邏輯**——目前只有糖果 `godot-candy-src/scripts/board.gd`（`tests/board_test.gd`）。`src/babylon/` 的 math／net 與 Zustand store 尚未裝 vitest，裝了才套；UI、3D 渲染、GDScript 場景不套，改用 web-verifier 截圖。
+- `verification-before-completion`：完成定義以 hooks 為準（lint 零錯誤、tsc 乾淨、board_test 全綠、Godot 產物已匯出），不另立標準。
+- `executing-plans` / `subagent-driven-development` / `dispatching-parallel-agents`：派工一律走 `herdr-team` 的路由矩陣與專案 agent，**不要**派 general-purpose subagent。
+- `requesting-code-review`：改派 `arch-security-reviewer`（架構／安全）；一般 diff 正確性由 hooks 與 Lead 核實。
+- `using-git-worktrees` / `finishing-a-development-branch`：只在明確要求時用。commit / push 一律要使用者指示。
+- **產出檔不得寫到 `docs/`（那是 build 產物）或 repo 根目錄**：plans → `.claude/plans/`，specs → `.claude/.superpower/specs/`，worktrees → `.claude/.superpower/worktrees/<branch>/`（皆已 gitignore）。

@@ -39,3 +39,5 @@ public/godot/maps/
 
 # Claude Code hooks 狀態
 .claude/.hook-state/
+.claude/plans/
+.claude/.superpower/

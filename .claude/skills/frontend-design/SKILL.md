@@ -1,155 +1,22 @@
 ---
 name: frontend-design
-description: Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when building web components, pages, or applications. Generates creative, polished code and UI design that avoids generic AI aesthetics. Adapted for Vue 3 + Quasar + Tailwind CSS v4 stack.
+description: Guidelines for high-quality, distinctive frontend interfaces using React 19 + Tailwind v4 + shadcn/ui.
 model: sonnet
 effort: high
 ---
 
-# Frontend Design Skill (Vue + Quasar + Tailwind v4)
+# Frontend Design (React 19 + Tailwind v4 + shadcn/ui)
 
-This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
+## 💡 設計思維
+- **拒絕 AI 罐頭風**：根據專案定位決定視覺調性（如極簡、科技感、動態），避免平庸的設計。
+- **視覺層次**：善用 CSS Grid / Flexbox 佈局、漸層、陰影、玻璃擬態 (glassmorphism) 以創造視覺深度。
+- **微互動**：使用輕量的 CSS transition 提升操作體驗，並遵循 `prefers-reduced-motion`。
 
-> Adapted from [anthropics/skills/frontend-design](https://github.com/anthropics/skills) for Vue 3 + Quasar + Tailwind CSS v4 stack.
+## 🧩 元件設計
+- **路徑別名**：使用 `@/components/...` 等路徑別名。
+- **組合優先**：使用 shadcn/ui 原子元件，藉由 props 或 `cn(...)` 工具類別擴充樣式。
+- **資料驅動**：嚴禁死資料 (Placeholders)，使用 props 與 API 對接真實資料。
 
-## Stack Context
-
-This project uses:
-
-- **Vue 3.5** with Composition API (`<script setup lang="ts">`)
-- **Quasar** as component library (layout/spacing must use Tailwind, NOT Quasar utility classes)
-- **Tailwind CSS v4** with `@theme` and CSS variables (no `tailwind.config.js`)
-- **TypeScript** (no `any` types)
-- **Vite** build tool
-
-### Forbidden Patterns
-
-- Quasar layout utilities: `row`, `col`, `q-pa-*`, `q-ma-*`, `q-gutter-*`
-- Use Tailwind equivalents: `flex`, `grid`, `p-*`, `m-*`, `gap-*`
-
-## Design Thinking
-
-Before coding, understand the context and commit to a BOLD aesthetic direction:
-
-- **Purpose**: What problem does this interface solve? Who uses it?
-- **Tone**: Pick a direction: brutally minimal, maximalist chaos, retro-futuristic, organic/natural, luxury/refined, playful/toy-like, editorial/magazine, brutalist/raw, art deco/geometric, soft/pastel, industrial/utilitarian, sporty/dynamic, etc.
-- **Constraints**: Technical requirements (framework, performance, accessibility).
-- **Differentiation**: What makes this UNFORGETTABLE? What's the one thing someone will remember?
-
-**CRITICAL**: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work - the key is intentionality, not intensity.
-
-Then implement working code that is:
-
-- Production-grade and functional
-- Visually striking and memorable
-- Cohesive with a clear aesthetic point-of-view
-- Meticulously refined in every detail
-
-## Frontend Aesthetics Guidelines
-
-### Typography
-
-- Choose fonts that are beautiful, unique, and interesting
-- Avoid generic fonts like Arial and system defaults unless intentional
-- Use proper font scale with clear hierarchy (display, heading, body, caption)
-- Import from Google Fonts or use locally bundled fonts
-- Define in Tailwind v4 `@theme`:
-  ```css
-  @theme {
-    --font-display: 'Your Display Font', serif;
-    --font-body: 'Your Body Font', sans-serif;
-  }
-  ```
-
-### Color
-
-- Build a cohesive color palette — not random colors
-- Use HSL-based color systems for better control
-- Ensure adequate contrast ratios (WCAG AA minimum)
-- Define semantic color tokens:
-  ```css
-  @theme {
-    --color-primary: oklch(0.65 0.24 265);
-    --color-surface: oklch(0.15 0.02 265);
-    --color-accent: oklch(0.75 0.18 145);
-  }
-  ```
-
-### Layout
-
-- Use CSS Grid and Flexbox via Tailwind utilities
-- Design for mobile-first responsive layouts
-- Use proper spacing scale — avoid arbitrary values
-- Create rhythm and visual flow
-
-### Motion & Interaction
-
-- Add subtle micro-animations for state changes
-- Use CSS transitions for hover/focus states
-- Keep animations performant (transform, opacity only)
-- Respect `prefers-reduced-motion`
-
-### Visual Depth
-
-- Use shadows, gradients, and layering intentionally
-- Consider glassmorphism, neumorphism, or other depth techniques when appropriate
-- Avoid flat design unless it's a deliberate aesthetic choice
-
-## Vue Component Patterns
-
-### SFC Order
-
-`<script>` → `<template>` → `<style>` (per project convention)
-
-### Component Example
-
-```vue
-<script setup lang="ts">
-interface Props {
-  variant?: 'default' | 'elevated' | 'outlined'
-}
-
-const { variant = 'default' } = defineProps<Props>()
-</script>
-
-<template>
-  <div
-    class="relative overflow-hidden rounded-2xl bg-surface"
-    data-testid="card-surface"
-  >
-    <div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
-    <div class="relative z-10 p-6">
-      <slot />
-    </div>
-  </div>
-</template>
-```
-
-### Composable for Design Tokens
-
-```ts
-import { computed } from 'vue'
-
-export function useDesignTokens() {
-  const isDark = computed(() => document.documentElement.classList.contains('dark'))
-
-  return { isDark }
-}
-```
-
-## Quality Checklist
-
-Before completing any UI work:
-
-- [ ] Typography hierarchy is clear and intentional
-- [ ] Color palette is cohesive with adequate contrast
-- [ ] Responsive layout works on mobile, tablet, desktop
-- [ ] Interactive elements have hover/focus/active states
-- [ ] Animations are smooth and purposeful
-- [ ] No hardcoded colors — use Tailwind theme tokens
-- [ ] All SVGs use `fill="currentColor"` and `stroke="currentColor"`
-- [ ] No Quasar layout utilities (use Tailwind instead)
-- [ ] Interactive elements include `data-testid` (format: `module-action`)
-- [ ] User-facing text uses `$t()` / `t()` for i18n
-- [ ] `pnpm lint` passes with no errors
-- [ ] `pnpm build` passes with no TypeScript errors
-- [ ] No production `console.log`
+## ⚙️ 交付標準
+- 無 layout shifts，且無 production `console.log`。
+- 程式碼必須通過編譯檢查 (`pnpm build`)。

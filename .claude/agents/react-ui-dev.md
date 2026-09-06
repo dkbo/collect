@@ -15,7 +15,7 @@ effort: high
 - 原子元件用 shadcn/ui（`src/components/ui/`）
 
 ## 設計參考
-- UI 設計先讀 `.agents/skills/frontend-design/`（React 19 + Tailwind v4 + shadcn 版本；`.claude/skills/` 下的同名 skill 是 Vue 版，不要用）
+- UI 設計先 `Skill('frontend-design')`（React 19 + Tailwind v4 + shadcn 版；`.agents/skills/` 下是給其他 CLI 的同內容副本）
 - 設計系統/色盤/可訪問性查 `.claude/skills/ui-ux-pro-max/`
 
 ## 邊界
