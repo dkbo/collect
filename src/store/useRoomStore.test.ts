@@ -82,6 +82,19 @@ describe('useRoomStore', () => {
 
       expect(useRoomStore.getState()).toMatchObject({ busy: false, error: '連線發生錯誤，請稍後再試' })
     })
+
+    it('ignores a second concurrent call while the first is still pending', async () => {
+      let resolveCreate!: (v: { roomId: string; selfId: string }) => void
+      vi.mocked(createRoom).mockReturnValue(new Promise((resolve) => { resolveCreate = resolve }))
+
+      const first = useRoomStore.getState().create('Alice', 'race')
+      const second = useRoomStore.getState().create('Alice', 'race')
+
+      resolveCreate({ roomId: 'R1', selfId: 'S1' })
+      await Promise.all([first, second])
+
+      expect(createRoom).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('join', () => {
@@ -100,6 +113,19 @@ describe('useRoomStore', () => {
       await useRoomStore.getState().join('R2', 'Bob')
 
       expect(useRoomStore.getState()).toMatchObject({ busy: false, error: '房間已滿（上限 4 人）' })
+    })
+
+    it('ignores a second concurrent call while the first is still pending', async () => {
+      let resolveJoin!: (v: { roomId: string; selfId: string }) => void
+      vi.mocked(joinRoom).mockReturnValue(new Promise((resolve) => { resolveJoin = resolve }))
+
+      const first = useRoomStore.getState().join('R2', 'Bob')
+      const second = useRoomStore.getState().join('R2', 'Bob')
+
+      resolveJoin({ roomId: 'R2', selfId: 'S2' })
+      await Promise.all([first, second])
+
+      expect(joinRoom).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -120,6 +146,17 @@ describe('useRoomStore', () => {
 
       await expect(useRoomStore.getState().leave()).resolves.toBeUndefined()
       expect(useRoomStore.getState().roomId).toBeNull()
+    })
+
+    it('logs a warning (does not swallow silently) when leaveRoom rejects', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      useRoomStore.setState({ roomId: 'R1', selfId: 'S1', room: makeRoom({ hostId: 'other' }) })
+      vi.mocked(leaveRoom).mockRejectedValue(new Error('network'))
+
+      await useRoomStore.getState().leave()
+
+      expect(warnSpy).toHaveBeenCalled()
+      warnSpy.mockRestore()
     })
 
     it('does not call leaveRoom when there is no active room', async () => {
@@ -195,5 +232,32 @@ describe('useRoomStore', () => {
     onRoomChange(null)
 
     expect(useRoomStore.getState()).toMatchObject({ roomId: null, notice: '房主已關閉房間', selfId: 'S1' })
+  })
+
+  it('cleans up the local player doc (best effort) when the room disappears out from under a non-host', async () => {
+    vi.mocked(joinRoom).mockResolvedValue({ roomId: 'R2', selfId: 'S2' })
+    vi.mocked(leaveRoom).mockResolvedValue(undefined)
+    await useRoomStore.getState().join('R2', 'Bob')
+
+    const onRoomChange = vi.mocked(subscribeRoom).mock.calls[0][1]
+    onRoomChange(null)
+
+    expect(leaveRoom).toHaveBeenCalledWith('R2', 'S2', false)
+  })
+
+  it('does not throw when the best-effort cleanup after room deletion rejects', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(joinRoom).mockResolvedValue({ roomId: 'R2', selfId: 'S2' })
+    vi.mocked(leaveRoom).mockRejectedValue(new Error('permission-denied'))
+    await useRoomStore.getState().join('R2', 'Bob')
+
+    const onRoomChange = vi.mocked(subscribeRoom).mock.calls[0][1]
+    onRoomChange(null)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(useRoomStore.getState().roomId).toBeNull()
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
   })
 })

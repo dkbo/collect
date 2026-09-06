@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "(default)",
+      "database": "dkbo-collect",
       "rules": "firestore.rules",
       "indexes": "firestore.indexes.json"
     }

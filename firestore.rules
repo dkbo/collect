@@ -1,31 +1,56 @@
 rules_version = '2';
 
 // 多人對戰房間 Security Rules（Phase 1 控制平面）
-// 部署：Firebase Console → Firestore → Rules，或 `firebase deploy --only firestore:rules`
-// 原則：須匿名登入；房間任何登入者可讀（憑房號加入）；房間文件僅房主可改/刪；
-//      玩家文件僅本人可寫（playerId == 自己的 uid）。
+// 部署：`firebase deploy --only firestore:rules`（依 firebase.json 指向具名資料庫 dkbo-collect，
+// 非 (default)；部署後請於 Firebase Console → Firestore → dkbo-collect → Rules 再次確認生效）。
+// 原則：
+// - 須匿名登入。
+// - rooms：僅能以房號單筆讀取（get），不開放列出所有房間（list）；建立/更新/刪除欄位皆做 schema 驗證。
+// - players：讀取要求房間存在；建立時驗證欄位、房主旗標與房間狀態（進行中禁止新玩家加入）。
+// - signals：僅供已在房內的成員互傳 WebRTC signaling，欄位與大小皆有限制。
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /rooms/{roomId} {
-      // 已登入者皆可讀（需要讀房間才能憑房號加入）
-      allow read: if request.auth != null;
+      // 已登入者可用房號單筆讀取（憑房號加入），但不可列出所有房間
+      allow get: if request.auth != null;
 
-      // 建房者必須把自己設為 hostId
+      // 建房者必須把自己設為 hostId，且欄位、型別皆需符合房間 schema
       allow create: if request.auth != null
-                    && request.resource.data.hostId == request.auth.uid;
+                    && request.resource.data.hostId == request.auth.uid
+                    && request.resource.data.keys().hasOnly(
+                         ['roomId', 'gameType', 'hostId', 'status', 'maxPlayers', 'createdAt']
+                       )
+                    && request.resource.data.gameType in ['tank', 'race', 'bomber', 'overcooked']
+                    && request.resource.data.status in ['waiting', 'playing', 'ended']
+                    && request.resource.data.maxPlayers == 4;
 
       // 僅房主可更新（改 gameType / status）或刪除房間
       allow update, delete: if request.auth != null
                             && resource.data.hostId == request.auth.uid;
 
       match /players/{playerId} {
-        // 房內成員列表，已登入者可讀
-        allow read: if request.auth != null;
+        // 房內成員列表；讀取（含 list）要求對應房間存在
+        allow read: if request.auth != null
+                    && exists(/databases/$(database)/documents/rooms/$(roomId));
 
-        // 玩家僅能建立/修改/刪除「自己」那筆（playerId 必須等於自己的 uid）
-        allow create, update, delete: if request.auth != null
-                                      && playerId == request.auth.uid;
+        // 玩家僅能建立「自己」那筆（playerId 必須等於自己的 uid）：
+        // - 房間必須存在，且房間狀態不可為 playing（進行中禁止新玩家加入，前端檢查僅為 UI 層提示）
+        // - 欄位僅能是 name / isHost / joinedAt，name 需為字串且長度 <= 16
+        // - isHost 必須與「自己是否為該房 hostId」一致，避免偽造房主旗標
+        allow create: if request.auth != null
+                      && playerId == request.auth.uid
+                      && exists(/databases/$(database)/documents/rooms/$(roomId))
+                      && get(/databases/$(database)/documents/rooms/$(roomId)).data.status != 'playing'
+                      && request.resource.data.keys().hasOnly(['name', 'isHost', 'joinedAt'])
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() <= 16
+                      && request.resource.data.isHost ==
+                         (get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid);
+
+        // 修改/刪除僅能動自己那筆
+        allow update, delete: if request.auth != null
+                              && playerId == request.auth.uid;
       }
 
       // WebRTC signaling：點對點傳遞 offer/answer/ice
@@ -33,9 +58,23 @@ service cloud.firestore {
         // 僅收訊端可讀/刪除寄給自己的 signal（搭配 where('to','==',uid) 查詢）
         allow read, delete: if request.auth != null
                             && resource.data.to == request.auth.uid;
-        // 寄件者必須把 from 設為自己
+
+        // 寄件者必須把 from 設為自己；kind 僅限白名單；寄件者與收件者都必須是該房 players 成員；
+        // 欄位僅能是 signaling 實際用到的那五個。
+        // 規則語言沒有「文件位元組大小」函式，改限制 data 的形狀：
+        //   data 必須是 map（offer/answer 為 {type, sdp}，ice 為 RTCIceCandidate.toJSON() 的 4 個欄位），
+        //   鍵數 <= 8，若含 sdp 則須為字串且長度 < 20000 字元（一般 SDP 約 2–5K）。
         allow create: if request.auth != null
-                      && request.resource.data.from == request.auth.uid;
+                      && request.resource.data.from == request.auth.uid
+                      && request.resource.data.keys().hasOnly(['from', 'to', 'kind', 'data', 'createdAt'])
+                      && request.resource.data.kind in ['offer', 'answer', 'ice']
+                      && exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.resource.data.from))
+                      && exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.resource.data.to))
+                      && request.resource.data.data is map
+                      && request.resource.data.data.size() <= 8
+                      && (!('sdp' in request.resource.data.data)
+                          || (request.resource.data.data.sdp is string
+                              && request.resource.data.data.sdp.size() < 20000));
       }
     }
   }

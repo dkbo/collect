@@ -107,16 +107,15 @@ export const joinRoom = async (
 
 /**
  * 離開房間。一般玩家僅刪除自身玩家文件；
- * 房主離開則結束房間（刪除所有玩家文件與房間文件）。
+ * 房主離開則結束房間（僅能刪除房間文件與自己的玩家文件——
+ * firestore.rules 規定玩家文件只能被本人刪除，房主無權刪除別人的那筆。
+ * 其餘玩家的文件由各自的用戶端在 subscribeRoom 收到 room === null 時自行清理）。
  */
 export const leaveRoom = async (roomId: string, selfId: string, isHost: boolean): Promise<void> => {
-  if (!isHost) {
-    await deleteDoc(playerRef(roomId, selfId))
-    return
+  await deleteDoc(playerRef(roomId, selfId))
+  if (isHost) {
+    await deleteDoc(roomRef(roomId))
   }
-  const players = await getDocs(playersRef(roomId))
-  await Promise.all(players.docs.map((d) => deleteDoc(d.ref)))
-  await deleteDoc(roomRef(roomId))
 }
 
 /** 房主更新遊戲類型 */

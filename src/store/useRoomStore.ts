@@ -78,7 +78,15 @@ export const useRoomStore = create<RoomStore>((set, get) => {
       if (room === null) {
         // 房間被房主結束/刪除 → 退回大廳並提示（自願離開時已先 stopSubs，不會走到這）
         stopSubs()
-        set({ ...initialState, selfId: get().selfId, notice: '房主已關閉房間' })
+        const selfId = get().selfId
+        set({ ...initialState, selfId, notice: '房主已關閉房間' })
+        // 房主只能刪自己的玩家文件（見 firestore.rules），其餘成員各自的玩家文件
+        // 會留在已刪除的房間下成為孤兒資料，由本人在此清理
+        if (selfId) {
+          leaveRoom(roomId, selfId, false).catch((err) => {
+            console.warn('清理玩家文件失敗', err)
+          })
+        }
         return
       }
       set({ room })
@@ -95,6 +103,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
     },
 
     create: async (name, gameType) => {
+      if (get().busy) return
       set({ busy: true, error: null, notice: null })
       try {
         const { roomId, selfId } = await createRoom(name, gameType)
@@ -106,6 +115,7 @@ export const useRoomStore = create<RoomStore>((set, get) => {
     },
 
     join: async (roomId, name) => {
+      if (get().busy) return
       set({ busy: true, error: null, notice: null })
       try {
         const res = await joinRoom(roomId, name)
@@ -124,8 +134,9 @@ export const useRoomStore = create<RoomStore>((set, get) => {
       if (roomId && selfId) {
         try {
           await leaveRoom(roomId, selfId, isHost)
-        } catch {
-          /* 離開失敗不阻斷 UI 返回；房間資料留待 TTL/重整清理 */
+        } catch (err) {
+          // 離開失敗不阻斷 UI 返回；房間資料留待 TTL/重整清理，但仍記錄以利排查
+          console.warn('離開房間失敗', err)
         }
       }
     },
