@@ -41,3 +41,7 @@ public/godot/maps/
 .claude/state/
 .claude/plans/
 .claude/.superpower/
+# Agent tool 的 isolation: "worktree" 會把工作樹建在這裡（agent-<id>/）。
+# 不忽略的話主 repo 的 git status 會冒出 ?? .claude/worktrees/，一個 `git add -A` 就把
+# 整棵工作樹連 .git 檔一起 commit 進來。
+.claude/worktrees/

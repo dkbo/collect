@@ -100,6 +100,8 @@ flowchart LR
 
 隱性編譯鎖：Stop hook 跑整棵樹的 `tsc -b` 與 vitest，一支 TDD 紅燈會擋另一支 headless worker 的 Stop。同波有 TDD 工單改序列或給 `isolation: "worktree"`（hook 會自動 symlink `node_modules` 與 `.env.local`；`.claude/state/` 路徑要寫主 repo 絕對路徑，dev server 要換 port，Godot 工單不進 worktree）。
 
+worktree 工單的三個額外責任：**Verify 要寫全** lint／typecheck／test（in-process subagent 不掛 SubagentStop，主 session 的 Stop 讀主 repo 的 marker，所以沒人會驗 worktree——PostToolUse 留的 `dirty` marker 就躺在那）；驗收指令一律 `node_modules/.bin/<tool>`；**回收由 Lead 做**（驗收過才 `cp` 回主 repo，再 `git worktree remove --force` ＋ `git branch -D worktree-agent-<id>`——remove 不刪分支）。實際路徑是 harness 給的 `.claude/worktrees/agent-<id>/`，已 gitignore。
+
 並行規則：唯讀 agent 隨時可並行；同棵樹 in-process 改檔 agent 可並行但不改同一檔，改動由主 session 收工一次驗；`claude -p` 寫檔 worker 同棵樹同時只跑一支。
 
 ### 4.4 report 四節（改檔 agent 必交）

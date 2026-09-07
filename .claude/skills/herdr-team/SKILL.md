@@ -64,6 +64,9 @@ description: Use when 要派工而不是自己動手——決定派哪個專案 
   - brief 裡 `.claude/state/` 的路徑要寫成主 repo 絕對路徑（見「路徑約定」）；worktree 內那個目錄是空的。
   - 要起 dev server 就在 brief 指定 `PORT=5174`（或更高）並把同一個 port 寫進 `shot.mjs` 的 `--url`；`strictPort` 不會幫你跳 port，撞到 5173 直接報錯。
   - Godot 工單不要派進 worktree：`.godot/` import 快取與 `public/godot/maps/` 都 gitignore，第一次要整包重 import，而 `export:godot` 本來就是獨佔鎖、沒有並行的好處。
+  - **worktree 的改動沒有任何 Stop hook 會驗**：in-process subagent 不掛 SubagentStop，主 session 的 Stop 讀的是主 repo 的 marker。PostToolUse 會在 worktree 留下 `dirty` marker，然後就沒人去讀它了。所以 worktree 工單的 `Verify` 一定要把 lint／typecheck／test 三條**自己寫全**（下面「brief 六段」那條「Stop hook 已涵蓋的不重寫」對 worktree 工單不成立）。
+  - **回收要 Lead 自己做**：worktree 的改動留在它自己的樹裡，驗收過了才 `cp` 回主 repo，然後 `git worktree remove --force <path>`（harness 會 lock 它）＋ `git branch -D worktree-agent-<id>`（remove 不會刪那條分支，不清會一直累積）。不要叫 worker commit 或 merge。
+- Agent tool 的 worktree 實際落在 `.claude/worktrees/agent-<id>/`（harness 決定，不是 `CLAUDE.md` 寫的 `.claude/.superpower/worktrees/<branch>/`——那條是手動 `git worktree add` 與 Superpowers 用的）。已 gitignore；沒 ignore 的話主 repo 一個 `git add -A` 會把整棵工作樹連 `.git` 檔 commit 進來。
 - `claude -p` 寫檔 worker 是獨立 session，會各自觸發 Stop 驗證且共用 `.claude/.hook-state/`：**同一棵樹同時只跑一支**。
 
 **三道鎖**：兩張工單能不能同波，三個都成立才算。
@@ -135,7 +138,7 @@ herdr agent list | jq -r '.result.agents[] | select(.name=="'"$name"'") | .pane_
 | **Files** | 允許改的檔案清單（glob 可）。worker 的 diff 必須是它的子集；要超出先停下回報 |
 | **邊界** | 禁區（同波其他工單佔用的檔）、用到的獨佔資源（第 2 節清單）、唯讀者明寫只讀不改、MODEL／effort |
 | **證據** | 每條附 `檔案:行號`，由 `Explore` 先找齊 |
-| **Verify** | 驗收指令逐字，worker 跑、Lead 再跑一次。Stop hook 已涵蓋的 lint／typecheck／vitest 不重寫，寫的是這張工單特有的（某個 test 檔、`shot.mjs` 的某條、`board_test.gd`） |
+| **Verify** | 驗收指令逐字，worker 跑、Lead 再跑一次。同棵樹的工單：Stop hook 已涵蓋的 lint／typecheck／vitest 不重寫，只寫這張工單特有的（某個 test 檔、`shot.mjs` 的某條、`board_test.gd`）。**派到 worktree 的工單相反——沒有 Stop hook 會驗它，三條都要寫全**，且一律寫成 `node_modules/.bin/<tool>` 而不是 `pnpm exec` |
 | **產出** | report 寫到 `.claude/state/reports/<slug>/task-N.md`，四節：做了什麼／改了哪些檔／怎麼驗證／殘留問題 |
 
 **ledger**（工單超過 3 張才啟用）：`.claude/state/progress/<slug>.md`，append-only，一張工單 APPROVED 就加一行 `Task N: complete (<agent>, <model>, <一句>)`；BLOCKED 也記。compact 或新 session 接手時先 `cat` 它，不回頭翻 report。
