@@ -36,7 +36,8 @@ godot-src/.godot/
 godot-candy-src/.godot/
 public/godot/maps/
 
-# Claude Code hooks 狀態
+# Claude Code hooks 狀態、派工 brief / report / ledger（本機用，活過 session 但不進版控）
 .claude/.hook-state/
+.claude/state/
 .claude/plans/
 .claude/.superpower/

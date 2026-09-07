@@ -7,8 +7,9 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   base: '/collect/',
-  // 5173 被占用時直接報錯，不要悄悄跳 5174（驗證腳本會打錯位址）
-  server: { strictPort: true },
+  // 5173 被占用時直接報錯，不要悄悄跳 5174（驗證腳本會打錯位址）；
+  // git worktree 內要另起 dev server 就用 PORT=5174 pnpm dev，並把同一個 port 餵給 shot.mjs 的 --url。
+  server: { strictPort: true, port: Number(process.env.PORT) || 5173 },
   build: {
     outDir: 'docs',
     emptyOutDir: true,

@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
-# PostToolUse(Edit|Write)：只檢查剛改的那一個檔（整包 pnpm lint 約 11 秒，單檔約 2–3 秒）。
+# PostToolUse(Edit|Write)：只檢查剛改的那一個檔（單檔 eslint 約 1–2 秒，有 --cache）。
 # 失敗一律 exit 2 —— PostToolUse 只有 exit 2 才會把 stderr 回饋給 Claude；
 # 不擋但要提醒的用 stdout JSON 的 additionalContext。
-# 同時留下 marker 給 verify-on-stop.sh 判斷這次 session 到底改過哪一塊：
-#   dirty            src/ 的 TS/TSX（→ 收工跑 lint + typecheck）
+# 同時留下 marker 給 verify-on-stop.sh 判斷這棵樹到底改過哪一塊：
+#   dirty            src/ 的 TS/TSX（→ 收工跑 lint + typecheck + vitest）
 #   dirty-candy      godot-candy-src/（→ 收工跑 board_test.gd、提醒匯出）
 #   dirty-godot-rpg  godot-src/（→ 收工提醒匯出）
 set -uo pipefail
+. "$(dirname "$0")/_common.sh"
 
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
-[ -n "$root" ] && cd "$root" || exit 0
+root=$(hook_root); cd "$root" || exit 0
+ensure_worktree_deps
 
 file=$(cat | jq -r '.tool_input.file_path // empty')
 [ -n "$file" ] && [ -f "$file" ] || exit 0
 rel="${file#"$root"/}"
-state=.claude/.hook-state
-mark(){ mkdir -p "$state" && touch "$state/$1"; }
 ctx(){ jq -cn --arg m "$1" '{hookSpecificOutput:{hookEventName:"PostToolUse",additionalContext:$m}}'; }
 
 case "$rel" in
@@ -47,7 +46,7 @@ case "$rel" in
   godot-src/*.gd | godot-candy-src/*.gd)
     proj="${rel%%/*}"
     [ "$proj" = godot-src ] && mark dirty-godot-rpg || mark dirty-candy
-    out=$(godot --headless --path "$proj" --check-only -s "res://${rel#"$proj"/}" 2>&1)
+    out=$(timeout 60 godot --headless --path "$proj" --check-only -s "res://${rel#"$proj"/}" 2>&1)
     # --check-only 不會註冊 project.godot 的 autoload singleton（Bridge、CandyBridge…），
     # 「Identifier not found: <autoload>」是工具限制不是錯誤，濾掉；其餘 SCRIPT ERROR / Parse Error 才擋。
     # 限制：autoload 那行之後的編譯錯誤會被 Godot 一起吞掉，看不到。
@@ -64,8 +63,8 @@ case "$rel" in
     ;;
   src/*.ts | src/*.tsx | src/*.js | src/*.jsx | scripts/*.mjs)
     mark dirty
-    if ! out=$(pnpm exec eslint --fix "$file" 2>&1); then
-      printf 'ESLint 未通過（已試 --fix，剩下的要手改）：\n%s\n' "$out" >&2
+    if ! out=$(timeout 90 pnpm exec eslint "${ESLINT_CACHE_ARGS[@]}" --fix "$file" 2>&1); then
+      printf 'ESLint 未通過（已試 --fix，剩下的要手改）：\n%s\n' "$(printf '%s\n' "$out" | tail -n 40)" >&2
       exit 2
     fi
     case "$rel" in

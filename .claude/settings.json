@@ -24,17 +24,6 @@
         ]
       }
     ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/verify-on-stop.sh",
-            "timeout": 300
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -42,16 +31,6 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-bash-guard.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__playwright__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/playwright-preflight.sh",
             "timeout": 10
           }
         ]
