@@ -22,13 +22,13 @@ notes=''
 tailf(){ printf '%s\n' "$1" | tail -n "$2"; }
 
 if [ -f "$STATE/dirty" ]; then
-  if ! out=$(timeout 120 pnpm exec eslint "${ESLINT_CACHE_ARGS[@]}" . 2>&1); then
+  if ! out=$(timeout 120 "$LBIN/eslint" "${ESLINT_CACHE_ARGS[@]}" . 2>&1); then
     fail+="pnpm lint 未通過："$'\n'"$(tailf "$out" 60)"$'\n\n'
   fi
-  if ! out=$(timeout 120 pnpm typecheck 2>&1); then
+  if ! out=$(timeout 120 "$LBIN/tsc" -b --noEmit 2>&1); then
     fail+="tsc 型別檢查未通過（pnpm lint 不做型別檢查，這關才會抓到）："$'\n'"$(tailf "$out" 60)"$'\n\n'
   fi
-  if ! out=$(timeout 180 pnpm exec vitest run --reporter=dot 2>&1); then
+  if ! out=$(timeout 180 "$LBIN/vitest" run --reporter=dot 2>&1); then
     fail+="vitest 單元測試未通過："$'\n'"$(tailf "$out" 80)"$'\n\n'
   fi
 fi

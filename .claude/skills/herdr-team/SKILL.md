@@ -60,6 +60,7 @@ description: Use when 要派工而不是自己動手——決定派哪個專案 
 - 同一棵樹的 in-process 改檔 agent 可並行，前提是**不改同一檔**；改動由主 session 收工時一次驗（`verify-on-stop.sh` 只掛 Stop）。
 - 要真正互不干擾（各自 lint／test）就用 Agent tool 的 `isolation: "worktree"`。派之前先確認三件事：
   - `node_modules`／`.env.local` 不用管，hook 會自動 symlink 主 repo 的（`_common.sh` 的 `ensure_worktree_deps`）。
+  - **worktree 內不要跑 `pnpm exec <tool>` 或 `pnpm <script>`**：pnpm 11 會先驗依賴，認不得 symlink 進來的 `node_modules`，判定要 purge 那個目錄（symlink 指著主 repo，真動手就是砍掉主 repo 的 `node_modules`）；沒 TTY 時它中止並報 `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`，指令一行都沒跑。改直呼 `node_modules/.bin/eslint`、`node_modules/.bin/tsc -b --noEmit`、`node_modules/.bin/vitest run`（hook 已經這樣做），brief 的 `Verify` 也要寫成這種形式。
   - brief 裡 `.claude/state/` 的路徑要寫成主 repo 絕對路徑（見「路徑約定」）；worktree 內那個目錄是空的。
   - 要起 dev server 就在 brief 指定 `PORT=5174`（或更高）並把同一個 port 寫進 `shot.mjs` 的 `--url`；`strictPort` 不會幫你跳 port，撞到 5173 直接報錯。
   - Godot 工單不要派進 worktree：`.godot/` import 快取與 `public/godot/maps/` 都 gitignore，第一次要整包重 import，而 `export:godot` 本來就是獨佔鎖、沒有並行的好處。

@@ -63,7 +63,7 @@ case "$rel" in
     ;;
   src/*.ts | src/*.tsx | src/*.js | src/*.jsx | scripts/*.mjs)
     mark dirty
-    if ! out=$(timeout 90 pnpm exec eslint "${ESLINT_CACHE_ARGS[@]}" --fix "$file" 2>&1); then
+    if ! out=$(timeout 90 "$LBIN/eslint" "${ESLINT_CACHE_ARGS[@]}" --fix "$file" 2>&1); then
       printf 'ESLint 未通過（已試 --fix，剩下的要手改）：\n%s\n' "$(printf '%s\n' "$out" | tail -n 40)" >&2
       exit 2
     fi

@@ -145,7 +145,8 @@ LLM 審查不逐工單做：難級工單在波尾派一次 `arch-security-review
 
 - **不掛 SubagentStop**：唯讀 subagent 不會被拖去驗、不會被叫回去修它改不了的東西。headless `claude -p` worker 是獨立 session，觸發自己的 Stop。
 - `_common.sh`：定位 root、marker、eslint 快取參數、worktree 缺 `node_modules`／`.env.local` 自動 symlink。
-- 狀態與 eslint 快取在 `.claude/.hook-state/`（gitignore）。marker 是「整棵樹有未驗證改動」，全 repo 一份。
+- 狀態與 eslint 快取在 `.claude/.hook-state/`（gitignore）。marker 是「整棵樹有未驗證改動」，每棵樹一份。
+- hook 驗證一律直呼 `$LBIN`（`node_modules/.bin/`）的 eslint／tsc／vitest，不走 `pnpm exec`：pnpm 11 的依賴驗證認不得 worktree 裡 symlink 來的 `node_modules`，會想 purge 它（那個 symlink 指主 repo），沒 TTY 就整個中止。worktree 內手動驗證也要用同一種寫法。
 - 完成定義以 hooks 為準：lint 零錯誤、tsc 乾淨、vitest 全綠、board_test 全綠、Godot 產物已匯出。不另立標準。
 
 ---
@@ -230,7 +231,7 @@ LLM 審查不逐工單做：難級工單在波尾派一次 `arch-security-review
 
 - `disallowedTools: Agent` 在 agent frontmatter 的效果尚未實派驗證；第一次派改檔 agent 時看它是否還列出 Agent 工具。
 - `.mcp.json` 移除 server 要重啟 session 才生效。
-- worktree 內 `CLAUDE_PROJECT_DIR` 指哪裡仍未實測，但已不影響正確性：`hook_root` 改成 cwd 的 `git rev-parse --show-toplevel` 優先，只在它為空時才退回 `CLAUDE_PROJECT_DIR`，所以 hook 一定驗自己那棵樹。`settings.json` 裡 hook 的執行路徑仍用 `$CLAUDE_PROJECT_DIR`，那只決定跑哪份腳本（內容相同）。
+- worktree 內 `CLAUDE_PROJECT_DIR` 指哪裡仍未實測，但已不影響正確性：`hook_root` 改成 cwd 的 `git rev-parse --show-toplevel` 優先，只在它為空時才退回 `CLAUDE_PROJECT_DIR`。已用 detached worktree 實測：`CLAUDE_PROJECT_DIR` 硬指主 repo 時，PostToolUse 的 marker 仍落在 worktree、Stop 的 tsc 仍抓到只有 worktree 才有的型別錯（exit 2），主 repo 的狀態與 `node_modules` 都沒被動到。`settings.json` 裡 hook 的執行路徑仍用 `$CLAUDE_PROJECT_DIR`，那只決定跑哪份腳本（內容相同）。
 - `godot --check-only` 不註冊 autoload，autoload 那行之後的編譯錯誤會被吞掉；真正的錯要靠匯出或 board_test 抓。
 - session-start 的 Godot 過期判斷用 git 歷史，源碼與產物同一個 commit 進去時視為未過期。
 - agy 沒有 `--resume`，多輪追問只能開 pane。
