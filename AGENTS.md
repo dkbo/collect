@@ -32,3 +32,4 @@ NEVER reimplement CLI tools using Python unless explicitly required.
 If a CLI tool exists and is installed, always use it first.
 
 If unsure, inspect available CLI commands via --help.
+讀 .dkbo/ENTRY.md 並依其行事。

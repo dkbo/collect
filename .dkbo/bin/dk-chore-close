@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# dk-chore-close <agent> [--abandon] — finish a chore: close pane, merge chore branch (if --code), update INDEX.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+dk_require_herdr
+agent="${1:-}"; [ -n "$agent" ] || dk_die "usage: dk-chore-close <agent> [--abandon]"
+abandon=0; [ "${2:-}" = --abandon ] && abandon=1
+cf=$(grep -l "^成員：$agent " "$DK_ROOT/tasks/_chores/"*.md 2>/dev/null | head -1 || true); [ -n "$cf" ] || dk_die "no chore file for $agent"
+field() { sed -n "s/^$1: *//p" "$cf" | head -1; }
+instr=$(sed -n 's/^交代：//p' "$cf" | head -1); branch=$(field branch); ws=$(field workspace); pane=$(field pane); result=$(sed -n 's/^結果：//p' "$cf" | head -1)
+if [ "$abandon" = 0 ] && ! grep -q '^status: done' "$cf"; then echo "dk-chore-close: $agent is not done (status in $cf)"; exit 1; fi
+herdr pane close "$pane" >/dev/null 2>&1 </dev/null || true
+if [ "$branch" != "-" ]; then
+  if [ "$abandon" = 0 ]; then
+    git -C "$DK_PROJECT_ROOT" merge --no-ff "$branch" -m "chore: $instr" >/dev/null 2>&1 || { git -C "$DK_PROJECT_ROOT" merge --abort 2>/dev/null || true; echo "dk-chore-close: merge conflict on $branch; ask the human"; exit 3; }
+    result="merged $(git -C "$DK_PROJECT_ROOT" rev-parse --short HEAD)"
+  fi
+  [ "$ws" != "-" ] && herdr worktree remove --workspace "$ws" --force >/dev/null 2>&1 </dev/null || true
+  [ "$abandon" = 1 ] && git -C "$DK_PROJECT_ROOT" branch -D "$branch" >/dev/null 2>&1 || true
+fi
+if [ "$abandon" = 1 ]; then sed -i 's/^status: .*/status: abandoned/' "$cf"; dk_index_set "$instr" abandoned "—"
+else [ "$branch" = "-" ] || sed -i "s#^結果：.*#結果：$result#" "$cf"; dk_index_set "$instr" "done" "${result:-—}"; fi
+echo "${result:-closed}"

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# dk-task-close [--abandon "<reason>"]
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+dk_require_herdr
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
+abandon=0; reason=""
+[ "${1:-}" = --abandon ] && { abandon=1; reason="${2:-（未填原因）}"; }
+if [ "$abandon" = 0 ]; then [ -f "$dir/report.md" ] || { echo "dk-task-close: write $dir/report.md first (gate 3)"; exit 1; }; fi
+[ ! -s "$dir/.panes" ] || { echo "dk-task-close: live panes remain; run dk-wave-close first"; exit 1; }
+
+legacy=0; if dk_legacy_task; then legacy=1; echo "dk-task-close: legacy task (no DK_BASE); removing the worktree via herdr" >&2; fi
+cleanup() {
+  [ -n "${DK_WATCH_PID:-}" ] && kill "$DK_WATCH_PID" 2>/dev/null || true
+  if [ "$DK_WORKTREE" != "$DK_PROJECT_ROOT" ]; then
+    if [ "$legacy" = 1 ]; then [ -n "${DK_WORKSPACE:-}" ] && herdr worktree remove --workspace "$DK_WORKSPACE" --force >/dev/null 2>&1 || true
+    else git -C "$DK_PROJECT_ROOT" worktree remove --force "$DK_WORKTREE" >/dev/null 2>&1 || true; fi
+  fi
+  for t in ${DK_TABS:-}; do herdr tab close "${t#*=}" >/dev/null 2>&1 </dev/null || true; done
+  rm -rf "$dir/.panes" "$dir/.blocked" "$DK_ROOT/.sessions/${HERDR_PANE_ID:?}"
+  herdr agent rename "$HERDR_PANE_ID" --clear >/dev/null 2>&1 || true
+}
+if [ "$abandon" = 1 ]; then
+  printf '# %s 結案\n結果：abandoned   分支：%s\n## 原因\n%s\n' "$DK_DISPLAY" "$DK_BRANCH" "$reason" > "$dir/report.md"
+  cleanup; git -C "$DK_PROJECT_ROOT" branch -D "$DK_BRANCH" >/dev/null 2>&1 || true
+  dk_index_set "$DK_DISPLAY" abandoned "$reason"; dk_process "task-close abandoned: $reason"; echo abandoned; exit 0
+fi
+if [ "$DK_WORKTREE" = "$DK_PROJECT_ROOT" ]; then   # --no-worktree task: work already on the current branch, nothing to merge
+  sha=$(git -C "$DK_PROJECT_ROOT" rev-parse --short HEAD); cleanup
+  dk_index_set "$DK_DISPLAY" "done" "in-tree $sha"; dk_process "task-close in-tree $sha"; echo "closed $sha"; exit 0
+fi
+if ! git -C "$DK_PROJECT_ROOT" merge --no-ff "$DK_BRANCH" -m "task $DK_SHORT: $DK_DISPLAY" >/dev/null 2>&1; then
+  git -C "$DK_PROJECT_ROOT" merge --abort 2>/dev/null || true
+  dk_process "merge-conflict $DK_BRANCH"; echo "dk-task-close: merge conflict on $DK_BRANCH; ask the human or run an it repair wave"; exit 3
+fi
+sha=$(git -C "$DK_PROJECT_ROOT" rev-parse --short HEAD)
+cleanup
+dk_index_set "$DK_DISPLAY" "done" "merged $sha"; dk_process "task-close merged $sha"; echo "merged $sha"

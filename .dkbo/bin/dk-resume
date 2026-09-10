@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# dk-resume [<task-folder|short>] — print a ≤150-line recovery pack for the leader.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+if [ -n "${1:-}" ]; then
+  t="$1"; [ -d "$DK_ROOT/tasks/$t" ] || t=$(compgen -G "$DK_ROOT/tasks/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-$1" | tail -1 || true); t="${t##*/}"
+  [ -n "$t" ] && [ -d "$DK_ROOT/tasks/$t" ] || dk_die "no task '$1'"
+  mkdir -p "$DK_ROOT/.sessions"; echo "$t" > "$DK_ROOT/.sessions/${HERDR_PANE_ID:?}"
+fi
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
+render() { # $1=process lines $2=state lines $3=ruling lines (0 = all)
+  echo "## 你是 $(dk_leader_name)（任務 $(basename "$dir")）"
+  echo "規範在 .dkbo/LEADER.md 與 .dkbo/PROTOCOL.md，先讀再行動。任務目錄 $dir"
+  echo "## brief"; cat "$dir/brief.md"
+  echo "## 本波"
+  if [ -n "${DK_WAVE:-}" ]; then
+    echo "wave: $DK_WAVE  base: $(sed -n "s/^[^ ]* wave-open $DK_WAVE base \([0-9a-f]*\).*/\1/p" "$dir/process.md" | tail -1)  kinds down: ${DK_KIND_DOWN:-無}"
+    awk -v t="$DK_REVIEW_TIMEOUT_MIN" -v now="$(date +%s)" -v pfx="$DK_SHORT-" -v dir="$dir" '
+      NF>=6 && $4=="review" && (index($1, "-reviewer-") || $1 ~ /-reviewer$/) {
+        sf=dir "/state/" substr($1, length(pfx)+1) ".md"; st="no-state"
+        while ((getline l < sf) > 0) if (l ~ /^status: /) st=substr(l, 9); close(sf)
+        printf "%s %s %d min%s\n", $1, st, (now-$3)/60, ((now-$3) > t*60 && st!="done") ? " TIMEOUT?" : "" }' "$dir/.panes"
+  else echo "沒有開著的波（dk-wave-open N 開下一波）"; fi
+  echo "## 裁定（最後一次 wave-open 之後）"
+  rul=$(awk '$2=="wave-open"{buf=""} $2=="ruling:"{buf=buf $0 "\n"} END{printf "%s", buf}' "$dir/process.md")
+  if [ -n "$rul" ]; then if [ "$3" -gt 0 ]; then printf '%s\n' "$rul" | tail -n "$3"; else printf '%s\n' "$rul"; fi; fi
+  echo "## process（最後 $1 行）"; tail -n "$1" "$dir/process.md"
+  echo "## 未處理訊息（最後一則 ACK 之後，寄給 leader）"
+  awk -v me="$(dk_leader_name)" '$2==me && $3=="[ACK]" {buf=""; next} index($0, "-> " me " ")>0 {buf=buf $0 "\n"} END{printf "%s", buf}' "$dir/messages.log"
+  echo "## state 摘要（每檔前 $2 行）"
+  for f in "$dir"/state/*.md; do [ -f "$f" ] || continue; case "$f" in *.report.md) continue;; esac; n=$(basename "$f" .md); head -n "$2" "$f" | sed "s/^/$n: /"; done
+  echo "## 在線員工（每 tab 一行）"
+  list=$(herdr agent list 2>/dev/null | jq -r '(.result.agents // [])[] | select(.name != null) | "\(.name) \(.agent_status)"' 2>/dev/null || true)
+  if [ -s "$dir/.panes" ]; then
+    awk -v L="$list" 'BEGIN{n=split(L, a, "\n"); for(i=1;i<=n;i++){split(a[i], kv, " "); st[kv[1]]=kv[2]}}
+      {t=(NF>=6)?$5:"?"; row[t]=row[t] " " $1 "(" (($1 in st)?st[$1]:"?") ")"; if(!(t in seen)){seen[t]=1; order[++k]=t}}
+      END{for(i=1;i<=k;i++) printf "tab %s:%s\n", order[i], row[order[i]]}' "$dir/.panes"
+  else printf '%s\n' "$list" | grep "^$DK_SHORT-" || echo "（無）"; fi
+  echo "## BACKLOG"; cat "$DK_ROOT/tasks/BACKLOG.md"
+}
+out=$(render 20 5 0)
+[ "$(echo "$out" | wc -l)" -le 150 ] || out=$(render 20 3 0)
+[ "$(echo "$out" | wc -l)" -le 150 ] || out=$(render 10 3 0)
+[ "$(echo "$out" | wc -l)" -le 150 ] || out=$(render 10 3 5)
+printf '%s\n' "$out"

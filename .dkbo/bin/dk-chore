@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# dk-chore <role> "<instruction>" [--kind K] [--tier S|M|L] [--code] [--cwd PATH]
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/kinds.sh"
+dk_require_herdr
+role="${1:-}"; instr="${2:-}"; shift 2 || true
+[ -n "$role" ] && [ -n "$instr" ] || dk_die "usage: dk-chore <role> \"<instruction>\" [--kind K] [--tier T] [--code] [--cwd PATH]"
+kind=""; tier=M; code=0; cwd="$DK_PROJECT_ROOT"
+while [ $# -gt 0 ]; do case "$1" in
+  --kind) kind="$2"; shift 2;; --tier) tier="$2"; shift 2;; --code) code=1; shift;; --cwd) cwd="$2"; shift 2;;
+  *) dk_die "unknown flag $1";; esac; done
+rf="$DK_ROOT/roles/$role.md"; [ -f "$rf" ] || dk_die "no role file $rf (use add-role skill first)"
+[ -n "$kind" ] || kind=$(dk_fm "$rf" kind)
+spec=$(dk_fm_tier "$rf" "$tier"); [ -n "$spec" ] || dk_die "role $role has no tier $tier"
+if [ "$kind" != "$(dk_fm "$rf" kind)" ]; then dk_kind_load "$kind"; spec=$(echo "$KIND_DEFAULT_TIERS" | tr ' ' '\n' | awk -F= -v t="$tier" '$1==t{print $2}'); fi
+args=$(dk_kind_args "$kind" "$spec")
+n=$(( $(compgen -G "$DK_ROOT/tasks/_chores/*.md" | wc -l || true) + 1 ))
+agent="chore-$role-$n"; slug=$(dk_slug "${instr:0:24}"); slug="${slug:-chore$n}"
+[[ "$agent" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || dk_die "agent name '$agent' must match [a-z][a-z0-9_-]{0,31} (shorten the role)"
+cf="$DK_ROOT/tasks/_chores/$(dk_today)-$slug.md"; [ ! -e "$cf" ] || cf="${cf%.md}-$n.md"
+branch="-"; ws="-"; split_from=(--current)
+if [ "$code" = 1 ]; then
+  branch="chore/$slug"; base=$(git -C "$DK_PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
+  out=$(herdr worktree create --branch "$branch" --base "$base" --cwd "$DK_PROJECT_ROOT" --no-focus)
+  cwd=$(echo "$out" | dk_json '.result.path // empty'); root=$(echo "$out" | dk_json '.result.root_pane.pane_id')
+  ws=$(echo "$out" | dk_json '.result.workspace.workspace_id')
+  [ -n "$cwd" ] || cwd=$(git -C "$DK_PROJECT_ROOT" worktree list --porcelain | awk -v b="refs/heads/$branch" '$1=="worktree"{p=$2} $1=="branch"&&$2==b{print p}')
+  split_from=(--pane "$root")
+fi
+direction=$(dk_fm "$rf" split); direction="${direction:-right}"
+leader=$(herdr agent get "${HERDR_PANE_ID:?}" 2>/dev/null | dk_json '.result.agent.name // empty' || true); leader="${leader:-$HERDR_PANE_ID}"
+pane=$(herdr pane split "${split_from[@]}" --direction "$direction" --cwd "$cwd" --no-focus \
+  --env "DK_ROOT=$DK_ROOT" --env "DK_ROLE=$role" --env "DK_AGENT=$agent" --env "DK_CHORE_FILE=$cf" \
+  --env "DK_LEADER=$leader" --env "DK_CHORE_CODE=$code" --env "HERDR_ENV=1" | dk_json '.result.pane.pane_id')
+[ -n "$pane" ] || dk_die "pane split returned no pane_id"
+dk_render "$DK_ROOT/templates/chore.md" "SOURCE=$instr" "AGENT=$agent" "KIND=$kind" "TIER=$tier" "BRANCH=$branch" "WORKSPACE=$ws" "PANE=$pane" > "$cf"
+# shellcheck disable=SC2086
+if ! herdr agent start "$agent" --kind "$kind" --pane "$pane" -- $args >/dev/null; then
+  herdr pane close "$pane" >/dev/null 2>&1 </dev/null || true
+  rm -f "$cf"
+  dk_die "agent start failed for $agent (pane $pane closed)"
+fi
+prompt="你是 $agent，角色 $role，這是一件雜務。先讀 $DK_ROOT/roles/$role.md、$DK_ROOT/PROTOCOL.md、$DK_ROOT/PROJECT.md。交代：$instr。進度與結果寫在 $cf（status、touched、結果）。禁止使用 subagent。"
+[ "$code" = 1 ] && prompt="$prompt 你在分支 $branch 的 worktree 中，完成後自己跑測試並 commit。範圍比想的大就停下回報。" || prompt="$prompt 不得修改程式碼。"
+prompt="$prompt 完成後執行：herdr agent prompt $leader \"[DONE] from $agent: <一句結果>\"。"
+herdr agent prompt "$agent" "$prompt" --wait --timeout 60000 >/dev/null
+dk_index_add "$(dk_today)" "$instr" chore working "$cf"
+echo "$agent $pane $cf"

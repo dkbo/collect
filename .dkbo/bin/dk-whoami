@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Prints who this pane is: "leader" or "employee <role> <agent> <task_dir>".
+set -euo pipefail
+if [ -n "${DK_ROLE:-}" ]; then
+  echo "employee ${DK_ROLE} ${DK_AGENT:-?} ${DK_TASK_DIR:-?}"
+else
+  echo "leader"
+fi

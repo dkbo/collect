@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# dk-brief-check [<brief.md>] — mechanical pre-flight before gate ①. Read-only; exit 1 on any FAIL.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
+dk_settings
+brief="${1:-}"; [ -n "$brief" ] || brief="$(dk_task_dir)/brief.md"
+[ -f "$brief" ] || dk_die "no brief at $brief"
+fails=0; warns=0
+fail() { echo "FAIL $1: $2"; fails=$((fails+1)); }
+warn() { echo "WARN $1: $2"; warns=$((warns+1)); }
+
+# ── 檔案所有權
+owners=$(dk_brief_owners "$brief"); [ -n "$owners" ] || fail 所有權 "沒有任何成員列"
+members=" "
+while IFS='|' read -r m globs _ro; do
+  [ -n "$m" ] || continue
+  [[ "$m" =~ ^[a-z][a-z0-9_-]*$ ]] || fail "所有權 $m" "成員欄須為 <角色>[-<別名>]（ascii 小寫）"
+  dk_member_role "$m" >/dev/null 2>&1 || fail "所有權 $m" "找不到角色檔（用 add-role skill 建立）"
+  [[ "$members" == *" $m "* ]] && fail "所有權 $m" "成員重複"
+  members="$members$m "
+  [ -n "$globs" ] && [ "$globs" != "—" ] || fail "所有權 $m" "可改欄為空"
+done <<< "$owners"
+all_globs=$(printf '%s\n' "$owners" | awk -F'|' '{n=split($2,g,","); for(i=1;i<=n;i++){x=g[i]; gsub(/^ +| +$/,"",x); if(x!="" && x!="—") print $1 "\t" x}}')
+overlap() { # G1 G2 → 0 when the two 可改 globs can match the same path (literal equality, or a dir/** tree containing the other)
+  local a="$1" b="$2"; [ "$a" = "$b" ] && return 0
+  [[ "$a" == *'/**' ]] && { [[ "$b" == "${a%/**}"/* ]] || [ "$b" = "${a%/**}" ]; } && return 0
+  [[ "$b" == *'/**' ]] && { [[ "$a" == "${b%/**}"/* ]] || [ "$a" = "${b%/**}" ]; } && return 0
+  return 1
+}
+while IFS=$'\t' read -r m1 g1; do
+  [ -n "$m1" ] || continue
+  while IFS=$'\t' read -r m2 g2; do
+    [ -n "$m2" ] && [ "$m1" \< "$m2" ] || continue
+    if overlap "$g1" "$g2"; then fail "所有權 $m1/$m2" "可改範圍重疊：$g1 與 $g2"; fi
+  done <<< "$all_globs"
+done <<< "$all_globs"
+
+# ── 波次表
+waves=$(dk_brief_waves "$brief"); [ -n "$waves" ] || fail 波次表 "沒有任何列"
+prev=0
+while IFS='|' read -r w _type m _what tier _done review; do
+  [ -n "$w" ] || continue
+  [[ "$w" =~ ^[0-9]+$ ]] || { fail "波次表 $w" "波號須為數字"; continue; }
+  if [ "$w" -ne "$prev" ]; then [ "$w" -eq $((prev+1)) ] || fail "波次表 $w" "波號不連續（上一列是 $prev）"; prev="$w"; fi
+  [[ "$members" == *" $m "* ]] || fail "波次表 $w $m" "成員不在所有權表"
+  [[ "$tier" =~ ^[SML]$ ]] || fail "波次表 $w $m" "難度只能 S/M/L，得到 '$tier'"
+  case "$review" in
+    ""|預設|skip:\ ?*) ;;
+    kinds:\ ?*)
+      read -ra ks <<< "${review#kinds:}"
+      [ "${#ks[@]}" -ge 1 ] && [ "${#ks[@]}" -le 3 ] || fail "波次表 $w" "kinds 須 1 至 3 個"
+      for k in "${ks[@]}"; do [ -f "$DK_ROOT/kinds/$k.sh" ] || fail "波次表 $w" "未知 kind $k"; done;;
+    *) fail "波次表 $w" "審查欄須為 預設、skip: <理由> 或 kinds: <k1> [k2] [k3]，得到 '$review'";;
+  esac
+done <<< "$waves"
+for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -un); do
+  [ -n "$(dk_brief_wave_review "$brief" "$w")" ] || fail "波次表 $w" "審查欄未填（預設 / skip: <理由> / kinds: …）"
+  devs=0
+  for m in $(printf '%s\n' "$waves" | awk -F'|' -v n="$w" '$1==n{print $3}'); do
+    [ "$(dk_member_group "$m" 2>/dev/null || true)" = dev ] && devs=$((devs+1))
+  done
+  [ "$devs" -le "$DK_TAB1_SLOTS" ] || warn "波次表 $w" "dev 成員 $devs 位超過 tab 1 的 $DK_TAB1_SLOTS 格，建議拆波"
+done
+
+# ── 驗收與契約
+[ -n "$(dk_brief_acceptance "$brief")" ] || fail 驗收標準 "至少一條 '- [ ] …'"
+[ -n "$(dk_brief_section "$brief" "## 共用契約" | grep -v '^（' | grep -v '^[[:space:]]*$' || true)" ] || fail 共用契約 "段落為空（無契約請寫「無」）"
+
+if [ "$fails" -gt 0 ]; then echo "$fails FAIL"; exit 1; fi
+[ "$warns" -gt 0 ] || echo OK

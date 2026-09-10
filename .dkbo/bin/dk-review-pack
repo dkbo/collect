@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# dk-review-pack [N] | dk-review-pack --task — write tasks/<t>/waves/N.diff (or task.diff) for reviewers; prints the path.
+# Includes uncommitted and untracked work in the worktree via a throwaway index (the employees' real index is untouched).
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
+if [ "${1:-}" = --task ]; then
+  [ -n "${DK_BASE:-}" ] || dk_die "no DK_BASE in .task.env (legacy task); pass a wave number instead"
+  base="$DK_BASE"; out="$dir/waves/task.diff"; label="task $DK_SHORT, whole branch since ${base:0:7}"
+else
+  n="${1:-${DK_WAVE:-}}"; [[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-review-pack [N] | --task  (no wave is open)"
+  base=$(sed -n "s/^[^ ]* wave-open $n base \([0-9a-f]*\) .*/\1/p" "$dir/process.md" | tail -1)
+  [ -n "$base" ] || dk_die "no 'wave-open $n base <sha>' line in process.md"
+  out="$dir/waves/$n.diff"; label="wave $n since ${base:0:7}"
+fi
+mkdir -p "$dir/waves"
+idx=$(mktemp); trap 'rm -f "$idx"' EXIT
+g()  { git -C "$DK_WORKTREE" "$@"; }
+gi() { GIT_INDEX_FILE="$idx" git -C "$DK_WORKTREE" "$@"; }
+gi read-tree HEAD; gi add -A
+changed=$(gi diff --cached --name-only "$base" | wc -l)
+{
+  echo "# $DK_DISPLAY — $label — $(dk_now)"; echo "# files changed: $changed (working tree included)"; echo
+  echo "## commits"; g log --oneline "$base..HEAD"; echo
+  echo "## stat"; gi diff --cached --stat "$base"; echo
+  echo "## diff (-U10)"; gi diff --cached -U10 "$base"
+} > "$out"
+[ "$changed" -gt 0 ] || echo "dk-review-pack: no changes since ${base:0:7}; $out holds only the header" >&2
+echo "$out"

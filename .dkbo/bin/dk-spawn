@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# dk-spawn <role> [alias] [--tier S|M|L] [--kind K] [--isolated] [--resume] [--split right|down]
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/kinds.sh"; . "$DK_ROOT/lib/prompt.sh"; . "$DK_ROOT/lib/layout.sh"
+dk_require_herdr
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
+role="${1:-}"; shift || true; [ -n "$role" ] || dk_die "usage: dk-spawn <role> [alias] [--tier T] [--kind K] [--isolated] [--resume] [--split right|down]"
+alias=""; tier=M; kind=""; isolated=0; resume=0; notes=""; split_override=""
+while [ $# -gt 0 ]; do case "$1" in
+  --tier) tier="$2"; shift 2;; --kind) kind="$2"; notes="$notes override-kind"; shift 2;;
+  --isolated) isolated=1; notes="$notes isolated"; shift;; --resume) resume=1; notes="$notes resume"; shift;;
+  --split) split_override="$2"; [[ "$split_override" =~ ^(right|down)$ ]] || dk_die "--split must be right or down"; shift 2;;
+  --*) dk_die "unknown flag $1";; *) alias="$1"; shift;; esac; done
+rf="$DK_ROOT/roles/$role.md"; [ -f "$rf" ] || dk_die "no role file $rf (use add-role skill first)"
+[ -n "$kind" ] || kind=$(dk_fm "$rf" kind)
+spec=$(dk_fm_tier "$rf" "$tier"); [ -n "$spec" ] || dk_die "role $role has no tier $tier"
+if [ "$kind" != "$(dk_fm "$rf" kind)" ]; then dk_kind_load "$kind"; spec=$(echo "$KIND_DEFAULT_TIERS" | tr ' ' '\n' | awk -F= -v t="$tier" '$1==t{print $2}'); fi
+args=$(dk_kind_args "$kind" "$spec")
+group=$(dk_fm "$rf" group); group="${group:-dev}"
+agent=$(dk_agent_name "$role" "$alias"); sname=$(dk_state_name "$role" "$alias"); state="$dir/state/$sname.md"
+[[ "$agent" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || dk_die "agent name '$agent' must match [a-z][a-z0-9_-]{0,31} (shorten the alias)"
+brief_for="$dir/brief.md"; [ -f "$dir/briefs/$sname.md" ] && brief_for="$dir/briefs/$sname.md"
+report="$dir/state/$sname.report.md"
+
+if [ "$resume" = 1 ]; then
+  old=$(awk -v a="$agent" '$1==a{print $2}' "$dir/.panes" | tail -1 || true)
+  if [ -n "$old" ]; then
+    herdr pane close "$old" >/dev/null 2>&1 </dev/null || true
+    grep -v "^$agent " "$dir/.panes" > "$dir/.panes.tmp" || true
+    mv "$dir/.panes.tmp" "$dir/.panes"
+    dk_process "resume $agent: closed old pane $old"
+  fi
+fi
+
+env_args=(--env "DK_ROOT=$DK_ROOT" --env "DK_TASK_DIR=$dir" --env "DK_ROLE=$role" --env "DK_AGENT=$agent"
+  --env "DK_LEADER=$(dk_leader_name)" --env "DK_ISOLATED=$isolated" --env "HERDR_ENV=1")
+tab_no=0; slot=0; tab_id=""
+if [ "$(dk_fm "$rf" worktree)" = false ]; then   # e.g. pm: beside the leader in the main tree, outside the employee grid
+  pane=$(herdr pane split --pane "${HERDR_PANE_ID:?}" --direction "${split_override:-right}" --cwd "$DK_PROJECT_ROOT" --no-focus "${env_args[@]}" | dk_json '.result.pane.pane_id')
+else
+  read -r tab_no slot anchor direction share <<< "$(dk_layout_slot "$group")"
+  if [ "$tab_no" = NEWTAB ]; then
+    tab_no="$slot"; slot=1
+    # shellcheck disable=SC2086  # DK_TABS is a space-separated list
+    stale=$(printf '%s\n' ${DK_TABS:-} | awk -F= -v t="$tab_no" '$1==t{print $2}' | head -1)
+    if [ -n "$stale" ]; then
+      herdr tab close "$stale" >/dev/null 2>&1 </dev/null || true
+      dk_process "tab $tab_no $stale closed (recreated)"
+      # shellcheck disable=SC2086  # DK_TABS is a space-separated list
+      DK_TABS=$(printf '%s\n' ${DK_TABS:-} | grep -v "^$tab_no=" | tr '\n' ' ' | sed 's/ $//') || true
+    fi
+    out=$(herdr tab create --workspace "$DK_WORKSPACE" --cwd "$DK_WORKTREE" --label "$DK_SHORT-$tab_no" --no-focus "${env_args[@]}") || dk_die "tab create failed"
+    tab_id=$(echo "$out" | dk_json '.result.tab.tab_id // empty'); pane=$(echo "$out" | dk_json '.result.root_pane.pane_id // empty')
+    [ -n "$tab_id" ] && [ -n "$pane" ] || dk_die "tab create returned no tab_id/root pane"
+    dk_env_set DK_TABS "${DK_TABS:+$DK_TABS }$tab_no=$tab_id"; dk_process "tab $tab_no $tab_id opened"
+  else
+    pane=$(herdr pane split --pane "$anchor" --direction "${split_override:-$direction}" --ratio "$(dk_layout_ratio_arg "$share")" \
+      --cwd "$DK_WORKTREE" --no-focus "${env_args[@]}" | dk_json '.result.pane.pane_id')
+  fi
+fi
+[ -n "$pane" ] || dk_die "pane split returned no pane_id"
+# shellcheck disable=SC2086
+if ! herdr agent start "$agent" --kind "$kind" --pane "$pane" -- $args >/dev/null; then
+  if [ -n "$tab_id" ]; then
+    herdr tab close "$tab_id" >/dev/null 2>&1 </dev/null || true
+    dk_env_set DK_TABS "$DK_TABS"
+    dk_process "tab $tab_no $tab_id closed (agent start failed)"
+  else
+    herdr pane close "$pane" >/dev/null 2>&1 </dev/null || true
+  fi
+  dk_die "agent start failed for $agent (pane $pane closed)"
+fi
+echo "$agent $pane $(date +%s) $group $tab_no $slot" >> "$dir/.panes"
+
+dk_kind_load "$kind"; have=$(kind_mcp_list || true); missing=""
+for m in $(dk_fm_list "$rf" mcp); do echo "$have" | grep -qx "$m" || missing="$missing $m"; done
+if [ -n "$missing" ]; then echo "dk-spawn: mcp missing for $kind:$missing" >&2; dk_process "mcp-missing $agent:$missing"; fi
+
+if herdr agent prompt "$agent" "$(dk_first_prompt "$agent" "$role" "$dir" "$state" "$resume" "$brief_for" "$report")" --wait --timeout 60000 >/dev/null; then
+  dk_process "spawn $agent ($kind $tier)$notes"
+  echo "$agent $pane"
+else
+  dk_process "spawn $agent ($kind $tier)$notes prompt-failed"
+  echo "dk-spawn: first prompt to $agent failed or timed out; pane $pane is live — herdr agent read $agent, then re-prompt or dk-wave-close --force" >&2
+  echo "$agent $pane"; exit 1
+fi

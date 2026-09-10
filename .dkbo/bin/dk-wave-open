@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# dk-wave-open <N> — open wave N: record the base sha, set DK_WAVE, render one brief slice per member.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
+n="${1:-}"; [[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-wave-open <N>"
+live=$(awk 'NF>=6 && $5==0 {next} NF>0 {n++} END{print n+0}' "$dir/.panes")   # worktree:false advisors (tab 0) are not wave members
+[ "$live" -eq 0 ] || dk_die "live panes remain ($live); run dk-wave-close first"
+[ -z "${DK_WAVE:-}" ] || dk_die "wave $DK_WAVE is open; run dk-wave-close first"
+! grep -q " wave-open $n " "$dir/process.md" || dk_die "wave $n was already opened (see process.md)"
+brief="$dir/brief.md"
+members=$(dk_brief_wave_members "$brief" "$n"); [ -n "$members" ] || dk_die "wave $n has no members in the 波次表 of $brief"
+base=$(git -C "$DK_WORKTREE" rev-parse HEAD)
+goal=$(dk_brief_section "$brief" "## 目標"); contract=$(dk_brief_section "$brief" "## 共用契約"); acc=$(dk_brief_section "$brief" "## 驗收標準")
+peers=$(echo "$members" | tr '\n' ' ' | sed 's/ $//')
+mkdir -p "$dir/briefs"
+for m in $members; do m="${m%%(*}"
+  rows=$(dk_brief_waves "$brief" | awk -F'|' -v m="$m" -v n="$n" '$1==n && $3==m {printf "| %s | %s | %s | %s | %s | %s | %s |\n", $1,$2,$3,$4,$5,$6,$7}')
+  own=$(dk_brief_owners "$brief" | awk -F'|' -v m="$m" '$1==m {printf "| %s | %s | %s |\n", $1,$2,$3}')
+  [ -n "$own" ] || echo "dk-wave-open: $m has no row in 檔案所有權 (run dk-brief-check)" >&2
+  dk_render "$DK_ROOT/templates/brief-member.md" "DISPLAY=$DK_DISPLAY" "MEMBER=$m" "WAVE=$n" "BRIEF=$brief" "GOAL=$goal" \
+    "WAVE_ROWS=$rows" "OWNER_ROWS=$own" "CONTRACT=$contract" "ACCEPTANCE=$acc" "PEERS=$peers" > "$dir/briefs/$m.md"
+done
+dk_env_set DK_WAVE "$n"
+dk_process "wave-open $n base ${base:0:7} members $peers"
+echo "wave $n open (base ${base:0:7}); slices in $dir/briefs/"

@@ -1,0 +1,14 @@
+# 專案事實（≤40 行；由 init skill 預填，領導或 it 維護）
+- 技術棧：React 19 + TS + Vite 單 repo；Babylon.js 多人遊戲（`src/babylon/`、`src/pages/Battle/`，WebRTC + Firestore signaling）；兩套 Godot 4.4.1 Web 匯出（`godot-src/` RPG 遊戲室、`godot-candy-src/` 糖果消消樂）。
+- 安裝 / 啟動：`pnpm install`；`pnpm dev`（vite `strictPort` 5173，被占直接報錯不跳 port；worktree 內用 `PORT=5174 pnpm dev`）。hash 路由 `http://localhost:5173/collect/#/<route>`。
+- 測試指令：`pnpm lint`（eslint）、`pnpm typecheck`（`tsc -b --noEmit`）、`pnpm test`（vitest，`*.test.ts` 與被測檔同目錄，只測 babylon math／net 純函式與 Zustand store）；糖果邏輯 `godot --headless --path godot-candy-src -s tests/board_test.gd`。
+- worktree 內不要跑 `pnpm exec <tool>`／`pnpm <script>`：pnpm 11 認不得 symlink 進來的 `node_modules` 會想 purge 它；改直呼 `node_modules/.bin/eslint|tsc|vitest`（hooks 已如此）。
+- 部署：`pnpm build` 寫 `docs/`（GitHub Pages 產物，`build: 部屬` commit）；`docs/` 不是文件目錄，不要寫東西進去。
+- Godot 匯出：只准 `pnpm godot:export`／`pnpm candy:export`（含 `--headless --import`）；產物 `public/godot/`、`public/candy/`；地圖 JSON 改動由 hook 自動 `sync:maps` 到 `public/godot/maps/`（gitignore）。任務 worktree 第一次匯出會整包重 import（`.godot/` gitignore），屬正常、只發生一次。
+- 目錄慣例：`@/*` 路徑別名；`src/store/` Zustand（非同步寫在 action）；`src/components/ui/` shadcn；Tailwind v4 自訂 class 用 `@apply`；圖片一律 WebP。
+- 瀏覽器驗證：本機沒 Chrome、Playwright MCP 已移除，一律 `node .claude/skills/verify-web/scripts/shot.mjs`（`--contexts N` 多人、`--messages godot-rpg|godot-candy` 收 bridge）。截圖與臨時檔只寫 scratchpad。
+- /battle：Firebase 專案 test-73ce3，Firestore **具名資料庫 `dkbo-collect`**，`.env.local` 的 `VITE_FIREBASE_FIRESTORE_DB` 必填（worktree 內 hook 會自動 symlink `.env.local` 與 `node_modules`）。
+- Hooks（`.claude/settings.json`）：PreToolUse 擋 `pkill -f`／手動 godot export／jpg/png 進 `src/`；PostToolUse 單檔 eslint --fix、`godot --check-only`、地圖 JSON 驗證；Stop 在改過 `src/` 時跑 lint+typecheck+vitest、改糖果跑 board_test。完成定義以 hooks 為準。
+- 獨佔資源（同波不可重疊）：`dev:5173`、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`。
+- 專案領域知識：各領域架構重點在 `.claude/agents/<name>.md`（babylon-game-dev、react-ui-dev、godot-dev、rpg-map-builder、web-verifier、build-runner、arch-security-reviewer），角色檔會指定要讀哪一份。
+- 已知坑：`godot --check-only` 不註冊 autoload，autoload 後的編譯錯會被吞；bridge 協定四檔（React 側與 Godot 側）改一邊要同步另一邊；`export_presets.cfg` Threads 必須 OFF；fullPage 截圖在 `#root` 置中版面會有假象。

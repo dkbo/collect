@@ -1,0 +1,4 @@
+# shellcheck config for the dkbo package (bin/, lib/, kinds/). Scripts source lib files by
+# computed path, so SC1091 (can't follow) is noise; `A && B || C` is used deliberately as
+# "guard || fallback" throughout (see LEADER-facing scripts) and is reviewed case by case.
+disable=SC1091,SC2015
