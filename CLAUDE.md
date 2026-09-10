@@ -7,8 +7,8 @@ Read AGENTS.md first.
 派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.1.0，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `leader` 就讀 `.dkbo/LEADER.md` 照它行事；印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
 
 - **領導不寫碼、不改業務檔**：所有實作、驗證、審查都 `dk-spawn` 員工；領導只寫 brief、拆波、裁定、記憶檔（`process.md`、`decisions.md`、`PROJECT.md`）。舊的「≤30 行直做門檻」作廢。唯一例外：`.dkbo/`、`.claude/`、`CLAUDE.md`、`AGENTS.md` 這類規則檔由領導直接維護。
-- **角色 → 目錄**（`.dkbo/roles/README.md` 為準）：`babylon`（`src/babylon/`、`src/pages/Battle/`）、`react`（其餘 `src/pages/`、`src/store/`、`src/components/`、`src/lib/`）、`godot`（`godot-src/`、`godot-candy-src/`）、`mapbuilder`（RpgRoom 地圖 JSON）、`qa`（shot.mjs 截圖、build／匯出、`/battle` 多人）、`reviewer`（每波審查，含架構／安全）、`it`、`pm`。各領域架構重點仍在 `.claude/agents/<name>.md`，角色檔會指定要讀哪份；`.claude/agents/` 不再用 Agent tool 派。
-- **brief 檔案所有權就是三道鎖的空間鎖**；資源鎖（`dev:5173`／`dev:5174`、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`）與依賴寫在波次表「做什麼」欄，同波不得重疊。Godot 與 Babylon net／bridge 協定是「共用契約」，變更一律 ESCALATE。
+- **角色 → 目錄**（`.dkbo/roles/README.md` 為準）：`babylon`（`src/babylon/`、`src/pages/Battle/`）、`react`（其餘 `src/pages/`、`src/store/`、`src/components/`、`src/lib/`）、`godot`（`godot-src/`、`godot-candy-src/`）、`mapbuilder`（RpgRoom 地圖 JSON）、`qa`（shot.mjs 截圖、build／匯出、`/battle` 多人）、`reviewer`（每波審查，含架構／安全）、`netcore`（`src/core/`、`firestore.rules`、bridge 協定的共用契約擁有者）、`designer`（mockup／spec，不改碼）、`assets`（WebP 與素材）、`it`、`pm`。各領域架構重點仍在 `.claude/agents/<name>.md`，角色檔會指定要讀哪份；`.claude/agents/` 不再用 Agent tool 派。
+- **brief 檔案所有權就是三道鎖的空間鎖**；資源鎖（`dev:5173`／`dev:5174`、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`）與依賴寫在波次表「做什麼」欄，同波不得重疊。Godot 與 Babylon net／bridge 協定是「共用契約」，擁有者是 `netcore`：其他角色用 QUESTION 要介面，不自行改。
 - **模型上限 `opus` + `effort: high`**：角色檔三檔已寫死，`--tier` 只能選 S/M/L，不改 `kinds/claude.sh` 派 `fable`／`xhigh`／`max`。`haiku` 不進團隊。
 - **審查 kinds `claude codex agy`**（`settings.env`）：agy 免費額度、只做意見；`[TIMEOUT]`／額度用完就熔斷，照 LEADER.md 補位或 `review N skipped`，不重試不替補。
 - **commit 政策**：任務分支 `dk/<short>`（worktree `.worktrees/<short>`）上每波 `wave N:` commit 由領導自動做；合併回 `master`（`dk-task-close`，關卡③）與任何 push 一律要使用者拍板。`build: 部屬`（`pnpm build` 寫 `docs/`）不在任務內做。

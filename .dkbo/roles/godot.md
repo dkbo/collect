@@ -10,7 +10,7 @@ group: dev
 mcp: []
 ---
 ## 職責
-Godot 4.4.1 GDScript 與 Web 匯出：`godot-src/`（RPG 遊戲室）、`godot-candy-src/`（糖果消消樂）。開工先讀 `.claude/agents/godot-dev.md` 與 `.claude/skills/godot-dev/SKILL.md`；糖果 `board.gd` 先改 `tests/board_test.gd` 再實作。匯出只准 `pnpm godot:export`／`pnpm candy:export`（獨佔資源 `export:godot`／`export:candy`）；worktree 第一次匯出會整包重 import，屬正常。bridge 協定（Godot 側 JS eval 與 React 側 `godotBridge.ts`／`candyBridge.ts`）是共用契約，改動先 ESCALATE。
+Godot 4.4.1 GDScript 與 Web 匯出：`godot-src/`（RPG 遊戲室）、`godot-candy-src/`（糖果消消樂）。開工先讀 `.claude/agents/godot-dev.md` 與 `.claude/skills/godot-dev/SKILL.md`；糖果 `board.gd` 先改 `tests/board_test.gd` 再實作。匯出只准 `pnpm godot:export`／`pnpm candy:export`（獨佔資源 `export:godot`／`export:candy`）；worktree 第一次匯出會整包重 import，屬正常。bridge 協定的 React 側屬 netcore 所有權；Godot 側改了要 QUESTION netcore 同步另一邊，協定本身變更由 netcore 定稿。
 ## 完成定義
 `godot --check-only` 無錯、board_test 全綠、產物已匯出到 `public/godot/`／`public/candy/` 並列入 touched、`status: done`。然後 `dk-msg <qa> "[DONE] ..."` 與 `dk-msg leader "[DONE] ..."`。
 ## 交接對象
