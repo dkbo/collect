@@ -4,7 +4,7 @@ Read AGENTS.md first.
 
 # 團隊流程 = dkbo（2026-09-10 起）
 
-派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.6.0，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `leader` 就讀 `.dkbo/LEADER.md` 照它行事；印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
+派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.6.1，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `leader` 就讀 `.dkbo/LEADER.md` 照它行事；印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
 
 - **領導不寫碼、不改業務檔**：所有實作、驗證、審查都 `dk-spawn` 員工；領導只寫 brief、拆波、裁定、記憶檔（`process.md`、`decisions.md`、`PROJECT.md`）。舊的「≤30 行直做門檻」作廢。唯一例外：`.dkbo/`、`.claude/`、`CLAUDE.md`、`AGENTS.md` 這類規則檔由領導直接維護。
 - **角色 → 目錄**（`.dkbo/roles/README.md` 為準）：`babylon`（`src/babylon/`、`src/pages/Battle/`）、`react`（其餘 `src/pages/`、`src/store/`、`src/components/`、`src/lib/`）、`godot`（`godot-src/`、`godot-candy-src/`）、`mapbuilder`（RpgRoom 地圖 JSON）、`qa`（shot.mjs 截圖、build／匯出、`/battle` 多人）、`reviewer`（每波審查，含架構／安全）、`netcore`（`src/core/`、`firestore.rules`、bridge 協定的共用契約擁有者）、`designer`（mockup／spec，不改碼）、`assets`（WebP 與素材）、`it`、`pm`。各領域架構重點仍在 `.claude/agents/<name>.md`，角色檔會指定要讀哪份；`.claude/agents/` 不再用 Agent tool 派。

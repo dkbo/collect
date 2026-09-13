@@ -61,3 +61,5 @@ DONE 前 `touched` 必須完整。`dk-wave-close` 不是看你自報的清單，
 格式隨你寫，機器不讀它——但正因為機器不讀，**完成一定要跑
 `dk-msg leader "[DONE] <一句結果>"`，那是領導唯一收得到的完成訊號，不跑就關不掉**。
 守望看的是你的 agent 狀態不是你的檔案，你卡在審批超過門檻就推 `[BLOCKED]` 給派你的領導；回報一律 `dk-msg leader "[DONE] <一句結果>"`（只能對 leader，腳本會等領導閒置再送、記到 `tasks/_chores/messages.log`）。不要直接用 `herdr agent prompt` 回報：領導忙碌時那樣送會被吃掉。
+
+執行環境（dev server、port、db、docker）是**全隊共用**的：worktree 隔離檔案，不隔離它們。不要 kill 進程、不要重啟或佔用服務、不要去探別人的 port —— 主樹上有領導，其他 worktree 裡有同事。需要動就 `dk-msg leader "[ESCALATE] <要動什麼、為什麼>"` 讓領導決定。任務那側這件事寫在 brief 的「獨佔資源」欄，雜務沒有 brief，所以寫在這裡。

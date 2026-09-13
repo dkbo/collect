@@ -78,7 +78,10 @@ fi
 # 員工從這一刻起活在 worktree 裡，rollback 的契約（「沒人進去過就清乾淨」）到此為止。
 # 再往後任何一步失敗都不准動 worktree：那裡有一個正在跑的 agent 和它還沒 commit 的改動。
 trap - EXIT
-prompt="你是 $agent，角色 $role，這是一件雜務。先讀 $DK_ROOT/roles/$role.md、$DK_ROOT/PROTOCOL.md、$DK_ROOT/PROJECT.md。交代：$instr。$cf 是你的筆記，格式隨你寫。禁止使用 subagent。"
+# 「執行環境是共用的」這句必須在提示裡，不能只放在 PROTOCOL：實跑中一件唯讀探測雜務跑去
+# kill 主樹的 dev server 並重啟（classifier 擋下了）。worktree 隔離檔案，不隔離 port、db、
+# docker、dev server —— 而雜務沒有 brief，那張「獨佔資源」表它根本看不到。
+prompt="你是 $agent，角色 $role，這是一件雜務。先讀 $DK_ROOT/roles/$role.md、$DK_ROOT/PROTOCOL.md、$DK_ROOT/PROJECT.md。交代：$instr。$cf 是你的筆記，格式隨你寫。禁止使用 subagent。執行環境（dev server、port、db、docker）是全隊共用的，worktree 只隔離檔案不隔離它們：不要 kill 進程、不要重啟或佔用服務，需要動就 dk-msg leader \"[ESCALATE] ...\" 讓領導決定。"
 [ "$code" = 1 ] && prompt="$prompt 你在分支 $branch 的 worktree 中，完成後自己跑測試並 commit。範圍比想的大就停下回報。" || prompt="$prompt 不得修改程式碼。"
 prompt="$prompt 完成後執行：$DK_ROOT/bin/dk-msg leader \"[DONE] <一句結果>\"（它會等領導閒置再送）。"
 "$DK_ROOT/bin/dk-watch" --chores --ensure >/dev/null 2>&1 || true   # a chore pane just appeared

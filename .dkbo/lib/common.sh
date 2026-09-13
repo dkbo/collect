@@ -72,6 +72,8 @@ dk_render() { # TEMPLATE_FILE KEY=VALUE... → stdout with every {{KEY}} replace
 dk_index_add() { local name="${2//|/／}"; name="${name//$'\n'/ }"; printf '| %s | %s | %s | %s | %s |\n' "$1" "$name" "$3" "$4" "$5" >> "$DK_ROOT/tasks/INDEX.md"; }
 dk_index_set() { # NAME STATUS NOTE  — rewrite the row whose name column matches ('|' in NAME is stored as '／')
   # 非零＝沒有任何一列被改到。名稱是主鍵，而主鍵對不上是靜默的 —— 呼叫端必須接住這個非零。
+  # 六個呼叫點的警告字串近乎逐字重複，是刻意的（與 dk_commit_memory 的既有體例一致）：
+  # 要改措辭就六處一起改，不要只改一處。
   local name="${1//|/／}" status="$2" note="$3" f="$DK_ROOT/tasks/INDEX.md" rc=0
   awk -F'|' -v n="$name" -v s="$status" -v o="$note" 'BEGIN{OFS="|"}
     { if ($3 == " " n " ") { $5=" " s " "; $6=" " o " "; hit=1 } print }
