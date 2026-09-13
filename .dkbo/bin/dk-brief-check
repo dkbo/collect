@@ -60,6 +60,18 @@ for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -u
     [ "$(dk_member_group "$m" 2>/dev/null || true)" = dev ] && devs=$((devs+1))
   done
   [ "$devs" -le "$DK_TAB1_SLOTS" ] || warn "波次表 $w" "dev 成員 $devs 位超過 tab 1 的 $DK_TAB1_SLOTS 格，建議拆波"
+  # 同一波不得有兩位成員宣告同一個獨佔資源：worktree 隔離檔案，但兩位 dev 仍會對同一個
+  # dev DB 跑 migration、搶同一個 port、重啟同一組 docker。
+  claimed=""
+  for m in $(printf '%s\n' "$waves" | awk -F'|' -v n="$w" '$1==n{print $3}'); do
+    for r in $(printf '%s\n' "$owners" | awk -F'|' -v mm="$m" '$1==mm{print $4}' \
+               | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true); do
+      prev=$(printf '%s' "$claimed" | awk -F'\t' -v rr="$r" '$1==rr{print $2; exit}')
+      if [ -n "$prev" ]; then fail "波次表 $w" "獨佔資源 $r 同時被 $prev 與 $m 宣告（同一波不得共用）"
+      else claimed="$claimed$r	$m
+"; fi
+    done
+  done
 done
 
 # ── 驗收與契約

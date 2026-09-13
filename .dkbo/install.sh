@@ -2,6 +2,9 @@
 # .dkbo/install.sh [--target DIR]  — wire dkbo into a project (idempotent).
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+. "$here/lib/common.sh"
+dk_herdr_check   # catch an unusable herdr now, not on the first task; installing from a plain shell is fine
 target="$(dirname "$here")"; [ "${1:-}" = --target ] && target="$(cd "$2" && pwd)"
 cd "$target"
 append_line() { # FILE LINE — append LINE, first making sure FILE ends with a newline

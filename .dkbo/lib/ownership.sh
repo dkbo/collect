@@ -16,3 +16,18 @@ dk_owned() {
   return 1
 }
 dk_touched() { awk '/^touched:/{t=1;next} t && /^  - /{sub(/^  - /,""); print; next} t && /^[^ ]/{t=0}' "$1"; }
+
+# dk_changed_files WORKTREE BASE → one changed path per line since BASE: staged, unstaged and
+# untracked work included, .gitignore respected, non-ASCII left unescaped. Uses a throwaway index,
+# so the employees' real index is untouched (same trick as dk-review-pack).
+dk_changed_files() {
+  local wt="$1" base="$2" idx rc
+  idx=$(mktemp) || return 1
+  {                     # no helper function here: callers (dk-review-pack) have their own `gi`
+    GIT_INDEX_FILE="$idx" git -c core.quotePath=false -C "$wt" read-tree HEAD &&
+    GIT_INDEX_FILE="$idx" git -c core.quotePath=false -C "$wt" add -A &&
+    GIT_INDEX_FILE="$idx" git -c core.quotePath=false -C "$wt" diff --cached --name-only "$base"
+  }; rc=$?
+  rm -f "$idx"
+  return "$rc"
+}

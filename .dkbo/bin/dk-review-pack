@@ -9,7 +9,7 @@ if [ "${1:-}" = --task ]; then
   base="$DK_BASE"; out="$dir/waves/task.diff"; label="task $DK_SHORT, whole branch since ${base:0:7}"
 else
   n="${1:-${DK_WAVE:-}}"; [[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-review-pack [N] | --task  (no wave is open)"
-  base=$(sed -n "s/^[^ ]* wave-open $n base \([0-9a-f]*\) .*/\1/p" "$dir/process.md" | tail -1)
+  base=$(dk_wave_base "$dir" "$n")
   [ -n "$base" ] || dk_die "no 'wave-open $n base <sha>' line in process.md"
   out="$dir/waves/$n.diff"; label="wave $n since ${base:0:7}"
 fi

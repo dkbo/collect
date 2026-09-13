@@ -3,27 +3,40 @@
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 dk_require_herdr
-dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
-log="$dir/messages.log"
-sender="${DK_AGENT:-$(dk_leader_name)}"
+if [ -n "${DK_CHORE_FILE:-}" ]; then   # chore worker: no task binding; the leader is whoever ran dk-chore
+  chore=1; leader="${DK_LEADER:?dk-msg: DK_LEADER unset}"; sender="${DK_AGENT:?dk-msg: DK_AGENT unset}"
+  log="$DK_ROOT/tasks/_chores/messages.log"; mkdir -p "$(dirname "$log")"
+else
+  chore=0; dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
+  leader=$(dk_leader_name); sender="${DK_AGENT:-$leader}"; log="$dir/messages.log"
+fi
 
 if [ "${1:-}" = "--ack" ]; then echo "$(dk_now) $sender [ACK]" >> "$log"; exit 0; fi
 target="${1:-}"; text="${2:-}"
 [ -n "$target" ] && [ -n "$text" ] || dk_die "usage: dk-msg <target> \"[TYPE] body\""
-[ "$target" = leader ] && target=$(dk_leader_name)
+[ "$target" = leader ] && target="$leader"
 
 if [[ ! "$text" =~ ^\[(TASK|DONE|BUG|FIXED|QUESTION|ANSWER|ESCALATE|DECISION|STOP|BLOCKED)\]\ (.+)$ ]]; then
   echo "dk-msg: text must be '[TYPE] body' with a known type" >&2; exit 2; fi
 type="${BASH_REMATCH[1]}"; body="${BASH_REMATCH[2]}"
 if [ "${#body}" -gt 200 ]; then echo "dk-msg: body >200 chars; put details in your state file" >&2; exit 2; fi
-if [ "${DK_ISOLATED:-0}" = 1 ] && [ "$target" != "$(dk_leader_name)" ]; then
+if [ "$chore" = 1 ] && [ "$target" != "$leader" ]; then
+  echo "dk-msg: chore workers may only message leader" >&2; exit 2; fi
+if [ "${DK_ISOLATED:-0}" = 1 ] && [ "$target" != "$leader" ]; then
   echo "dk-msg: you are isolated; only leader may be messaged" >&2; exit 2; fi
 
 line="[$type] from $sender: $body"
-if herdr agent wait "$target" --until idle --until "done" --timeout "${DK_MSG_WAIT_MS:-300000}" >/dev/null 2>&1 \
-   && herdr agent prompt "$target" "$line" >/dev/null 2>&1; then
-  echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"; exit 0
-fi
+# 重試而不是一次定生死：實跑中 reviewer 的 [DONE] 曾在一分鐘內就被判失敗、整筆遺失，
+# 而它的報告好端端躺在磁碟上 —— 領導從不知道它交過。
+tries="${DK_MSG_TRIES:-3}"; i=1
+while [ "$i" -le "$tries" ]; do
+  if herdr agent wait "$target" --until idle --until "done" --timeout "${DK_MSG_WAIT_MS:-300000}" >/dev/null 2>&1 \
+     && herdr agent prompt "$target" "$line" >/dev/null 2>&1; then
+    echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"; exit 0
+  fi
+  [ "$i" -lt "$tries" ] && sleep "${DK_MSG_RETRY_SEC:-5}"
+  i=$((i+1))
+done
 echo "$(dk_now) $sender -> $target [UNDELIVERED] [$type] $body" >> "$log"
 echo "dk-msg: undelivered to $target (logged); note it in your state blocked_by and continue" >&2
 exit 1

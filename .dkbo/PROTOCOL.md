@@ -11,7 +11,7 @@
 | TASK | 領導→員工 | 補充派工、要求補 report、請 reviewer 複看 |
 | DONE | 員工→領導（也可同時通知同波夥伴，如 dev→qa） | 完成，且 state 已寫 `status: done`、report 已寫好 |
 | BUG | 員工→員工、領導→dev（reviewer 的 Important 由領導轉） | 附重現方式，指向 state 或 report |
-| FIXED | 員工→員工 | 修好了，請重驗 |
+| FIXED | 員工→員工、dev→領導 | 修好了，請重驗。領導轉來的 `[BUG]`（reviewer 的 Important）修好後也回這個，不要回 `[DONE]` —— 領導要靠它決定何時重打差異包請 reviewer 複看 |
 | QUESTION / ANSWER | 任意 | 釐清介面、契約 |
 | ESCALATE | 員工→領導 | 需要決策、想動不屬於自己的檔、修一次未好、上下文吃緊（寫 `[ESCALATE] context`）、碰到停止條件 |
 | DECISION | 領導→員工 | 決策結果 |
@@ -31,6 +31,7 @@
 
 ## 停止條件（碰到就停手並 ESCALATE，不要自行變通）
 不 push、不改寫歷史（rebase/amend 已推送的 commit、force）、不刪分支、不動所有權外的檔、不裝依賴（it 角色除外）、不改 `.dkbo/` 下的規則檔。
+不跑會跳權限確認的指令：`rm -rf`、`git push`、`git reset --hard`、`git clean`、部署類（`pnpm deploy`／`pnpm cp`）。你跑在 acceptEdits 模式，這類指令會停在「Do you want to proceed?」等人按，而你的 pane 沒人在看。要刪專案內的檔就 `rm -r <單一路徑>`（不加 `-f`）或用工具自帶的清理指令（如 `vite --force`），做不到就 ESCALATE。
 
 ## state 檔（≤20 行，每完成一個子步驟就覆寫）
 ```
@@ -45,7 +46,7 @@ blocked_by: （無則省略）
 report: state/<你的 state 名>.report.md
 notes: 給接手者的必要事實，≤5 行
 ```
-DONE 前 `touched` 必須完整，領導會拿它比對所有權。
+DONE 前 `touched` 必須完整。`dk-wave-close` 不是看你自報的清單，而是拿 worktree 的真實 git diff（含未 commit 與未追蹤）比對所有權：動了不屬於本波任何人的檔，整波關不掉；自己擁有但漏寫進 `touched` 的檔會被列成 `unreported change`。
 
 ## report 檔（`tasks/<t>/state/<你的 state 名>.report.md`，不限行數）
 照 `$DK_ROOT/templates/report-employee.md`：`## 做了什麼`、`## 測試`（**必填**：跑了什麼指令、結果摘要；空的話 dk-wave-close 不放行）、`## 自我審查`、`## 疑慮`。DONE 前 state 與 report 都要寫好。
@@ -56,4 +57,7 @@ DONE 前 `touched` 必須完整，領導會拿它比對所有權。
 - 意見只給領導（`dk-msg leader "[DONE] review 波 N: Important K 條，見 report"`），不直接對 dev 說；領導轉成 BUG 給 dev。收到領導 `[TASK] 複看` 時重讀差異包、更新 report、再 DONE。
 - 評議波（設計題）沿用：意見寫 state notes，第二輪只准一則反駁。
 
-雜務員工（`chore-*`）沒有任務綁定，不適用上面的 state 檔／dk-msg 流程；他們以 `herdr agent prompt "$DK_LEADER" "[DONE] from <agent>: ..."` 作為回報第一句。
+雜務員工（`chore-*`）沒有任務綁定，不寫 state 檔。你的 chore 檔**整份是你的**，
+格式隨你寫，機器不讀它——但正因為機器不讀，**完成一定要跑
+`dk-msg leader "[DONE] <一句結果>"`，那是領導唯一收得到的完成訊號，不跑就關不掉**。
+守望看的是你的 agent 狀態不是你的檔案，你卡在審批超過門檻就推 `[BLOCKED]` 給派你的領導；回報一律 `dk-msg leader "[DONE] <一句結果>"`（只能對 leader，腳本會等領導閒置再送、記到 `tasks/_chores/messages.log`）。不要直接用 `herdr agent prompt` 回報：領導忙碌時那樣送會被吃掉。

@@ -21,6 +21,7 @@ for m in $members; do m="${m%%(*}"
   dk_render "$DK_ROOT/templates/brief-member.md" "DISPLAY=$DK_DISPLAY" "MEMBER=$m" "WAVE=$n" "BRIEF=$brief" "GOAL=$goal" \
     "WAVE_ROWS=$rows" "OWNER_ROWS=$own" "CONTRACT=$contract" "ACCEPTANCE=$acc" "PEERS=$peers" > "$dir/briefs/$m.md"
 done
-dk_env_set DK_WAVE "$n"
+dk_env_set DK_WAVE "$n"; dk_env_set DK_WAVE_STARTED "$(date +%s)"
 dk_process "wave-open $n base ${base:0:7} members $peers"
+"$DK_ROOT/bin/dk-watch" --ensure >/dev/null 2>&1 || true   # a pane just appeared; make sure the safety net is alive
 echo "wave $n open (base ${base:0:7}); slices in $dir/briefs/"

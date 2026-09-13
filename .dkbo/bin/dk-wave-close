@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# dk-wave-close [--force] | dk-wave-close --agent <agent>
+# dk-wave-close [--force] [-m "<commit msg>"] | dk-wave-close --agent <agent>
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/ownership.sh"; . "$DK_ROOT/lib/layout.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/ownership.sh"; . "$DK_ROOT/lib/layout.sh"; . "$DK_ROOT/lib/herdr.sh"
+. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
 dk_require_herdr
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
 if [ "${1:-}" = --agent ]; then   # close one employee (e.g. a timed-out reviewer) and re-balance its tab
@@ -14,7 +15,11 @@ if [ "${1:-}" = --agent ]; then   # close one employee (e.g. a timed-out reviewe
   if [ "${tab:-0}" -ge 1 ] 2>/dev/null; then dk_layout_even "$tab" || true; fi
   echo "closed $a"; exit 0
 fi
-force=0; [ "${1:-}" = --force ] && force=1
+force=0; cmsg=""
+while [ $# -gt 0 ]; do case "$1" in
+  --force) force=1; shift;;
+  -m) cmsg="${2:-}"; [ -n "$cmsg" ] || dk_die "-m needs a commit message"; shift 2;;
+  *) dk_die "unknown flag $1";; esac; done
 [ -s "$dir/.panes" ] || dk_die "no live panes recorded in $dir/.panes"
 legacy=0
 if ! grep -q '^DK_WAVE=' "$dir/.task.env" || awk 'NF<6{bad=1} END{exit !bad}' "$dir/.panes"; then
@@ -29,6 +34,14 @@ if [ "$legacy" = 0 ]; then
   if [ -z "$n" ]; then problems="$problems\n  no wave open (DK_WAVE empty); dk-wave-open N first"
   elif ! grep -Eq "^[^ ]+ review $n (verdict|skipped:)" "$dir/process.md"; then   # gate a
     problems="$problems\n  no 'review $n verdict …' or 'review $n skipped: <理由>' line in process.md (dk-review, then dk-process)"
+  else
+    # gate a2: 裁定要交代每一位真的派出去的 reviewer。少一位就靜默放行，等於第二意見白花。
+    vline=$(grep -E "^[^ ]+ review $n verdict" "$dir/process.md" | tail -1 || true)
+    if [ -n "$vline" ]; then
+      for al in $(grep -E "^[^ ]+ review $n spawned " "$dir/process.md" | tail -1 | grep -oE 'reviewer-[a-z]' | sed 's/reviewer-//' | sort -u); do
+        case "$vline" in *"$al:"*) ;; *) problems="$problems\n  review $n verdict does not account for reviewer $al (record its result, or '$al: skipped (<理由>)')";; esac
+      done
+    fi
   fi
   while read -r agent _pane _epoch group _; do   # gate b: dev reports carry a filled ## 測試
     [ "$group" = dev ] || continue
@@ -38,6 +51,27 @@ if [ "$legacy" = 0 ]; then
       problems="$problems\n  report $rf lacks content under '## 測試'"
     fi
   done < "$dir/.panes"
+  members=$(dk_brief_wave_members "$dir/brief.md" "${n:-0}" | sed 's/(.*//')   # state names, no (tier)
+  base=$(dk_wave_base "$dir" "${n:-}")   # gate d: the real diff, not the employees' self-reported touched
+  if [ -z "$base" ]; then
+    echo "dk-wave-close: no recorded base for wave ${n:-?} in process.md; ownership diff gate skipped" >&2
+  elif ! changed=$(dk_changed_files "$DK_WORKTREE" "$base"); then
+    problems="$problems\n  cannot read the worktree diff ($DK_WORKTREE since ${base:0:7})"
+  else
+    reported=$(for m in $members; do [ -f "$dir/state/$m.md" ] || continue; dk_touched "$dir/state/$m.md"; done)
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      owner=""
+      for m in $members; do if dk_owned "$dir/brief.md" "$m" "$p"; then owner="$m"; break; fi; done
+      if [ -z "$owner" ]; then
+        problems="$problems\n  unowned change: $p (no wave ${n:-?} member may change it)"
+        dk_process "violation unowned: $p"
+      elif ! printf '%s\n' "$reported" | grep -qxF "$p"; then
+        echo "dk-wave-close: unreported change: $p (owner $owner); $owner's state left it out of touched"
+        dk_process "unreported $p (owner $owner)"
+      fi
+    done <<< "$changed"
+  fi
 fi
 if [ -n "$problems" ] && [ "$force" = 0 ]; then printf 'dk-wave-close: refused (use --force to close anyway):%b\n' "$problems"; exit 1; fi
 tests="skipped (no DK_TEST_CMD)"
@@ -53,12 +87,8 @@ fi
 closed=0; tabs=""
 while read -r agent pane _epoch _group tab _; do
   sname="${agent#"$DK_SHORT"-}"; sf="$dir/state/$sname.md"
-  if [ -f "$sf" ]; then
+  if [ -f "$sf" ]; then   # ownership is checked against the real diff above (gate d), not this file
     [ "$(wc -l < "$sf")" -le 20 ] || echo "dk-wave-close: state too long: $sf"
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      dk_owned "$dir/brief.md" "$sname" "$p" || { echo "dk-wave-close: violation $agent touched $p"; dk_process "violation $agent: $p"; }
-    done < <(dk_touched "$sf")
   fi
   herdr pane close "$pane" >/dev/null </dev/null && closed=$((closed+1))
   if [ -n "${tab:-}" ] && [[ " $tabs " != *" $tab "* ]]; then tabs="$tabs $tab"; fi
@@ -66,7 +96,21 @@ done < "$dir/.panes"
 : > "$dir/.panes"
 if [ "$legacy" = 1 ]; then dk_process "wave-close: $closed agents closed"
 else
-  dk_env_set DK_WAVE ""; dk_process "wave-close ${n:-?} tests $tests $closed agents closed"
+  dk_env_set DK_WAVE ""; dk_env_set DK_WAVE_STARTED ""; rm -f "$dir/.blocked/wave-${n:-0}.timeout"
+  dk_process "wave-close ${n:-?} tests $tests $closed agents closed"
   for t in $tabs; do if [ "$t" -ge 1 ]; then dk_layout_even "$t" || true; fi; done
 fi
 echo "closed $closed"
+if [ "$legacy" = 0 ]; then   # the wave boundary is a commit boundary; the leader no longer commits by hand
+  peers=$(printf '%s' "${members:-}" | tr '\n' ' ' | sed 's/ *$//')
+  msg="${cmsg:-wave ${n:-?}${peers:+: $peers}}"
+  if [ -n "$(git -C "$DK_WORKTREE" status --porcelain 2>/dev/null)" ]; then
+    if git -C "$DK_WORKTREE" add -A && git -C "$DK_WORKTREE" commit -q -m "$msg"; then
+      sha=$(git -C "$DK_WORKTREE" rev-parse --short=7 HEAD)
+      echo "wave ${n:-?} committed $sha"; dk_process "commit $sha wave ${n:-?}"
+    else
+      echo "dk-wave-close: commit failed in $DK_WORKTREE; commit by hand before dk-task-close" >&2
+      dk_process "commit failed wave ${n:-?}"; exit 1
+    fi
+  else echo "wave ${n:-?}: nothing to commit"; fi
+fi

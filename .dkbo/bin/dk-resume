@@ -8,19 +8,22 @@ if [ -n "${1:-}" ]; then
   mkdir -p "$DK_ROOT/.sessions"; echo "$t" > "$DK_ROOT/.sessions/${HERDR_PANE_ID:?}"
 fi
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
+# once, before render: render may run up to four times to fit the 150-line budget
+watch=$("$DK_ROOT/bin/dk-watch" --ensure 2>/dev/null || echo "watch: unknown")
 render() { # $1=process lines $2=state lines $3=ruling lines (0 = all)
   echo "## 你是 $(dk_leader_name)（任務 $(basename "$dir")）"
   echo "規範在 .dkbo/LEADER.md 與 .dkbo/PROTOCOL.md，先讀再行動。任務目錄 $dir"
   echo "## brief"; cat "$dir/brief.md"
   echo "## 本波"
   if [ -n "${DK_WAVE:-}" ]; then
-    echo "wave: $DK_WAVE  base: $(sed -n "s/^[^ ]* wave-open $DK_WAVE base \([0-9a-f]*\).*/\1/p" "$dir/process.md" | tail -1)  kinds down: ${DK_KIND_DOWN:-無}"
+    echo "wave: $DK_WAVE  base: $(dk_wave_base "$dir" "$DK_WAVE")  kinds down: ${DK_KIND_DOWN:-無}"
     awk -v t="$DK_REVIEW_TIMEOUT_MIN" -v now="$(date +%s)" -v pfx="$DK_SHORT-" -v dir="$dir" '
       NF>=6 && $4=="review" && (index($1, "-reviewer-") || $1 ~ /-reviewer$/) {
         sf=dir "/state/" substr($1, length(pfx)+1) ".md"; st="no-state"
         while ((getline l < sf) > 0) if (l ~ /^status: /) st=substr(l, 9); close(sf)
         printf "%s %s %d min%s\n", $1, st, (now-$3)/60, ((now-$3) > t*60 && st!="done") ? " TIMEOUT?" : "" }' "$dir/.panes"
   else echo "沒有開著的波（dk-wave-open N 開下一波）"; fi
+  echo "$watch"
   echo "## 裁定（最後一次 wave-open 之後）"
   rul=$(awk '$2=="wave-open"{buf=""} $2=="ruling:"{buf=buf $0 "\n"} END{printf "%s", buf}' "$dir/process.md")
   if [ -n "$rul" ]; then if [ "$3" -gt 0 ]; then printf '%s\n' "$rul" | tail -n "$3"; else printf '%s\n' "$rul"; fi; fi

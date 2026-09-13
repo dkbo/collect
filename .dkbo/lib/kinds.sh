@@ -4,11 +4,16 @@ dk_kind_load() {
   # shellcheck disable=SC1090
   . "$f"
 }
-dk_kind_args() { # KIND model/effort
-  local kind="$1" model="${2%%/*}" effort="${2##*/}"
+dk_kind_models() { echo "$KIND_MODEL_EFFORTS" | tr ' ' '\n' | cut -d: -f1 | tr '\n' ' ' | sed 's/ *$//'; }
+dk_kind_model_efforts() { # model — the efforts that model really offers, empty when the model is unknown
+  echo "$KIND_MODEL_EFFORTS" | tr ' ' '\n' | awk -F: -v m="$1" '$1==m{print $2}'
+}
+dk_kind_args() { # KIND model/effort — validate against the kind's per-model table, then emit its flags
+  local kind="$1" model="${2%%/*}" effort="${2##*/}" allowed
   dk_kind_load "$kind"
-  [[ " $KIND_MODELS " == *" $model "* ]]  || dk_die "kind $kind: unknown model '$model' (allowed: $KIND_MODELS)"
-  [[ " $KIND_EFFORTS " == *" $effort "* ]] || dk_die "kind $kind: unknown effort '$effort' (allowed: $KIND_EFFORTS)"
+  allowed=$(dk_kind_model_efforts "$model")
+  [ -n "$allowed" ] || dk_die "kind $kind: unknown model '$model' (allowed: $(dk_kind_models))"
+  [[ ",$allowed," == *",$effort,"* ]] || dk_die "kind $kind: unknown effort '$effort' for model '$model' (allowed: ${allowed//,/ })"
   kind_args "$model" "$effort"
 }
 dk_kinds_available() {

@@ -14,7 +14,9 @@ while [ $# -gt 0 ]; do case "$1" in
 if [ "$gate1" = 1 ]; then
   existing=$(compgen -G "$DK_ROOT/tasks/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-$short" | tail -1 || true); [ -n "$existing" ] || dk_die "no task $short"
   DK_TASK_DIR="$existing"; export DK_TASK_DIR; dk_task_env
-  dk_process "gate1 approved"; dk_index_set "$DK_DISPLAY" running "—"; exit 0
+  dk_process "gate1 approved"
+  dk_index_set "$DK_DISPLAY" running "—" || echo "dk-task-new: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
+  exit 0
 fi
 [ -n "$display" ] || dk_die "display name required"
 [[ "$display" != *[\"\$\`\\]* ]] || dk_die "display name must not contain \" \$ \` or backslash"
@@ -29,6 +31,12 @@ if [ "$worktree" = 1 ]; then
   [ ! -e "$wt_path" ] || dk_die "worktree path exists: $wt_path"
   mkdir -p "$(dirname "$wt_path")"
   git -C "$DK_PROJECT_ROOT" worktree add -q -b "$branch" "$wt_path" "$base_sha" >/dev/null 2>&1 || dk_die "git worktree add failed (branch $branch exists? run: git branch -D $branch)"
+  rollback() { # any later step dying must not leave a worktree, branch or half-written task folder behind
+    git -C "$DK_PROJECT_ROOT" worktree remove --force "$wt_path" >/dev/null 2>&1 || true
+    git -C "$DK_PROJECT_ROOT" branch -D "$branch" >/dev/null 2>&1 || true
+    rm -rf "$dir"; [ -z "${HERDR_PANE_ID:-}" ] || rm -f "$DK_ROOT/.sessions/$HERDR_PANE_ID"
+  }
+  trap rollback EXIT
 else
   wt_path="$DK_PROJECT_ROOT"
 fi
@@ -42,11 +50,14 @@ dk_render "$DK_ROOT/templates/task.env"   "${vars[@]}" > "$dir/.task.env"
 mkdir -p "$DK_ROOT/.sessions"; echo "$name" > "$DK_ROOT/.sessions/${HERDR_PANE_ID:?}"
 
 current=$(herdr agent get "$HERDR_PANE_ID" 2>/dev/null | dk_json '.result.agent.name // empty' || true)
-if [ -z "$current" ] && ! herdr agent rename "$HERDR_PANE_ID" "leader-$short" >/dev/null; then
+# 條件是「還不叫 leader-<short>」而不是「完全沒名字」：pane 只要曾被命名過就跳過 rename 的話，
+# dk_leader_name 算出的目標根本不存在，員工的 dk-msg leader 與 dk-watch 推送會靜默全滅。
+if [ "$current" != "leader-$short" ] && ! herdr agent rename "$HERDR_PANE_ID" "leader-$short" >/dev/null; then
   echo "dk-task-new: agent rename failed (pane without agent?)" >&2
   dk_process "rename failed (pane without agent?)"
 fi
 dk_index_add "$date" "$display" task planning "—"
+trap - EXIT   # task fully recorded; keep the worktree
 
 if [ -x "$DK_ROOT/bin/dk-watch" ] && [ -z "${DK_NO_WATCH:-}" ]; then
   # close fd 3 and stdin so bats/herdr never wait on the detached watcher

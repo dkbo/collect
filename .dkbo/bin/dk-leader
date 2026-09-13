@@ -8,13 +8,22 @@ short="${1:-}"; display="${2:-}"; shift 2 || true
 [[ "$short" =~ ^[a-z][a-z0-9-]{0,11}$ ]] || dk_die "short name must be ascii lowercase, ≤12 chars"
 [ -n "$display" ] || dk_die "display name required"
 [[ "$display" != *[\"\$\`\\]* ]] || dk_die "display name must not contain \" \$ \` or backslash"
-kind=claude; model=opus; effort=high
+dk_settings
+kind="$DK_LEADER_KIND"; model=""; effort=""
 while [ $# -gt 0 ]; do case "$1" in --kind) kind="$2";; --model) model="$2";; --effort) effort="$2";; *) dk_die "unknown flag $1";; esac; shift 2; done
 dk_kind_load "$kind"
-[[ " $KIND_MODELS " == *" $model "* ]]  || dk_die "kind $kind: unknown model '$model' (allowed: $KIND_MODELS)"
-[[ " $KIND_EFFORTS " == *" $effort "* ]] || dk_die "kind $kind: unknown effort '$effort' (allowed: $KIND_EFFORTS)"
+ltier=$(echo "$KIND_DEFAULT_TIERS" | tr ' ' '\n' | awk -F= '$1=="L"{print $2}')   # 領導用最高檔
+[ -n "$model" ]  || model="${ltier%%/*}"
+[ -n "$effort" ] || effort="${ltier##*/}"
+args=$(dk_kind_args "$kind" "$model/$effort")
 pane=$(herdr pane split --current --direction right --cwd "$DK_PROJECT_ROOT" --no-focus --env "DK_ROOT=$DK_ROOT" --env "HERDR_ENV=1" | dk_json '.result.pane.pane_id' || echo "")
 [ -n "$pane" ] || dk_die "pane split returned no pane_id"
-herdr agent start "leader-$short" --kind "$kind" --pane "$pane" -- --model "$model" --effort "$effort" >/dev/null
-herdr agent prompt "leader-$short" "讀 .dkbo/LEADER.md，然後執行 .dkbo/bin/dk-task-new $short \"$display\" 並開始寫 brief。" --wait --timeout 60000 >/dev/null
+# shellcheck disable=SC2086
+herdr agent start "leader-$short" --kind "$kind" --pane "$pane" -- $args >/dev/null
+# --until working：見 dk-spawn 的同一段註解。預設的 --wait 等的是「這一輪結束」，
+# 而領導第一輪要讀 LEADER.md、跑 dk-task-new、開始寫 brief，一定超過任何合理逾時。
+if ! herdr agent prompt "leader-$short" "讀 .dkbo/LEADER.md，然後執行 .dkbo/bin/dk-task-new $short \"$display\" 並開始寫 brief。" --wait --until working --timeout 15000 >/dev/null; then
+  echo "dk-leader: first prompt to leader-$short failed or timed out; pane $pane 還活著 —— herdr agent read leader-$short 看它卡在哪，處理後再重送提示" >&2
+  echo "leader-$short $pane"; exit 1
+fi
 echo "leader-$short $pane"
