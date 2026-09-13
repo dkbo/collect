@@ -15,10 +15,18 @@ rf="$DK_ROOT/roles/$role.md"; [ -f "$rf" ] || dk_die "no role file $rf (use add-
 spec=$(dk_fm_tier "$rf" "$tier"); [ -n "$spec" ] || dk_die "role $role has no tier $tier"
 if [ "$kind" != "$(dk_fm "$rf" kind)" ]; then dk_kind_load "$kind"; spec=$(echo "$KIND_DEFAULT_TIERS" | tr ' ' '\n' | awk -F= -v t="$tier" '$1==t{print $2}'); fi
 args=$(dk_kind_args "$kind" "$spec")
-n=$(( $(compgen -G "$DK_ROOT/tasks/_chores/*.md" | wc -l || true) + 1 ))
+# 編號只需要保證「同時在跑的不撞」，而 .sessions/chores/<agent> 存在 ⟺ 它還在跑，那才是該問的
+# 地方。從 _chores 檔案數來的全域遞增只增不減，而且人整理過那個目錄就會重算 —— 0.5.1 修的撞號
+# 正是那樣來的。改成回收最小可用號之後，編號與檔案佈局徹底脫鉤，號碼永遠停在同時在跑的件數。
+n=1; while compgen -G "$DK_ROOT/.sessions/chores/chore-*-$n" >/dev/null 2>&1; do n=$((n+1)); done
 agent="chore-$role-$n"; slug=$(dk_slug "${instr:0:24}"); slug="${slug:-chore$n}"
 [[ "$agent" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || dk_die "agent name '$agent' must match [a-z][a-z0-9_-]{0,31} (shorten the role)"
-cf="$DK_ROOT/tasks/_chores/$(dk_today)-$slug.md"; [ ! -e "$cf" ] || cf="${cf%.md}-$n.md"
+# 日期在資料夾上而不在檔名裡：展開 _chores/ 看到的是幾個日期，不是幾百個檔。
+cdir="$DK_ROOT/tasks/_chores/$(dk_today)"; mkdir -p "$cdir"
+# 防撞後綴不能再用 $n —— 它現在會回收，同一天同 slug 的第三件會撞回第二件的檔名（而舊寫法
+# 只試一次就放棄，第三件會靜靜覆蓋掉第二件的雜務檔）。遞增找到第一個空位為止。
+cf="$cdir/$slug.md"; i=2
+while [ -e "$cf" ]; do cf="$cdir/$slug-$i.md"; i=$((i+1)); done
 branch="-"; ws="-"; split_from=(--current)   # ws stays "-": code chores use a plain git worktree, same as tasks (see dk-task-new)
 if [ "$code" = 1 ]; then
   branch="chore/$slug"; cwd="${DK_WORKTREE_DIR:-$DK_PROJECT_ROOT/.worktrees}/chore-$slug"

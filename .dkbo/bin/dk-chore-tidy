@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# dk-chore-tidy — 把根層的舊雜務檔搬進日期資料夾，把 messages.log 歸檔。沒有雜務在跑時才動得了。
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+cdir="$DK_ROOT/tasks/_chores"; crdir="$DK_ROOT/.sessions/chores"
+[ -d "$cdir" ] || { echo "dk-chore-tidy: 沒有 $cdir，不用整理"; exit 0; }
+
+# 記錄檔存在 ⟺ 那件雜務還在跑。搬走它的雜務檔會讓記錄檔的 file= 失效，清空 messages.log
+# 會讓它的 logline= 指錯行 —— 同一道閘門擋住兩種壞法，所以這兩件事才能合在一支指令裡。
+running=""
+for r in "$crdir"/*; do [ -e "$r" ] && running="$running $(basename "$r")"; done
+if [ -n "${running// /}" ]; then
+  echo "dk-chore-tidy: 還有雜務在跑，先 dk-chore-close 它們：$running" >&2
+  exit 1
+fi
+
+moved=0
+for f in "$cdir"/*.md; do
+  [ -e "$f" ] || continue          # glob 沒命中時 $f 是字面的 *.md
+  b=$(basename "$f")
+  case "$b" in
+    # 舊佈局把日期放在檔名前綴；日期改由資料夾承載之後，這 11 個字元是多餘的。
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*) d="${b:0:10}"; rest="${b:11}";;
+    # 檔名沒帶日期（人手動丟進來的）就歸今天，不去猜 mtime：date -r 在 GNU 與 BSD 語義不同。
+    *) d=$(dk_today); rest="$b";;
+  esac
+  mkdir -p "$cdir/$d"
+  t="$cdir/$d/$rest"; i=2
+  while [ -e "$t" ]; do t="$cdir/$d/${rest%.md}-$i.md"; i=$((i+1)); done
+  mv "$f" "$t"; moved=$((moved+1))
+done
+
+archived=0; log="$cdir/messages.log"
+if [ -s "$log" ]; then
+  mkdir -p "$cdir/archive"
+  archived=$(wc -l < "$log" | tr -d ' ')
+  cat "$log" >> "$cdir/archive/$(date +%Y-%m).log"   # append：同月跑第二次不覆蓋第一次
+  : > "$log"                                          # 留著空檔，下一件雜務的 logline=0 才有意義
+fi
+
+echo "dk-chore-tidy: 搬了 $moved 個雜務檔，歸檔 $archived 行"
+# 搬動不 commit 的話，下一件雜務的 dk_commit_memory 會把它們一起帶進去，commit 訊息就對不上內容。
+dk_commit_memory "dkbo memory: chore tidy" "$cdir" || true

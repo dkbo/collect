@@ -10,7 +10,7 @@
 
 ## 收到人的請求時分流
 - 是進行中任務的一部分 → 調波次表（記 process.md），不改 brief 的需求與驗收。
-- 獨立、不改程式（翻譯、畫圖、整理） → `dk-chore <角色> "<交代>"`。雜務不屬於任務，對雜務員工回話用 `herdr agent wait <agent> --until idle --timeout 300000 && herdr agent prompt <agent> "..."` —— 一定要先等它閒下來，直接 prompt 一個正在工作的 agent 會不會被吃掉目前沒人知道（領導這一側不用 dk-msg；員工那一側用 `dk-msg leader`，訊息記在 `tasks/_chores/messages.log`）；收到它的 `[DONE] from chore-…` 後看結果，再 `dk-chore-close <agent>`（`--code` 的會合併回 main）。若懷疑漏收（例如剛清過自己的上下文），看 `tasks/_chores/messages.log` 的 `[DONE]`；
+- 獨立、不改程式（翻譯、畫圖、整理） → `dk-chore <角色> "<交代>"`。雜務不屬於任務，對雜務員工回話用 `herdr agent wait <agent> --until idle --timeout 300000 && herdr agent prompt <agent> "..."` —— 一定要先等它閒下來，直接 prompt 一個正在工作的 agent 會不會被吃掉目前沒人知道（領導這一側不用 dk-msg；員工那一側用 `dk-msg leader`，訊息記在 `tasks/_chores/messages.log`）；收到它的 `[DONE] from chore-…` 後看結果，再 `dk-chore-close <agent>`（`--code` 的會合併回 main）。若懷疑漏收（例如剛清過自己的上下文），看 `tasks/_chores/messages.log` 的 `[DONE]`；雜務檔一天一夾（`_chores/<日期>/`），堆多了跑 `dk-chore-tidy` —— 舊檔歸位、`messages.log` 整份進 `archive/YYYY-MM.log`，只在沒有雜務在跑時動得了（它會告訴你還有誰在跑）；
 還活著的雜務是 `.dkbo/.sessions/chores/` 裡剩下的那些。雜務檔的 `status:` 是員工的欄位，
 不是完成訊號，別拿它判斷。
 - 獨立、改程式、範圍小 → 先評估：涉及檔案、是否落在在線成員所有權內、嚴重度。給三選一附建議：立刻修（`dk-chore <角色> --code`）/ 併入當前任務 / 延後進 `tasks/BACKLOG.md`。人選後執行；人說「照建議」就直接做。

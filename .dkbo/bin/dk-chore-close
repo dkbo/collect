@@ -27,7 +27,8 @@ if [ -f "$crec" ]; then
     echo "dk-chore-close: $agent 還沒回報 [DONE]（見 $log）"; exit 1
   fi
 else   # legacy：0.5.0 之前開的雜務，一切仍住在雜務檔裡
-  cf=$(grep -l "^成員：$agent " "$DK_ROOT/tasks/_chores/"*.md 2>/dev/null | head -1 || true)
+  # 兩層都掃：新雜務住 _chores/<日期>/，0.5.0 之前開的 legacy 檔還在根層。
+  cf=$(grep -l "^成員：$agent " "$DK_ROOT/tasks/_chores/"*/*.md "$DK_ROOT/tasks/_chores/"*.md 2>/dev/null | head -1 || true)
   [ -n "$cf" ] || dk_die "no chore record or chore file for $agent"
   field() { sed -n "s/^$1: *//p" "$cf" | head -1; }
   instr=$(sed -n 's/^交代：//p' "$cf" | head -1)

@@ -26,12 +26,34 @@ if [ "${DK_ISOLATED:-0}" = 1 ] && [ "$target" != "$leader" ]; then
   echo "dk-msg: you are isolated; only leader may be messaged" >&2; exit 2; fi
 
 line="[$type] from $sender: $body"
+
+# 收件者解析。herdr 認的是註冊名，PROTOCOL 教人寫的是短名，兩者對不上時 herdr 回 agent_not_found，
+# wait 與 prompt 雙雙非零 —— 看起來就跟「對方忙到送不進」一模一樣。panova2/sportswitch 實跑 13 筆
+# 訊息 12 筆 UNDELIVERED，兩個方向各壞一邊：員工的 dk-msg leader 打到從未註冊的 leader-<short>，
+# 領導的 [TASK] 打到沒有任務前綴的 reviewer-a。pane id 是唯一不靠 rename 的把手，留作退路。
+fallback=""
+if [ "$chore" = 0 ]; then
+  panes="$dir/.panes"
+  in_panes() { [ -f "$panes" ] && awk -v n="$1" '$1==n{f=1} END{exit !f}' "$panes"; }
+  if [ "$target" = "$leader" ]; then fallback="${DK_ROOT_PANE:-}"
+  else
+    if ! in_panes "$target" && in_panes "${DK_SHORT:-}-$target"; then target="${DK_SHORT}-$target"; fi
+    [ -f "$panes" ] && fallback=$(awk -v n="$target" '$1==n{print $2; exit}' "$panes")
+  fi
+fi
+[ "$fallback" = "$target" ] && fallback=""
+
+deliver() { # TARGET — 等它閒下來再送；兩步任一步失敗都算沒送到
+  herdr agent wait "$1" --until idle --until "done" --timeout "${DK_MSG_WAIT_MS:-300000}" >/dev/null 2>&1 \
+    && herdr agent prompt "$1" "$line" >/dev/null 2>&1
+}
+
 # 重試而不是一次定生死：實跑中 reviewer 的 [DONE] 曾在一分鐘內就被判失敗、整筆遺失，
 # 而它的報告好端端躺在磁碟上 —— 領導從不知道它交過。
 tries="${DK_MSG_TRIES:-3}"; i=1
 while [ "$i" -le "$tries" ]; do
-  if herdr agent wait "$target" --until idle --until "done" --timeout "${DK_MSG_WAIT_MS:-300000}" >/dev/null 2>&1 \
-     && herdr agent prompt "$target" "$line" >/dev/null 2>&1; then
+  # log 一律記解析後的名字，不記 pane id：那是人與 dk-wave-close 讀的那一欄。
+  if deliver "$target" || { [ -n "$fallback" ] && deliver "$fallback"; }; then
     echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"; exit 0
   fi
   [ "$i" -lt "$tries" ] && sleep "${DK_MSG_RETRY_SEC:-5}"
