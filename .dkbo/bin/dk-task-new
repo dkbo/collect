@@ -72,5 +72,8 @@ if [ -x "$DK_ROOT/bin/dk-watch" ] && [ -z "${DK_NO_WATCH:-}" ]; then
   # close fd 3 and stdin so bats/herdr never wait on the detached watcher
   DK_TASK_DIR="$dir" nohup "$DK_ROOT/bin/dk-watch" </dev/null >/dev/null 2>&1 3>&- &
   sed -i "s/^DK_WATCH_PID=.*/DK_WATCH_PID=\"$!\"/" "$dir/.task.env"
+  # 訂閱器是另一條命脈：輪詢 30 秒一輪，它在畫面冒出審批／額度的當下就動
+  DK_TASK_DIR="$dir" nohup "$DK_ROOT/bin/dk-watch" --events </dev/null >/dev/null 2>&1 3>&- &
+  sed -i "s/^DK_EVENTS_PID=.*/DK_EVENTS_PID=\"$!\"/" "$dir/.task.env"
 fi
 echo "$dir"

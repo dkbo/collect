@@ -12,6 +12,7 @@ if [ "$abandon" = 0 ]; then [ -f "$dir/report.md" ] || { echo "dk-task-close: wr
 legacy=0; if dk_legacy_task; then legacy=1; echo "dk-task-close: legacy task (no DK_BASE); removing the worktree via herdr" >&2; fi
 cleanup() {
   [ -n "${DK_WATCH_PID:-}" ] && kill "$DK_WATCH_PID" 2>/dev/null || true
+  [ -n "${DK_EVENTS_PID:-}" ] && kill "$DK_EVENTS_PID" 2>/dev/null || true
   if [ "$DK_WORKTREE" != "$DK_PROJECT_ROOT" ]; then
     if [ "$legacy" = 1 ]; then [ -n "${DK_WORKSPACE:-}" ] && herdr worktree remove --workspace "$DK_WORKSPACE" --force >/dev/null 2>&1 || true
     else git -C "$DK_PROJECT_ROOT" worktree remove --force "$DK_WORKTREE" >/dev/null 2>&1 || true; fi

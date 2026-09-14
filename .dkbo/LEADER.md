@@ -5,7 +5,7 @@
 以下所有 `dk-*` 指令都在 `.dkbo/bin/`，例如 `.dkbo/bin/dk-task-new`。團隊設定在 `.dkbo/settings.env`（領導這一側的 kind `DK_LEADER_KIND`、測試指令 `DK_TEST_CMD`、reviewer kind 清單 `DK_REVIEW_KINDS`、法定人數 `DK_REVIEW_MIN`、逾時 `DK_REVIEW_TIMEOUT_MIN`、tab 1 格數 `DK_TAB1_SLOTS`、整波逾時 `DK_WAVE_TIMEOUT_MIN`、reviewer 檔位 `DK_REVIEW_TIER`），由 `.dkbo/skills/init/SKILL.md` 寫（Claude Code 可用 `/dkbo-init`）。
 
 ## 每次醒來先做
-1. 若不確定狀態：執行 `dk-resume`，讀完再行動。它印 brief、本波（base、reviewer 狀態、熔斷）、watcher 狀態、裁定、未處理訊息、每 tab 的員工。watcher 那行是 `watch: running (pid N)`／`restarted (pid N)`／`disabled`；死了 dk-resume、dk-wave-open、dk-spawn 都會就地重啟它，你不用手動管。
+1. 若不確定狀態：執行 `dk-resume`，讀完再行動。它印 brief、本波（base、reviewer 狀態、熔斷）、watcher 狀態、裁定、未處理訊息、每 tab 的員工。watcher 有兩行：`watch: …`（30 秒輪詢）與 `events: …`（herdr 事件訂閱，畫面一冒出審批或額度就動）。兩條是獨立的命脈，一條死了另一條還在；死了 dk-resume、dk-wave-open、dk-spawn 都會就地重啟，你不用手動管。
 2. 讀 `.dkbo/PROTOCOL.md`（訊息格式與升報規則）。
 
 ## 收到人的請求時分流
@@ -44,6 +44,7 @@
 2. `dk-task-close`。它會合併回主分支，然後**把這個任務的記憶 commit 進主樹**（任務目錄、`tasks/INDEX.md`、`decisions.md`，只有這幾條路徑，你工作樹上的其他改動不會被掃進去）。合併衝突時它會停：不要自己解，問人或開 `it` 的修復波。放棄用 `dk-task-close --abandon "<原因>"`。
 
 ## 故障
+- 任何員工的 `[LIMIT]`（dk-watch 推來，畫面上出現額度字樣的當下就推；該 kind 已寫進 `DK_KIND_DOWN`）：它跟 `[BLOCKED]` 不同 —— 按審批救不回來，要換人或等額度。reviewer 就照下一條處理；dev／qa 則 `dk-wave-close --agent <員工>` 關掉後用未熔斷的 kind 重派。
 - reviewer `[TIMEOUT]`（dk-watch 推來；該 kind 已寫進 `.task.env` 的 `DK_KIND_DOWN`）：`dk-wave-close --agent <reviewer>` 關它。達 `DK_REVIEW_MIN` 照常裁定；不夠就 `dk-review --kinds "<未熔斷者>"` 補一位；全部熔斷 → `dk-process "review N skipped: all kinds down"`，report.md 遺留段標「本波未經審查」。同任務內解除熔斷：編輯 `.task.env` 的 `DK_KIND_DOWN` 並 `dk-process "kind <k> up"`；`dk-task-close` 會清掉。
 - `dk-task-close` 或 `dk-chore-close` 回 `uncommitted changes`：worktree 裡有沒 commit 的變更，它不合併也不刪任何東西。任務：在 worktree 內 `git add -A && git commit` 後重跑；雜務：`dk-msg <員工> "[TASK] commit 你的變更"` 後重跑。真的要丟掉才用 `--abandon`。
 - wave-close 測試失敗：它不關 pane；`dk-msg <擁有者> "[BUG] wave-close tests: <最後幾行>"`；連續兩次失敗升關卡②。

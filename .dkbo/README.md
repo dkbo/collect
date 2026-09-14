@@ -18,7 +18,7 @@
 > herdr --version && command -v jq git claude >/dev/null || { echo "缺少 herdr/jq/git/claude"; exit 1; }
 > git status --porcelain | grep -q . && { echo "工作樹不乾淨，請先 commit 或 stash"; exit 1; }
 > REPO=https://github.com/dkbo/dkbo-team.git   # fork 的話改這裡
-> VER=v0.6.1   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
+> VER=v0.6.3   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
 > tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" "$REPO" "$tmp" && cp -r "$tmp/.dkbo" ./.dkbo && rm -rf "$tmp"
 > .dkbo/install.sh
 > git add -A && git commit -m "chore: add dkbo"
@@ -29,7 +29,7 @@
 
 預期輸出的最後兩行：
 ```
-dkbo 0.6.1 installed into /path/to/project
+dkbo 0.6.3 installed into /path/to/project
 leader
 ```
 
@@ -42,7 +42,7 @@ leader
 ## 驗證
 ```bash
 .dkbo/bin/dk-whoami            # leader
-.dkbo/bin/dk-version           # dkbo 0.6.1
+.dkbo/bin/dk-version           # dkbo 0.6.3
 ls -l .claude/skills .agents/skills | grep dkbo   # 四個 symlink
 tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 ```
@@ -72,7 +72,7 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 只更新核心，保留你的 `tasks/`、`PROJECT.md`、`decisions.md` 與自訂角色：
 先用 .dkbo/bin/dk-version 看目前版本，再到 tags 頁挑要升的版本。
 ```bash
-VER=v0.6.1 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
+VER=v0.6.3 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
 rsync -a --exclude=tasks --exclude=PROJECT.md --exclude=decisions.md --exclude='roles/*' --exclude=.sessions --exclude=settings.env --exclude=LEADER.md "$tmp/.dkbo/" ./.dkbo/   # LEADER.md 略過，因為 /dkbo-init 已依你的專案客製過
 rsync -a --ignore-existing "$tmp/.dkbo/roles/" ./.dkbo/roles/   # 只補新角色，不覆蓋既有
 rm -rf "$tmp" && .dkbo/install.sh && git add -A && git commit -m "chore: update dkbo"

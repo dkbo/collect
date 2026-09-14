@@ -17,7 +17,7 @@
 | DECISION | 領導→員工 | 決策結果 |
 | STOP | 領導→員工 | 停手，寫 state 收尾 |
 
-`[BLOCKED]` 與 `[TIMEOUT]` 由 dk-watch 直接推給領導，員工不用送。
+`[BLOCKED]`、`[LIMIT]` 與 `[TIMEOUT]` 由 dk-watch 直接推給領導，員工不用送。`[BLOCKED]` 是卡在審批（等人按一下），`[LIMIT]` 是撞到額度（該 kind 已熔斷），兩者的差別決定領導該去按審批還是該換人 —— 不要把它們當成同一件事。
 
 ## 規則
 - 同一波員工可以互相傳訊。`DK_ISOLATED=1` 的員工（reviewer）只能對 leader 傳訊。
