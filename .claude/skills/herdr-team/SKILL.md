@@ -1,6 +1,6 @@
 ---
 name: herdr-team
-description: 備援與第二意見——本專案派工主幹已是 dkbo（.dkbo/LEADER.md）；只在不在 herdr 內（$HERDR_ENV≠1）而 dk-* 跑不起來時，用這裡的 Agent tool 最小流程；另含 agy（gemini-3.8-flash-high、唯讀、免費額度）一次性第二意見語法與額度紀律。使用者提到「叫 agy」「第二意見」「不在 herdr 怎麼派」時適用。
+description: 備援與第二意見——本專案派工主幹已是 dkbo（/dkbo-brain、/dkbo-plan、/dkbo-run）；只在不在 herdr 內（$HERDR_ENV≠1）而 dk-* 跑不起來時，用這裡的 Agent tool 最小流程；另含 agy（gemini-3.8-flash-high、唯讀、免費額度）一次性第二意見語法與額度紀律。使用者提到「叫 agy」「第二意見」「不在 herdr 怎麼派」時適用。
 ---
 
 # herdr-team（備援 + agy）
@@ -8,7 +8,7 @@ description: 備援與第二意見——本專案派工主幹已是 dkbo（.dkbo
 ## 0. 先分流
 
 ```bash
-.dkbo/bin/dk-whoami   # leader → 讀 .dkbo/LEADER.md，用 dk-* 派工，本 skill 到此為止
+.dkbo/bin/dk-whoami   # leader → 要用團隊流程就叫 /dkbo-brain｜/dkbo-plan｜/dkbo-run（dk-* 派工），本 skill 到此為止
 ```
 
 `dk-*` 全部 `dk_require_herdr`，`$HERDR_ENV` 不是 1 就 `dk: not running inside herdr` 退出。**只有這種情況**（沒開 herdr、或臨時在別的終端）才用第 1 節的備援；正常情況一律回 dkbo，不要兩套並用。

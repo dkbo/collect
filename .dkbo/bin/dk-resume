@@ -12,7 +12,7 @@ dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_sett
 watch=$("$DK_ROOT/bin/dk-watch" --ensure 2>/dev/null || echo "watch: unknown")
 render() { # $1=process lines $2=state lines $3=ruling lines (0 = all)
   echo "## 你是 $(dk_leader_name)（任務 $(basename "$dir")）"
-  echo "規範在 .dkbo/LEADER.md 與 .dkbo/PROTOCOL.md，先讀再行動。任務目錄 $dir"
+  echo "本任務的執行規範是 .dkbo/skills/run/SKILL.md（Claude Code：/dkbo-run）。若你要接手推進，先讀它與 .dkbo/LEADER.md。任務目錄 $dir"
   echo "## brief"; cat "$dir/brief.md"
   echo "## 本波"
   if [ -n "${DK_WAVE:-}" ]; then

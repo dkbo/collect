@@ -11,7 +11,7 @@ append_line() { # FILE LINE — append LINE, first making sure FILE ends with a 
   [ ! -s "$1" ] || [ -z "$(tail -c1 "$1")" ] || echo >> "$1"
   echo "$2" >> "$1"
 }
-for s in init add-role; do
+for s in init add-role brain plan run; do
   for d in .claude/skills .agents/skills; do
     mkdir -p "$d"
     if [ -e "$d/dkbo-$s" ] && [ ! -L "$d/dkbo-$s" ]; then

@@ -12,7 +12,7 @@ dk_layout_ratio_arg() { # ANCHOR_SHARE → value for --ratio
 }
 dk__layout_cap() { if [ "$1" -eq 1 ]; then echo "${DK_TAB1_SLOTS:-4}"; else echo 6; fi; }
 dk__layout_pane_at() { awk -v t="$1" -v s="$2" 'NF>=6 && $5==t && $6==s {print $2; exit}' "$3"; }
-# GROUP is accepted for the spec's signature only; placement is pure spawn order (LEADER.md tells the leader to spawn dev before qa/reviewer).
+# GROUP is accepted for the spec's signature only; placement is pure spawn order (skills/run/SKILL.md tells the leader to spawn dev before qa/reviewer).
 dk_layout_slot() { # GROUP [PANES_FILE] → "<tab_no> <slot> <anchor> <direction> <anchor_share>" | "NEWTAB <tab_no> 1"
   local panes="${2:-$(dk_task_dir)/.panes}" tab max cap slot anchor_slot dir share anchor
   tab=$(awk 'NF>=6 && $5>0 {if ($5>t) t=$5} END{print t+0}' "$panes"); [ "$tab" -ge 1 ] || tab=1

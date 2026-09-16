@@ -4,13 +4,15 @@ Read AGENTS.md first.
 
 # 團隊流程 = dkbo（2026-09-10 起）
 
-派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.6.3，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `leader` 就讀 `.dkbo/LEADER.md` 照它行事；印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
+派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.7.0，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`；印 `leader` **不代表你就是領導**（0.7.0 起領導不自動接管），照使用者原本的要求做事，要用團隊流程時請他叫其中一個 skill。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
+
+- **領導拆成三個階段**（各自先讀 `.dkbo/LEADER.md` 共同規範）：`/dkbo-brain`（諮詢、分流、雜務 `dk-chore`、評議波）、`/dkbo-plan`（`dk-task-new`、寫 brief、`dk-brief-check`、關卡①後停）、`/dkbo-run`（`dk-wave-open`／`dk-spawn`／`dk-review`／裁定／`dk-wave-close`／結案）。三者不互相自動跳轉，該換階段就告訴使用者叫哪一個並結束 turn。`dk-resume` 是唯讀看板，隨時可跑，看了不等於接管。
 
 - **領導不寫碼、不改業務檔**：所有實作、驗證、審查都 `dk-spawn` 員工；領導只寫 brief、拆波、裁定、記憶檔（`process.md`、`decisions.md`、`PROJECT.md`）。舊的「≤30 行直做門檻」作廢。唯一例外：`.dkbo/`、`.claude/`、`CLAUDE.md`、`AGENTS.md` 這類規則檔由領導直接維護。
 - **角色 → 目錄**（`.dkbo/roles/README.md` 為準）：`babylon`（`src/babylon/`、`src/pages/Battle/`）、`react`（其餘 `src/pages/`、`src/store/`、`src/components/`、`src/lib/`）、`godot`（`godot-src/`、`godot-candy-src/`）、`mapbuilder`（RpgRoom 地圖 JSON）、`qa`（shot.mjs 截圖、build／匯出、`/battle` 多人）、`reviewer`（每波審查，含架構／安全）、`netcore`（`src/core/`、`firestore.rules`、bridge 協定的共用契約擁有者）、`designer`（mockup／spec，不改碼）、`assets`（WebP 與素材）、`it`、`pm`。各領域架構重點仍在 `.claude/agents/<name>.md`，角色檔會指定要讀哪份；`.claude/agents/` 不再用 Agent tool 派。
 - **brief 檔案所有權就是三道鎖的空間鎖**；資源鎖寫在所有權表的**「獨佔資源」欄**（`dev:5173`／`dev:5174`、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`，逗號分隔），同一波兩人宣告同一個 `dk-brief-check` 直接 FAIL；依賴仍寫波次表「做什麼」欄。Godot 與 Babylon net／bridge 協定是「共用契約」，擁有者是 `netcore`：其他角色用 QUESTION 要介面，不自行改。
 - **模型上限 `opus` + `effort: high`**：角色檔三檔已寫死，`--tier` 只能選 S/M/L，不改 `kinds/claude.sh` 派 `fable`／`xhigh`／`max`。`haiku` 不進團隊。
-- **審查 kinds `claude codex agy`、法定人數 `DK_REVIEW_MIN="2"`**（`settings.env` 八鍵，領導自己也是 `DK_LEADER_KIND="claude"`、整波逾時 `DK_WAVE_TIMEOUT_MIN="60"`）：MIN=2 表示**至少兩個不同 kind 的意見進裁定**才算審查完成 —— 換一個模型抓到的錯誤類別，跟同一個模型想得更久抓到的不是同一批；agy 免費額度、只做意見。`[BLOCKED]`（按一下審批就活）與 `[LIMIT]`（額度用完，按審批救不回來、該 kind 當場熔斷）是兩件事，處置不同；`[TIMEOUT]`／熔斷照 LEADER.md 補位（`dk-review --kinds "<未熔斷者>"`）或 `review N skipped`，不重試不替補。
+- **審查 kinds `claude codex agy`、法定人數 `DK_REVIEW_MIN="2"`**（`settings.env` 八鍵，領導自己也是 `DK_LEADER_KIND="claude"`、整波逾時 `DK_WAVE_TIMEOUT_MIN="60"`）：MIN=2 表示**至少兩個不同 kind 的意見進裁定**才算審查完成 —— 換一個模型抓到的錯誤類別，跟同一個模型想得更久抓到的不是同一批；agy 免費額度、只做意見。`[BLOCKED]`（按一下審批就活）與 `[LIMIT]`（額度用完，按審批救不回來、該 kind 當場熔斷）是兩件事，處置不同；`[TIMEOUT]`／熔斷照 `.dkbo/skills/run/SKILL.md` 補位（`dk-review --kinds "<未熔斷者>"`）或 `review N skipped`，不重試不替補。
 - **審查檔位 `DK_REVIEW_TIER="L"`**（0.4.0 新增的第八鍵，出廠預設 M，本專案設 L）：`dk-review` 從它取檔位，claude 主審拿 `opus/high`、codex `gpt-5.5/high`、agy `gemini-3.1-pro/high`，`--tier` 仍可逐次覆寫。**不要改 `roles/reviewer.md` 的 tier 定義**去達成同一件事（tier 在別處一律是「切片難度」，改了會讓 `--tier M|L` 變成靜默 no-op）。另：碰 `src/babylon/net/`／`src/core/`／`firestore.rules`／bridge 四檔的波，波次表的成員難度標 `L`（讓 babylon／godot／netcore 吃到 `opus/high`），不要留預設 M。
 - **commit 政策**：任務分支 `dk/<short>`（worktree `.worktrees/<short>`）上每波 `wave N: <成員>` commit 由 `dk-wave-close` 四道閘全過後自動做（要自訂訊息用 `-m`），領導不手動 commit；結案時 `dk-task-close` 另把任務記憶（`.dkbo/tasks/<t>/`、`tasks/INDEX.md`、`decisions.md`）commit 進主樹，不碰其他改動。合併回 `master`（`dk-task-close`，關卡③）與任何 push 一律要使用者拍板。`build: 部屬`（`pnpm build` 寫 `docs/`）不在任務內做。
 - **Agent tool 只剩兩種用途**：領導寫 brief 前派內建 `Explore`（haiku／sonnet low，唯讀）把 `檔案:行號` 找齊；不在 herdr 內（`$HERDR_ENV` 不是 1）時退回 `.claude/skills/herdr-team` 的備援流程。員工端已由 PROTOCOL 禁 subagent。
@@ -38,7 +40,7 @@ Read AGENTS.md first.
 - `systematic-debugging`：所有 `fix:` 類任務都套用（先重現、找根因，再改碼）；領導把「先重現」寫成波 1 的 qa 列（多人同步用兩個獨立 context），再開修復波。
 - `test-driven-development`：只套**純邏輯層**——`src/babylon/` 的 math／net、Zustand store（vitest，`*.test.ts` 同目錄）與糖果 `board.gd`（`tests/board_test.gd`）。UI、3D 渲染、GDScript 場景不套，改用 qa 截圖。細節見 `test-generation` skill。
 - `verification-before-completion`：完成定義以 hooks 與 `dk-wave-close` 四道閘為準（審查裁定且交代每位 reviewer、dev report 有 `## 測試`、lint 零錯誤＋tsc 乾淨＋vitest／board_test 全綠、變更檔不越界；另加 Godot 產物已匯出），不另立標準。
-- `executing-plans` / `subagent-driven-development` / `dispatching-parallel-agents`：一律換成 dkbo 的波次（`dk-task-new --from <plan>` → 波次表 → `dk-wave-open`／`dk-spawn`），**不要**派 general-purpose subagent。
+- `executing-plans` / `subagent-driven-development` / `dispatching-parallel-agents`：一律換成 dkbo 的波次（`/dkbo-plan` 的 `dk-task-new --from <plan>` → 波次表 → `/dkbo-run` 的 `dk-wave-open`／`dk-spawn`），**不要**派 general-purpose subagent。
 - `requesting-code-review`：由每波 `dk-review` 取代；架構／安全重點已寫在 `reviewer` 角色檔。
 - `using-git-worktrees` / `finishing-a-development-branch`：worktree 由 `dk-task-new` 建在 `.worktrees/<short>`，分支 `dk/<short>`；結案走 `dk-task-close`，不另起 worktree、不自己 merge。
 - **產出檔不得寫到 `docs/`（那是 build 產物）或 repo 根目錄**：plans → `.claude/plans/`，specs → `.claude/.superpower/specs/`，任務 brief／process／report／state → `.dkbo/tasks/<日期-短名>/`（dk 腳本管）。

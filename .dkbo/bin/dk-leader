@@ -21,8 +21,8 @@ pane=$(herdr pane split --current --direction right --cwd "$DK_PROJECT_ROOT" --n
 # shellcheck disable=SC2086
 herdr agent start "leader-$short" --kind "$kind" --pane "$pane" -- $args >/dev/null
 # --until working：見 dk-spawn 的同一段註解。預設的 --wait 等的是「這一輪結束」，
-# 而領導第一輪要讀 LEADER.md、跑 dk-task-new、開始寫 brief，一定超過任何合理逾時。
-if ! herdr agent prompt "leader-$short" "讀 .dkbo/LEADER.md，然後執行 .dkbo/bin/dk-task-new $short \"$display\" 並開始寫 brief。" --wait --until working --timeout 15000 >/dev/null; then
+# 而領導第一輪要讀 LEADER.md 與 plan 篇、跑 dk-task-new、開始寫 brief，一定超過任何合理逾時。
+if ! herdr agent prompt "leader-$short" "讀 .dkbo/LEADER.md 與 .dkbo/skills/plan/SKILL.md，然後執行 .dkbo/bin/dk-task-new $short \"$display\" 並開始寫 brief。" --wait --until working --timeout 15000 >/dev/null; then
   echo "dk-leader: first prompt to leader-$short failed or timed out; pane $pane 還活著 —— herdr agent read leader-$short 看它卡在哪，處理後再重送提示" >&2
   echo "leader-$short $pane"; exit 1
 fi
