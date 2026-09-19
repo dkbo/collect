@@ -25,6 +25,19 @@ if [ "$chore" = 1 ] && [ "$target" != "$leader" ]; then
 if [ "${DK_ISOLATED:-0}" = 1 ] && [ "$target" != "$leader" ]; then
   echo "dk-msg: you are isolated; only leader may be messaged" >&2; exit 2; fi
 
+# dev 的 [DONE] 只落盤，不吵領導：領導改由 dk-watch 在本波 dev 全員完成時收到一則聚合訊息。
+# 四人波原本是四次全量喚醒（每次都要把領導整個 context 重跑一輪），聚合後剩一次。
+# 送出前 state 必須已是 done —— 否則這則 DONE 沉進 log，而 dk-watch 也因為 state 沒 done
+# 不會推聚合，整波會靜悄悄卡到整波逾時才有人吭聲。擋在這裡，錯誤當場回到犯錯的人手上。
+if [ "$chore" = 0 ] && [ "$type" = DONE ] && [ "$target" = "$leader" ] \
+   && [ "$(awk -v n="$sender" '$1==n{print $4; exit}' "$dir/.panes" 2>/dev/null)" = dev ]; then
+  sf="$dir/state/${sender#"$DK_SHORT"-}.md"
+  grep -q '^status: done' "$sf" 2>/dev/null \
+    || { echo "dk-msg: 先把 $sf 寫成 'status: done'（report 也要寫好）再送 [DONE]" >&2; exit 2; }
+  echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"
+  exit 0
+fi
+
 line="[$type] from $sender: $body"
 
 # 收件者解析。herdr 認的是註冊名，PROTOCOL 教人寫的是短名，兩者對不上時 herdr 回 agent_not_found，
@@ -48,12 +61,29 @@ deliver() { # TARGET — 等它閒下來再送；兩步任一步失敗都算沒�
     && herdr agent prompt "$1" "$line" >/dev/null 2>&1
 }
 
+# [TASK] 開啟新的一輪。`.panes` 的 epoch 從此是「最後一次指派」而不是「spawn 以來」—— 不重設的話，
+# 第二輪的 reviewer 一被派就已經超過 DK_REVIEW_TIMEOUT_MIN，逾時量的是錯的對象（BACKLOG 2026-09-14）。
+# 只在送達後重設：送不到的指派沒有開始任何一輪，先重設只會把卡住的人藏起來。
+# 同時存下 state 此刻的 cksum —— dk-watch 靠「內容有沒有變過」分辨這一輪交的 done 與上一輪留下的 done。
+# 用 cksum 不用 mtime：`date -r` 在 GNU 與 BSD 語義不同（同 dk-chore-tidy 的理由）。
+redispatch() { # AGENT — 只動 .panes 裡真的有的列；雜務與已收工的對象不憑空生列
+  local a="$1" p sf
+  p="$dir/.panes"; sf="$dir/state/${a#"$DK_SHORT"-}.md"
+  [ -f "$p" ] || return 0
+  awk -v n="$a" '$1==n{f=1} END{exit !f}' "$p" || return 0
+  awk -v n="$a" -v t="$(date +%s)" 'NF>=3 && $1==n {$3=t} {print}' "$p" > "$p.tmp" && mv "$p.tmp" "$p"
+  mkdir -p "$dir/.blocked"
+  rm -f "$dir/.blocked/$a.timeout"   # 上一輪的逾時已結案；留著的 delivered 會讓這一輪永遠不再報
+  if [ -f "$sf" ]; then cksum < "$sf"; else printf ''; fi > "$dir/.blocked/$a.redispatch"
+}
+
 # 重試而不是一次定生死：實跑中 reviewer 的 [DONE] 曾在一分鐘內就被判失敗、整筆遺失，
 # 而它的報告好端端躺在磁碟上 —— 領導從不知道它交過。
 tries="${DK_MSG_TRIES:-3}"; i=1
 while [ "$i" -le "$tries" ]; do
   # log 一律記解析後的名字，不記 pane id：那是人與 dk-wave-close 讀的那一欄。
   if deliver "$target" || { [ -n "$fallback" ] && deliver "$fallback"; }; then
+    if [ "$chore" = 0 ] && [ "$type" = TASK ]; then redispatch "$target"; fi
     echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"; exit 0
   fi
   [ "$i" -lt "$tries" ] && sleep "${DK_MSG_RETRY_SEC:-5}"

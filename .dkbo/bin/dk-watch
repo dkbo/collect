@@ -178,7 +178,13 @@ tick() {
     if [ -f "$m" ]; then
       grep -q '^delivered$' "$m" && continue   # 已送達；否則落到下面重試
     else
-      sf="$dir/state/${agent#"$DK_SHORT"-}.md"; if [ -f "$sf" ] && grep -q '^status: done' "$sf"; then continue; fi
+      # status: done 只有「這一輪寫的」才算數。首輪交完後被派複看又卡住的 reviewer，它的 state 還停在
+      # 上一輪的 done —— 無條件 skip 會讓熔斷、桌面通知、[TIMEOUT] 三個出口全程空轉，它就此永久靜默
+      # （BACKLOG 2026-09-14）。dk-msg 在指派當下存了 state 的 cksum：內容變過才是這一輪的交付；
+      # 沒有那個標記就表示它從沒被重新指派過，首輪的 done 照樣算數。
+      sf="$dir/state/${agent#"$DK_SHORT"-}.md"; rd="$dir/.blocked/$agent.redispatch"
+      if [ -f "$sf" ] && grep -q '^status: done' "$sf" \
+         && { [ ! -f "$rd" ] || [ "$(cksum < "$sf")" != "$(cat "$rd")" ]; }; then continue; fi
       [ $((now - epoch)) -gt $((DK_REVIEW_TIMEOUT_MIN * 60)) ] || continue
       txt=$(pane_text "$agent")
       kind=$(agent_kind "$agent")
@@ -196,6 +202,29 @@ tick() {
     tag=$(sed -n 's/^tag=//p' "$m" | head -1)
     if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" "[TIMEOUT] from dk-watch: $agent 逾時${tag}"; then echo delivered >> "$m"; fi
   done < "$dir/.panes"
+
+  # 本波 dev 全員完成 → 推一則聚合 [DONE]，取代員工逐筆的回報。四人波原本是四次全量喚醒，
+  # 而領導在收齊之前做不了下一步（dk-review-pack 要的是整波的差異）。真相來源跟 dk-wave-close
+  # 的 gate 0 同一個：各自的 state 檔，不是員工自報的訊息 —— 員工那側的 [DONE] 只落盤。
+  # qa 與 reviewer 是 group review，不在這裡等：領導收到聚合就能去打差異包，qa 仍並行跑著。
+  if [ -n "${DK_WAVE:-}" ]; then
+    local devs="" cnt=0 all=1
+    while read -r agent _pane _epoch group _; do
+      [ "${group:-}" = dev ] || continue
+      cnt=$((cnt+1)); sname="${agent#"$DK_SHORT"-}"
+      if grep -q '^status: done' "$dir/state/$sname.md" 2>/dev/null; then devs="${devs:+$devs, }$sname"
+      else all=0; break; fi
+    done < "$dir/.panes"
+    if [ "$cnt" -gt 0 ] && [ "$all" = 1 ]; then
+      m="$dir/.blocked/wave-$DK_WAVE.devdone"
+      if ! { [ -f "$m" ] && grep -q '^delivered$' "$m"; }; then
+        if [ ! -f "$m" ]; then dk_process "dev-done wave $DK_WAVE ($cnt: $devs)"; echo notified > "$m"; fi
+        if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" \
+             "[DONE] from dk-watch: wave $DK_WAVE dev 全員完成（$cnt 位：$devs）→ dk-review-pack $DK_WAVE"; then
+          echo delivered >> "$m"; fi
+      fi
+    fi
+  fi
 
   # 整波逾時：員工沒 blocked、reviewer 也沒逾時，但這一波就是卡著不動的情況
   if [ -n "${DK_WAVE:-}" ] && [[ "${DK_WAVE_TIMEOUT_MIN:-0}" =~ ^[0-9]+$ ]] && [ "${DK_WAVE_TIMEOUT_MIN:-0}" -gt 0 ] \

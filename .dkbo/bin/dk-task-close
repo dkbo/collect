@@ -7,6 +7,14 @@ dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
 abandon=0; reason=""
 [ "${1:-}" = --abandon ] && { abandon=1; reason="${2:-（未填原因）}"; }
 if [ "$abandon" = 0 ]; then [ -f "$dir/report.md" ] || { echo "dk-task-close: write $dir/report.md first (gate 3)"; exit 1; }; fi
+# 軟警告，不擋:一條風格意見不該卡住結案（同 dk-wave-close 的 unreported change）。
+if [ "$abandon" = 0 ] && [ -n "$(dk_minor_lines "$dir/process.md")" ]; then
+  mn=$(dk_minor_count "$dir/process.md")
+  # 範本自己的指引行（templates/report.md 的「未完成 / 遺留」段）本身就含「Minor」三個
+  # 字，逐字比對會被它自己消掉；忽略 `（` 開頭的指引行再比對。
+  grep -v '^（' "$dir/report.md" 2>/dev/null | grep -qi 'minor' \
+    || echo "dk-task-close: process.md 有 $mn 條 minor，但 report.md 沒提到 —— 整枝評議 triage 過的話，把沒修的寫進「未完成 / 遺留」段" >&2
+fi
 [ ! -s "$dir/.panes" ] || { echo "dk-task-close: live panes remain; run dk-wave-close first"; exit 1; }
 
 legacy=0; if dk_legacy_task; then legacy=1; echo "dk-task-close: legacy task (no DK_BASE); removing the worktree via herdr" >&2; fi

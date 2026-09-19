@@ -4,13 +4,12 @@
 # 改成 opus/high」——那會讓 --tier 的 M 與 L 解析到同一組旗標（靜默的 no-op）、讓結案評議的 --tier L
 # 失去加碼的意義，也讓 tier 這個字在 reviewer 身上跟其他角色不同義。
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/review.sh"
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
 kinds=""; tier=""; n=""; task=0
 while [ $# -gt 0 ]; do case "$1" in
   --kinds) kinds="$2"; shift 2;; --tier) tier="$2"; shift 2;; --task) task=1; shift;; --*) dk_die "unknown flag $1";; *) n="$1"; shift;; esac; done
-src="--tier"; [ -n "$tier" ] || { tier="$DK_REVIEW_TIER"; src="settings.env 的 DK_REVIEW_TIER"; }
-[[ "$tier" =~ ^[ML]$ ]] || dk_die "$src 是 '$tier'：reviewer 檔位只能是 M 或 L"
+tier=$(dk_review_tier "$tier")
 if [ "$task" = 1 ]; then
   n=task; diff="$dir/waves/task.diff"; [ -f "$diff" ] || dk_die "no $diff; run dk-review-pack --task first"
 else
@@ -26,31 +25,20 @@ if [ -z "$kinds" ]; then
     *)       kinds="$DK_REVIEW_KINDS";;
   esac
 fi
-use=""
-for k in $kinds; do
-  if [[ " ${DK_KIND_DOWN:-} " == *" $k "* ]]; then echo "dk-review: kind $k is down for this task; skipped" >&2; continue; fi
-  use="$use $k"
-done
-# shellcheck disable=SC2086  # split kinds on purpose
-use=$(printf '%s\n' $use | head -3 | tr '\n' ' ')
-[ -n "${use// /}" ] || { echo "dk-review: no reviewer kind available; record: dk-process \"review $n skipped: all kinds down\"" >&2; exit 1; }
+use=$(dk_review_kinds "$kinds" dk-review "review $n") || exit 1
 members=$(dk_brief_wave_members "$dir/brief.md" "$n" | tr '\n' ' ' | sed 's/ $//')
-aliases=(a b c); i=0; spawned=""; failed=""
+constraints=$(dk_brief_constraints "$dir/brief.md")
+if [ "$task" = 1 ]; then   # 整枝評議才 triage：一條風格意見不該在每一波都被重讀一次
+  minors=$(dk_minor_lines "$dir/process.md" | sed 's/^[^ ]* /- /')
+  [ -n "$minors" ] || minors="（本任務沒有累積的 Minor）"
+else
+  minors="（逐波審查不 triage 累積的 Minor；整枝評議才做）"
+fi
+aliases=$(dk_review_aliases "a b c" "$use")
 mkdir -p "$dir/briefs"
-for k in $use; do
-  alias="${aliases[$i]}"; i=$((i+1)); sname="reviewer-$alias"
+for a in $aliases; do
+  sname="reviewer-$a"
   dk_render "$DK_ROOT/templates/brief-reviewer.md" "DISPLAY=$DK_DISPLAY" "WAVE=$n" "DIFF=$diff" "BRIEF=$dir/brief.md" \
-    "MEMBERS=$members" "REPORT=$dir/state/$sname.report.md" > "$dir/briefs/$sname.md"
-  if out=$("$DK_ROOT/bin/dk-spawn" reviewer "$alias" --isolated --kind "$k" --tier "$tier"); then rc=0; else rc=$?; fi
-  if [ -n "$out" ] && [ "$rc" = 0 ]; then
-    spawned="$spawned ${out%% *}($k)"
-  elif [ -n "$out" ]; then
-    spawned="$spawned ${out%% *}($k,prompt-failed)"
-    echo "dk-review: first prompt to ${out%% *} failed; herdr agent read it, then re-prompt" >&2
-  else
-    echo "dk-review: could not spawn reviewer $alias ($k)" >&2; failed="$failed $k"
-  fi
+    "MEMBERS=$members" "CONSTRAINTS=$constraints" "MINORS=$minors" "REPORT=$dir/state/$sname.report.md" > "$dir/briefs/$sname.md"
 done
-[ -n "$spawned" ] || dk_die "no reviewer spawned (dk-spawn failed for:$failed); check herdr, then retry dk-review or record: dk-process \"review $n skipped: <理由>\""
-dk_process "review $n spawned$spawned"
-echo "review $n:$spawned"
+dk_review_spawn "$use" "$aliases" "$tier" dk-review "review $n"

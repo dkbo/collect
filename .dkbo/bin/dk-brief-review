@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# dk-brief-review [--kinds "k1 k2 k3"] [--tier M|L] — 開工前的計畫審查：派 1–3 位隔離 reviewer
+# 讀 request.md + brief.md 出意見。與 dk-brief-check 同一層：那一支驗形狀，這一支看內容。
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/review.sh"
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
+kinds=""; tier=""
+while [ $# -gt 0 ]; do case "$1" in
+  --kinds) kinds="$2"; shift 2;; --tier) tier="$2"; shift 2;;
+  --*) dk_die "unknown flag $1";; *) dk_die "unexpected argument $1（計畫審查不分波；波號是執行階段的概念）";; esac; done
+
+req="$dir/request.md"
+[ -s "$req" ] || dk_die "缺需求原文 $req —— 先把人的原話逐字抄進去。reviewer 少了它只能在 brief 的自我一致性裡打轉，看不出 brief 漏掉了什麼。"
+# dk-task-new 沒給 --from 真檔時一定會 render 出這份空殼；[ -s ] 在這條最常見的路徑上恆真。
+# 空殼的最後一行是 sentinel，一個字都沒補上去的話它還在最後一行。
+[ "$(grep -vE '^[[:space:]]*$' "$req" | tail -1)" != "（原文從這裡開始）" ] \
+  || dk_die "$req 還是空殼（「（原文從這裡開始）」後面一個字都沒有）—— 先把人的原話逐字抄進去再回來"
+# 零 token 的機械閘沒過就燒三個 kind 的 token，是這個設計裡最蠢的失敗模式。順序由程式保證，不靠領導記得。
+# 成功時吞掉 dk-brief-check 的 OK；失敗時把它的 FAIL 清單印出來再死，領導不用另外重跑一次。
+check_out=$("$DK_ROOT/bin/dk-brief-check" 2>&1) || { printf '%s\n' "$check_out"; dk_die "dk-brief-check 沒過（上面那幾條 FAIL），先修 brief 再回來"; }
+[ "$check_out" = OK ] || printf '%s\n' "$check_out"   # 成功時才會是 WARN；OK 不印，維持既有逐字比對測試不受影響
+
+tier=$(dk_review_tier "$tier")
+[ -n "$kinds" ] || kinds="$DK_REVIEW_KINDS"
+use=$(dk_review_kinds "$kinds" dk-brief-review "brief-review") || exit 1
+
+constraints=$(dk_brief_constraints "$dir/brief.md")
+aliases=$(dk_review_aliases "p1 p2 p3" "$use")
+mkdir -p "$dir/briefs" "$dir/state"
+for a in $aliases; do
+  sname="reviewer-$a"
+  dk_render "$DK_ROOT/templates/brief-reviewer-plan.md" "DISPLAY=$DK_DISPLAY" "REQUEST=$req" \
+    "BRIEF=$dir/brief.md" "CONSTRAINTS=$constraints" "REPORT=$dir/state/$sname.report.md" > "$dir/briefs/$sname.md"
+done
+dk_review_spawn "$use" "$aliases" "$tier" dk-brief-review brief-review

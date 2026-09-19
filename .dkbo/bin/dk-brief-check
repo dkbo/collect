@@ -74,9 +74,39 @@ for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -u
   done
 done
 
+# ── 全域約束（0.9.0 新增）
+# 判別器是「段落存不存在」：不存在＝0.9.0 之前建立的 brief，升級後不該把進行中的任務卡死；
+# 存在但沒填＝新範本產出來的，那是真的漏填。同一招 0.8.0 在 request.md 的空殼 sentinel 用過。
+if ! grep -q '^## 全域約束' "$brief"; then
+  warn 全域約束 "段落不存在（0.9.0 之後建立的任務必填；沒有約束就寫「無」）"
+elif [ -z "$(dk_brief_constraints "$brief" | grep -v '^（' | grep -v '^[[:space:]]*$' || true)" ]; then
+  fail 全域約束 "段落為空（沒有約束請寫「無」）"
+fi
+
 # ── 驗收與契約
 [ -n "$(dk_brief_acceptance "$brief")" ] || fail 驗收標準 "至少一條 '- [ ] …'"
-[ -n "$(dk_brief_section "$brief" "## 共用契約" | grep -v '^（' | grep -v '^[[:space:]]*$' || true)" ] || fail 共用契約 "段落為空（無契約請寫「無」）"
+ct=$(dk_brief_section "$brief" "## 共用契約")
+if [ -z "$(printf '%s\n' "$ct" | grep -v '^（' | grep -v '^[[:space:]]*$' || true)" ]; then
+  fail 共用契約 "段落為空（無契約請保留表頭；舊格式請寫「無」）"
+elif ! printf '%s\n' "$ct" | grep -qE '^\| *契約 *\|'; then
+  # 判別器是表頭而不是資料列：新格式底下「沒有任何契約」就是只有表頭、沒有資料列，
+  # 那是合法的。拿資料列當判別器會把這個合法狀態誤判成舊 brief，它從此拿不到欄位檢查。
+  warn 共用契約 "非表格格式（0.9.0 之後建立的任務請用 契約｜擁有者｜消費者｜形狀／簽名｜變更流程 五欄）"
+else
+  # dk_brief_interfaces 的輸出把欄內的字面管線留成 \|，所以這裡也要跳脫感知地切：
+  # 先換哨兵再讓 IFS 切，切完還原。少了這一步，形狀欄寫個正規表示式就會多切出一欄。
+  esc=$(printf '\034')
+  while IFS='|' read -r c owner consumers _shape _flow extra; do
+    [ -n "$c" ] || continue
+    cname=$(printf '%s' "$c" | sed "s/$esc/\\\\|/g")
+    # 裸管線在 markdown 裡就是欄位分隔，切出第六欄 —— 那是真的寫錯了，不能靜默錯位下去
+    [ -z "$extra" ] || fail "共用契約 $cname" "欄數超過五欄（欄位內容裡的字面管線要寫成 \\|）"
+    [ "$owner" = "—" ] || [[ "$members" == *" $owner "* ]] || fail "共用契約 $cname" "擁有者 $owner 不在檔案所有權表"
+    for cs in $(printf '%s' "$consumers" | tr ',' ' '); do
+      [ "$cs" = "—" ] || [[ "$members" == *" $cs "* ]] || fail "共用契約 $cname" "消費者 $cs 不在檔案所有權表"
+    done
+  done <<< "$(dk_brief_interfaces "$brief" | sed "s/\\\\|/$esc/g")"
+fi
 
 if [ "$fails" -gt 0 ]; then echo "$fails FAIL"; exit 1; fi
 [ "$warns" -gt 0 ] || echo OK

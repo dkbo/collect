@@ -11,6 +11,9 @@ if [ "${1:-}" = --agent ]; then   # close one employee (e.g. a timed-out reviewe
   read -r _ pane _ _ tab _ <<< "$line"
   herdr pane close "$pane" >/dev/null 2>&1 </dev/null || true
   grep -v "^$a " "$dir/.panes" > "$dir/.panes.tmp" || true; mv "$dir/.panes.tmp" "$dir/.panes"
+  # 聚合標記要重置：這位多半是撞額度被關掉、等著換 kind 重派的。標記若停在 delivered，
+  # 補上的那位做完也不會再有人通知領導，整波就這樣啞掉。
+  rm -f "$dir/.blocked/wave-${DK_WAVE:-0}.devdone"
   dk_process "pane-close $a"
   if [ "${tab:-0}" -ge 1 ] 2>/dev/null; then dk_layout_even "$tab" || true; fi
   echo "closed $a"; exit 0
@@ -47,8 +50,18 @@ if [ "$legacy" = 0 ]; then
     [ "$group" = dev ] || continue
     sname="${agent#"$DK_SHORT"-}"; rf="$dir/state/$sname.report.md"
     if [ ! -f "$rf" ]; then problems="$problems\n  no report $rf (dk-msg $agent \"[TASK] 補 report 測試段\")"
-    elif ! awk '/^## 測試/{t=1; next} t && /^## /{exit} t && /^[^[:space:]（]/{ok=1} END{exit !ok}' "$rf"; then
-      problems="$problems\n  report $rf lacks content under '## 測試'"
+    elif ! awk '
+      /^## 測試/{t=1; next}
+      t && /^## /{exit}
+      t && /^### 紅/{s="r"; next}
+      t && /^### 綠/{s="g"; next}
+      t && s!="" && /^[^[:space:]（]/{
+        n[s]++
+        if (n[s]==1 && $0 ~ /^不適用[:：]/) ok[s]=1   # 沒有測試的波：首行就是豁免宣告（半形／全形冒號都算）
+        if (n[s]>=2) ok[s]=1                      # 指令列＋輸出，至少兩行
+      }
+      END{exit !(ok["r"] && ok["g"])}' "$rf"; then
+      problems="$problems\n  report $rf 的 '## 測試' 缺證據：'### 紅' 與 '### 綠' 各要指令列與輸出兩行以上（沒有測試的波首行寫「不適用: <理由>」）"
     fi
   done < "$dir/.panes"
   members=$(dk_brief_wave_members "$dir/brief.md" "${n:-0}" | sed 's/(.*//')   # state names, no (tier)
@@ -96,7 +109,7 @@ done < "$dir/.panes"
 : > "$dir/.panes"
 if [ "$legacy" = 1 ]; then dk_process "wave-close: $closed agents closed"
 else
-  dk_env_set DK_WAVE ""; dk_env_set DK_WAVE_STARTED ""; rm -f "$dir/.blocked/wave-${n:-0}.timeout"
+  dk_env_set DK_WAVE ""; dk_env_set DK_WAVE_STARTED ""; rm -f "$dir/.blocked/wave-${n:-0}.timeout" "$dir/.blocked/wave-${n:-0}.devdone"
   dk_process "wave-close ${n:-?} tests $tests $closed agents closed"
   for t in $tabs; do if [ "$t" -ge 1 ]; then dk_layout_even "$t" || true; fi; done
 fi

@@ -8,6 +8,11 @@ export DK_ROOT DK_PROJECT_ROOT
 dk_die() { echo "dk: $*" >&2; exit 1; }
 dk_now() { date +%Y-%m-%dT%H:%M; }
 dk_today() { date +%Y-%m-%d; }
+# Minor process 行的格式：'<ts> minor: <一句>' 或 '<ts> minor N: <一句>'。dk-review
+# 與 dk-task-close 共用這一份，避免漏冒號的行被其中一邊看見、另一邊看不見。
+DK_MINOR_RE='^[^ ]+ minor(: | [0-9]+: )'
+dk_minor_lines() { grep -E "$DK_MINOR_RE" "$1" 2>/dev/null || true; }
+dk_minor_count() { dk_minor_lines "$1" | grep -c . || true; }
 # May return empty when the input has no a-z characters; callers must supply a fallback name.
 dk_slug() {
   local s

@@ -14,6 +14,28 @@ while [ $# -gt 0 ]; do case "$1" in
 if [ "$gate1" = 1 ]; then
   existing=$(compgen -G "$DK_ROOT/tasks/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-$short" | tail -1 || true); [ -n "$existing" ] || dk_die "no task $short"
   DK_TASK_DIR="$existing"; export DK_TASK_DIR; dk_task_env
+  # 關卡①的三道閘。計畫審查與 dk-brief-check 同一層，但只有這一道是機械擋得住的 ——
+  # 「改完 brief 有沒有重跑 dk-brief-check」到了這裡已經分辨不出來，那條只寫在 SKILL 裡。
+  p="$existing/process.md"
+  grep -Eq '^[^ ]+ brief-review (verdict|skipped:)' "$p" \
+    || dk_die "關卡①：process.md 沒有計畫審查的結果。跑 dk-brief-review 並在收齊後記 dk-process \"brief-review verdict p1: … / p2: …\"；真的不審就記 dk-process \"brief-review skipped: <理由>\""
+  # process.md 是 append-only：verdict 之後可能又補了一行 skipped（例如派完才熔斷），
+  # 這時最新的決定是「跳過」而不是那份陳舊的 verdict，逐別名檢查要看最後一行決定，
+  # 不能看最後一行 verdict——否則閘 1 放行、閘 2 卻拿舊 verdict 去挑錯，兩道閘互相矛盾。
+  last=$(grep -E '^[^ ]+ brief-review (verdict|skipped:)' "$p" | tail -1)
+  # 判斷「最後一行決定是不是 verdict」要重新錨定去比對 $last 本身，不能用
+  # `case ... *" brief-review verdict"*)` 這種子字串比對——skipped 行的自由文字
+  # 只要剛好提到這幾個字（例如理由寫「忘記寫 brief-review verdict」）就會誤判成
+  # verdict，逐別名檢查對 skipped 的自由文字當然找不到 token，等於把兩道閘互相
+  # 矛盾的死結用另一種觸發條件裝回去。
+  if printf '%s\n' "$last" | grep -Eq '^[^ ]+ brief-review verdict'; then   # 派了三個 kind 卻只讀一個的意見，等於第二意見白花（同 dk-wave-close 的 gate a2）
+    for al in $(grep -E '^[^ ]+ brief-review spawned ' "$p" | tail -1 | grep -oE 'reviewer-p[0-9]+' | sed 's/reviewer-//' | sort -u); do
+      case "$last" in *"$al:"*) ;;
+        *) dk_die "brief-review verdict 沒有交代 reviewer $al（寫它的結果，或 '$al: skipped (<理由>)'）";; esac
+    done
+  fi
+  live=$(grep -oE "^$DK_SHORT-reviewer-p[0-9]+" "$existing/.panes" 2>/dev/null | sort -u | tr '\n' ' ' || true)
+  [ -z "${live// /}" ] || dk_die "計畫審查的 pane 還開著：${live% } —— 先 dk-wave-close --agent <agent> 逐個關掉。留著它們會佔版面格子、被守望當活人算逾時，而且第一波的 dk-wave-close 會因為它們沒 done 而永遠關不掉。"
   dk_process "gate1 approved"
   dk_index_set "$DK_DISPLAY" running "—" || echo "dk-task-new: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
   exit 0
@@ -46,6 +68,8 @@ vars=("DISPLAY=$display" "SHORT=$short" "BRANCH=$branch" "WORKTREE=$wt_path" "SO
 dk_render "$DK_ROOT/templates/brief.md"   "${vars[@]}" > "$dir/brief.md"
 dk_render "$DK_ROOT/templates/process.md" "${vars[@]}" > "$dir/process.md"
 dk_render "$DK_ROOT/templates/task.env"   "${vars[@]}" > "$dir/.task.env"
+if [ -f "$from" ]; then cp "$from" "$dir/request.md"      # --from 指向真的檔案：逐字複製，不是塞路徑
+else dk_render "$DK_ROOT/templates/request.md" "${vars[@]}" > "$dir/request.md"; fi
 : > "$dir/messages.log"
 mkdir -p "$DK_ROOT/.sessions"; echo "$name" > "$DK_ROOT/.sessions/${HERDR_PANE_ID:?}"
 
