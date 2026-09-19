@@ -6,3 +6,5 @@
 ## 驗證
 ## 重要決策
 ## 給下次的話（≤3 行）
+## 時間
+（由 dk-task-close 從 process.md 算出並填入，見 dk-timeline；不要手填）

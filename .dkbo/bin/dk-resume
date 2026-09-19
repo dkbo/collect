@@ -10,11 +10,21 @@ fi
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
 # once, before render: render may run up to four times to fit the 150-line budget
 watch=$("$DK_ROOT/bin/dk-watch" --ensure 2>/dev/null || echo "watch: unknown")
+# 時間也只算一次：render 重跑四次的話，每次重算會讓同一份輸出裡的兩段數字對不起來。
+now_min=$(dk_ts_minutes "$(dk_now)"); now_s=$(date +%s); task_min=""; wave_min=""
+ts=$(awk '$2=="task-new"{print $1; exit}' "$dir/process.md")
+if [ -n "$ts" ]; then task_min=$(dk_ts_minutes "$ts" || true); fi
+if [ -n "${DK_WAVE:-}" ]; then
+  ts=$(dk_ts_pick "$dir/process.md" wave-open "$DK_WAVE")
+  if [ -n "$ts" ]; then wave_min=$(dk_ts_minutes "$ts" || true); fi
+fi
 render() { # $1=process lines $2=state lines $3=ruling lines (0 = all)
   echo "## 你是 $(dk_leader_name)（任務 $(basename "$dir")）"
   echo "本任務的執行規範是 .dkbo/skills/run/SKILL.md（Claude Code：/dkbo-run）。若你要接手推進，先讀它與 .dkbo/LEADER.md。任務目錄 $dir"
   echo "## brief"; cat "$dir/brief.md"
   echo "## 本波"
+  if [ -n "$task_min" ]; then e=$((now_min - task_min)); echo "任務已進行 $((e/60))h $((e%60))m（自 task-new）"; fi
+  if [ -n "$wave_min" ]; then echo "本波已進行 $((now_min - wave_min))m（自 wave-open）"; fi
   if [ -n "${DK_WAVE:-}" ]; then
     echo "wave: $DK_WAVE  base: $(dk_wave_base "$dir" "$DK_WAVE")  kinds down: ${DK_KIND_DOWN:-無}"
     awk -v t="$DK_REVIEW_TIMEOUT_MIN" -v now="$(date +%s)" -v pfx="$DK_SHORT-" -v dir="$dir" '
@@ -35,8 +45,9 @@ render() { # $1=process lines $2=state lines $3=ruling lines (0 = all)
   echo "## 在線員工（每 tab 一行）"
   list=$(herdr agent list 2>/dev/null | jq -r '(.result.agents // [])[] | select(.name != null) | "\(.name) \(.agent_status)"' 2>/dev/null || true)
   if [ -s "$dir/.panes" ]; then
-    awk -v L="$list" 'BEGIN{n=split(L, a, "\n"); for(i=1;i<=n;i++){split(a[i], kv, " "); st[kv[1]]=kv[2]}}
-      {t=(NF>=6)?$5:"?"; row[t]=row[t] " " $1 "(" (($1 in st)?st[$1]:"?") ")"; if(!(t in seen)){seen[t]=1; order[++k]=t}}
+    awk -v L="$list" -v now="$now_s" 'BEGIN{n=split(L, a, "\n"); for(i=1;i<=n;i++){split(a[i], kv, " "); st[kv[1]]=kv[2]}}
+      {t=(NF>=6)?$5:"?"; w=($3 ~ /^[0-9]+$/) ? sprintf(" 等了 %d min", (now-$3)/60) : ""
+       row[t]=row[t] " " $1 "(" (($1 in st)?st[$1]:"?") w ")"; if(!(t in seen)){seen[t]=1; order[++k]=t}}
       END{for(i=1;i<=k;i++) printf "tab %s:%s\n", order[i], row[order[i]]}' "$dir/.panes"
   else printf '%s\n' "$list" | grep "^$DK_SHORT-" || echo "（無）"; fi
   echo "## BACKLOG"; cat "$DK_ROOT/tasks/BACKLOG.md"

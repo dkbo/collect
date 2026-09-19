@@ -61,7 +61,7 @@ deliver() { # TARGET — 等它閒下來再送；兩步任一步失敗都算沒�
     && herdr agent prompt "$1" "$line" >/dev/null 2>&1
 }
 
-# [TASK] 開啟新的一輪。`.panes` 的 epoch 從此是「最後一次指派」而不是「spawn 以來」—— 不重設的話，
+# [TASK]／[BUG] 開啟新的一輪。`.panes` 的 epoch 從此是「最後一次指派」而不是「spawn 以來」—— 不重設的話，
 # 第二輪的 reviewer 一被派就已經超過 DK_REVIEW_TIMEOUT_MIN，逾時量的是錯的對象（BACKLOG 2026-09-14）。
 # 只在送達後重設：送不到的指派沒有開始任何一輪，先重設只會把卡住的人藏起來。
 # 同時存下 state 此刻的 cksum —— dk-watch 靠「內容有沒有變過」分辨這一輪交的 done 與上一輪留下的 done。
@@ -83,7 +83,7 @@ tries="${DK_MSG_TRIES:-3}"; i=1
 while [ "$i" -le "$tries" ]; do
   # log 一律記解析後的名字，不記 pane id：那是人與 dk-wave-close 讀的那一欄。
   if deliver "$target" || { [ -n "$fallback" ] && deliver "$fallback"; }; then
-    if [ "$chore" = 0 ] && [ "$type" = TASK ]; then redispatch "$target"; fi
+    if [ "$chore" = 0 ] && { [ "$type" = TASK ] || [ "$type" = BUG ]; }; then redispatch "$target"; fi
     echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"; exit 0
   fi
   [ "$i" -lt "$tries" ] && sleep "${DK_MSG_RETRY_SEC:-5}"

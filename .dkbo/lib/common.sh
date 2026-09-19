@@ -8,6 +8,39 @@ export DK_ROOT DK_PROJECT_ROOT
 dk_die() { echo "dk: $*" >&2; exit 1; }
 dk_now() { date +%Y-%m-%dT%H:%M; }
 dk_today() { date +%Y-%m-%d; }
+# "YYYY-MM-DDTHH:MM" → 自 epoch 起的分鐘數。純算術是刻意的：`date -d` 只有 GNU 有、
+# `date -j` 只有 BSD 有、`mktime` 只有 gawk 有 —— 三條路各自會在另外兩種機器上斷掉。
+# 曆法用 days_from_civil：把三月當成一年的開頭，閏日就落在年尾，跨月與跨年都不必特判。
+# 兩個時間戳相減才有意義（時區一致即可）；格式不對回非零、不印東西。
+dk_ts_minutes() {
+  local y m d hh mi yy era yoe doy doe days
+  [[ "$1" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})$ ]] || return 1
+  y=$((10#${BASH_REMATCH[1]})); m=$((10#${BASH_REMATCH[2]})); d=$((10#${BASH_REMATCH[3]}))
+  hh=$((10#${BASH_REMATCH[4]})); mi=$((10#${BASH_REMATCH[5]}))   # 10# so 08/09 stay decimal
+  ((m >= 1 && m <= 12 && d >= 1 && d <= 31 && hh <= 23 && mi <= 59)) || return 1
+  yy=$((m <= 2 ? y - 1 : y))
+  era=$(( (yy >= 0 ? yy : yy - 399) / 400 ))
+  yoe=$(( yy - era * 400 ))
+  doy=$(( (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1 ))
+  doe=$(( yoe * 365 + yoe / 4 - yoe / 100 + doy ))
+  days=$(( era * 146097 + doe - 719468 ))
+  echo $(( days * 1440 + hh * 60 + mi ))
+}
+dk_span() { # START_TS END_TS → "Nm"；任一端缺或壞掉就 "—"
+  # 缺來源印「—」而不是 0：沒量到和量到零是兩件事，印 0 會讓時間表憑空多出一段假的即時完成。
+  local a b
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] || { echo "—"; return 0; }
+  a=$(dk_ts_minutes "$1") || { echo "—"; return 0; }
+  b=$(dk_ts_minutes "$2") || { echo "—"; return 0; }
+  echo "$((b - a))m"
+}
+dk_ts_pick() { # FILE TOK2 [TOK3] [TOK4] → 最後一筆第 2/3/4 欄依序相等的行的時間戳；空字串＝該欄不限
+  # 比對欄位而不是把 awk 條件當字串傳進來：條件字串裡的 $2 對 shellcheck 是沒展開的 shell
+  # 變數（SC2016），而且引號怎麼下會散在每個呼叫端。process.md 的 token 本來就是靠欄位定位的。
+  awk -v a="${2:-}" -v b="${3:-}" -v c="${4:-}" '
+    (a == "" || $2 == a) && (b == "" || $3 == b) && (c == "" || $4 == c) { t = $1 }
+    END { if (t != "") print t }' "$1"
+}
 # Minor process 行的格式：'<ts> minor: <一句>' 或 '<ts> minor N: <一句>'。dk-review
 # 與 dk-task-close 共用這一份，避免漏冒號的行被其中一邊看見、另一邊看不見。
 DK_MINOR_RE='^[^ ]+ minor(: | [0-9]+: )'

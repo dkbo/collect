@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# dk-timeline [<task>] — 從 process.md 算整張時間表，印 markdown。只讀：零 token、不寫任何檔。
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+# 只認 process.md 既有的行首 token（task-new／gate1 approved／wave-open N／dev-done wave N／
+# review N spawned｜verdict｜skipped／wave-close N tests／task-close）。這些 token 是別人寫的，
+# 形狀要變是契約變更 —— 這支腳本不新增任何要別人配合寫的欄位。
+if [ -n "${1:-}" ]; then
+  t="$1"; [ -d "$DK_ROOT/tasks/$t" ] || t=$(compgen -G "$DK_ROOT/tasks/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-$1" | tail -1 || true); t="${t##*/}"
+  [ -n "$t" ] && [ -d "$DK_ROOT/tasks/$t" ] || dk_die "no task '$1'"
+  dir="$DK_ROOT/tasks/$t"
+else dir=$(dk_task_dir); fi
+p="$dir/process.md"; [ -f "$p" ] || dk_die "no process.md in $dir"
+
+row() { printf '| %s | %s | %s | %s | %s | %s |\n' "$1" "${2:-—}" "${3:-—}" "$4" "$5" "$6"; }
+
+t_new=$(awk '$2=="task-new"{print $1; exit}' "$p")
+t_close=$(dk_ts_pick "$p" task-close)
+gate1=$(dk_ts_pick "$p" gate1 approved)
+last_close=$(dk_ts_pick "$p" wave-close "" tests)   # 波號不限：最後一次成功關的波
+
+echo "任務 $(basename "$dir")"
+echo "| 階段 | 開始 | 結束 | 時長 | dev | 審查 |"
+echo "|---|---|---|---|---|---|"
+if [ -n "$t_close" ]; then row "任務" "$t_new" "$t_close" "$(dk_span "$t_new" "$t_close")" "—" "—"
+else now=$(dk_now); row "任務" "$t_new" "$now" "$(dk_span "$t_new" "$now")（進行中）" "—" "—"; fi
+row "計畫" "$t_new" "$gate1" "$(dk_span "$t_new" "$gate1")" "—" "—"
+awk '$2=="wave-open" && $3 ~ /^[0-9]+$/{print $3}' "$p" | sort -n -u | while IFS= read -r n; do
+  # 一波可能關不只一次（測試失敗後重關），dk_ts_pick 取最後一筆才是真正關掉的那次。
+  w_open=$(dk_ts_pick "$p" wave-open "$n")
+  w_close=$(dk_ts_pick "$p" wave-close "$n" tests)
+  w_dev=$(dk_ts_pick "$p" dev-done wave "$n")
+  r_spawn=$(dk_ts_pick "$p" review "$n" spawned)
+  r_verdict=$(dk_ts_pick "$p" review "$n" verdict)   # 複看會有多則，取最後一則
+  r_skip=$(dk_ts_pick "$p" review "$n" "skipped:")
+  if [ -z "$r_verdict" ] && [ -n "$r_skip" ]; then r_span="skip"; else r_span=$(dk_span "$r_spawn" "$r_verdict"); fi
+  row "波 $n" "$w_open" "$w_close" "$(dk_span "$w_open" "$w_close")" "$(dk_span "$w_open" "$w_dev")" "$r_span"
+done
+row "結案" "$last_close" "$t_close" "$(dk_span "$last_close" "$t_close")" "—" "—"

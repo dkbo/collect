@@ -13,7 +13,8 @@ if [ "${1:-}" = --agent ]; then   # close one employee (e.g. a timed-out reviewe
   grep -v "^$a " "$dir/.panes" > "$dir/.panes.tmp" || true; mv "$dir/.panes.tmp" "$dir/.panes"
   # 聚合標記要重置：這位多半是撞額度被關掉、等著換 kind 重派的。標記若停在 delivered，
   # 補上的那位做完也不會再有人通知領導，整波就這樣啞掉。
-  rm -f "$dir/.blocked/wave-${DK_WAVE:-0}.devdone"
+  # latch 也要收：這位的交付隨著 pane 一起作廢，否則補上的那位什麼都還沒寫，聚合就先喊全員完成
+  rm -f "$dir/.blocked/wave-${DK_WAVE:-0}.devdone" "$dir/.blocked/wave-${DK_WAVE:-0}.${a#"$DK_SHORT"-}.done"
   dk_process "pane-close $a"
   if [ "${tab:-0}" -ge 1 ] 2>/dev/null; then dk_layout_even "$tab" || true; fi
   echo "closed $a"; exit 0
@@ -90,7 +91,15 @@ if [ -n "$problems" ] && [ "$force" = 0 ]; then printf 'dk-wave-close: refused (
 tests="skipped (no DK_TEST_CMD)"
 if [ "$legacy" = 0 ] && [ -n "${DK_TEST_CMD:-}" ]; then   # gate c
   mkdir -p "$dir/waves"; log="$dir/waves/${n:-forced}.test.log"
-  if (cd "$DK_WORKTREE" && bash -c "$DK_TEST_CMD") > "$log" 2>&1; then tests="ok ($DK_TEST_CMD)"
+  # 測試指令拿到的是一個不含任何 DK_* 的環境。領導這一側的 DK_ROOT／DK_PROJECT_ROOT／DK_WORKTREE
+  # 整包傳下去的話，測試裡任何 source lib/common.sh 的東西都會照 `${DK_X:-預設}` 吃到繼承值而打到
+  # 真 repo —— 2026-09-19 領導在自己 session 跑 gate c，就這樣在源碼倉建了 7 個 worktree 與 8 個
+  # 分支（BACKLOG）。PATH、HOME 等非 DK_* 照舊，測試指令本身還是要找得到工具。
+  # env 的第一個元素讓陣列永不為空：bash 3.2 對空陣列展開在 set -u 下會死。
+  clean=(env)
+  # shellcheck disable=SC2086  # ${!DK_@} 要斷詞，一個變數名一個元素
+  for v in ${!DK_@}; do clean+=(-u "$v"); done
+  if (cd "$DK_WORKTREE" && "${clean[@]}" bash -c "$DK_TEST_CMD") > "$log" 2>&1; then tests="ok ($DK_TEST_CMD)"
   else
     echo "dk-wave-close: tests failed ($DK_TEST_CMD); last 20 lines of $log:"; tail -n 20 "$log"
     if [ "$force" = 0 ]; then dk_process "wave-close ${n:-?} tests failed ($DK_TEST_CMD)"; exit 1; fi
@@ -109,8 +118,20 @@ done < "$dir/.panes"
 : > "$dir/.panes"
 if [ "$legacy" = 1 ]; then dk_process "wave-close: $closed agents closed"
 else
-  dk_env_set DK_WAVE ""; dk_env_set DK_WAVE_STARTED ""; rm -f "$dir/.blocked/wave-${n:-0}.timeout" "$dir/.blocked/wave-${n:-0}.devdone"
+  dk_env_set DK_WAVE ""; dk_env_set DK_WAVE_STARTED ""
+  rm -f "$dir/.blocked/wave-${n:-0}.timeout" "$dir/.blocked/wave-${n:-0}.devdone"
+  for m in ${members:-}; do rm -f "$dir/.blocked/wave-${n:-0}.$m.done"; done   # 逐成員的交付 latch
   dk_process "wave-close ${n:-?} tests $tests $closed agents closed"
+  # 本波耗時。dk-resume 給的是「還在跑多久」，這一行留下「跑了多久」，dk-timeline 再從
+  # process.md 的既有 token 把整張表算出來 —— 三支共用 lib/common.sh 的同一份換算。
+  w_open=$(dk_ts_pick "$dir/process.md" wave-open "${n:-}")
+  w_dev=$(dk_ts_pick "$dir/process.md" dev-done wave "${n:-}")
+  r_spawn=$(dk_ts_pick "$dir/process.md" review "${n:-}" spawned)
+  r_verdict=$(dk_ts_pick "$dir/process.md" review "${n:-}" verdict)
+  r_skip=$(dk_ts_pick "$dir/process.md" review "${n:-}" "skipped:")
+  if [ -z "$r_verdict" ] && [ -n "$r_skip" ]; then r_span="skip"; else r_span=$(dk_span "$r_spawn" "$r_verdict"); fi
+  span="wave ${n:-?} 耗時 $(dk_span "$w_open" "$(dk_now)")（dev $(dk_span "$w_open" "$w_dev")、審查 $r_span）"
+  echo "$span"; dk_process "$span"
   for t in $tabs; do if [ "$t" -ge 1 ]; then dk_layout_even "$t" || true; fi; done
 fi
 echo "closed $closed"

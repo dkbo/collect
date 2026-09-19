@@ -32,7 +32,9 @@ dk_kinds_available() {
 # 與 KIND_QUOTA_RE。式子限用兩邊都吃得下的子集：grep -iE（dk-watch 讀畫面）與
 # herdr pane wait-output --regex（Rust regex）。
 DK_RE_BLOCK_ANY='Do you want|Run this command|Requesting permission|Allow command|\[y/n\]'
-DK_RE_QUOTA_ANY='usage limit|rate limit|quota|resource exhausted'
+# 通用式同樣不收裸 `quota`：正常啟動就印得出這個字（agy 的 Antigravity Starter Quota 橫幅），
+# 未知 kind 退回來的式子若會命中它，守望會把剛起來的員工當成撞額度的。
+DK_RE_QUOTA_ANY='usage limit|rate limit|quota reached|quota exceeded|resource exhausted'
 dk_kind_re() { # KIND block|quota — 該 kind 的畫面特徵。未知 kind 退回通用式，絕不回空：
   # 回空會讓 grep -E '' 命中每一行，把整個守望變成「所有人都卡住了」。
   local kind="$1" what="$2" f="$DK_ROOT/kinds/$1.sh" v=""

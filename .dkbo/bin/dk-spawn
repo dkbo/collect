@@ -77,6 +77,13 @@ if ! herdr agent start "$agent" --kind "$kind" --pane "$pane" -- $args >/dev/nul
 fi
 echo "$agent $pane $(date +%s) $group $tab_no $slot" >> "$dir/.panes"
 
+# 這一刻 state 的內容快照，給 dk-watch 的 dev 聚合分辨「這一波的交付」與「上一波留在檔裡的
+# status: done」。state 檔跨波共用而聚合標記逐波，少了它，開波到員工動筆之間的空窗會被判成
+# 全員完成（BACKLOG 2026-09-19 實測兩次）。用 cksum 不用 mtime：`date -r` 在 GNU 與 BSD
+# 語義不同。員工的 state 由員工自己寫，dkbo 不碰它 —— 快照落在任務目錄，不是 state 裡。
+mkdir -p "$dir/.blocked"
+if [ -f "$state" ]; then cksum < "$state"; else printf ''; fi > "$dir/.blocked/$agent.spawn"
+
 # 換腦袋這一步一定有 ruling，是結構保證不是事後驗:理由由呼叫端給，格式由腳本補完。
 # 落在 pane 與 agent 真的起來之後：早落盤的話，這裡上面任何一步 dk_die 都會留下
 # 一行「換人」的假裁定，而那次換手其實沒發生。

@@ -4,6 +4,17 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 dk_require_herdr
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
+# AC9：結案把時間表填進 report.md 的「## 時間」段。放在 dk_process "task-close …" 之後、
+# dk_commit_memory 之前 —— 早一步算不到結案那一刻，晚一步就沒進任務記憶的 commit。
+fill_timeline() {
+  local tl f="$dir/report.md"
+  [ -f "$f" ] || return 0
+  tl=$("$DK_ROOT/bin/dk-timeline" "$(basename "$dir")" 2>&1) || {
+    echo "dk-task-close: dk-timeline 失敗，report.md 的「## 時間」沒填：$tl" >&2; return 0; }
+  if grep -q '^## 時間$' "$f"; then   # 範本已有這一段：整段換成算出來的表，指引行不留
+    awk -v tl="$tl" '/^## 時間$/{print; print tl; s=1; next} s && /^## /{s=0} s{next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  else printf '## 時間\n%s\n' "$tl" >> "$f"; fi
+}
 abandon=0; reason=""
 [ "${1:-}" = --abandon ] && { abandon=1; reason="${2:-（未填原因）}"; }
 if [ "$abandon" = 0 ]; then [ -f "$dir/report.md" ] || { echo "dk-task-close: write $dir/report.md first (gate 3)"; exit 1; }; fi
@@ -44,6 +55,7 @@ if [ "$DK_WORKTREE" = "$DK_PROJECT_ROOT" ]; then   # --no-worktree task: work al
   sha=$(git -C "$DK_PROJECT_ROOT" rev-parse --short HEAD); cleanup
   dk_index_set "$DK_DISPLAY" "done" "in-tree $sha" || echo "dk-task-close: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
   dk_process "task-close in-tree $sha"
+  fill_timeline
   dk_commit_memory "dkbo memory: task $DK_SHORT — $DK_DISPLAY" "$dir" "$DK_ROOT/tasks/INDEX.md" "$DK_ROOT/decisions.md" || echo "dk-task-close: 任務記憶沒 commit 成功，請自己 git add \"$dir\" 並 commit" >&2
   echo "closed $sha"; exit 0
 fi
@@ -55,5 +67,6 @@ sha=$(git -C "$DK_PROJECT_ROOT" rev-parse --short HEAD)
 cleanup; git -C "$DK_PROJECT_ROOT" branch -d "$DK_BRANCH" >/dev/null 2>&1 || true   # merged above, so -d is safe
 dk_index_set "$DK_DISPLAY" "done" "merged $sha" || echo "dk-task-close: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
 dk_process "task-close merged $sha"
+fill_timeline
 dk_commit_memory "dkbo memory: task $DK_SHORT — $DK_DISPLAY" "$dir" "$DK_ROOT/tasks/INDEX.md" "$DK_ROOT/decisions.md" || echo "dk-task-close: 任務記憶沒 commit 成功，請自己 git add \"$dir\" 並 commit" >&2
 echo "merged $sha"

@@ -26,6 +26,9 @@ KIND_PROMPT_QUEUES=unknown
 # trustedWorkspaces 逐路徑精確比對、不繼承上層）走的不是工具審批那條路。它實際的畫面字樣
 # 還沒實測過，所以沒有加進下面的 regex —— 下次實跑撞到時把原文補進來。
 KIND_BLOCK_RE='Requesting permission|Run this command\?|Yes, and always allow'
-KIND_QUOTA_RE='quota|rate limit|usage limit|resource exhausted'
+# 裸 `quota` 不能用：agy 的啟動橫幅就叫 `bal@host (Antigravity Starter Quota)`，每個 agy 員工
+# 一 spawn 就會被判撞額度、該 kind 當場熔斷（BACKLOG 2026-09-19 實測）。只收「耗盡」的說法。
+# 實測耗盡原文：Individual quota reached, Resets in 102h11m1s
+KIND_QUOTA_RE='quota reached|quota exceeded|rate limit|usage limit|resource exhausted'
 kind_args() { echo "--model $1 --effort $2 --dangerously-skip-permissions --add-dir $DK_PROJECT_ROOT"; }
 kind_mcp_list() { agy mcp list 2>/dev/null | awk 'NR>1{print $1}'; }

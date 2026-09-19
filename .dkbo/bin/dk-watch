@@ -123,13 +123,31 @@ handle_limit() { # agent — 撞額度。不必等 DK_REVIEW_TIMEOUT_MIN：那�
   if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" "[LIMIT] from dk-watch: $agent 撞額度"; then echo delivered >> "$m"; fi
 }
 
-assess() { # agent — 讀一次畫面並處理。回 0 表示畫面說了話（卡審批或撞額度）
-  local txt kind
-  txt=$(pane_text "$1"); [ -n "$txt" ] || return 1
-  kind=$(agent_kind "$1")
+# agent_status 前提（highfix BACKLOG）：正在工作時畫面上的字是它的工作內容，不是卡住的證據 ——
+# 自己編輯、cat 出來的內容含 usage limit／Requesting permission 之類字樣都會被誤判。working 就
+# 不看畫面；agent_status 拿不到（不在名單裡、herdr 失敗）時寧可誤報也不可漏掉真卡住，照舊判定。
+# state 已 status: done 的 agent 同理跳過：這一輪它已交差，畫面殘留的字樣不該再判它
+# （highfix 第二次誤判：reviewer 交報告後被自己引用的 usage limit 字樣熔斷）。
+# 但 done 認定跟逾時路徑（tick() 的 reviewer timeout 區塊）同一條：被 [TASK]／[BUG] 重新
+# 指派過（存在 .redispatch）而 state 內容跟指派當下一模一樣，代表它沒有交差，不能豁免（AC15）。
+skip_screen_check() { # agent [list]
+  local agent="$1" list="${2:-}" sname sf rd
+  [ -n "$list" ] || list=$(dk_h_soft agent list 2>/dev/null) || list=""
+  [ "$(agent_status "$agent" "$list")" = working ] && return 0
+  sname="${agent#"$DK_SHORT"-}"; sf="$dir/state/$sname.md"; rd="$dir/.blocked/$agent.redispatch"
+  if [ -f "$sf" ] && grep -q '^status: done' "$sf" 2>/dev/null \
+     && { [ ! -f "$rd" ] || [ "$(cksum < "$sf")" != "$(cat "$rd")" ]; }; then return 0; fi
+  return 1
+}
+
+assess() { # agent [list] — 讀一次畫面並處理。回 0 表示畫面說了話（卡審批或撞額度）
+  local agent="$1" list="${2:-}" txt kind
+  skip_screen_check "$agent" "$list" && return 1
+  txt=$(pane_text "$agent"); [ -n "$txt" ] || return 1
+  kind=$(agent_kind "$agent")
   # 額度優先於審批：兩種字樣同時在畫面上時，擋住去路的是額度
-  if screen_hits "$txt" "$(dk_kind_re "$kind" quota)"; then handle_limit "$1"; return 0; fi
-  if screen_hits "$txt" "$(dk_kind_re "$kind" block)"; then handle_block "$1" 1; return 0; fi
+  if screen_hits "$txt" "$(dk_kind_re "$kind" quota)"; then handle_limit "$agent"; return 0; fi
+  if screen_hits "$txt" "$(dk_kind_re "$kind" block)"; then handle_block "$agent" 1; return 0; fi
   return 1
 }
 
@@ -160,13 +178,32 @@ chore_tick() {   # chores have no reviewers and no waves: blocked detection only
   done
 }
 
+# 這一波的交付，不是上一波留在檔裡的 status: done。state 檔跨波共用而 `.devdone` 標記逐波，
+# 只看 `^status: done` 的話，開波到員工動筆之間的空窗就會被判成「dev 全員完成」——
+# 誤發之後標記寫成 delivered，真完成時永遠不再通知（BACKLOG 2026-09-19，flowgap 波 3／4 實測）。
+# 判準不用 state 的 `wave:` 欄：員工漏填會靜默永不通知，比誤報更糟。改比 dk-spawn 當下存的
+# 內容快照（cksum；不用 mtime，`date -r` 在 GNU 與 BSD 語義不同）。
+# 認定過就落一個逐波的 latch：重派會以當下內容重取快照，沒有 latch 的話已完成的成員會被打回
+# 未完成，同波其他人交齊了也沒人通知領導。沒有快照檔（legacy 任務、手寫的 .panes）就照舊只看
+# status，不平白讓整波啞掉。
+dev_delivered() { # AGENT SNAME — 這一波真的交了嗎
+  local agent="$1" sname="$2" sf snap latch
+  sf="$dir/state/$sname.md"; snap="$dir/.blocked/$agent.spawn"; latch="$dir/.blocked/wave-$DK_WAVE.$sname.done"
+  # latch 只豁免「內容與快照相同」那一關，不豁免 status: done 本身：交過一次之後被退回
+  # working，不能再算已交付（reviewer-a Important 1，qa 退件會重現跟開波空窗一樣的誤發）。
+  [ -f "$latch" ] && { grep -q '^status: done' "$sf" 2>/dev/null; return $?; }
+  grep -q '^status: done' "$sf" 2>/dev/null || return 1
+  if [ -f "$snap" ] && [ "$(cksum < "$sf")" = "$(cat "$snap")" ]; then return 1; fi
+  : > "$latch"
+}
+
 tick() {
   [ -f "$dir/.panes" ] || exit 0
   local now list; now=$(date +%s); list=$(dk_h_soft agent list) || return 0
   mkdir -p "$dir/.blocked"
   while read -r agent _pane; do
     [ -n "$agent" ] || continue
-    if assess "$agent"; then continue; fi          # 畫面上有審批／額度：當場處理，不必等門檻
+    if assess "$agent" "$list"; then continue; fi   # 畫面上有審批／額度：當場處理，不必等門檻
     st=$(agent_status "$agent" "$list")
     if [ "$st" = blocked ]; then handle_block "$agent" 0   # herdr 說它卡了但畫面沒佐證：給一個門檻的緩衝
     else rm -f "$dir/.blocked/$agent"; fi                  # .limit 不在這裡清：額度不會自己好
@@ -186,11 +223,17 @@ tick() {
       if [ -f "$sf" ] && grep -q '^status: done' "$sf" \
          && { [ ! -f "$rd" ] || [ "$(cksum < "$sf")" != "$(cat "$rd")" ]; }; then continue; fi
       [ $((now - epoch)) -gt $((DK_REVIEW_TIMEOUT_MIN * 60)) ] || continue
-      txt=$(pane_text "$agent")
       kind=$(agent_kind "$agent")
-      # 它不是掛了，是在等人按一下 —— 主迴圈的 assess 已經送過 [BLOCKED]，這裡只要不熔斷
-      screen_hits "$txt" "$(dk_kind_re "$kind" block)" && continue
-      tag=""; printf '%s' "$txt" | grep -qiE 'rate limit|quota|429|usage limit' && tag=" (quota?)"
+      tag=""
+      # agent_status 前提（AC2）：working 就不看畫面，畫面上的字是它的工作內容
+      if [ "$(agent_status "$agent" "$list")" != working ]; then
+        txt=$(pane_text "$agent")
+        # 它不是掛了，是在等人按一下 —— 主迴圈的 assess 已經送過 [BLOCKED]，這裡只要不熔斷
+        screen_hits "$txt" "$(dk_kind_re "$kind" block)" && continue
+        # 標記走該 kind 自己的額度式子，不另寫一條。原本那條裸 `quota` 會把 agy 的啟動橫幅
+        # `bal@host (Antigravity Starter Quota)` 標成疑似撞額度，領導會去換 kind 而不是去看它卡在哪。
+        screen_hits "$txt" "$(dk_kind_re "$kind" quota)" && tag=" (quota?)"
+      fi
       herdr notification show "dkbo: $agent timeout" --body "reviewer 逾時${tag}，該 kind 已熔斷" --sound request >/dev/null 2>&1 </dev/null || true
       # 熔斷與事件紀錄不等領導：這是任務狀態的改變，領導收不收得到訊息都一樣成立
       if [ -n "$kind" ] && [[ " ${DK_KIND_DOWN:-} " != *" $kind "* ]]; then
@@ -212,7 +255,7 @@ tick() {
     while read -r agent _pane _epoch group _; do
       [ "${group:-}" = dev ] || continue
       cnt=$((cnt+1)); sname="${agent#"$DK_SHORT"-}"
-      if grep -q '^status: done' "$dir/state/$sname.md" 2>/dev/null; then devs="${devs:+$devs, }$sname"
+      if dev_delivered "$agent" "$sname"; then devs="${devs:+$devs, }$sname"
       else all=0; break; fi
     done < "$dir/.panes"
     if [ "$cnt" -gt 0 ] && [ "$all" = 1 ]; then
