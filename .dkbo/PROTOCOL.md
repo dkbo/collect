@@ -17,12 +17,12 @@
 | DECISION | 領導→員工 | 決策結果 |
 | STOP | 領導→員工 | 停手，寫 state 收尾 |
 
-`[BLOCKED]`、`[LIMIT]` 與 `[TIMEOUT]` 由 dk-watch 直接推給領導，員工不用送。`[BLOCKED]` 是卡在審批（等人按一下），`[LIMIT]` 是撞到額度（該 kind 已熔斷），兩者的差別決定領導該去按審批還是該換人 —— 不要把它們當成同一件事。
+`[BLOCKED]`、`[LIMIT]` 與 `[TIMEOUT]` 由 dk-watch 直接推給領導，員工不用送。`[BLOCKED]` 是卡在審批（畫面等人按一下），`[LIMIT]` 是撞到額度（該 kind 已熔斷），兩者的差別決定領導該叫你改做法重來還是該換 kind —— 不要把它們當成同一件事。
 
 **dev 的 `[DONE]` 只寫進 messages.log，不會叫醒領導。** 領導改由 dk-watch 在本波 dev 全員完成時收到一則聚合訊息 —— 每一則送達都是把領導的整個 context 重跑一輪，四人波四次，而領導在收齊之前也做不了下一步。你照常送，指令不變。兩個後果要記得：
 
 1. **state 還不是 `status: done` 就送，dk-msg 會當場退回（exit 2）。** 聚合看的是 state 檔不是你的訊息 —— state 沒寫好，這一波會靜悄悄卡到整波逾時才有人吭聲。先寫 state 與 report，再送 `[DONE]`。
-2. **送給同波夥伴的 `[DONE]`（dev→qa）照常即時送達**，那是解鎖訊號不是回報。qa、reviewer 與雜務員工的 `[DONE]` 也都照常即時送達。
+2. **dev 送給 qa 的 `[DONE]` 在背景送**：dk-msg 當場返回，背景等 qa 閒下來再送，結果照常記 log。qa 多半正忙著準備，前景等它會把你的 pane 卡住十幾到三十分鐘；qa 本來就會看你的 state 開工，這一則是給停下來等的 qa 的叫醒訊號。dev 送給 dev 夥伴的 `[DONE]`（帶交接內容）照常前景送；qa、reviewer 與雜務員工的 `[DONE]` 也都照常即時送達。
 
 ## 規則
 - 同一波員工可以互相傳訊。`DK_ISOLATED=1` 的員工（reviewer）只能對 leader 傳訊。

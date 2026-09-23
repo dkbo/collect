@@ -18,7 +18,7 @@
 三者不互相自動跳轉。該換階段時告訴人叫哪一個，然後結束這個 turn。已經載入的規範卸不掉，所以不要假裝自己「退出」了某個階段。
 
 ## 裁定（ruling）
-唯一格式：`dk-process "ruling: <決定> — <原因> — <若錯代價>"`。只影響本任務者只記 process；會影響其他任務者另複製一行進 `decisions.md`。結案 report.md 的「重要決策」列出本任務所有 ruling（`grep ' ruling: ' process.md`）。reviewer 意見矛盾：以 brief 為準裁定並記 ruling；不能依 brief 判者升關卡②。
+唯一格式：`dk-process "ruling: <決定> — <原因> — <若錯代價>"`。只影響本任務者只記 process；會影響其他任務者另複製一行進 `decisions.md`。結案 report.md 的「重要決策」列出本任務所有 ruling（`grep ' ruling: ' process.md`）。reviewer 意見矛盾：以 brief 為準裁定並記 ruling。`/dkbo-run` 開跑後 brief 判不了的也自己裁定、不問人，ruling 寫成 `ruling: [自主] <決定> — <原因> — <若錯代價>`，結案時全部列進 report.md 的「自主裁定（待你複核）」（規則見 run SKILL.md 的「不停車」）。
 
 ## 自己上下文吃緊
 清掉自己的上下文（Claude Code 是 `/clear`，其他 CLI 用它自己的清法），然後重新叫你原本那個 skill。執行階段是 `/dkbo-run`，它第一步就是 `dk-resume`，會告訴你本波做到哪。

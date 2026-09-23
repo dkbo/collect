@@ -20,6 +20,7 @@ args=$(dk_kind_args "$kind" "$spec")
 # 正是那樣來的。改成回收最小可用號之後，編號與檔案佈局徹底脫鉤，號碼永遠停在同時在跑的件數。
 n=1; while compgen -G "$DK_ROOT/.sessions/chores/chore-*-$n" >/dev/null 2>&1; do n=$((n+1)); done
 agent="chore-$role-$n"; slug=$(dk_slug "${instr:0:24}"); slug="${slug:-chore$n}"
+dk_kind_load "$kind"; sess=$(kind_session_args "$agent"); [ -z "$sess" ] || args="$args $sess"   # pane 上看得出是哪位雜務員工（同 dk-spawn）
 [[ "$agent" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || dk_die "agent name '$agent' must match [a-z][a-z0-9_-]{0,31} (shorten the role)"
 # 日期在資料夾上而不在檔名裡：展開 _chores/ 看到的是幾個日期，不是幾百個檔。
 cdir="$DK_ROOT/tasks/_chores/$(dk_today)"; mkdir -p "$cdir"

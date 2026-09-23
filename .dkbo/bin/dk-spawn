@@ -44,6 +44,9 @@ args=$(dk_kind_args "$kind" "$spec")
 group=$(dk_fm "$rf" group); group="${group:-dev}"
 agent=$(dk_agent_name "$role" "$alias"); sname=$(dk_state_name "$role" "$alias"); state="$dir/state/$sname.md"
 [[ "$agent" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || dk_die "agent name '$agent' must match [a-z][a-z0-9_-]{0,31} (shorten the alias)"
+# CLI 那側的 session 顯示名：pane 上看到的是 <任務>-<角色>，不是 CLI 自己取的標題（領導已經是 dk/<short>）。
+# 名字合 [a-z0-9_-]、不含空白，可以跟 $args 一起不加引號展開。codex、agy 沒有對應旗標，回空字串。
+dk_kind_load "$kind"; sess=$(kind_session_args "$agent"); [ -z "$sess" ] || args="$args $sess"
 brief_for="$dir/brief.md"; [ -f "$dir/briefs/$sname.md" ] && brief_for="$dir/briefs/$sname.md"
 report="$dir/state/$sname.report.md"
 

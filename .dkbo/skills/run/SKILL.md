@@ -6,6 +6,9 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 
 先讀 `.dkbo/LEADER.md`，再照本篇。
 
+## 不停車（交棒之後的總原則）
+`/dkbo-run` 開跑後**不停下來等人**：人常在睡覺，一題選擇題就能讓任務停一整晚，而 panova autofold 執行中途問人的 4 題，人 4 題都選了推薦項。選擇題、規格缺口、reviewer 意見矛盾、修法取捨、要超過某個上限，一律**自己裁定**：選若錯代價最小、最容易回退的那個，記 `dk-process "ruling: [自主] <決定> — <原因> — <若錯代價>"`，繼續跑。不用 AskUserQuestion、不問「要繼續嗎」、不為報進度停下來。裁錯了人在關卡③看得到、改得回來；卡在一個問題上，人整晚什麼都拿不到。人自己打字插話照做（改需求走「跑一波」第 9 步），只是你不主動等他回覆。只有這幾種會停：關卡③（合併）、不可逆或破壞性的操作、影響 worktree 以外的動作（push、發佈、動共用服務）、brief 壞到每一條路都只能猜——最後一種寫進 report.md 遺留段、停在關卡③、結束 turn，不開著問題空等。
+
 ## 第 0 步：交棒（每次進本篇先看這一條）
 `.task.env` 的 `DK_WORKTREE` 為空（任務還沒實體化）或 `HERDR_PANE_ID` 不等於 `DK_ROOT_PANE`（你不是任務根 tab 根 pane 上的執行領導）：跑 `dk-leader <short> --run`，然後**結束這個 turn**。它會切 worktree、跑 `DK_SETUP_CMD` 依賴鉤子、用 `herdr tab create` 在任務所屬的 workspace（計畫時記下，`.task.env` 的 `DK_WORKSPACE`，退路 `HERDR_WORKSPACE_ID`）開一個 label 為 `dk/<short>` 的任務根 tab、在它的根 pane 起執行領導並改綁 `.sessions`；`agent start` 之前任一步失敗會把 worktree、分支、tab 與 `.task.env` 全部還原，重跑是幂等的。交棒之後人的 session 不再是領導，員工的訊息都送到執行領導那裡（人要看進度用 `dk-resume <任務>`，唯讀）。
 
@@ -18,23 +21,27 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 1. `dk-wave-open N`：記 base sha、寫每位成員的切片 `briefs/<成員>.md`（員工只讀切片）。
 2. 對該波每位成員 `dk-spawn <角色> [別名] [--tier S|M|L] [--kind K] [--isolated]`。先派 dev 再派 qa，版面才會照 tab 填。結束這個 turn，閒置。員工訊息與人的輸入會自己推進來。不輪詢、不主動讀員工終端。
 3. 收到 dk-watch 的 `[DONE] wave N dev 全員完成`（dev 逐筆的 `[DONE]` 只落盤在 `messages.log`，不再逐筆叫醒你；聚合的觸發條件就是每位 dev 的 state 都寫了 `status: done`。要看個別回報就翻 `messages.log`，`dk-resume` 也會印。仍要確認 `state/<成員>.report.md` 有 `## 測試`）：`dk-review-pack N` 再 `dk-review`。reviewer 與 qa 並行，不必等 qa。
-4. 收到 reviewer `[DONE]`：讀 `state/reviewer-<x>.report.md`。達 `DK_REVIEW_MIN` 且無 Important，或所有 reviewer 皆回覆，即裁定：`dk-process "review N verdict a: ok / b: important 2"`，再記 `ruling:`（格式見 `.dkbo/LEADER.md` 的「裁定」段）。reviewer 的 Minor 逐條 `dk-process "minor N: <一句> <file:line>"`（格式需對齊 `dk-review` 讀它的正規表示式），整枝評議時才會 triage。有 Important → `dk-msg <dev> "[BUG] review: …"` 指向 reviewer 的 report；dev `[FIXED]` 後重跑 `dk-review-pack N`，`dk-msg <reviewer> "[TASK] 複看 waves/N.diff"`。同一 bug 兩輪上限照 PROTOCOL：第一輪回原 dev，再驗仍失敗就 `dk-spawn <角色> <別名> --handoff "<原因>"` 換 kind（挑沒進 `DK_KIND_DOWN` 的）或升 `--tier L`，第三次才升關卡②。`--handoff` 會自己把 ruling 寫進 process.md，你不用另外記。
+4. 收到 reviewer `[DONE]`：讀 `state/reviewer-<x>.report.md`。達 `DK_REVIEW_MIN` 且無 Important，或所有 reviewer 皆回覆，即裁定：`dk-process "review N verdict a: ok / b: important 2"`，再記 `ruling:`（格式見 `.dkbo/LEADER.md` 的「裁定」段）。reviewer 的 Minor 逐條 `dk-process "minor N: <一句> <file:line>"`（格式需對齊 `dk-review` 讀它的正規表示式），整枝評議時才會 triage。有 Important → `dk-msg <dev> "[BUG] review: …"` 指向 reviewer 的 report；dev `[FIXED]` 後重跑 `dk-review-pack N`，`dk-msg <reviewer> "[TASK] 複看 waves/N.diff"`。同一 bug 兩輪上限照 PROTOCOL：第一輪回原 dev，再驗仍失敗就 `dk-spawn <角色> <別名> --handoff "<原因>"` 換 kind（挑沒進 `DK_KIND_DOWN` 的）或升 `--tier L`，第三次就照下方「熔斷器」判，不再派人、也不問人。`--handoff` 會自己把 ruling 寫進 process.md，你不用另外記。
 5. qa `[DONE]` 且審查已裁定 → `dk-wave-close`。裁定行必須**交代每一位真的派出去的 reviewer**（`review N spawned` 那行列出誰就要有誰）：正常回覆的寫結果，沒回來的寫 `<別名>: skipped (<理由>)`。少一位 wave-close 就不放行 —— 派了兩個 kind 卻只讀一個的意見，等於第二意見白花。四道閘：裁定行、每位 dev 的 report、在 worktree 跑 `DK_TEST_CMD`、拿 worktree 的**真實 git diff**（含未 commit 與未追蹤）比對本波的檔案所有權。四道全過才關 pane，並自己在 worktree 內 commit（訊息預設 `wave N: <成員>`，要自訂用 `dk-wave-close -m "<訊息>"`）—— 你不用再手動 commit。留意 `unreported change` 與 state 超長警告。
 6. 純文件波：審查欄寫 `skip: <理由>`，領導 `dk-process "review N skipped: <理由>"`，wave-close 就放行。
-7. 收到 `[ESCALATE]`：能依 brief 判定就 `dk-msg <員工> "[DECISION] ..."` 並記 `ruling:`；不能就問人（關卡②），得到答案後回 DECISION 並在 `decisions.md` 加一行。收到 `[BLOCKED]`：告知人去按審批。
+7. 收到 `[ESCALATE]`：能依 brief 判定就 `dk-msg <員工> "[DECISION] ..."` 並記 `ruling:`；brief 判不了也**自己裁定**（見「不停車」），記 `ruling: [自主] …`，改了驗收標準就同步改 brief 並在 `decisions.md` 加一行，再回 DECISION。收到 `[BLOCKED]`：見「故障」的審批卡住那一條，不等人去按。
 8. 依結果增刪下一波，記 process。**審查後的修復波成員至少 M**，不因改動小就標 S：修復要動已交織的邏輯、照 reviewer 的描述改別人的東西，最容易出回歸（ops 任務波 2 的 S 修復產生回歸，多開一波）。
 9. 波中改 brief：改 `brief.md` → `dk-wave-open <N> --refresh` → 再 `dk-msg <員工> "[TASK] 重讀切片"`；新加的成員接著 `dk-spawn`。只請原 dev 重做時，`[TASK]` 裡叫他完成後回 `[FIXED]`（聚合不會重推）。
 
+## 熔斷器（修不好時不問人）
+同一 bug 換過腦袋仍沒好、wave-close 測試連兩次失敗、整枝評議的修復輪用完：停止派人，逐條判、每條一行 ruling，不准默默丟掉。reviewer 判錯或有爭議 → `ruling: [自主] park <問題> — <為何照現狀> — <若錯代價>`；真的但後面沒有工作依賴它 → 一樣 park，寫明「真的、延後」，對應驗收項在 brief 標未達成、進 report.md 遺留段；真的且後面的波依賴它 → 選能解除阻礙的最小改法記 ruling、寫進下一波的 brief 列。只有每一條路都只能猜才停（見「不停車」）。
+
 ## 結案
-1. 有視覺變更的任務：計畫中最後一波結波後、`dk-review-pack --task` 之前，先請人看畫面（dev server 或截圖），確認沒有追加才跑整枝評議。
-2. 關卡③前先整分支評議：`dk-review-pack --task`，再 `dk-review --task --tier L`（L 檔 reviewer 讀 `waves/task.diff`）。Important 修掉或記 ruling，才寫 `report.md`（照範本；遺留段列出未經審查的波）。判成「不修、記 BACKLOG」時（Important 降級或 Minor 不修都算），ruling 的原因要標明前提是**實測**還是**推測**；「只影響顯示」「不會發生」這類推測不能當不修的理由——先實測，或照修。**同一份 diff 不審兩次**：只有一波的任務，那一波的 diff 就是 `task.diff`，它的 L 檔波審查已經是整枝評議，不再跑 `dk-review --task`，記 `dk-process "review task skipped: 單波，波 1 審查即整枝評議"`，累積的 Minor 由你在這一步 triage（波審查若是 `--tier M` 跑的就照常評議）；整枝評議挑出 Important 開的修復波，把要修的條目寫進 brief 該波那一列、審查用 `dk-review N --tier L`，這一輪就算下一輪整枝評議，Important 0 即進關卡③，記 `dk-process "review task skipped: 修復波 N 的 L 檔審查即第 K 輪整枝評議"`；只有修復動到先前各波都沒碰過的檔、或改了跨成員的共用契約，才重跑整枝評議（ops、tasktab 每輪修復都被波審查與整枝評議各審一次，看的是同一份十幾行的 diff）。關卡③：給人拍板。
+1. 有視覺變更的任務：**不等人看畫面**。qa 每一波都要在 report 附截圖（必要時附錄影）與對應的驗收項，人在關卡③一起看。人剛好在場，在 dev 全員完成、派審查的那一刻告訴他 dev server 的網址（跟 qa、審查並行），他提出的追加照「跑一波」第 9 步併進本波，不必等結波再開新波（headermerge、autofold 的波 2 都是結波後人才看畫面開出來的）。
+2. 關卡③前先整分支評議：`dk-review-pack --task`，再 `dk-review --task --tier L`（L 檔 reviewer 讀 `waves/task.diff`）。Important 修掉或記 ruling，才寫 `report.md`（照範本；遺留段列出未經審查的波）。判成「不修、記 BACKLOG」時（Important 降級或 Minor 不修都算），ruling 的原因要標明前提是**實測**還是**推測**；「只影響顯示」「不會發生」這類推測不能當不修的理由——先實測，或照修。**同一份 diff 不審兩次**：只有一波的任務，那一波的 diff 就是 `task.diff`，它的 L 檔波審查已經是整枝評議，不再跑 `dk-review --task`，記 `dk-process "review task skipped: 單波，波 1 審查即整枝評議"`，累積的 Minor 由你在這一步 triage（波審查若是 `--tier M` 跑的就照常評議）；整枝評議挑出 Important 開的修復波，把要修的條目**一次全部**寫進 brief 該波那一列（一個修復波，不是一條開一波）、審查用 `dk-review N --tier L`，這一輪就算下一輪整枝評議，記 `dk-process "review task skipped: 修復波 N 的 L 檔審查即第 K 輪整枝評議"`，Important 0 即進關卡③；還有 Important 就照「熔斷器」判完再進關卡③，不開第二個修復波；只有修復動到先前各波都沒碰過的檔、或改了跨成員的共用契約，才重跑整枝評議（ops、tasktab 每輪修復都被波審查與整枝評議各審一次，看的是同一份十幾行的 diff）。關卡③：給人拍板。report.md 的「自主裁定（待你複核）」段列出每一條 `ruling: [自主]`（`grep -F ' ruling: [自主]' process.md`），照做出的順序、一條不漏、各附若錯代價——那是人唯一看得到你替他做了哪些決定的地方。
 3. `dk-task-close`。它會合併回主分支，然後**把這個任務的記憶 commit 進主樹**（任務目錄、`tasks/INDEX.md`、`decisions.md`，只有這幾條路徑，你工作樹上的其他改動不會被掃進去）。合併衝突時它會停：不要自己解，問人或開 `it` 的修復波。放棄用 `dk-task-close --abandon "<原因>"`。
 
 ## 故障
+- 員工 `[BLOCKED]`（dk-watch 推來，畫面卡在權限審批）：reviewer 不用管，`DK_REVIEW_TIMEOUT_MIN` 到了會變成 `[TIMEOUT]` 照下面處理。dev／qa：收到就處理，不等人去按（你閒置時沒有辦法計時等他）——`herdr agent read <員工>` 看它卡在哪個指令，記 `ruling: [自主] 重派 <員工>：卡在 <指令> 的審批 — …`，再 `dk-spawn <角色> <別名> --resume`，並 `dk-msg <員工> "[TASK] 上次卡在 <指令> 的審批，改用不需要審批的做法"`。同一位卡第二次就換 kind 重派；再卡就照「熔斷器」把它負責的驗收項 park 成未達成，其他波照常跑。
 - 任何員工的 `[LIMIT]`（dk-watch 推來）：先讀 `.blocked/<agent>.limit` 的 `hit:` 行（或 `herdr agent read`）判斷真假。誤判就 `dk-kind up <k>` 解熔斷並記 ruling；不要叫員工自己跑 `dk-kind`，命中行會印在他畫面上，等於自己把自己熔斷。真的撞額度才照舊：它跟 `[BLOCKED]` 不同 —— 按審批救不回來，要換人或等額度；專案層熔斷會讓下一個任務自動跳過該 kind。reviewer 就照下一條處理；dev／qa 則 `dk-wave-close --agent <員工>` 關掉後用未熔斷的 kind 重派。
 - reviewer `[TIMEOUT]`（dk-watch 推來；該 kind 已寫進 `.task.env` 的 `DK_KIND_DOWN`）：`dk-wave-close --agent <reviewer>` 關它。達 `DK_REVIEW_MIN` 照常裁定；不夠就 `dk-review --kinds "<未熔斷者>"` 補一位；全部熔斷 → `dk-process "review N skipped: all kinds down"`，report.md 遺留段標「本波未經審查」。同任務內解除熔斷：`dk-kind up <k>`（同時清掉綁著任務的 `DK_KIND_DOWN`，並記 `kind <k> up`）；`dk-task-close` 會清掉。**`.blocked/<員工>.limit` 標記檔不要刪** —— 它就是「這個畫面已經判過了」的憑據，刪掉的話 dk-watch 下一輪讀到同一個畫面會再熔斷同一個 kind 一次。
 - `dk-task-close` 或 `dk-chore-close` 回 `uncommitted changes`：worktree 裡有沒 commit 的變更，它不合併也不刪任何東西。任務：在 worktree 內 `git add -A && git commit` 後重跑；雜務：`dk-msg <員工> "[TASK] commit 你的變更"` 後重跑。真的要丟掉才用 `--abandon`。
-- wave-close 測試失敗：它不關 pane；`dk-msg <擁有者> "[BUG] wave-close tests: <最後幾行>"`；連續兩次失敗升關卡②。
+- wave-close 測試失敗：它不關 pane；`dk-msg <擁有者> "[BUG] wave-close tests: <最後幾行>"`；連續兩次失敗照「熔斷器」判。
 - wave-close 回 `unowned change: <路徑>`：這一波真的改了本波沒人擁有的檔（含在 worktree 裡動 `.dkbo/` 規則檔）。先判斷該不該改：該改就在 brief 的檔案所有權補給該成員並記 ruling，再重跑；不該改就 `dk-msg <該波成員> "[BUG] 還原 <路徑>"`。真要放行才 `--force`，並在 report.md 遺留段記一行。
 - wave-close 回 `unreported change`（只警告、不阻擋）：某成員改了自己擁有的檔卻沒寫進 state 的 `touched`。`dk-msg <成員> "[TASK] 補 state touched"`。
 - wave-close 回 `commit failed`：pane 已關但 commit 沒成（多半是專案的 pre-commit hook）。在 worktree 內自己 `git add -A && git commit` 補上，不要跳過 —— `dk-task-close` 會因未 commit 而拒絕結案。
@@ -44,7 +51,7 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 - reviewer 第一次派工失敗（`review N spawned` 那行標 `<agent>(<kind>,prompt-failed)`）：`herdr agent read <agent>` 看狀態，再 `herdr agent prompt <agent> "..."` 重新提示，不算一次 DONE。
 - 收到 `[TIMEOUT] wave N`（dk-watch 推來，整波超過 `DK_WAVE_TIMEOUT_MIN` 分鐘還沒收尾）：看這一波卡在誰身上 —— `dk-resume` 的本波段與每位成員的 state。該補訊息的補、該升報的升報；真的需要更久就調 `settings.env` 或記一行 process 說明原因。
 - `process.md` 出現 `herdr-degraded: <呼叫>`：herdr 那一側的呼叫失敗了，**守望與版面這一輪是降級的**（可能偵測不到 blocked／timeout、版面不再均分）。確認 herdr 還活著且版本沒變，再 `dk-watch --ensure` 重起守望。
-- 同一個 bug 修兩次都沒好：不要再派第三個人。`dk-msg <qa> "[TASK] 暫停重驗"`，然後把兩位的 report 與 reviewer 的原始意見一起交給人（關卡②）。第三次還是同一個洞，多半表示 brief 的驗收標準本身有歧義，那是人要裁定的事。
+- 同一個 bug 修兩次都沒好：不要再派第三個人。`dk-msg <qa> "[TASK] 暫停重驗"`，照「熔斷器」判。第三次還是同一個洞，多半表示 brief 的驗收標準本身有歧義：自己裁定驗收標準怎麼改（`ruling: [自主] …`），或把那一條 park 成未達成，兩位的 report 與 reviewer 的原始意見路徑寫進 ruling，人在關卡③看。
 
 ## 不屬於本任務的請求
 人在任務進行中丟來獨立的請求（翻譯、畫圖、跟本任務無關的小修）：告訴他那是大腦的事，叫 `/dkbo-brain`（`.dkbo/skills/brain/SKILL.md`）。不要自己用 `dk-chore` 插隊。

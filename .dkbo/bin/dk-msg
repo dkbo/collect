@@ -163,6 +163,17 @@ redispatch() { # AGENT — 只動 .panes 裡真的有的列；雜務與已收工
   if [ -f "$sf" ]; then cksum < "$sf"; else printf ''; fi > "$dir/.blocked/$a.redispatch"
 }
 
+# dev → qa 的 [DONE] 改背景送：qa 多半正在寫探測腳本，前景等它閒下來會把 dev 的 pane 卡住
+# 12–30 分（panova autofold 22／13 分、gamemore 30 分），而 qa 本來就會自己看 dev 的 state 開工。
+# 仍然會送到：qa 若已停下來等，這一則就是叫醒它的訊號。送達或送不到照常由背景那一份記 log。
+if [ "$chore" = 0 ] && [ "$type" = DONE ] && [ -z "${DK_MSG_BG:-}" ] && [ -f "$dir/.panes" ] \
+   && [ "$(awk -v n="$sender" '$1==n{print $4; exit}' "$dir/.panes")" = dev ] \
+   && [ "$(awk -v n="$target" '$1==n{print $4; exit}' "$dir/.panes")" = review ]; then
+  DK_MSG_BG=1 nohup "$0" "$target" "$text" </dev/null >/dev/null 2>&1 3>&- &
+  echo "dk-msg: 改在背景等 $target 閒下來再送（結果記在 messages.log），你直接往下做"
+  exit 0
+fi
+
 # 重試而不是一次定生死：實跑中 reviewer 的 [DONE] 曾在一分鐘內就被判失敗、整筆遺失，
 # 而它的報告好端端躺在磁碟上 —— 領導從不知道它交過。
 tries="${DK_MSG_TRIES:-3}"; i=1
