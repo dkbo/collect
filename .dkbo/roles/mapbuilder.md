@@ -2,9 +2,9 @@
 name: mapbuilder
 kind: claude
 tiers:
-  S: sonnet/low
-  M: sonnet/medium
-  L: sonnet/high
+  S: opus/low
+  M: opus/medium
+  L: opus/high
 worktree: true
 group: dev
 mcp: []

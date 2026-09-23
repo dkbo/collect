@@ -2,9 +2,9 @@
 name: assets
 kind: claude
 tiers:
-  S: sonnet/low
-  M: sonnet/low
-  L: sonnet/medium
+  S: opus/low
+  M: opus/low
+  L: opus/medium
 worktree: true
 group: dev
 mcp: []

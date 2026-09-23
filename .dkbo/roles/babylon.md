@@ -2,8 +2,8 @@
 name: babylon
 kind: claude
 tiers:
-  S: sonnet/medium
-  M: sonnet/high
+  S: opus/medium
+  M: opus/high
   L: opus/high
 worktree: true
 group: dev

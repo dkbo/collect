@@ -2,8 +2,8 @@
 name: pm
 kind: claude
 tiers:
-  S: sonnet/low
-  M: sonnet/medium
+  S: opus/low
+  M: opus/medium
   L: opus/high
 worktree: false
 group: dev
