@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # dk-task-close [--abandon "<reason>"]
+# 退出碼（共用契約）：0 合併成功／1 前置不過／3 預檢衝突（一個 repo 都沒合）／
+#   4 真合併中途失敗（印 merged／failed／not attempted）／5 主樹有會被覆蓋的本地變更
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/repos.sh"
 dk_require_herdr
-dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
+multi=0; if dk_repos_multi; then multi=1; fi
+pfx() { if [ "$multi" = 1 ]; then printf '%s: ' "$1"; fi; }   # 單 repo 模式不印 repo 前綴
+repo_rows() { dk_repos_rows "$dir" 2>/dev/null || true; }     # 沒有 .repos 就是空的
 # AC9：結案把時間表填進 report.md 的「## 時間」段。放在 dk_process "task-close …" 之後、
-# dk_commit_memory 之前 —— 早一步算不到結案那一刻，晚一步就沒進任務記憶的 commit。
+# commit_memory 之前 —— 早一步算不到結案那一刻，晚一步就沒進任務記憶的 commit。
 fill_timeline() {
   local tl f="$dir/report.md"
   [ -f "$f" ] || return 0
@@ -14,6 +19,36 @@ fill_timeline() {
   if grep -q '^## 時間$' "$f"; then   # 範本已有這一段：整段換成算出來的表，指引行不留
     awk -v tl="$tl" '/^## 時間$/{print; print tl; s=1; next} s && /^## /{s=0} s{next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   else printf '## 時間\n%s\n' "$tl" >> "$f"; fi
+}
+# AC11：結案後 report 的「結果：」值是最終值。只換這一行冒號後到三個連續空白（或行尾）
+# 之前的那一段，其他欄位（分支、波數）不動；沒有這一行就不動。
+set_result_line() { # VALUE
+  local f="$dir/report.md" v="$1"
+  [ -f "$f" ] && grep -q '^結果：' "$f" || return 0
+  awk -v v="$v" '
+    !done && /^結果：/ {
+      rest = $0; sub(/^結果：/, "", rest)
+      idx = index(rest, "   ")
+      trailing = (idx > 0) ? substr(rest, idx) : ""
+      print "結果：" v trailing; done = 1; next
+    }
+    { print }' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+commit_memory() {
+  dk_commit_memory "dkbo memory: task $DK_SHORT — $DK_DISPLAY" "$dir" "$DK_ROOT/tasks/INDEX.md" "$DK_ROOT/decisions.md" \
+    || echo "dk-task-close: 任務記憶沒 commit 成功，請自己 git add \"$dir\" 並 commit" >&2
+}
+index_set() {
+  dk_index_set "$DK_DISPLAY" "$1" "$2" \
+    || echo "dk-task-close: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
+}
+# 決策⑫：不自動關任務 tab —— 跑這支腳本的執行領導就住在它的根 pane 上，關掉等於腳本殺掉
+# 自己、結案訊息沒人看得到。最後一行印出要人自己下的指令（AC14）。計畫階段就放棄的任務
+# 沒有任務 tab（DK_TASK_TAB 是空的），那就不印。
+finish_note() {
+  [ -f "$dir/.repos" ] || return 0
+  [ -n "${DK_TASK_TAB:-}" ] || return 0
+  echo "任務 tab 沒有自動關（你就住在它的根 pane 上）。看完 report 再自己關：herdr tab close $DK_TASK_TAB"
 }
 abandon=0; reason=""
 [ "${1:-}" = --abandon ] && { abandon=1; reason="${2:-（未填原因）}"; }
@@ -30,43 +65,127 @@ fi
 
 legacy=0; if dk_legacy_task; then legacy=1; echo "dk-task-close: legacy task (no DK_BASE); removing the worktree via herdr" >&2; fi
 cleanup() {
+  local rname rroot rwt t
   [ -n "${DK_WATCH_PID:-}" ] && kill "$DK_WATCH_PID" 2>/dev/null || true
   [ -n "${DK_EVENTS_PID:-}" ] && kill "$DK_EVENTS_PID" 2>/dev/null || true
-  if [ "$DK_WORKTREE" != "$DK_PROJECT_ROOT" ]; then
-    if [ "$legacy" = 1 ]; then [ -n "${DK_WORKSPACE:-}" ] && herdr worktree remove --workspace "$DK_WORKSPACE" --force >/dev/null 2>&1 || true
-    else git -C "$DK_PROJECT_ROOT" worktree remove --force "$DK_WORKTREE" >/dev/null 2>&1 || true; fi
+  if [ "$legacy" = 1 ]; then
+    [ -n "${DK_WORKSPACE:-}" ] && herdr worktree remove --workspace "$DK_WORKSPACE" --force >/dev/null 2>&1 || true
+  else
+    while read -r rname rroot rwt _; do
+      [ -n "$rname" ] || continue
+      [ "$rwt" != "$rroot" ] || continue   # --no-worktree 的任務：就地做，沒有 worktree 可刪
+      git -C "$rroot" worktree remove --force "$rwt" >/dev/null 2>&1 || true
+    done <<< "$(repo_rows)"
   fi
   for t in ${DK_TABS:-}; do herdr tab close "${t#*=}" >/dev/null 2>&1 </dev/null || true; done
   rm -rf "$dir/.panes" "$dir/.blocked" "$DK_ROOT/.sessions/${HERDR_PANE_ID:?}"
   herdr agent rename "$HERDR_PANE_ID" --clear >/dev/null 2>&1 || true
 }
+del_branches() { # -d（合併過，安全）或 -D（放棄）
+  local rname rroot any=0
+  while read -r rname rroot _ _; do
+    [ -n "$rname" ] || continue
+    any=1; git -C "$rroot" branch "$1" "$DK_BRANCH" >/dev/null 2>&1 || true
+  done <<< "$(repo_rows)"
+  # 沒有 .repos（計畫階段就放棄、或 legacy 任務）：主 repo 上可能還有一個分支，照舊收掉
+  if [ "$any" = 0 ]; then git -C "$DK_PROJECT_ROOT" branch "$1" "$DK_BRANCH" >/dev/null 2>&1 || true; fi
+}
 if [ "$abandon" = 1 ]; then
   printf '# %s 結案\n結果：abandoned   分支：%s\n## 原因\n%s\n' "$DK_DISPLAY" "$DK_BRANCH" "$reason" > "$dir/report.md"
-  cleanup; git -C "$DK_PROJECT_ROOT" branch -D "$DK_BRANCH" >/dev/null 2>&1 || true
-  dk_index_set "$DK_DISPLAY" abandoned "$reason" || echo "dk-task-close: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
+  # 計畫階段就放棄時這裡沒有 worktree、沒有分支、沒有 tab 要收（AC2）：cleanup 的
+  # 逐 repo 迴圈是空的，del_branches 的退路對不存在的分支是 no-op。剩下的就是標 INDEX、
+  # commit 記憶、清 .sessions 與 pane 名字。
+  cleanup; del_branches -D
+  index_set abandoned "$reason"
   dk_process "task-close abandoned: $reason"
-  dk_commit_memory "dkbo memory: task $DK_SHORT — $DK_DISPLAY" "$dir" "$DK_ROOT/tasks/INDEX.md" "$DK_ROOT/decisions.md" || echo "dk-task-close: 任務記憶沒 commit 成功，請自己 git add \"$dir\" 並 commit" >&2
-  echo abandoned; exit 0
+  commit_memory
+  echo abandoned; finish_note; exit 0
 fi
-if [ "$DK_WORKTREE" != "$DK_PROJECT_ROOT" ] && [ -d "$DK_WORKTREE" ] && [ -n "$(git -C "$DK_WORKTREE" status --porcelain 2>/dev/null)" ]; then
-  echo "dk-task-close: $DK_WORKTREE has uncommitted changes; commit them in the worktree first (or --abandon to discard)"; exit 1
+if [ "$legacy" = 0 ] && [ ! -f "$dir/.repos" ]; then
+  echo "dk-task-close: 任務尚未實體化（沒有 $dir/.repos），沒有分支可以合併；要收掉就 dk-task-close --abandon \"<原因>\""; exit 1
 fi
+# 逐 repo 的 worktree 乾淨檢查。訊息在多 repo 模式帶 <名>: 前綴。
+dirty=""
+while read -r rname rroot rwt _; do
+  [ -n "$rname" ] || continue
+  [ "$rwt" != "$rroot" ] || continue
+  [ -d "$rwt" ] || continue
+  if [ -n "$(git -C "$rwt" status --porcelain 2>/dev/null)" ]; then dirty="$dirty $(pfx "$rname")$rwt"; fi
+done <<< "$(repo_rows)"
+if [ -n "$dirty" ]; then
+  echo "dk-task-close: 這些 worktree 有 uncommitted changes，先在 worktree 裡 commit（或 --abandon 丟掉）：${dirty# }"; exit 1
+fi
+
+# 任務記憶在合併之前先 commit（AC13）。BACKLOG 2026-09-19「暫存中的改名擋住 merge」：
+# 任務目錄與 INDEX 還在未追蹤／已修改狀態時，merge 會因為「會被覆蓋的本地變更」而死。
+# 合併之後還會再 commit 一次，撿走 INDEX 的狀態與合併後才寫的 process 行。
+fill_timeline
+commit_memory
+
 if [ "$DK_WORKTREE" = "$DK_PROJECT_ROOT" ]; then   # --no-worktree task: work already on the current branch, nothing to merge
   sha=$(git -C "$DK_PROJECT_ROOT" rev-parse --short HEAD); cleanup
-  dk_index_set "$DK_DISPLAY" "done" "in-tree $sha" || echo "dk-task-close: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
+  index_set "done" "in-tree $sha"
   dk_process "task-close in-tree $sha"
-  fill_timeline
-  dk_commit_memory "dkbo memory: task $DK_SHORT — $DK_DISPLAY" "$dir" "$DK_ROOT/tasks/INDEX.md" "$DK_ROOT/decisions.md" || echo "dk-task-close: 任務記憶沒 commit 成功，請自己 git add \"$dir\" 並 commit" >&2
-  echo "closed $sha"; exit 0
+  fill_timeline; set_result_line "in-tree $sha"
+  commit_memory
+  echo "closed $sha"; finish_note; exit 0
 fi
-if ! git -C "$DK_PROJECT_ROOT" merge --no-ff "$DK_BRANCH" -m "task $DK_SHORT: $DK_DISPLAY" >/dev/null 2>&1; then
-  git -C "$DK_PROJECT_ROOT" merge --abort 2>/dev/null || true
-  dk_process "merge-conflict $DK_BRANCH"; echo "dk-task-close: merge conflict on $DK_BRANCH; ask the human or run an it repair wave"; exit 3
+
+# ── 兩階段合併（AC13）─────────────────────────────────────────────────────────
+# 先對每個 repo 預檢（merge --no-commit --no-ff 之後立刻 abort），全過才逐 repo 真合併。
+# 一個 repo 衝突就整批不合：半套合併沒有一鍵回復，人得自己記住哪幾個已經進了主樹。
+conflict=""; localchg=""; pout=""
+while read -r rname rroot _ _; do
+  [ -n "$rname" ] || continue
+  # LC_ALL=C：下面是拿 git 的訊息分「衝突」還是「會被覆蓋的本地變更」，兩者的退出碼與
+  # 補救方式都不同。不鎖語系的話，翻譯過的 git 會讓每個本地變更都被誤報成衝突，人去找
+  # 一個根本不存在的衝突。
+  if pout=$(LC_ALL=C git -C "$rroot" merge --no-commit --no-ff "$DK_BRANCH" 2>&1); then
+    git -C "$rroot" merge --abort >/dev/null 2>&1 || true   # 快轉或 already up to date 時沒有 MERGE_HEAD
+  else
+    git -C "$rroot" merge --abort >/dev/null 2>&1 || true
+    # 「會被覆蓋的本地變更」不是衝突，補救方式也不同（去 commit 或 stash 主樹的改動），
+    # 所以給它自己的退出碼 5，不要混進 3 裡讓人去找一個根本不存在的衝突。
+    case "$pout" in
+      *"would be overwritten"*|*"local changes"*) localchg="$localchg $rname";;
+      *) conflict="$conflict $rname";;
+    esac
+  fi
+done <<< "$(repo_rows)"
+# 失敗路徑上也 commit 一次記憶：上面那行 dk_process 才剛把 process.md 改髒，留著它的話
+# 下一次結案的預檢又會撞上「會被覆蓋的本地變更」，人會以為是自己的檔案在擋。
+if [ -n "$localchg" ]; then
+  dk_process "task-close local-changes:$localchg"; commit_memory
+  echo "dk-task-close: 主樹有會被合併覆蓋的本地變更（repo:$localchg）；先 commit 或 stash 它們再結案。一個 repo 都沒有合併。"; exit 5
+fi
+if [ -n "$conflict" ]; then
+  dk_process "merge-conflict $DK_BRANCH repos:$conflict"; commit_memory
+  echo "dk-task-close: 分支 $DK_BRANCH 有合併衝突（repo:$conflict）；一個 repo 都沒有合併。找人或開一個 it 修復波"; exit 3
+fi
+
+merged=""; failed=""; rest=""
+while read -r rname rroot _ _; do
+  [ -n "$rname" ] || continue
+  if [ -n "$failed" ]; then rest="$rest $rname"; continue; fi
+  if git -C "$rroot" merge --no-ff "$DK_BRANCH" -m "task $DK_SHORT: $DK_DISPLAY" >/dev/null 2>&1; then
+    merged="$merged $rname"
+  else
+    git -C "$rroot" merge --abort >/dev/null 2>&1 || true
+    failed="$rname"
+  fi
+done <<< "$(repo_rows)"
+if [ -n "$failed" ]; then
+  # 預檢過了卻還是炸（鉤子、磁碟、另一個行程同時動主樹）。停在原地，worktree 與分支
+  # 一律不刪，把「誰合了、誰炸了、誰還沒碰」印清楚讓人手收尾。
+  dk_process "task-close merge-failed merged:$merged failed: $failed not-attempted:$rest"; commit_memory
+  printf 'dk-task-close: 合併中途失敗，worktree 與分支一律保留。\n  merged:%s\n  failed: %s\n  not attempted:%s\n' \
+    "${merged:- （無）}" "$failed" "${rest:- （無）}"
+  exit 4
 fi
 sha=$(git -C "$DK_PROJECT_ROOT" rev-parse --short HEAD)
-cleanup; git -C "$DK_PROJECT_ROOT" branch -d "$DK_BRANCH" >/dev/null 2>&1 || true   # merged above, so -d is safe
-dk_index_set "$DK_DISPLAY" "done" "merged $sha" || echo "dk-task-close: INDEX 沒有名稱為「$DK_DISPLAY」的列；狀態沒更新，請自己改 $DK_ROOT/tasks/INDEX.md" >&2
+cleanup; del_branches -d   # merged above, so -d is safe
+index_set "done" "merged $sha"
 dk_process "task-close merged $sha"
-fill_timeline
-dk_commit_memory "dkbo memory: task $DK_SHORT — $DK_DISPLAY" "$dir" "$DK_ROOT/tasks/INDEX.md" "$DK_ROOT/decisions.md" || echo "dk-task-close: 任務記憶沒 commit 成功，請自己 git add \"$dir\" 並 commit" >&2
-echo "merged $sha"
+fill_timeline; set_result_line "merged $sha"
+commit_memory
+echo "merged $sha"; finish_note

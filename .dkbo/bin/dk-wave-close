@@ -30,6 +30,13 @@ if ! grep -q '^DK_WAVE=' "$dir/.task.env" || awk 'NF<6{bad=1} END{exit !bad}' "$
   legacy=1; echo "dk-wave-close: legacy task or two-column .panes; review/report/test gates skipped" >&2
 fi
 n="${DK_WAVE:-}"; problems=""
+# repo 維度的共用資料：gate c、gate d 與逐 repo commit 三處都要。沒有 .repos 的是 0.9.2 之前
+# 建立的任務 —— 退回單列（名字 main、路徑 DK_WORKTREE），三處才只有一條路。
+repo_rows=$(dk_repos_rows "$dir" 2>/dev/null || true)
+[ -n "$repo_rows" ] || repo_rows="main $DK_PROJECT_ROOT ${DK_WORKTREE:-} -"
+mainrepo=$(printf '%s\n' "$repo_rows" | awk 'NR==1{print $1}')
+multi=0; dk_repos_multi && multi=1
+changed=""; dgate=0   # dgate=1 ⟺ gate d 真的比到了 diff（gate c 的「本波有變更」靠它）
 while read -r agent _pane _; do   # gate 0: everyone done
   sname="${agent#"$DK_SHORT"-}"; sf="$dir/state/$sname.md"
   if [ ! -f "$sf" ] || ! grep -q '^status: done' "$sf"; then problems="$problems\n  not done: $agent"; fi
@@ -67,11 +74,21 @@ if [ "$legacy" = 0 ]; then
   done < "$dir/.panes"
   members=$(dk_brief_wave_members "$dir/brief.md" "${n:-0}" | sed 's/(.*//')   # state names, no (tier)
   base=$(dk_wave_base "$dir" "${n:-}")   # gate d: the real diff, not the employees' self-reported touched
+  # 不見了的 worktree 要當場擋下。dk_changed_repo_files 會跳過不存在的目錄（它服務的是
+  # 「這個 repo 這一波沒被實體化」），閘門這一側若照單全收就變成靜默放行。
+  missing=""
+  while read -r rname _rroot rwt _rbase; do
+    [ -n "$rname" ] || continue
+    [ -d "${rwt:-}" ] || missing="${missing:+$missing }${rwt:-（空路徑）}"
+  done <<< "$repo_rows"
   if [ -z "$base" ]; then
     echo "dk-wave-close: no recorded base for wave ${n:-?} in process.md; ownership diff gate skipped" >&2
-  elif ! changed=$(dk_changed_files "$DK_WORKTREE" "$base"); then
-    problems="$problems\n  cannot read the worktree diff ($DK_WORKTREE since ${base:0:7})"
+  elif [ -n "$missing" ]; then
+    problems="$problems\n  cannot read the worktree diff ($missing since ${base:0:7})"
+  elif ! changed=$(dk_changed_repo_files "$dir" "${n:-}"); then
+    problems="$problems\n  cannot read the worktree diff (${DK_WORKTREE:-} since ${base:0:7})"
   else
+    dgate=1
     reported=$(for m in $members; do [ -f "$dir/state/$m.md" ] || continue; dk_touched "$dir/state/$m.md"; done)
     while IFS= read -r p; do
       [ -n "$p" ] || continue
@@ -89,8 +106,8 @@ if [ "$legacy" = 0 ]; then
 fi
 if [ -n "$problems" ] && [ "$force" = 0 ]; then printf 'dk-wave-close: refused (use --force to close anyway):%b\n' "$problems"; exit 1; fi
 tests="skipped (no DK_TEST_CMD)"
-if [ "$legacy" = 0 ] && [ -n "${DK_TEST_CMD:-}" ]; then   # gate c
-  mkdir -p "$dir/waves"; log="$dir/waves/${n:-forced}.test.log"
+if [ "$legacy" = 0 ]; then   # gate c
+  mkdir -p "$dir/waves"
   # 測試指令拿到的是一個不含任何 DK_* 的環境。領導這一側的 DK_ROOT／DK_PROJECT_ROOT／DK_WORKTREE
   # 整包傳下去的話，測試裡任何 source lib/common.sh 的東西都會照 `${DK_X:-預設}` 吃到繼承值而打到
   # 真 repo —— 2026-09-19 領導在自己 session 跑 gate c，就這樣在源碼倉建了 7 個 worktree 與 8 個
@@ -99,11 +116,49 @@ if [ "$legacy" = 0 ] && [ -n "${DK_TEST_CMD:-}" ]; then   # gate c
   clean=(env)
   # shellcheck disable=SC2086  # ${!DK_@} 要斷詞，一個變數名一個元素
   for v in ${!DK_@}; do clean+=(-u "$v"); done
-  if (cd "$DK_WORKTREE" && "${clean[@]}" bash -c "$DK_TEST_CMD") > "$log" 2>&1; then tests="ok ($DK_TEST_CMD)"
+  if [ "$multi" = 0 ]; then   # 單 repo：0.9.2 的行為一字不動（本波有沒有變更都跑）
+    if [ -n "${DK_TEST_CMD:-}" ]; then
+      log="$dir/waves/${n:-forced}.test.log"
+      if (cd "$DK_WORKTREE" && "${clean[@]}" bash -c "$DK_TEST_CMD") > "$log" 2>&1; then tests="ok ($DK_TEST_CMD)"
+      else
+        echo "dk-wave-close: tests failed ($DK_TEST_CMD); last 20 lines of $log:"; tail -n 20 "$log"
+        if [ "$force" = 0 ]; then dk_process "wave-close ${n:-?} tests failed ($DK_TEST_CMD)"; exit 1; fi
+        tests="failed ($DK_TEST_CMD, forced)"
+      fi
+    fi
   else
-    echo "dk-wave-close: tests failed ($DK_TEST_CMD); last 20 lines of $log:"; tail -n 20 "$log"
-    if [ "$force" = 0 ]; then dk_process "wave-close ${n:-?} tests failed ($DK_TEST_CMD)"; exit 1; fi
-    tests="failed ($DK_TEST_CMD, forced)"
+    # 多 repo：只對本波真的有變更的 repo 跑它自己的指令（決策⑨）。沒比到 diff（gate d 被
+    # 跳過）時退回「全部都跑」—— 不知道誰動過的時候，少跑比多跑危險。
+    if [ "$dgate" = 1 ]; then
+      changed_repos=" $(printf '%s\n' "$changed" | sed -n 's/^\([a-z][a-z0-9_]*\):.*/\1/p' | sort -u | tr '\n' ' ')"
+    else
+      changed_repos=" $(printf '%s\n' "$repo_rows" | awk '{print $1}' | tr '\n' ' ')"
+    fi
+    parts=""
+    while read -r rname _rroot rwt _rbase; do
+      [ -n "$rname" ] && [ -n "${rwt:-}" ] && [ -d "$rwt" ] || continue
+      case "$changed_repos" in
+        *" $rname "*) ;;
+        *) parts="$parts $rname skipped (no change)"; continue;;
+      esac
+      if [ "$rname" = "$mainrepo" ]; then key=DK_TEST_CMD; else key="DK_TEST_CMD_$rname"; fi
+      cmd="${!key:-}"
+      if [ -z "$cmd" ]; then
+        parts="$parts $rname skipped (no $key)"
+        echo "dk-wave-close: repo $rname 這一波有變更但沒有 $key，測試沒跑" >&2
+        continue
+      fi
+      log="$dir/waves/${n:-forced}.$rname.test.log"
+      # </dev/null：這一段在 while read <<< "$repo_rows" 的迴圈裡，測試指令若讀一次 stdin
+      # 沒有這行的話會吃掉迴圈的 herestring，後面的 repo 靜默不跑（一道閘靜默失效）。
+      if (cd "$rwt" && "${clean[@]}" bash -c "$cmd") < /dev/null > "$log" 2>&1; then parts="$parts $rname ok ($cmd)"
+      else
+        echo "dk-wave-close: tests failed ($rname: $cmd); last 20 lines of $log:"; tail -n 20 "$log"
+        if [ "$force" = 0 ]; then dk_process "wave-close ${n:-?} tests failed ($rname: $cmd)"; exit 1; fi
+        parts="$parts $rname failed ($cmd, forced)"
+      fi
+    done <<< "$repo_rows"
+    tests="${parts# }"
   fi
 fi
 closed=0; tabs=""
@@ -138,13 +193,19 @@ echo "closed $closed"
 if [ "$legacy" = 0 ]; then   # the wave boundary is a commit boundary; the leader no longer commits by hand
   peers=$(printf '%s' "${members:-}" | tr '\n' ' ' | sed 's/ *$//')
   msg="${cmsg:-wave ${n:-?}${peers:+: $peers}}"
-  if [ -n "$(git -C "$DK_WORKTREE" status --porcelain 2>/dev/null)" ]; then
-    if git -C "$DK_WORKTREE" add -A && git -C "$DK_WORKTREE" commit -q -m "$msg"; then
-      sha=$(git -C "$DK_WORKTREE" rev-parse --short=7 HEAD)
-      echo "wave ${n:-?} committed $sha"; dk_process "commit $sha wave ${n:-?}"
+  committed=0
+  while read -r rname _rroot rwt _rbase; do   # 每個有變更的 repo 各 commit 一次，訊息相同（決策⑪）
+    [ -n "$rname" ] && [ -n "${rwt:-}" ] && [ -d "$rwt" ] || continue
+    [ -n "$(git -C "$rwt" status --porcelain 2>/dev/null)" ] || continue
+    suffix=""; [ "$multi" = 0 ] || suffix=" repo $rname"
+    # 同一個迴圈、同一類曝險，雖然 -m 下 git commit 不讀 stdin，一併加固。
+    if git -C "$rwt" add -A && git -C "$rwt" commit -q -m "$msg" < /dev/null; then
+      committed=1; sha=$(git -C "$rwt" rev-parse --short=7 HEAD)
+      echo "wave ${n:-?}$suffix committed $sha"; dk_process "commit $sha wave ${n:-?}$suffix"
     else
-      echo "dk-wave-close: commit failed in $DK_WORKTREE; commit by hand before dk-task-close" >&2
-      dk_process "commit failed wave ${n:-?}"; exit 1
+      echo "dk-wave-close: commit failed in $rwt$suffix; commit by hand before dk-task-close" >&2
+      dk_process "commit failed wave ${n:-?}$suffix"; exit 1
     fi
-  else echo "wave ${n:-?}: nothing to commit"; fi
+  done <<< "$repo_rows"
+  [ "$committed" = 1 ] || echo "wave ${n:-?}: nothing to commit"
 fi

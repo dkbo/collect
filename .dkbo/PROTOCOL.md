@@ -51,7 +51,12 @@ blocked_by: （無則省略）
 report: state/<你的 state 名>.report.md
 notes: 給接手者的必要事實，≤5 行
 ```
-DONE 前 `touched` 必須完整。`dk-wave-close` 不是看你自報的清單，而是拿 worktree 的真實 git diff（含未 commit 與未追蹤）比對所有權：動了不屬於本波任何人的檔，整波關不掉；自己擁有但漏寫進 `touched` 的檔會被列成 `unreported change`。
+`touched:` 冒號後只能是空白或 `[]`；有項目時每一項各佔一行、以兩個空白加 `- ` 開頭（如上例），不得用 `{`、`}`、`*`、`?`。DONE 前 `touched` 必須完整。`dk-wave-close` 不是看你自報的清單，而是拿 worktree 的真實 git diff（含未 commit 與未追蹤）比對所有權：動了不屬於本波任何人的檔，整波關不掉；自己擁有但漏寫進 `touched` 的檔會被列成 `unreported change`。
+
+多 repo 專案（「## 倉庫」段的列帶 `<名> →`，如 `api → /path/to/worktree`）：所有權表的 glob 與 `touched` 一律帶 `<名>:` 前綴（如 `api:src/routes/**`），前綴取自「## 倉庫」段列出的 repo 名；同一條路徑在不同 repo 是兩個不同的檔，不跨 repo 比對。單 repo 專案的切片也有「## 倉庫」段，但只印一行 worktree 路徑、不帶名字與 `→`，不帶前綴，行為不變。你的 pane 已經 `--cwd` 在你第一個可改 repo 的 worktree；其他 repo 的 worktree 路徑見切片的「## 倉庫」段，可以直接在那裡工作。
+
+## 共用 worktree
+一個任務若跨多個 repo，每個 repo 各有自己的一個 worktree（`.worktrees/<任務短名>/<名>`），但**同一個 repo 的 worktree 在同一波內是被這一波所有需要它的成員共用的**——不是每人一份。改動前留意 `git status`：如果看到不是自己這一輪寫的變更，先確認是不是同波夥伴剛寫完還沒 commit（`dk-wave-close` 才會 commit），不要因此覆蓋或還原它。跟下面「執行環境」是同一類提醒的另一半：worktree 隔離的是檔案，不隔離同一個 repo 裡別人尚未落盤的工作。
 
 ## report 檔（`tasks/<t>/state/<你的 state 名>.report.md`，不限行數）
 照 `$DK_ROOT/templates/report-employee.md`：`## 做了什麼`、`## 測試`（**必填**：跑了什麼指令、結果摘要；空的話 dk-wave-close 不放行）、`## 自我審查`、`## 疑慮`。DONE 前 state 與 report 都要寫好。

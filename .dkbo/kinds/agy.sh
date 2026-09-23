@@ -30,5 +30,7 @@ KIND_BLOCK_RE='Requesting permission|Run this command\?|Yes, and always allow'
 # 一 spawn 就會被判撞額度、該 kind 當場熔斷（BACKLOG 2026-09-19 實測）。只收「耗盡」的說法。
 # 實測耗盡原文：Individual quota reached, Resets in 102h11m1s
 KIND_QUOTA_RE='quota reached|quota exceeded|rate limit|usage limit|resource exhausted'
-kind_args() { echo "--model $1 --effort $2 --dangerously-skip-permissions --add-dir $DK_PROJECT_ROOT"; }
+kind_args() { echo "--model $1 --effort $2 --dangerously-skip-permissions$(dk_add_dirs)"; }
+# agy 同樣沒有設 session 顯示名的旗標，回空字串。
+kind_session_args() { return 0; }
 kind_mcp_list() { agy mcp list 2>/dev/null | awk 'NR>1{print $1}'; }

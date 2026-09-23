@@ -1,24 +1,46 @@
 #!/usr/bin/env bash
-# dk-wave-open <N> — open wave N: record the base sha, set DK_WAVE, render one brief slice per member.
+# dk-wave-open <N> [--refresh] — open wave N: record the base sha, set DK_WAVE, render one brief slice per member.
+#   --refresh: 只能在第 N 波正開著時用。依當下的 brief.md 重產第 N 波所有成員的切片（含新加入的成員），
+#   不改 base、不動 .panes、不 spawn；把整波逾時從這一刻重新起算。
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
-dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
-n="${1:-}"; [[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-wave-open <N>"
-live=$(awk 'NF>=6 && $5==0 {next} NF>0 {n++} END{print n+0}' "$dir/.panes")   # worktree:false advisors (tab 0) are not wave members
-if [ "$live" -ne 0 ]; then
-  names=$(awk 'NF>=6 && $5==0 {next} NF>0 {print $1}' "$dir/.panes")
-  # 全部都是計畫審查 pane 時，「dk-wave-close first」跟 gate1 的「no wave open」互指、指不出真正的出路
-  if ! printf '%s\n' "$names" | grep -vqE -- '-reviewer-p[0-9]+$'; then
-    agents=$(printf '%s' "$names" | tr '\n' ' ' | sed 's/ *$//')
-    dk_die "計畫審查的 pane 還開著（$agents）：先逐個 dk-wave-close --agent <agent> 關掉，再 dk-task-new $DK_SHORT --gate1 過關卡①（見 .dkbo/skills/plan/SKILL.md 第 6 步）"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/repos.sh"
+dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
+n="${1:-}"; flag="${2:-}"
+[[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-wave-open <N> [--refresh]"
+refresh=0
+if [ -n "$flag" ]; then [ "$flag" = --refresh ] || dk_die "usage: dk-wave-open <N> [--refresh]"; refresh=1; fi
+# 計畫階段的任務還沒有 worktree（dk-task-new 只建資料夾）。擋在這裡而不是讓 git -C "" 自己
+# 炸掉：領導看到的必須是下一步該跑什麼，不是一行 git 的 fatal。
+[ -n "${DK_WORKTREE:-}" ] || dk_die "任務尚未實體化（.task.env 的 DK_WORKTREE 還是空的）：先 dk-leader $DK_SHORT --run 切 worktree、開 tab 並交棒"
+if [ "$refresh" = 1 ]; then
+  # --refresh 只是重產切片、重設逾時：wave N 不是正開著就沒有「重新起算」這回事。
+  [ "${DK_WAVE:-}" = "$n" ] || dk_die "wave $n is not open (DK_WAVE=${DK_WAVE:-（無）})；--refresh 只能在它開著時用"
+else
+  live=$(awk 'NF>=6 && $5==0 {next} NF>0 {n++} END{print n+0}' "$dir/.panes")   # worktree:false advisors (tab 0) are not wave members
+  if [ "$live" -ne 0 ]; then
+    names=$(awk 'NF>=6 && $5==0 {next} NF>0 {print $1}' "$dir/.panes")
+    # 全部都是計畫審查 pane 時，「dk-wave-close first」跟 gate1 的「no wave open」互指、指不出真正的出路
+    if ! printf '%s\n' "$names" | grep -vqE -- '-reviewer-p[0-9]+$'; then
+      agents=$(printf '%s' "$names" | tr '\n' ' ' | sed 's/ *$//')
+      dk_die "計畫審查的 pane 還開著（$agents）：先逐個 dk-wave-close --agent <agent> 關掉，再 dk-task-new $DK_SHORT --gate1 過關卡①（見 .dkbo/skills/plan/SKILL.md 第 6 步）"
+    fi
+    dk_die "live panes remain ($live); run dk-wave-close first"
   fi
-  dk_die "live panes remain ($live); run dk-wave-close first"
+  [ -z "${DK_WAVE:-}" ] || dk_die "wave $DK_WAVE is open; run dk-wave-close first"
+  # 這個拒絕只對不帶 --refresh 的呼叫成立：--refresh 就是要在 wave N 已經開過之後再跑一次。
+  ! grep -q " wave-open $n " "$dir/process.md" || dk_die "wave $n was already opened (see process.md)"
 fi
-[ -z "${DK_WAVE:-}" ] || dk_die "wave $DK_WAVE is open; run dk-wave-close first"
-! grep -q " wave-open $n " "$dir/process.md" || dk_die "wave $n was already opened (see process.md)"
 brief="$dir/brief.md"
 members=$(dk_brief_wave_members "$brief" "$n"); [ -n "$members" ] || dk_die "wave $n has no members in the 波次表 of $brief"
 base=$(git -C "$DK_WORKTREE" rev-parse HEAD)
+# repo 維度：每個 repo 各記一行 base，並把 worktree 路徑攤成切片的「## 倉庫」段。
+# 沒有 .repos 的是 0.9.2 之前建立的任務 —— 退回單列（名字 main、路徑 DK_WORKTREE），
+# 呼叫端（dk_changed_repo_files、dk-review-pack）才只有一條路。
+repo_rows=$(dk_repos_rows "$dir" 2>/dev/null || true)
+[ -n "$repo_rows" ] || repo_rows="main $DK_PROJECT_ROOT $DK_WORKTREE $base"
+# 單 repo 模式只印路徑、不印 main →（比照 dk-resume，面向人的輸出在單 repo 模式一律不帶 repo 前綴）
+if dk_repos_multi; then repos_list=$(printf '%s\n' "$repo_rows" | awk '{print $1 " → " $3}')
+else repos_list=$(printf '%s\n' "$repo_rows" | awk '{print $3}'); fi
 goal=$(dk_brief_section "$brief" "## 目標"); contract=$(dk_brief_section "$brief" "## 共用契約"); acc=$(dk_brief_section "$brief" "## 驗收標準")
 constraints=$(dk_brief_constraints "$brief")
 peers=$(echo "$members" | tr '\n' ' ' | sed 's/ $//')
@@ -29,9 +51,26 @@ for m in $members; do m="${m%%(*}"
   [ -n "$own" ] || echo "dk-wave-open: $m has no row in 檔案所有權 (run dk-brief-check)" >&2
   dk_render "$DK_ROOT/templates/brief-member.md" "DISPLAY=$DK_DISPLAY" "MEMBER=$m" "WAVE=$n" "BRIEF=$brief" "GOAL=$goal" \
     "CONSTRAINTS=$constraints" \
-    "WAVE_ROWS=$rows" "OWNER_ROWS=$own" "CONTRACT=$contract" "ACCEPTANCE=$acc" "PEERS=$peers" > "$dir/briefs/$m.md"
+    "WAVE_ROWS=$rows" "OWNER_ROWS=$own" "CONTRACT=$contract" "ACCEPTANCE=$acc" "PEERS=$peers" "REPOS=$repos_list" > "$dir/briefs/$m.md"
 done
+if [ "$refresh" = 1 ]; then
+  # 不改 DK_WAVE、不改 base、不動 .panes、不 spawn —— 只是切片重產與逾時重新起算。
+  dk_env_set DK_WAVE_STARTED "$(date +%s)"
+  # 整波逾時從這一刻重新起算：上一輪留下的逾時標記作廢。
+  # devdone 標記不在這裡刪：refresh 當下刪會在新成員 spawn 前的空窗重推假聚合（整枝評議 I2）。
+  # 改由 dk-spawn 在波開著時、把一位 group=dev 成員寫進 .panes 的同一步刪掉它。
+  rm -f "$dir/.blocked/wave-$n.timeout"
+  dk_process "wave-refresh $n members $peers"
+  echo "wave $n refreshed; slices in $dir/briefs/"
+  exit 0
+fi
 dk_env_set DK_WAVE "$n"; dk_env_set DK_WAVE_STARTED "$(date +%s)"
+# 逐 repo 的 base 先落盤，總結那一行最後 —— dk_ts_pick 取的是最後一筆相符的行，
+# 本波耗時（dk-wave-close 的 dk_ts_pick … wave-open N）要的是總結行的時間戳。
+while read -r rname _rroot rwt _rbase; do
+  [ -n "$rname" ] && [ -d "$rwt" ] || continue
+  dk_process "wave-open $n repo $rname base $(git -C "$rwt" rev-parse --short=7 HEAD)"
+done <<< "$repo_rows"
 dk_process "wave-open $n base ${base:0:7} members $peers"
 "$DK_ROOT/bin/dk-watch" --ensure >/dev/null 2>&1 || true   # a pane just appeared; make sure the safety net is alive
 echo "wave $n open (base ${base:0:7}); slices in $dir/briefs/"

@@ -2,7 +2,7 @@
 # dk-task-new <short> "<display>" [--from <plan>] [--no-worktree]
 # dk-task-new <short> --gate1
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/repos.sh"
 dk_require_herdr
 short="${1:-}"; shift || true
 [[ "$short" =~ ^[a-z][a-z0-9-]{0,11}$ ]] || dk_die "short name must be ascii lowercase, ≤12 chars: '$short'"
@@ -42,30 +42,32 @@ if [ "$gate1" = 1 ]; then
 fi
 [ -n "$display" ] || dk_die "display name required"
 [[ "$display" != *[\"\$\`\\]* ]] || dk_die "display name must not contain \" \$ \` or backslash"
+# DK_REPOS 的便宜三項：名字合法且唯一、第一個是主 repo、每個路徑是 git 根。三項都只看設定與
+# 磁碟佈局，不看工作樹狀態，所以在建任何東西之前就驗（早失敗）。「工作樹乾淨」是 --no-clean
+# 跳掉的那一項 —— 計畫可能拖幾天，乾不乾淨要以 dk-leader --run 真的要從 HEAD 切 worktree
+# 的那一刻為準，不是現在。
+dk_settings
+dk_repos_check --no-clean
 date=$(dk_today); name="$date-$short"; dir="$DK_ROOT/tasks/$name"
 [ ! -e "$dir" ] || dk_die "task exists: $dir"
 ls -d "$DK_ROOT/tasks/"[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-"$short" >/dev/null 2>&1 && dk_die "short name '$short' already used"
 
-branch="dk/$short"; base_sha=$(git -C "$DK_PROJECT_ROOT" rev-parse HEAD)
-ws="${HERDR_WORKSPACE_ID:-}"; root_pane="${HERDR_PANE_ID:-}"   # the leader's own workspace/pane; employees split from here (spec §6)
-if [ "$worktree" = 1 ]; then
-  wt_path="${DK_WORKTREE_DIR:-$DK_PROJECT_ROOT/.worktrees}/$short"
-  [ ! -e "$wt_path" ] || dk_die "worktree path exists: $wt_path"
-  mkdir -p "$(dirname "$wt_path")"
-  git -C "$DK_PROJECT_ROOT" worktree add -q -b "$branch" "$wt_path" "$base_sha" >/dev/null 2>&1 || dk_die "git worktree add failed (branch $branch exists? run: git branch -D $branch)"
-  rollback() { # any later step dying must not leave a worktree, branch or half-written task folder behind
-    git -C "$DK_PROJECT_ROOT" worktree remove --force "$wt_path" >/dev/null 2>&1 || true
-    git -C "$DK_PROJECT_ROOT" branch -D "$branch" >/dev/null 2>&1 || true
-    rm -rf "$dir"; [ -z "${HERDR_PANE_ID:-}" ] || rm -f "$DK_ROOT/.sessions/$HERDR_PANE_ID"
-  }
-  trap rollback EXIT
-else
-  wt_path="$DK_PROJECT_ROOT"
-fi
+# 0.10.0：這裡只建任務資料夾。worktree、分支、herdr tab 與依賴鉤子全都延到
+# `/dkbo-run` 的 `dk-leader <short> --run`（plan.md 決策①③）—— 計畫完可能不做，不先付成本；
+# base sha 也以交棒當下的 HEAD 為準，計畫拖幾天才開工時那才是對的起點。
+branch="dk/$short"
+ws="${HERDR_WORKSPACE_ID:-}"; root_pane="${HERDR_PANE_ID:-}"   # 人的 workspace 與 pane；計畫階段的 reviewer 填在這裡的右側
+rollback() { # 後面任一步死掉都不該留下半寫的任務資料夾或綁定
+  rm -rf "$dir"; [ -z "${HERDR_PANE_ID:-}" ] || rm -f "$DK_ROOT/.sessions/$HERDR_PANE_ID"
+}
+trap rollback EXIT
 
 mkdir -p "$dir/state"; : > "$dir/.panes"   # dk-watch exits when this file disappears (dk-task-close removes it)
-vars=("DISPLAY=$display" "SHORT=$short" "BRANCH=$branch" "WORKTREE=$wt_path" "SOURCE=$from" "DATE=$(dk_now)" "WORKSPACE=$ws" "ROOT_PANE=$root_pane" "BASE=$base_sha")
-dk_render "$DK_ROOT/templates/brief.md"   "${vars[@]}" > "$dir/brief.md"
+no_wt=""; [ "$worktree" = 1 ] || no_wt=1   # --run 讀它：不切 worktree，DK_WORKTREE 指主樹（多 repo 模式下拒絕）
+vars=("DISPLAY=$display" "SHORT=$short" "BRANCH=$branch" "WORKTREE=" "SOURCE=$from" "DATE=$(dk_now)" \
+      "WORKSPACE=$ws" "TASK_TAB=" "ROOT_PANE=$root_pane" "LEADER_PANE=$root_pane" "BASE=" "NO_WORKTREE=$no_wt")
+# brief 的標頭是給人看的，寫成一句話而不是空白 —— 空白會讀成「忘了填」
+dk_render "$DK_ROOT/templates/brief.md"   "WORKTREE=（/dkbo-run 交棒時建立）" "${vars[@]}" > "$dir/brief.md"
 dk_render "$DK_ROOT/templates/process.md" "${vars[@]}" > "$dir/process.md"
 dk_render "$DK_ROOT/templates/task.env"   "${vars[@]}" > "$dir/.task.env"
 if [ -f "$from" ]; then cp "$from" "$dir/request.md"      # --from 指向真的檔案：逐字複製，不是塞路徑
@@ -90,7 +92,7 @@ if [ "$current" != "leader-$short" ]; then
   fi
 fi
 dk_index_add "$date" "$display" task planning "—"
-trap - EXIT   # task fully recorded; keep the worktree
+trap - EXIT   # task fully recorded
 
 if [ -x "$DK_ROOT/bin/dk-watch" ] && [ -z "${DK_NO_WATCH:-}" ]; then
   # close fd 3 and stdin so bats/herdr never wait on the detached watcher

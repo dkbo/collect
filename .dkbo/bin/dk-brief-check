@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # dk-brief-check [<brief.md>] — mechanical pre-flight before gate ①. Read-only; exit 1 on any FAIL.
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/repos.sh"
 dk_settings
 brief="${1:-}"; [ -n "$brief" ] || brief="$(dk_task_dir)/brief.md"
 [ -f "$brief" ] || dk_die "no brief at $brief"
+# repo 名字的來源：已實體化的任務看 brief 隔壁的 .repos，計畫階段（關卡①之前，還沒有
+# .repos）看 settings.env 的 DK_REPOS。dk_glob_check 自己處理這個退路。
+tdir=$(dirname "$brief")
 fails=0; warns=0
 fail() { echo "FAIL $1: $2"; fails=$((fails+1)); }
 warn() { echo "WARN $1: $2"; warns=$((warns+1)); }
@@ -12,17 +15,32 @@ warn() { echo "WARN $1: $2"; warns=$((warns+1)); }
 # ── 檔案所有權
 owners=$(dk_brief_owners "$brief"); [ -n "$owners" ] || fail 所有權 "沒有任何成員列"
 members=" "
-while IFS='|' read -r m globs _ro; do
+while IFS='|' read -r m globs ro; do
   [ -n "$m" ] || continue
   [[ "$m" =~ ^[a-z][a-z0-9_-]*$ ]] || fail "所有權 $m" "成員欄須為 <角色>[-<別名>]（ascii 小寫）"
   dk_member_role "$m" >/dev/null 2>&1 || fail "所有權 $m" "找不到角色檔（用 add-role skill 建立）"
   [[ "$members" == *" $m "* ]] && fail "所有權 $m" "成員重複"
   members="$members$m "
   [ -n "$globs" ] && [ "$globs" != "—" ] || fail "所有權 $m" "可改欄為空"
+  # repo 前綴：多 repo 每個 glob 都要帶 `<名>:` 且名字在 DK_REPOS 內，單 repo 一律不得帶。
+  # 可改與只讀兩欄都驗 —— 只讀欄是給員工看的路標，寫錯 repo 名字一樣會把人帶到不存在的樹。
+  # while read 而不是 `for g in $(…)`：未加引號的命令替換先做 word splitting、再對每個字做
+  # pathname expansion，而 glob 欄的內容裡本來就有 `**`。dk-brief-check 不 cd，cwd 就是專案根，
+  # 所以 `.dkbo/kinds/**` 會被換成三個實際檔名，真正該驗的那條字串反而沒進到 dk_glob_check
+  # （reviewer-a 波 1 Important 1）。brief 的欄位是資料，不是要拿去比對檔案系統的樣式。
+  while IFS= read -r g; do
+    [ -n "$g" ] || continue
+    why=$(dk_glob_check "$tdir" "$g") || fail "所有權 $m" "$why"
+  done <<< "$(printf '%s\n%s\n' "$globs" "$ro" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true)"
 done <<< "$owners"
 all_globs=$(printf '%s\n' "$owners" | awk -F'|' '{n=split($2,g,","); for(i=1;i<=n;i++){x=g[i]; gsub(/^ +| +$/,"",x); if(x!="" && x!="—") print $1 "\t" x}}')
 overlap() { # G1 G2 → 0 when the two 可改 globs can match the same path (literal equality, or a dir/** tree containing the other)
-  local a="$1" b="$2"; [ "$a" = "$b" ] && return 0
+  # 多 repo 時先按 repo 分組：兩個 repo 裡的同一條 glob 是兩組不同的檔，不算重疊。
+  local a b ra rb s
+  s=$(dk_glob_split "$1"); ra="${s%%$'\t'*}"; a="${s#*$'\t'}"
+  s=$(dk_glob_split "$2"); rb="${s%%$'\t'*}"; b="${s#*$'\t'}"
+  [ "$ra" = "$rb" ] || return 1
+  [ "$a" = "$b" ] && return 0
   [[ "$a" == *'/**' ]] && { [[ "$b" == "${a%/**}"/* ]] || [ "$b" = "${a%/**}" ]; } && return 0
   [[ "$b" == *'/**' ]] && { [[ "$a" == "${b%/**}"/* ]] || [ "$a" = "${b%/**}" ]; } && return 0
   return 1
@@ -64,13 +82,17 @@ for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -u
   # dev DB 跑 migration、搶同一個 port、重啟同一組 docker。
   claimed=""
   for m in $(printf '%s\n' "$waves" | awk -F'|' -v n="$w" '$1==n{print $3}'); do
-    for r in $(printf '%s\n' "$owners" | awk -F'|' -v mm="$m" '$1==mm{print $4}' \
-               | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true); do
+    # 同 line 27 的理由改成 while read：獨佔資源是自由文字（db、port:3000、docker…），
+    # 可以含 * 與 ?，未加引號的 $(…) 會拿 cwd 的檔名把它換掉。上面兩層迴圈跑的是波號
+    # （純數字）與成員名（已驗過 [a-z][a-z0-9_-]*），沒有這個曝險，所以只改這一層。
+    while IFS= read -r r; do
+      [ -n "$r" ] || continue
       prev=$(printf '%s' "$claimed" | awk -F'\t' -v rr="$r" '$1==rr{print $2; exit}')
       if [ -n "$prev" ]; then fail "波次表 $w" "獨佔資源 $r 同時被 $prev 與 $m 宣告（同一波不得共用）"
       else claimed="$claimed$r	$m
 "; fi
-    done
+    done <<< "$(printf '%s\n' "$owners" | awk -F'|' -v mm="$m" '$1==mm{print $4}' \
+               | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true)"
   done
 done
 

@@ -56,7 +56,9 @@ agent_status() { printf '%s' "$2" | jq -r --arg a "$1" '(.result.agents // [])[]
 # 送給領導的提示必須先等它閒下來：守望觸發的前提正是領導忙著，而「提示送給 working 的 agent
 # 會排隊還是被丟掉」在三個 kind 上都還是 unknown。等待要有界，否則背景迴圈會被卡住；沒送到就
 # 不寫 delivered，下一 tick 重試。桌面通知與熔斷不受影響，各自只做一次。
-# fallback 是 pane id。leader-<short> 靠 dk-task-new 的 rename 生出來，而那一步在 panova2 回了
+# fallback 是 pane id：DK_LEADER_PANE（領導在哪），缺席的舊任務退回版面錨點 DK_ROOT_PANE。
+# 交棒之後兩者不同格，而每輪都重讀 .task.env，所以訂閱器與輪詢都自動跟上。
+# leader-<short> 靠 dk-task-new 的 rename 生出來，而那一步在 panova2 回了
 # rc=0 卻沒生效 —— herdr 從此回 agent_not_found，守望的 BLOCKED／TIMEOUT 三個出口一起靜默失效，
 # 標記檔永遠等不到 delivered。pane id 不靠 rename，是唯一不會掉的把手。
 notify_leader() { # target fallback text — bounded wait for idle, then prompt; non-zero when it did not land
@@ -103,24 +105,43 @@ handle_block() { # agent immediate — immediate=1 時不等 DK_BLOCK_SEC：畫�
     herdr notification show "dkbo: $agent blocked" --body "需要人按審批" --sound request >/dev/null 2>&1 </dev/null || true
     dk_process "blocked $agent"; echo notified >> "$m"
   fi
-  if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" "[BLOCKED] from dk-watch: $agent 卡在審批"; then echo delivered >> "$m"; fi
+  if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" "[BLOCKED] from dk-watch: $agent 卡在審批"; then echo delivered >> "$m"; fi
 }
 
-handle_limit() { # agent — 撞額度。不必等 DK_REVIEW_TIMEOUT_MIN：那行字在撞到的當下就在畫面上了
-  local agent="$1" kind m
+handle_limit() { # agent txt — 撞額度。不必等 DK_REVIEW_TIMEOUT_MIN：那行字在撞到的當下就在畫面上了
+  local agent="$1" txt="${2:-}" kind m hits first_hit epoch tag msg
   m="$dir/.blocked/$agent.limit"
   if [ ! -f "$m" ]; then
     kind=$(agent_kind "$agent")
+    # AC5：畫面上撞額度的原文是唯一證據——通知只說「撞額度」三個字，領導得回去讀畫面才知道真假。
+    # 留最多 5 行命中的畫面原文在 .limit 檔（去頭尾空白、每行截 160 字），第一條也附進送給領導的訊息。
+    # 截斷用 dk_utf8_trunc（按字元）不用 `cut -c`（按位元組，會切出半個 UTF-8 字元讓 herdr 拒收）。
+    hits=$(printf '%s\n' "$txt" | grep -iE "$(dk_kind_re "$kind" quota)" \
+             | sed -e 's/^[[:space:]]*//; s/[[:space:]]*$//' | head -5)
+    hits=$(while IFS= read -r hl; do [ -n "$hl" ] && dk_utf8_trunc "$hl" 160; printf '\n'; done <<< "$hits")
+    hits="${hits%$'\n'}"
     herdr notification show "dkbo: $agent limit" --body "撞額度，該 kind 已熔斷" --sound request >/dev/null 2>&1 </dev/null || true
     # 熔斷不等領導：任務狀態已經變了，領導收不收得到訊息都一樣成立（同 timeout 的理由）
     if [ -n "$kind" ] && [[ " ${DK_KIND_DOWN:-} " != *" $kind "* ]]; then
       DK_KIND_DOWN="${DK_KIND_DOWN:+$DK_KIND_DOWN }$kind"; dk_env_set DK_KIND_DOWN "$DK_KIND_DOWN"
     fi
+    # AC1：專案層熔斷是另加一層，不取代 DK_KIND_DOWN；reviewer 逾時的熔斷不走這裡（那段在 tick()）
+    if [ -n "$kind" ]; then
+      first_hit=$(printf '%s\n' "$hits" | head -1)
+      read -r epoch tag <<< "$(dk_kind_recover_epoch "$kind" "$txt")"
+      dk_kinds_down_set "$kind" "$epoch" "$tag" "$(basename "$dir")" "$agent" "$first_hit"
+    fi
     dk_process "limit $agent → kind ${kind:-?} down"
-    echo notified > "$m"
+    { echo notified
+      if [ -n "$hits" ]; then while IFS= read -r hl; do [ -n "$hl" ] && echo "hit: $hl"; done <<< "$hits"; fi
+    } > "$m"
   fi
   grep -q '^delivered$' "$m" && return 0
-  if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" "[LIMIT] from dk-watch: $agent 撞額度"; then echo delivered >> "$m"; fi
+  first_hit=$(sed -n 's/^hit: //p' "$m" | head -1)
+  msg="[LIMIT] from dk-watch: $agent 撞額度"
+  [ -n "$first_hit" ] && msg="$msg — $first_hit"
+  msg=$(dk_utf8_trunc "$msg" 200)
+  if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" "$msg"; then echo delivered >> "$m"; fi
 }
 
 # agent_status 前提（highfix BACKLOG）：正在工作時畫面上的字是它的工作內容，不是卡住的證據 ——
@@ -146,7 +167,7 @@ assess() { # agent [list] — 讀一次畫面並處理。回 0 表示畫面說�
   txt=$(pane_text "$agent"); [ -n "$txt" ] || return 1
   kind=$(agent_kind "$agent")
   # 額度優先於審批：兩種字樣同時在畫面上時，擋住去路的是額度
-  if screen_hits "$txt" "$(dk_kind_re "$kind" quota)"; then handle_limit "$agent"; return 0; fi
+  if screen_hits "$txt" "$(dk_kind_re "$kind" quota)"; then handle_limit "$agent" "$txt"; return 0; fi
   if screen_hits "$txt" "$(dk_kind_re "$kind" block)"; then handle_block "$agent" 1; return 0; fi
   return 1
 }
@@ -243,7 +264,7 @@ tick() {
       { echo notified; echo "tag=$tag"; } > "$m"   # tag 留著，重試時訊息才一致
     fi
     tag=$(sed -n 's/^tag=//p' "$m" | head -1)
-    if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" "[TIMEOUT] from dk-watch: $agent 逾時${tag}"; then echo delivered >> "$m"; fi
+    if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" "[TIMEOUT] from dk-watch: $agent 逾時${tag}"; then echo delivered >> "$m"; fi
   done < "$dir/.panes"
 
   # 本波 dev 全員完成 → 推一則聚合 [DONE]，取代員工逐筆的回報。四人波原本是四次全量喚醒，
@@ -262,7 +283,7 @@ tick() {
       m="$dir/.blocked/wave-$DK_WAVE.devdone"
       if ! { [ -f "$m" ] && grep -q '^delivered$' "$m"; }; then
         if [ ! -f "$m" ]; then dk_process "dev-done wave $DK_WAVE ($cnt: $devs)"; echo notified > "$m"; fi
-        if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" \
+        if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" \
              "[DONE] from dk-watch: wave $DK_WAVE dev 全員完成（$cnt 位：$devs）→ dk-review-pack $DK_WAVE"; then
           echo delivered >> "$m"; fi
       fi
@@ -279,7 +300,7 @@ tick() {
         dk_process "timeout wave $DK_WAVE (${DK_WAVE_TIMEOUT_MIN}min)"
         echo notified > "$m"
       fi
-      if notify_leader "$(dk_leader_name)" "${DK_ROOT_PANE:-}" "[TIMEOUT] from dk-watch: wave $DK_WAVE 超過 $DK_WAVE_TIMEOUT_MIN 分鐘未收尾"; then echo delivered >> "$m"; fi
+      if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" "[TIMEOUT] from dk-watch: wave $DK_WAVE 超過 $DK_WAVE_TIMEOUT_MIN 分鐘未收尾"; then echo delivered >> "$m"; fi
     fi
   fi
 }

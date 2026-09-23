@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # dk-resume [<task-folder|short>] — print a ≤150-line recovery pack for the leader.
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/repos.sh"; . "$DK_ROOT/lib/kinds.sh"
 if [ -n "${1:-}" ]; then
   t="$1"; [ -d "$DK_ROOT/tasks/$t" ] || t=$(compgen -G "$DK_ROOT/tasks/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-$1" | tail -1 || true); t="${t##*/}"
   [ -n "$t" ] && [ -d "$DK_ROOT/tasks/$t" ] || dk_die "no task '$1'"
@@ -22,17 +22,42 @@ render() { # $1=process lines $2=state lines $3=ruling lines (0 = all)
   echo "## 你是 $(dk_leader_name)（任務 $(basename "$dir")）"
   echo "本任務的執行規範是 .dkbo/skills/run/SKILL.md（Claude Code：/dkbo-run）。若你要接手推進，先讀它與 .dkbo/LEADER.md。任務目錄 $dir"
   echo "## brief"; cat "$dir/brief.md"
+  # .repos 在不在就是「實體化了沒」。領導接手的第一件事是知道自己有幾個 worktree 可以
+  # 派人進去；還沒交棒的話，這一段就是那句「先去 --run」。單 repo 模式不印名字欄
+  # （面向人的輸出在單 repo 模式一律不帶 repo 前綴）。
+  echo "## 倉庫"
+  if [ -f "$dir/.repos" ]; then
+    if dk_repos_multi; then dk_repos_rows "$dir" | awk '{printf "%s → %s\n", $1, $3}'
+    else dk_repos_rows "$dir" | awk 'NR==1{print $3}'; fi
+    echo "tab: ${DK_TASK_TAB:-}"
+  else
+    echo "尚未交棒（/dkbo-run 會跑 dk-leader $DK_SHORT --run：切 worktree、開 tab、把領導搬進去）"
+  fi
   echo "## 本波"
   if [ -n "$task_min" ]; then e=$((now_min - task_min)); echo "任務已進行 $((e/60))h $((e%60))m（自 task-new）"; fi
   if [ -n "$wave_min" ]; then echo "本波已進行 $((now_min - wave_min))m（自 wave-open）"; fi
   if [ -n "${DK_WAVE:-}" ]; then
     echo "wave: $DK_WAVE  base: $(dk_wave_base "$dir" "$DK_WAVE")  kinds down: ${DK_KIND_DOWN:-無}"
+  else echo "沒有開著的波（dk-wave-open N 開下一波）"; fi
+  # AC6/Minor：專案層的熔斷跟本任務的 DK_KIND_DOWN 是兩張獨立的清單，接手的人要同時看到——否則
+  # 會誤以為換個 kind 就沒事，其實下一個任務一派同一個 kind 還是會被 dk_review_kinds／dk-spawn 擋下。
+  # 兩波之間（DK_WAVE 空）也要印：領導在兩波之間恢復時不該看不到熔斷（reviewer-a 本輪 Minor）。
+  # guess 標記統一成 dk-kind 的 `(guess)`，不再用「（猜）」——同一個標記兩種寫法只會讓人多想。
+  proj=$(dk_kinds_down_rows)
+  if [ -n "$proj" ]; then
+    while IFS=' ' read -r k e ex _rt tn _ag _hit; do
+      [ -n "$k" ] || continue
+      tag=""; [ "$ex" = guess ] && tag=" (guess)"
+      printf '專案層熔斷: %s 到 %s%s（來源任務 %s）\n' "$k" "$(dk_epoch_to_local "$e")" "$tag" "$tn"
+    done <<< "$proj"
+  fi
+  if [ -n "${DK_WAVE:-}" ]; then
     awk -v t="$DK_REVIEW_TIMEOUT_MIN" -v now="$(date +%s)" -v pfx="$DK_SHORT-" -v dir="$dir" '
       NF>=6 && $4=="review" && (index($1, "-reviewer-") || $1 ~ /-reviewer$/) {
         sf=dir "/state/" substr($1, length(pfx)+1) ".md"; st="no-state"
         while ((getline l < sf) > 0) if (l ~ /^status: /) st=substr(l, 9); close(sf)
         printf "%s %s %d min%s\n", $1, st, (now-$3)/60, ((now-$3) > t*60 && st!="done") ? " TIMEOUT?" : "" }' "$dir/.panes"
-  else echo "沒有開著的波（dk-wave-open N 開下一波）"; fi
+  fi
   echo "$watch"
   echo "## 裁定（最後一次 wave-open 之後）"
   rul=$(awk '$2=="wave-open"{buf=""} $2=="ruling:"{buf=buf $0 "\n"} END{printf "%s", buf}' "$dir/process.md")
@@ -50,7 +75,15 @@ render() { # $1=process lines $2=state lines $3=ruling lines (0 = all)
        row[t]=row[t] " " $1 "(" (($1 in st)?st[$1]:"?") w ")"; if(!(t in seen)){seen[t]=1; order[++k]=t}}
       END{for(i=1;i<=k;i++) printf "tab %s:%s\n", order[i], row[order[i]]}' "$dir/.panes"
   else printf '%s\n' "$list" | grep "^$DK_SHORT-" || echo "（無）"; fi
-  echo "## BACKLOG"; cat "$DK_ROOT/tasks/BACKLOG.md"
+  # BACKLOG 是跨任務記憶，只會長不會短；整份 cat 會把 150 行的預算吃掉（0.11.0 結案補四條就把
+  # 恢復包撐爆、CI 紅掉）。只印表頭與最後 8 條，其餘留一行指路。
+  bl="$DK_ROOT/tasks/BACKLOG.md"
+  echo "## BACKLOG（最後 8 條；全文 $bl）"
+  if [ -f "$bl" ]; then
+    total=$(grep -c '^| [0-9]' "$bl" || true)
+    head -n 2 "$bl"; grep '^| [0-9]' "$bl" | tail -n 8 || true
+    [ "${total:-0}" -le 8 ] || echo "（另有 $((total-8)) 條較早的，見 $bl）"
+  fi
 }
 out=$(render 20 5 0)
 [ "$(echo "$out" | wc -l)" -le 150 ] || out=$(render 20 3 0)

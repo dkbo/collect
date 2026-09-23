@@ -87,7 +87,10 @@ dk_require_herdr() { [ "${HERDR_ENV:-}" = 1 ] || dk_die "not running inside herd
 dk_json() { jq -r "$1"; }
 
 dk_task_dir() {
-  if [ -n "${DK_TASK_DIR:-}" ]; then echo "$DK_TASK_DIR"; return; fi
+  # return 0 而不是裸 return：bash 規定 trap handler 裡執行的裸 return 回的是「觸發 trap 的
+  # 那個狀態」，不是函式最後一個指令的狀態。dk_env_set 的第一行是 `d=$(dk_task_dir) || return 1`，
+  # 所以掛了 rollback 型 trap EXIT 的失敗路徑上，每一次 dk_env_set 都在第一行靜默退出。
+  if [ -n "${DK_TASK_DIR:-}" ]; then echo "$DK_TASK_DIR"; return 0; fi
   local f="$DK_ROOT/.sessions/${HERDR_PANE_ID:-none}"
   [ -f "$f" ] || dk_die "no task bound to this pane; run dk-task-new or dk-resume <task>"
   echo "$DK_ROOT/tasks/$(cat "$f")"
@@ -124,6 +127,7 @@ dk_index_set() { # NAME STATUS NOTE  — rewrite the row whose name column match
 
 dk_settings() { # load .dkbo/settings.env over the defaults; warn once per process tree when the file is missing
   DK_TEST_CMD=""; DK_REVIEW_KINDS="claude"; DK_REVIEW_MIN="1"; DK_REVIEW_TIMEOUT_MIN="20"; DK_TAB1_SLOTS="4"; DK_LEADER_KIND="claude"; DK_WAVE_TIMEOUT_MIN="60"; DK_REVIEW_TIER="M"
+  DK_REPOS=""; DK_SETUP_CMD=""
   if [ -f "$DK_ROOT/settings.env" ]; then
     # shellcheck disable=SC1091
     . "$DK_ROOT/settings.env"
@@ -131,6 +135,11 @@ dk_settings() { # load .dkbo/settings.env over the defaults; warn once per proce
     echo "dk: $DK_ROOT/settings.env missing; using defaults (run /dkbo-init)" >&2; DK_SETTINGS_WARNED=1
   fi
   export DK_TEST_CMD DK_REVIEW_KINDS DK_REVIEW_MIN DK_REVIEW_TIMEOUT_MIN DK_TAB1_SLOTS DK_LEADER_KIND DK_WAVE_TIMEOUT_MIN DK_REVIEW_TIER DK_SETTINGS_WARNED
+  export DK_REPOS DK_SETUP_CMD
+  # DK_TEST_CMD_<名> 與 DK_SETUP_CMD_<名> 是每個 repo 一條的動態鍵，沒辦法在預設區列舉；
+  # source 完之後一起 export，子行程（dk-wave-close 起的 gate c、dk-leader 起的鉤子）才看得見。
+  local v
+  for v in ${!DK_TEST_CMD_@} ${!DK_SETUP_CMD_@}; do export "${v?}"; done
 }
 dk_commit_memory() { # <message> <path…> — commit只有這幾條路徑（任務／雜務記憶）到主樹
   # 記憶是 markdown、可 grep、進 git —— 但在這之前沒有任何一步真的把它們放進 git，
@@ -157,7 +166,15 @@ dk_env_set() { # KEY VALUE — rewrite KEY="VALUE" in the bound task's .task.env
 dk_legacy_task() { # task folder created before the wave-review scripts
   local d; d=$(dk_task_dir) || return 1; ! grep -q '^DK_BASE=' "$d/.task.env"
 }
-dk_wave_base() { # TASK_DIR N → the base sha dk-wave-open recorded for wave N (empty when absent)
+dk_wave_base() { # TASK_DIR N [REPO] → the base sha dk-wave-open recorded for wave N (empty when absent)
+  # 帶 REPO 時讀 per-repo 那一行（`wave-open N repo <名> base <sha>`），不帶時行為與 0.9.2 相同
+  # （`wave-open N base <sha>`，記的是主 repo）。REPO 先過名字的形狀才拼進 sed —— 這個值
+  # 最終來自 settings.env 與 .repos，不該有機會變成 sed 的表示式。
   [[ "${2:-}" =~ ^[0-9]+$ ]] || return 0
-  sed -n "s/^[^ ]* wave-open $2 base \([0-9a-f]*\).*/\1/p" "$1/process.md" | tail -1
+  if [ -n "${3:-}" ]; then
+    [[ "$3" =~ ^[a-z][a-z0-9_]{0,15}$ ]] || return 0
+    sed -n "s/^[^ ]* wave-open $2 repo $3 base \([0-9a-f]*\).*/\1/p" "$1/process.md" | tail -1
+  else
+    sed -n "s/^[^ ]* wave-open $2 base \([0-9a-f]*\).*/\1/p" "$1/process.md" | tail -1
+  fi
 }

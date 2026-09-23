@@ -12,6 +12,7 @@
 
 ## 檔案所有權
 獨佔資源欄填同一波內不能共用的執行環境（`db`、`port:3000`、`docker`…），逗號分隔，沒有就留空或 `—`。worktree 隔離檔案，不隔離執行環境。
+多 repo 專案（`settings.env` 有 `DK_REPOS`）：可改與只讀每個 glob 都要帶 `<名>:` 前綴（例 `api:src/**`），名字取自 `DK_REPOS`；重疊只在同一個 repo 內判，兩個 repo 裡的同名路徑是兩個檔。單 repo 專案一律不帶前綴。state 的 `touched` 同一套規則。
 | 成員 | 可改 | 只讀 | 獨佔資源 |
 |---|---|---|---|
 | （範例）backend | src/api/**, db/** | src/web/** | db, port:3000 |

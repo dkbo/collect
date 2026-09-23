@@ -1,6 +1,10 @@
 # shellcheck shell=bash
 # 審查共用：kind 選擇、檔位驗證與 spawn 迴圈。dk-review（差異包）與 dk-brief-review（計畫）共用這一份。
 # 需要先 source common.sh（dk_die）、載入 .task.env（DK_KIND_DOWN）與 settings.env（DK_REVIEW_TIER）。
+# dk-review／dk-brief-review 沒有 source lib/kinds.sh（AC3 之前它們不需要），這裡的專案層查詢
+# 要用到 dk_kind_down_notice —— 補一道 source 讓它自給自足，不必去改那兩支呼叫端（不屬於本檔所有權）。
+# shellcheck disable=SC1091
+[ -n "${DK_KIND_LOADED:-}" ] || { . "$DK_ROOT/lib/kinds.sh"; DK_KIND_LOADED=1; }
 
 dk_review_tier() { # TIER_FLAG → M|L；空字串表示沒給 --tier，改取 settings.env
   local tier="${1:-}" src="--tier"
@@ -9,12 +13,13 @@ dk_review_tier() { # TIER_FLAG → M|L；空字串表示沒給 --tier，改取 s
   printf '%s' "$tier"
 }
 
-dk_review_kinds() { # WANT CMD LABEL → 可用的 kind（≤3，濾掉本任務已熔斷的）；全滅回非零
-  local want="$1" cmd="$2" label="$3" k use=""
+dk_review_kinds() { # WANT CMD LABEL → 可用的 kind（≤3，濾掉本任務已熔斷與專案層已熔斷的）；全滅回非零
+  local want="$1" cmd="$2" label="$3" k use="" notice
   for k in $want; do
     if [[ " ${DK_KIND_DOWN:-} " == *" $k "* ]]; then
       echo "$cmd: kind $k is down for this task; skipped" >&2; continue
     fi
+    if notice=$(dk_kind_down_notice "$k"); then echo "$cmd: $notice" >&2; continue; fi
     use="$use $k"
   done
   # shellcheck disable=SC2086  # split kinds on purpose

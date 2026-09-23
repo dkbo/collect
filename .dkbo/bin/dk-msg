@@ -3,6 +3,67 @@
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 dk_require_herdr
+
+# AC10：dev 的 [DONE] 必須 status: done（既有檢查）之外，再驗 state 的形狀。只驗 dev，
+# 不驗 reviewer、qa 與雜務。回一行錯誤描述（不含 "dk-msg: state 格式錯：" 前綴）；合法就不印任何東西。
+dk_state_touched_shape_error() { # STATE_FILE → 共用契約「state 的 touched 文法」
+  local f="$1" line n=0 in_t=0 rest path
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n+1))
+    if [[ "$line" =~ ^[A-Za-z_]+: ]]; then
+      in_t=0
+      case "$line" in
+        touched:*)
+          rest="${line#touched:}"
+          # 去掉冒號後全部空白（不只一格），空字串與 [] 都合法。
+          while [ "${rest# }" != "$rest" ]; do rest="${rest# }"; done
+          if [ -n "$rest" ] && [ "$rest" != "[]" ]; then
+            echo "第 $n 行：touched: 後面只能是空白或 []，多筆改寫成下面每行 '  - path'"; return
+          fi
+          in_t=1
+          ;;
+      esac
+      continue
+    fi
+    [ "$in_t" = 1 ] || continue
+    [ -n "$line" ] || continue
+    case "$line" in
+      '  - '*) ;;
+      *) echo "第 $n 行：touched 底下每個非空行都要以兩個空白加 '- ' 開頭"; return;;
+    esac
+    path="${line#  - }"
+    case "$path" in
+      *[{}*?]*) echo "第 $n 行：touched 路徑不可含 { } * ？：$path"; return;;
+    esac
+  done < "$f"
+}
+dk_state_format_error() { # STATE_FILE TASK_DIR → 錯誤描述，合法回空字串
+  local sf="$1" td="$2" err rp
+  grep -q '^status:' "$sf" || { echo "缺 status 鍵，正確寫法：status: working"; return; }
+  grep -q '^touched:' "$sf" || { echo "缺 touched 鍵，正確寫法：touched: 或 touched: []"; return; }
+  grep -q '^report:' "$sf" || { echo "缺 report 鍵，正確寫法：report: state/<你的 state 名>.report.md"; return; }
+  err=$(dk_state_touched_shape_error "$sf"); [ -z "$err" ] || { echo "$err"; return; }
+  rp=$(sed -n 's/^report: *//p' "$sf" | head -1)
+  while [ "${rp% }" != "$rp" ]; do rp="${rp% }"; done
+  [ -n "$rp" ] || { echo "report: 沒填路徑"; return; }
+  [ -s "$td/$rp" ] || { echo "report: $rp 不存在或是空的"; return; }
+}
+# AC9：領導最後一筆 [ACK] 之後，log 裡有多少則寄給領導的訊息還沒讀。沒有任何 [ACK] 就從頭算。
+dk_msg_unacked() { # LOG LEADER → "N|TS|SENDER"（最新一則），沒有未讀就印空字串
+  [ -f "$1" ] || return 0
+  awk -v leader="$2" '
+    $0 ~ ("^[^ ]+ " leader " \\[ACK\\]$") { start = NR }
+    { line[NR] = $0 }
+    END {
+      n = 0
+      for (i = start + 1; i <= NR; i++) {
+        if (line[i] ~ (" -> " leader " \\[")) {
+          n++; split(line[i], p, " "); ts = p[1]; frm = p[2]
+        }
+      }
+      if (n > 0) print n "|" ts "|" frm
+    }' "$1"
+}
 if [ -n "${DK_CHORE_FILE:-}" ]; then   # chore worker: no task binding; the leader is whoever ran dk-chore
   chore=1; leader="${DK_LEADER:?dk-msg: DK_LEADER unset}"; sender="${DK_AGENT:?dk-msg: DK_AGENT unset}"
   log="$DK_ROOT/tasks/_chores/messages.log"; mkdir -p "$(dirname "$log")"
@@ -25,6 +86,27 @@ if [ "$chore" = 1 ] && [ "$target" != "$leader" ]; then
 if [ "${DK_ISOLATED:-0}" = 1 ] && [ "$target" != "$leader" ]; then
   echo "dk-msg: you are isolated; only leader may be messaged" >&2; exit 2; fi
 
+# AC8：切片過期提示。寄件者是領導、對象是員工、類型是指派型訊息時，brief.md 比對方讀的那份
+# 切片新就代表他手上的是舊切片——不擋（訊息照送），只是先提醒領導自己去想清楚要不要重產。
+if [ "$chore" = 0 ] && [ "$sender" = "$leader" ] && [ "$target" != "$leader" ] \
+   && [[ "$type" =~ ^(TASK|DECISION|BUG)$ ]]; then
+  sname="${target#"$DK_SHORT"-}"
+  slice="$dir/briefs/$sname.md"
+  if [ -f "$dir/brief.md" ] && [ -f "$slice" ] && [ "$dir/brief.md" -nt "$slice" ]; then
+    echo "dk-msg: brief.md 比 briefs/$sname.md 新，員工讀的是舊切片；改了會影響他的段落就先 dk-wave-open ${DK_WAVE:-N} --refresh" >&2
+  fi
+fi
+
+# AC9：未讀提示。領導送 [TASK]／[DECISION] 時，若上次 [ACK] 之後還有寄給他的訊息沒讀
+# （dev 只落盤、不叫醒領導的 [DONE] 也算），先提醒再照送。
+if [ "$chore" = 0 ] && [ "$sender" = "$leader" ] && [[ "$type" =~ ^(TASK|DECISION)$ ]]; then
+  info=$(dk_msg_unacked "$log" "$leader")
+  if [ -n "$info" ]; then
+    cnt="${info%%|*}"; rest="${info#*|}"; ts="${rest%%|*}"; frm="${rest#*|}"
+    echo "dk-msg: 你有 $cnt 則未 ack 的訊息（最新一則 $ts 來自 $frm），先讀再送" >&2
+  fi
+fi
+
 # dev 的 [DONE] 只落盤，不吵領導：領導改由 dk-watch 在本波 dev 全員完成時收到一則聚合訊息。
 # 四人波原本是四次全量喚醒（每次都要把領導整個 context 重跑一輪），聚合後剩一次。
 # 送出前 state 必須已是 done —— 否則這則 DONE 沉進 log，而 dk-watch 也因為 state 沒 done
@@ -34,6 +116,8 @@ if [ "$chore" = 0 ] && [ "$type" = DONE ] && [ "$target" = "$leader" ] \
   sf="$dir/state/${sender#"$DK_SHORT"-}.md"
   grep -q '^status: done' "$sf" 2>/dev/null \
     || { echo "dk-msg: 先把 $sf 寫成 'status: done'（report 也要寫好）再送 [DONE]" >&2; exit 2; }
+  err=$(dk_state_format_error "$sf" "$dir")
+  [ -z "$err" ] || { echo "dk-msg: state 格式錯：$err" >&2; exit 2; }
   echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"
   exit 0
 fi
@@ -48,7 +132,9 @@ fallback=""
 if [ "$chore" = 0 ]; then
   panes="$dir/.panes"
   in_panes() { [ -f "$panes" ] && awk -v n="$1" '$1==n{f=1} END{exit !f}' "$panes"; }
-  if [ "$target" = "$leader" ]; then fallback="${DK_ROOT_PANE:-}"
+  # 領導在哪是 DK_LEADER_PANE（交棒後＝任務根 tab 的根 pane）；DK_ROOT_PANE 是版面錨點，
+  # 只在沒有 DK_LEADER_PANE 的舊任務裡才是同一格。
+  if [ "$target" = "$leader" ]; then fallback="${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}"
   else
     if ! in_panes "$target" && in_panes "${DK_SHORT:-}-$target"; then target="${DK_SHORT}-$target"; fi
     [ -f "$panes" ] && fallback=$(awk -v n="$target" '$1==n{print $2; exit}' "$panes")

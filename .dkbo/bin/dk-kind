@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# dk-kind [status]     — 列出專案層熔斷未恢復的 kind
+# dk-kind up <kind>    — 解除一個 kind 的熔斷（kinds-down 的所有該 kind 列，與綁著任務時的 DK_KIND_DOWN）
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/kinds.sh"
+
+usage() { echo "usage: dk-kind [status] | dk-kind up <kind>" >&2; exit 2; }
+
+cmd="${1:-status}"
+case "$cmd" in
+  status)
+    [ $# -le 1 ] || usage
+    rows=$(dk_kinds_down_rows)
+    if [ -z "$rows" ]; then echo "沒有專案層熔斷"; exit 0; fi
+    while IFS=' ' read -r k e ex _rt tn _ag hit; do
+      [ -n "$k" ] || continue
+      tag=""; [ "$ex" = guess ] && tag=" (guess)"
+      printf '%s  down until %s%s  from %s — %s\n' "$k" "$(dk_epoch_to_local "$e")" "$tag" "$tn" "$hit"
+    done <<< "$rows"
+    ;;
+  up)
+    [ $# -eq 2 ] || usage
+    k="$2"
+    [ -f "$DK_ROOT/kinds/$k.sh" ] || { echo "dk-kind: unknown kind '$k' (no $DK_ROOT/kinds/$k.sh)" >&2; exit 2; }
+    removed=0
+    dk_kinds_down_remove "$k" && removed=1
+    # 綁著任務時才有 DK_KIND_DOWN 可拿；沒綁任務（領導在主樹、任務之間）就只動 kinds-down。
+    if d=$(dk_task_dir 2>/dev/null); then
+      DK_TASK_DIR="$d"; export DK_TASK_DIR; dk_task_env
+      if [[ " ${DK_KIND_DOWN:-} " == *" $k "* ]]; then
+        new=$(printf '%s\n' "$DK_KIND_DOWN" | tr ' ' '\n' | { grep -vx "$k" || true; } | tr '\n' ' ' | sed 's/ *$//')
+        dk_env_set DK_KIND_DOWN "$new"
+        removed=1
+      fi
+    fi
+    if [ "$removed" = 1 ]; then dk_process "kind $k up" 2>/dev/null || true; echo "kind $k up"
+    else echo "kind $k 沒有熔斷"; fi
+    ;;
+  *) usage;;
+esac

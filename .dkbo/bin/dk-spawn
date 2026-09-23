@@ -2,13 +2,13 @@
 # dk-spawn <role> [alias] [--tier S|M|L] [--kind K] [--isolated] [--resume] [--split right|down]
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
-. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/kinds.sh"; . "$DK_ROOT/lib/prompt.sh"; . "$DK_ROOT/lib/layout.sh"; . "$DK_ROOT/lib/herdr.sh"
+. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/kinds.sh"; . "$DK_ROOT/lib/prompt.sh"; . "$DK_ROOT/lib/layout.sh"; . "$DK_ROOT/lib/herdr.sh"; . "$DK_ROOT/lib/repos.sh"
 dk_require_herdr
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
 role="${1:-}"; shift || true; [ -n "$role" ] || dk_die "usage: dk-spawn <role> [alias] [--tier T] [--kind K] [--isolated] [--resume] [--split right|down]"
-alias=""; tier=M; kind=""; isolated=0; resume=0; notes=""; split_override=""; handoff=""
+alias=""; tier=M; kind=""; isolated=0; resume=0; notes=""; split_override=""; handoff=""; kind_explicit=0
 while [ $# -gt 0 ]; do case "$1" in
-  --tier) tier="$2"; shift 2;; --kind) kind="$2"; notes="$notes override-kind"; shift 2;;
+  --tier) tier="$2"; shift 2;; --kind) kind="$2"; kind_explicit=1; notes="$notes override-kind"; shift 2;;
   --isolated) isolated=1; notes="$notes isolated"; shift;; --resume) resume=1; notes="$notes resume"; shift;;
   --split) split_override="$2"; [[ "$split_override" =~ ^(right|down)$ ]] || dk_die "--split must be right or down"; shift 2;;
   --handoff) handoff="${2:-}"; [ -n "$handoff" ] || dk_die "--handoff 要帶原因：dk-spawn <role> [alias] --handoff \"<為什麼換人>\""
@@ -18,12 +18,47 @@ rf="$DK_ROOT/roles/$role.md"; [ -f "$rf" ] || dk_die "no role file $rf (use add-
 [ -n "$kind" ] || kind=$(dk_fm "$rf" kind)
 spec=$(dk_fm_tier "$rf" "$tier"); [ -n "$spec" ] || dk_die "role $role has no tier $tier"
 if [ "$kind" != "$(dk_fm "$rf" kind)" ]; then dk_kind_load "$kind"; spec=$(echo "$KIND_DEFAULT_TIERS" | tr ' ' '\n' | awk -F= -v t="$tier" '$1==t{print $2}'); fi
+
+# AC3：派人前查專案層熔斷。--kind 明寫且未恢復 → 拒絕；用角色檔預設值命中 → 只警告，照派
+# （誤判的 claude 不能把下一個任務的每個角色都擋死；ruling 見 process.md）。
+if kind_notice=$(dk_kind_down_notice "$kind"); then
+  if [ "$kind_explicit" = 1 ]; then
+    dk_die "${kind_notice%，跳過} — dk-kind up $kind 解除"
+  else
+    echo "dk-spawn: $kind_notice — dk-kind up $kind" >&2
+  fi
+fi
+# --add-dir 清單：主樹（切片、state、report 都在它的 .dkbo/ 下）加上每個 repo 的 worktree。
+# 三個 kind 的 kind_args 只負責把它展開，所以一定要在 dk_kind_args 之前組好並 export。
+# 單 repo 模式只放主樹，與 0.9.2 一字不差（全域約束 AC1）：那一列的 worktree 就是 pane 的
+# cwd，本來就在授權範圍內，多加一個 --add-dir 只是把既有斷言改掉而已。
+add_dirs="$DK_PROJECT_ROOT"
+if dk_repos_multi; then
+  while read -r _rname _rroot rwt _rbase; do
+    [ -n "${rwt:-}" ] || continue
+    case " $add_dirs " in *" $rwt "*) ;; *) add_dirs="$add_dirs $rwt";; esac
+  done <<< "$(dk_repos_rows "$dir" 2>/dev/null || true)"
+fi
+DK_ADD_DIRS="$add_dirs"; export DK_ADD_DIRS
 args=$(dk_kind_args "$kind" "$spec")
 group=$(dk_fm "$rf" group); group="${group:-dev}"
 agent=$(dk_agent_name "$role" "$alias"); sname=$(dk_state_name "$role" "$alias"); state="$dir/state/$sname.md"
 [[ "$agent" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || dk_die "agent name '$agent' must match [a-z][a-z0-9_-]{0,31} (shorten the alias)"
 brief_for="$dir/brief.md"; [ -f "$dir/briefs/$sname.md" ] && brief_for="$dir/briefs/$sname.md"
 report="$dir/state/$sname.report.md"
+
+# 成員的家 = 它第一個可改 glob 所在 repo 的 worktree（決策⑧：不另立欄位，第一個 glob 就是宣告）。
+# DK_WORKTREE 為空＝任務還沒實體化（計畫階段的 reviewer），那時只有主樹可用。
+mcwd="${DK_WORKTREE:-$DK_PROJECT_ROOT}"; mrepo=""; mrepo_wt=""
+if [ -n "${DK_WORKTREE:-}" ]; then
+  first_glob=$(dk_brief_owners "$dir/brief.md" 2>/dev/null | awk -F'|' -v m="$sname" '$1==m{print $2; exit}' | cut -d, -f1 | sed 's/^ *//; s/ *$//')
+  if [ -n "$first_glob" ]; then
+    mrepo=$(dk_glob_split "$first_glob" | cut -f1)
+    mrepo_wt=""
+    [ -z "$mrepo" ] || mrepo_wt=$(dk_repo_field "$dir" "$mrepo" wt)
+    if [ -n "$mrepo_wt" ]; then mcwd="$mrepo_wt"; else mrepo=""; fi
+  fi
+fi
 
 upstream=""   # 只有真的被排進這一波的 review 成員要等人；reviewer 不在波次表裡，它讀的是收齊後的 diff pack
 if [ "$group" = review ] && [ -n "${DK_WAVE:-}" ] && [ -f "$dir/brief.md" ] \
@@ -58,13 +93,13 @@ else
       # shellcheck disable=SC2086  # DK_TABS is a space-separated list
       DK_TABS=$(printf '%s\n' ${DK_TABS:-} | grep -v "^$tab_no=" | tr '\n' ' ' | sed 's/ $//') || true
     fi
-    out=$(herdr tab create --workspace "$DK_WORKSPACE" --cwd "$DK_WORKTREE" --label "$DK_SHORT-$tab_no" --no-focus "${env_args[@]}") || dk_die "tab create failed"
+    out=$(herdr tab create --workspace "$DK_WORKSPACE" --cwd "$mcwd" --label "$DK_SHORT-$tab_no" --no-focus "${env_args[@]}") || dk_die "tab create failed"
     tab_id=$(echo "$out" | dk_json '.result.tab.tab_id // empty'); pane=$(echo "$out" | dk_json '.result.root_pane.pane_id // empty')
     [ -n "$tab_id" ] && [ -n "$pane" ] || dk_die "tab create returned no tab_id/root pane"
     dk_env_set DK_TABS "${DK_TABS:+$DK_TABS }$tab_no=$tab_id"; dk_process "tab $tab_no $tab_id opened"
   else
     pane=$(herdr pane split --pane "$anchor" --direction "${split_override:-$direction}" --ratio "$(dk_layout_ratio_arg "$share")" \
-      --cwd "$DK_WORKTREE" --no-focus "${env_args[@]}" | dk_json '.result.pane.pane_id')
+      --cwd "$mcwd" --no-focus "${env_args[@]}" | dk_json '.result.pane.pane_id')
   fi
 fi
 [ -n "$pane" ] || dk_die "pane split returned no pane_id"
@@ -76,6 +111,14 @@ if ! herdr agent start "$agent" --kind "$kind" --pane "$pane" -- $args >/dev/nul
   dk_die "agent start failed for $agent; pane $pane 保留著 —— herdr pane read $pane --source recent-unwrapped 看它卡在什麼，處理後 herdr pane close $pane"
 fi
 echo "$agent $pane $(date +%s) $group $tab_no $slot" >> "$dir/.panes"
+# 整枝評議 I2：波開著時把一位 group=dev 成員寫進 .panes 的同一步刪掉 wave-N.devdone，
+# 新 dev 交 [DONE] 時 dk-watch 才會再推聚合；devdone 的語意屬 dk-watch，這裡只負責刪。
+# reviewer-a Important 1（波 3）：已交付的 dev latch（wave-N.<sname>.done）還在時不刪 ——
+# 那是 --handoff／--resume 重派已交付的人，devdone 被刪會在下一個 tick 讓 dk-watch 判成
+# 假的「全員完成」；latch 已被 dk-wave-close --agent 清掉的重派（或全新成員）沒有 latch，照刪。
+if [ -n "${DK_WAVE:-}" ] && [ "$group" = dev ] && [ ! -f "$dir/.blocked/wave-$DK_WAVE.$sname.done" ]; then
+  rm -f "$dir/.blocked/wave-$DK_WAVE.devdone"
+fi
 
 # 這一刻 state 的內容快照，給 dk-watch 的 dev 聚合分辨「這一波的交付」與「上一波留在檔裡的
 # status: done」。state 檔跨波共用而聚合標記逐波，少了它，開波到員工動筆之間的空窗會被判成
@@ -96,7 +139,7 @@ if [ -n "$missing" ]; then echo "dk-spawn: mcp missing for $kind:$missing" >&2; 
 "$DK_ROOT/bin/dk-watch" --ensure >/dev/null 2>&1 || true   # a pane just appeared; make sure the safety net is alive
 # --until working：確認提示被接受且 agent 開始跑。預設的 --wait 是等「這一輪結束」
 # （herdr: matches idle, done or blocked），第一輪超過逾時就會被誤判成提示沒送到。
-if herdr agent prompt "$agent" "$(dk_first_prompt "$agent" "$role" "$dir" "$state" "$resume" "$brief_for" "$report" "$upstream" "$handoff" "$group")" --wait --until working --timeout 15000 >/dev/null; then
+if herdr agent prompt "$agent" "$(dk_first_prompt "$agent" "$role" "$dir" "$state" "$resume" "$brief_for" "$report" "$upstream" "$handoff" "$group" "$mrepo" "$mrepo_wt")" --wait --until working --timeout 15000 >/dev/null; then
   dk_process "spawn $agent ($kind $tier)$notes"
   echo "$agent $pane"
 else

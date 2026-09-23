@@ -32,6 +32,19 @@ if ! grep -qs '.dkbo/.sessions' .gitignore; then
   append_line .gitignore '!.dkbo/.sessions/.gitkeep'
 fi
 grep -qsx '.worktrees/' .gitignore || append_line .gitignore '.worktrees/'
+# 專案自己的記憶與設定：發佈的 .dkbo/ 不帶這些（源碼倉的是 dkbo 自己的開發紀錄），缺的才從
+# templates/seed/ 補空白版；已存在的一律不動，所以重跑與升級都安全。
+seed() { # DEST SEED — .dkbo/DEST 不存在才從 templates/seed/SEED 複製
+  [ -e ".dkbo/$1" ] && return 0
+  mkdir -p "$(dirname ".dkbo/$1")"; cp "$here/templates/seed/$2" ".dkbo/$1"; echo "install.sh: seeded .dkbo/$1"
+}
+seed tasks/INDEX.md INDEX.seed.md
+seed tasks/BACKLOG.md BACKLOG.seed.md
+seed decisions.md decisions.seed.md
+seed PROJECT.md PROJECT.seed.md
+seed settings.env settings.seed.env
+mkdir -p .dkbo/tasks/_chores .dkbo/.sessions
+touch .dkbo/tasks/_chores/.gitkeep .dkbo/.sessions/.gitkeep
 chmod +x .dkbo/bin/* .dkbo/install.sh
 ver=unknown; [ -f .dkbo/VERSION ] && ver=$(tr -d '[:space:]' < .dkbo/VERSION)
 echo "dkbo $ver installed into $target"
