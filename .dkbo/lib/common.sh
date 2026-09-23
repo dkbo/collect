@@ -126,7 +126,7 @@ dk_index_set() { # NAME STATUS NOTE  — rewrite the row whose name column match
 }
 
 dk_settings() { # load .dkbo/settings.env over the defaults; warn once per process tree when the file is missing
-  DK_TEST_CMD=""; DK_REVIEW_KINDS="claude"; DK_REVIEW_MIN="1"; DK_REVIEW_TIMEOUT_MIN="20"; DK_TAB1_SLOTS="4"; DK_LEADER_KIND="claude"; DK_WAVE_TIMEOUT_MIN="60"; DK_REVIEW_TIER="M"
+  DK_TEST_CMD=""; DK_REVIEW_KINDS="claude"; DK_REVIEW_MIN="1"; DK_REVIEW_TIMEOUT_MIN="20"; DK_TAB1_SLOTS="4"; DK_LEADER_KIND="claude"; DK_WAVE_TIMEOUT_MIN="60"; DK_REVIEW_TIER="L"
   DK_REPOS=""; DK_SETUP_CMD=""
   if [ -f "$DK_ROOT/settings.env" ]; then
     # shellcheck disable=SC1091

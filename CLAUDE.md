@@ -4,7 +4,7 @@ Read AGENTS.md first.
 
 # 團隊流程 = dkbo（2026-09-10 起）
 
-派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.13.0，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`；印 `leader` **不代表你就是領導**（0.7.0 起領導不自動接管），照使用者原本的要求做事，要用團隊流程時請他叫其中一個 skill。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
+派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.14.0，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`；印 `leader` **不代表你就是領導**（0.7.0 起領導不自動接管），照使用者原本的要求做事，要用團隊流程時請他叫其中一個 skill。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
 
 - **領導拆成三個階段**（各自先讀 `.dkbo/LEADER.md` 共同規範）：`/dkbo-brain`（諮詢、分流、雜務 `dk-chore`、評議波）、`/dkbo-plan`（`dk-task-new`＋`request.md` 逐字落檔、寫 brief、`dk-brief-check` 機械閘、`dk-brief-review` 派 2–3 個不同 kind 審計畫並裁定、關卡①後停）、`/dkbo-run`（`dk-wave-open`／`dk-spawn`／`dk-review`／裁定／`dk-wave-close`／結案）。三者不互相自動跳轉，該換階段就告訴使用者叫哪一個並結束 turn。`dk-resume` 是唯讀看板，隨時可跑，看了不等於接管。
 
@@ -13,7 +13,7 @@ Read AGENTS.md first.
 - **brief 檔案所有權就是三道鎖的空間鎖**；資源鎖寫在所有權表的**「獨佔資源」欄**（`dev:5173`／`dev:5174`、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`，逗號分隔），同一波兩人宣告同一個 `dk-brief-check` 直接 FAIL；依賴仍寫波次表「做什麼」欄。Godot 與 Babylon net／bridge 協定是「共用契約」，擁有者是 `netcore`：其他角色用 QUESTION 要介面，不自行改 —— 0.9.0 起**共用契約寫成表格**（契約｜擁有者｜消費者｜形狀／簽名｜變更流程），擁有者與消費者都必須出現在檔案所有權表，否則 `dk-brief-check` FAIL。另有 `## 全域約束` 段（橫切所有波的硬要求，一行一條，會流進每一份切片）：本專案常填的是「路徑用 `@/*`、自訂 class 用 `@apply`、圖片只收 WebP、非同步寫在 store action」，真的沒有才寫「無」（留空是 FAIL）。
 - **模型上限 `opus` + `effort: high`**：角色檔三檔已寫死，`--tier` 只能選 S/M/L，不改 `kinds/claude.sh` 派 `fable`；0.13.0 起 `KIND_MODEL_EFFORTS` 雖收 `xhigh`／`max`，本專案不用、`--effort` 不手動覆寫到那兩檔。`haiku` 不進團隊。
 - **審查 kinds `claude codex agy`、法定人數 `DK_REVIEW_MIN="2"`**（`settings.env` 八鍵，領導自己也是 `DK_LEADER_KIND="claude"`、整波逾時 `DK_WAVE_TIMEOUT_MIN="60"`）：MIN=2 表示**至少兩個不同 kind 的意見進裁定**才算審查完成 —— 換一個模型抓到的錯誤類別，跟同一個模型想得更久抓到的不是同一批；agy 免費額度、只做意見。`[BLOCKED]`（按一下審批就活）與 `[LIMIT]`（額度用完，按審批救不回來、該 kind 當場熔斷）是兩件事，處置不同；`[TIMEOUT]`／熔斷照 `.dkbo/skills/run/SKILL.md` 補位（`dk-review --kinds "<未熔斷者>"`）或 `review N skipped`，不重試不替補。
-- **審查檔位 `DK_REVIEW_TIER="L"`**（0.4.0 新增的第八鍵，出廠預設 M，本專案設 L）：`dk-review` 從它取檔位，claude 主審拿 `opus/high`、codex `gpt-5.5/high`、agy `gemini-3.1-pro/high`，`--tier` 仍可逐次覆寫。**不要改 `roles/reviewer.md` 的 tier 定義**去達成同一件事（tier 在別處一律是「切片難度」，改了會讓 `--tier M|L` 變成靜默 no-op）。另：碰 `src/babylon/net/`／`src/core/`／`firestore.rules`／bridge 四檔的波，波次表的成員難度標 `L`（讓 babylon／godot／netcore 吃到 `opus/high`），不要留預設 M。
+- **審查檔位 `DK_REVIEW_TIER="L"`**（0.4.0 新增的第八鍵；本專案早設 L，0.14.0 起出廠預設也改 L）：`dk-review` 從它取檔位，claude 主審拿 `opus/high`、codex `gpt-5.5/high`、agy `gemini-3.1-pro/high`，`--tier` 仍可逐次覆寫。**不要改 `roles/reviewer.md` 的 tier 定義**去達成同一件事（tier 在別處一律是「切片難度」，改了會讓 `--tier M|L` 變成靜默 no-op）。另：碰 `src/babylon/net/`／`src/core/`／`firestore.rules`／bridge 四檔的波，波次表的成員難度標 `L`（讓 babylon／godot／netcore 吃到 `opus/high`），不要留預設 M。
 - **修復迴圈兩輪，第二輪換腦袋**（0.9.0）：BUG →（dev）FIXED，內文要附一句根因 → qa 再驗仍失敗 → 領導 `dk-spawn <成員> --handoff "<原因>"`（隱含 `--resume`，自己落 `ruling:`，首輪提示叫接手的人讀上一位的 state／report、不要照它的路再走一次）→ 再驗仍失敗才 ESCALATE。角色檔與 `PROTOCOL.md` 都已改成兩輪。
 - **Minor 要領導自己落盤才活得過這一波**：`dk-review` 收到 reviewer 的 `## Minor` 後，領導逐條 `dk-process "minor N: <一句> <file:line>"`；整枝評議（`dk-review --task`）的切片會帶上本任務累積的 Minor 請 reviewer triage，逐波審查不帶。`dk-task-close` 對「有 minor 但結案 report 沒提」只警告不擋。
 - **時間看得見**（0.9.2）：`dk-resume` 的「本波」段印 `任務已進行 Xh Ym`／`本波已進行 Ym`、每位在線員工附 `等了 N min`，用來判斷該不該催或熔斷，不再憑感覺；`dk-wave-close` 成功關波時記一行 `wave N 耗時 Mm（dev Am、審查 Rm）`；`dk-timeline [<任務>]` 只讀 `process.md` 印一張表（零 token、不寫檔），`dk-task-close` 會把它填進 report 的 `## 時間` 段。全部從既有時間戳算出來，員工與領導都不用多填欄位。

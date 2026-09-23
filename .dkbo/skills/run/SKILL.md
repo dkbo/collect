@@ -27,7 +27,7 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 
 ## 結案
 1. 有視覺變更的任務：計畫中最後一波結波後、`dk-review-pack --task` 之前，先請人看畫面（dev server 或截圖），確認沒有追加才跑整枝評議。
-2. 關卡③前先整分支評議：`dk-review-pack --task`，再 `dk-review --task --tier L`（L 檔 reviewer 讀 `waves/task.diff`）。Important 修掉或記 ruling，才寫 `report.md`（照範本；遺留段列出未經審查的波）。判成「不修、記 BACKLOG」時（Important 降級或 Minor 不修都算），ruling 的原因要標明前提是**實測**還是**推測**；「只影響顯示」「不會發生」這類推測不能當不修的理由——先實測，或照修。關卡③：給人拍板。
+2. 關卡③前先整分支評議：`dk-review-pack --task`，再 `dk-review --task --tier L`（L 檔 reviewer 讀 `waves/task.diff`）。Important 修掉或記 ruling，才寫 `report.md`（照範本；遺留段列出未經審查的波）。判成「不修、記 BACKLOG」時（Important 降級或 Minor 不修都算），ruling 的原因要標明前提是**實測**還是**推測**；「只影響顯示」「不會發生」這類推測不能當不修的理由——先實測，或照修。**同一份 diff 不審兩次**：只有一波的任務，那一波的 diff 就是 `task.diff`，它的 L 檔波審查已經是整枝評議，不再跑 `dk-review --task`，記 `dk-process "review task skipped: 單波，波 1 審查即整枝評議"`，累積的 Minor 由你在這一步 triage（波審查若是 `--tier M` 跑的就照常評議）；整枝評議挑出 Important 開的修復波，把要修的條目寫進 brief 該波那一列、審查用 `dk-review N --tier L`，這一輪就算下一輪整枝評議，Important 0 即進關卡③，記 `dk-process "review task skipped: 修復波 N 的 L 檔審查即第 K 輪整枝評議"`；只有修復動到先前各波都沒碰過的檔、或改了跨成員的共用契約，才重跑整枝評議（ops、tasktab 每輪修復都被波審查與整枝評議各審一次，看的是同一份十幾行的 diff）。關卡③：給人拍板。
 3. `dk-task-close`。它會合併回主分支，然後**把這個任務的記憶 commit 進主樹**（任務目錄、`tasks/INDEX.md`、`decisions.md`，只有這幾條路徑，你工作樹上的其他改動不會被掃進去）。合併衝突時它會停：不要自己解，問人或開 `it` 的修復波。放棄用 `dk-task-close --abandon "<原因>"`。
 
 ## 故障

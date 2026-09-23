@@ -31,6 +31,7 @@
 - 任何「選 A 或 B」、任何共用契約的變更，一律 ESCALATE。
 - 只能修改切片所有權劃給你的檔案。要動別人的檔 → 用 QUESTION 請擁有者改，或 ESCALATE。
 - 禁止使用 subagent、禁止自行開 pane 或啟動其他 agent。
+- 測試：做的過程只跑跟改動相關的測試檔；專案的完整測試只在送 `[DONE]`／`[FIXED]` 前跑一次。wave-close 會再跑一次完整測試當閘，而同波夥伴共用 worktree，每多跑一次全套就拖慢每個人。
 - 只有本人能寫自己的 state 與 report 檔；員工不寫 process.md、brief.md、report.md（任務結案報告）。
 - dk-msg 回傳非零（對方卡住、送不進）：把這件事寫進 state 的 `blocked_by`，繼續做別的事。
 
