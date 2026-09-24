@@ -31,13 +31,27 @@ dk_review_kinds() { # WANT CMD LABEL → 可用的 kind（≤3，濾掉本任務
   printf '%s' "$use"
 }
 
-dk_review_aliases() { # ALL_ALIASES KINDS → 前 N 個別名（N = kind 數），與 KINDS 一一對應
-  local all="$1" n=0 k out=""
+dk_review_prev() { # LABEL → 最新一行 `<LABEL> spawned` 的名單（前導空白、原樣 token）；沒有就空
+  # dk-wave-close 與 dk-task-new --gate1 都只讀最後一行，所以補派時新行要帶著這份舊名單（AC4）
+  local p="${DK_TASK_DIR:-}/process.md"
+  [ -f "$p" ] || return 0
+  { grep "^[^ ]* $1 spawned " "$p" || true; } | tail -1 | sed "s/^[^ ]* $1 spawned//"
+}
+
+dk_review_aliases() { # ALL_ALIASES KINDS [LABEL] → 前 N 個別名（N = kind 數），與 KINDS 一一對應；
+  # 給 LABEL 時跳過它最新 spawned 行已用過的別名。池不夠分就死：重用別名等於在同名 reviewer 上再開一個
+  local all="$1" n=0 k out="" used="" al tok
   # shellcheck disable=SC2086  # split kinds on purpose
   for k in $2; do n=$((n+1)); done
-  # shellcheck disable=SC2086  # split aliases on purpose
-  set -- $all
-  while [ "$n" -gt 0 ] && [ $# -gt 0 ]; do out="${out:+$out }$1"; shift; n=$((n-1)); done
+  if [ -n "${3:-}" ]; then
+    for tok in $(dk_review_prev "$3"); do tok="${tok%%(*}"; used="$used ${tok##*-reviewer-} "; done
+  fi
+  for al in $all; do
+    [ "$n" -gt 0 ] || break
+    [[ "$used" == *" $al "* ]] && continue
+    out="${out:+$out }$al"; n=$((n-1))
+  done
+  [ "$n" -eq 0 ] || dk_die "reviewer 別名用完了（池：$all；${3:-} 已派：${used:-無}）—— 關 pane 不會把別名還回來（已派名單只增不減），只能記 dk-process \"${3:-review} skipped: <理由>\" 收掉這一輪"
   printf '%s' "$out"
 }
 
@@ -66,6 +80,7 @@ dk_review_spawn() { # KINDS ALIASES TIER CMD LABEL — ALIASES 與 KINDS 一一�
     fi
   done
   [ -n "$spawned" ] || dk_die "no reviewer spawned (dk-spawn failed for:$failed); check herdr, then retry $cmd or record: dk-process \"$label skipped: <理由>\""
+  spawned="$(dk_review_prev "$label")$spawned"   # 補派：新行＝舊名單＋這次派的（AC4）
   dk_process "$label spawned$spawned"
   echo "$label:$spawned"
 }

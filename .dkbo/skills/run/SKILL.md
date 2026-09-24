@@ -10,12 +10,12 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 `/dkbo-run` 開跑後**不停下來等人**：人常在睡覺，一題選擇題就能讓任務停一整晚，而 panova autofold 執行中途問人的 4 題，人 4 題都選了推薦項。選擇題、規格缺口、reviewer 意見矛盾、修法取捨、要超過某個上限，一律**自己裁定**：選若錯代價最小、最容易回退的那個，記 `dk-process "ruling: [自主] <決定> — <原因> — <若錯代價>"`，繼續跑。不用 AskUserQuestion、不問「要繼續嗎」、不為報進度停下來。裁錯了人在關卡③看得到、改得回來；卡在一個問題上，人整晚什麼都拿不到。人自己打字插話照做（改需求走「跑一波」第 9 步），只是你不主動等他回覆。只有這幾種會停：關卡③（合併）、不可逆或破壞性的操作、影響 worktree 以外的動作（push、發佈、動共用服務）、brief 壞到每一條路都只能猜——最後一種寫進 report.md 遺留段、停在關卡③、結束 turn，不開著問題空等。
 
 ## 第 0 步：交棒（每次進本篇先看這一條）
-`.task.env` 的 `DK_WORKTREE` 為空（任務還沒實體化）或 `HERDR_PANE_ID` 不等於 `DK_ROOT_PANE`（你不是任務根 tab 根 pane 上的執行領導）：跑 `dk-leader <short> --run`，然後**結束這個 turn**。它會切 worktree、跑 `DK_SETUP_CMD` 依賴鉤子、用 `herdr tab create` 在任務所屬的 workspace（計畫時記下，`.task.env` 的 `DK_WORKSPACE`，退路 `HERDR_WORKSPACE_ID`）開一個 label 為 `dk/<short>` 的任務根 tab、在它的根 pane 起執行領導並改綁 `.sessions`；`agent start` 之前任一步失敗會把 worktree、分支、tab 與 `.task.env` 全部還原，重跑是幂等的。交棒之後人的 session 不再是領導，員工的訊息都送到執行領導那裡（人要看進度用 `dk-resume <任務>`，唯讀）。
+`.task.env` 的 `DK_WORKTREE` 為空（任務還沒實體化）或 `HERDR_PANE_ID` 不等於 `DK_ROOT_PANE`（你不是任務根 tab 根 pane 上的執行領導）：跑 `dk-leader <short> --run`，然後**結束這個 turn**。它會切 worktree、跑 `DK_SETUP_CMD` 依賴鉤子、用 `herdr tab create` 在你叫 `/dkbo-run` 當下所在的 workspace（`HERDR_WORKSPACE_ID`，空才退回 `.task.env` 的 `DK_WORKSPACE`；兩者不同時回寫 `DK_WORKSPACE` 並記 process）開一個 label 為 `dk/<short>` 的任務根 tab、在它的根 pane 起執行領導並改綁 `.sessions`；`agent start` 之前任一步失敗會把 worktree、分支、tab 與 `.task.env` 全部還原，重跑是幂等的。交棒之後人的 session 不再是領導，員工的訊息都送到執行領導那裡（人要看進度用 `dk-resume <任務>`，唯讀）。
 
 ## 每次醒來先做
-1. 若不確定狀態：執行 `dk-resume`，讀完再行動。它印 brief、本波（base、reviewer 狀態、熔斷）、watcher 狀態、裁定、未處理訊息、每 tab 的員工。watcher 有兩行：`watch: …`（30 秒輪詢）與 `events: …`（herdr 事件訂閱，畫面一冒出審批或額度就動）。兩條是獨立的命脈，一條死了另一條還在；死了 dk-resume、dk-wave-open、dk-spawn 都會就地重啟，你不用手動管。本波段開頭兩行是時間（任務已進行、本波已進行），在線員工每位附「等了 N min」——「該不該催」不必再憑感覺。
+1. 若不確定狀態：執行 `dk-resume`，讀完再行動。它印 brief、本波（base、reviewer 狀態、熔斷）、watcher 狀態、裁定、未處理訊息、每 tab 的員工。watcher 有兩行：`watch: …`（30 秒輪詢）與 `events: …`（herdr 事件訂閱，畫面一冒出審批或額度就動）。兩條是獨立的命脈，一條死了另一條還在；死了 dk-resume、dk-wave-open、dk-spawn 與 `dk-msg`（員工送 `[DONE]` 時）都會就地重啟並在 process 記一行 `watch died`，死因看 `.sessions/<任務>.watch.log`，你不用手動管。本波段開頭兩行是時間（任務已進行、本波已進行），在線員工每位附「等了 N min」——「該不該催」不必再憑感覺。
 2. 想看整張時間表（每波開了多久、dev 多久、審查多久）：`dk-timeline [<任務>]`。只讀 process.md、零 token、不寫任何檔，隨時可跑；結案時 `dk-task-close` 會自動把它附進 `report.md` 的「## 時間」段，你不用手抄。
-3. 送 `[TASK]`／`[DECISION]` 前，先讀 messages.log 裡未 ack 的訊息（`dk-msg` 會自動提示未 ack 則數）。
+3. 送 `[TASK]`／`[DECISION]` 前，先讀 messages.log 裡未 ack 的訊息（`dk-msg` 會自動提示未 ack 則數）。你送給員工的 `[TASK]`／`[BUG]`／`[DECISION]`／`[STOP]` 一律背景送：當場返回、背景最多等 30 分鐘，送達那一刻才算重新指派；最終送不到記 `[UNDELIVERED]` 並進 process 的 `undelivered <target> [<type>]`（`dk-resume` 印得出），你不用自己背景重送。
 
 ## 跑一波
 1. `dk-wave-open N`：記 base sha、寫每位成員的切片 `briefs/<成員>.md`（員工只讀切片）。
@@ -26,7 +26,7 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 6. 純文件波：審查欄寫 `skip: <理由>`，領導 `dk-process "review N skipped: <理由>"`，wave-close 就放行。
 7. 收到 `[ESCALATE]`：能依 brief 判定就 `dk-msg <員工> "[DECISION] ..."` 並記 `ruling:`；brief 判不了也**自己裁定**（見「不停車」），記 `ruling: [自主] …`，改了驗收標準就同步改 brief 並在 `decisions.md` 加一行，再回 DECISION。收到 `[BLOCKED]`：見「故障」的審批卡住那一條，不等人去按。
 8. 依結果增刪下一波，記 process。**審查後的修復波成員至少 M**，不因改動小就標 S：修復要動已交織的邏輯、照 reviewer 的描述改別人的東西，最容易出回歸（ops 任務波 2 的 S 修復產生回歸，多開一波）。
-9. 波中改 brief：改 `brief.md` → `dk-wave-open <N> --refresh` → 再 `dk-msg <員工> "[TASK] 重讀切片"`；新加的成員接著 `dk-spawn`。只請原 dev 重做時，`[TASK]` 裡叫他完成後回 `[FIXED]`（聚合不會重推）。
+9. 波中改 brief：改 `brief.md` → `dk-wave-open <N> --refresh` → 再 `dk-msg <員工> "[TASK] 重讀切片"`；新加的成員接著 `dk-spawn`。只請原 dev 重做時，`[TASK]` 裡叫他完成後回 `[FIXED]`：送達已交付的 dev 時 dk-msg 會清掉他本波的交付 latch、在訊息尾端附「你已交付過」的提醒，他改寫 state 為 done 後聚合會再推一次。
 
 ## 熔斷器（修不好時不問人）
 同一 bug 換過腦袋仍沒好、wave-close 測試連兩次失敗、整枝評議的修復輪用完：停止派人，逐條判、每條一行 ruling，不准默默丟掉。reviewer 判錯或有爭議 → `ruling: [自主] park <問題> — <為何照現狀> — <若錯代價>`；真的但後面沒有工作依賴它 → 一樣 park，寫明「真的、延後」，對應驗收項在 brief 標未達成、進 report.md 遺留段；真的且後面的波依賴它 → 選能解除阻礙的最小改法記 ruling、寫進下一波的 brief 列。只有每一條路都只能猜才停（見「不停車」）。
@@ -39,7 +39,8 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 ## 故障
 - 員工 `[BLOCKED]`（dk-watch 推來，畫面卡在權限審批）：reviewer 不用管，`DK_REVIEW_TIMEOUT_MIN` 到了會變成 `[TIMEOUT]` 照下面處理。dev／qa：收到就處理，不等人去按（你閒置時沒有辦法計時等他）——`herdr agent read <員工>` 看它卡在哪個指令，記 `ruling: [自主] 重派 <員工>：卡在 <指令> 的審批 — …`，再 `dk-spawn <角色> <別名> --resume`，並 `dk-msg <員工> "[TASK] 上次卡在 <指令> 的審批，改用不需要審批的做法"`。同一位卡第二次就換 kind 重派；再卡就照「熔斷器」把它負責的驗收項 park 成未達成，其他波照常跑。
 - 任何員工的 `[LIMIT]`（dk-watch 推來）：先讀 `.blocked/<agent>.limit` 的 `hit:` 行（或 `herdr agent read`）判斷真假。誤判就 `dk-kind up <k>` 解熔斷並記 ruling；不要叫員工自己跑 `dk-kind`，命中行會印在他畫面上，等於自己把自己熔斷。真的撞額度才照舊：它跟 `[BLOCKED]` 不同 —— 按審批救不回來，要換人或等額度；專案層熔斷會讓下一個任務自動跳過該 kind。reviewer 就照下一條處理；dev／qa 則 `dk-wave-close --agent <員工>` 關掉後用未熔斷的 kind 重派。
-- reviewer `[TIMEOUT]`（dk-watch 推來；該 kind 已寫進 `.task.env` 的 `DK_KIND_DOWN`）：`dk-wave-close --agent <reviewer>` 關它。達 `DK_REVIEW_MIN` 照常裁定；不夠就 `dk-review --kinds "<未熔斷者>"` 補一位；全部熔斷 → `dk-process "review N skipped: all kinds down"`，report.md 遺留段標「本波未經審查」。同任務內解除熔斷：`dk-kind up <k>`（同時清掉綁著任務的 `DK_KIND_DOWN`，並記 `kind <k> up`）；`dk-task-close` 會清掉。**`.blocked/<員工>.limit` 標記檔不要刪** —— 它就是「這個畫面已經判過了」的憑據，刪掉的話 dk-watch 下一輪讀到同一個畫面會再熔斷同一個 kind 一次。
+- reviewer `[TIMEOUT]`（dk-watch 推來）：`[TIMEOUT] … 逾時但仍在工作（未熔斷）` 是它的 `agent_status` 仍是 working，kind 沒進 `DK_KIND_DOWN`——不關 pane、照常等（同一輪只推一次）；它停下來仍沒交才推一般的 `[TIMEOUT]`，這時該 kind 才進 `DK_KIND_DOWN`：`dk-wave-close --agent <reviewer>` 關它。達 `DK_REVIEW_MIN` 照常裁定；不夠就補派，直接再跑 `dk-review --kinds <k>`（挑未熔斷的；會拿下一個別名、`review N spawned` 名單累加，不關已在的 reviewer；失敗的那位仍在名單裡，裁定行要寫 `<別名>: skipped (<理由>)`）；全部熔斷 → `dk-process "review N skipped: all kinds down"`，report.md 遺留段標「本波未經審查」。同任務內解除熔斷：`dk-kind up <k>`（同時清掉綁著任務的 `DK_KIND_DOWN`，並記 `kind <k> up`）；`dk-task-close` 會清掉。**`.blocked/<員工>.limit` 標記檔不要刪** —— 它就是「這個畫面已經判過了」的憑據，刪掉的話 dk-watch 下一輪讀到同一個畫面會再熔斷同一個 kind 一次。
+- dev／qa `[TIMEOUT] … 閒置 N 分鐘未交`（永不熔斷 kind，同一次指派只推一次）：先看 messages.log 是否有它在等的 `[DECISION]`／`[UNDELIVERED]`——有就補送，沒有就 `dk-spawn <角色> <別名> --resume`。dev 在交接波等夥伴的 `[DONE]` 時也會觸發，那是預期內的提醒，確認它在等就不用動。
 - `dk-task-close` 或 `dk-chore-close` 回 `uncommitted changes`：worktree 裡有沒 commit 的變更，它不合併也不刪任何東西。任務：在 worktree 內 `git add -A && git commit` 後重跑；雜務：`dk-msg <員工> "[TASK] commit 你的變更"` 後重跑。真的要丟掉才用 `--abandon`。
 - wave-close 測試失敗：它不關 pane；`dk-msg <擁有者> "[BUG] wave-close tests: <最後幾行>"`；連續兩次失敗照「熔斷器」判。
 - wave-close 回 `unowned change: <路徑>`：這一波真的改了本波沒人擁有的檔（含在 worktree 裡動 `.dkbo/` 規則檔）。先判斷該不該改：該改就在 brief 的檔案所有權補給該成員並記 ruling，再重跑；不該改就 `dk-msg <該波成員> "[BUG] 還原 <路徑>"`。真要放行才 `--force`，並在 report.md 遺留段記一行。

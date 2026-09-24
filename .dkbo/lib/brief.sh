@@ -22,10 +22,25 @@ dk__brief_rows() { # BRIEF HEADING → data rows as trimmed "|"-joined cells (ou
     } print out }' \
     | tail -n +2 | grep -v '^（範例）' || true
 }
-dk_brief_owners() { dk__brief_rows "$1" "## 檔案所有權"; }   # member|globs|readonly
+dk_brief_owners() { dk__brief_rows "$1" "## 檔案所有權"; }   # member|globs|readonly[|exclusive]
 dk_brief_waves()  { dk__brief_rows "$1" "## 波次表"; }       # wave|type|member|what|tier|done|review
-dk_brief_wave_members() { dk_brief_waves "$1" | awk -F'|' -v n="$2" '$1==n {print $3 "(" $5 ")"}'; }
-dk_brief_wave_review()  { dk_brief_waves "$1" | awk -F'|' -v n="$2" '$1==n && $7!="" {print $7; exit}'; }
+# 上面兩支的輸出仍把欄內的字面管線留成 \|，所以下游不能再拿裸 awk -F'|' 切 —— 「做什麼」欄
+# 寫一個 a\|b，後面的難度、審查欄就全部錯位一格，而且不報錯（BACKLOG #5）。下游一律走這裡。
+# shellcheck disable=SC2016  # awk 程式片段，$0 是 awk 的欄位不是 shell 變數
+DK__BRIEF_SPLIT='{ line = $0; gsub(/\\\|/, SUBSEP, line); nf = split(line, c, "|")
+  for (i = 1; i <= nf; i++) { m = split(c[i], p, SUBSEP); v = p[1]; for (j = 2; j <= m; j++) v = v "\\|" p[j]; c[i] = v } }'
+dk_brief_md_rows() { # NCOLS [COL VALUE]... ← dk_brief_* 的列（stdin）→ 各欄都相符的列，只取前 NCOLS 欄，拼回 `| a | b |` 的 markdown 列
+  local n="$1" conds; shift
+  conds=$(printf '%s\034' "$@")   # 條件值可以含空白；\034 不會出現在 brief 的欄位裡
+  awk -v n="$n" -v conds="$conds" "$DK__BRIEF_SPLIT"'
+    { k = split(conds, q, "\034"); ok = 1; for (i = 1; i + 1 <= k; i += 2) if (c[q[i]] != q[i+1]) ok = 0
+      if (!ok) next; out = "|"; for (i = 1; i <= n; i++) out = out " " c[i] " |"; print out }'
+}
+dk_brief_ncols() { # [COL]... ← dk_brief_* 的列（stdin）→ 每個非空列印欄數（\| 不算分隔），再以 tab 接上指定欄的值
+  awk -v cols="$*" "$DK__BRIEF_SPLIT"'NF { k = split(cols, q, " "); out = nf; for (i = 1; i <= k; i++) out = out "\t" c[q[i]]; print out }'
+}
+dk_brief_wave_members() { dk_brief_waves "$1" | awk -v n="$2" "$DK__BRIEF_SPLIT"'c[1]==n {print c[3] "(" c[5] ")"}'; }
+dk_brief_wave_review()  { dk_brief_waves "$1" | awk -v n="$2" "$DK__BRIEF_SPLIT"'c[1]==n && c[7]!="" {print c[7]; exit}'; }
 dk_brief_acceptance()   { [ -f "$1" ] || { echo "dk: no brief at $1" >&2; return 1; }; dk_brief_section "$1" "## 驗收標準" | grep -E '^- \[.\] ' || true; }
 # 橫切所有波的硬要求（版本下限、命名規則、平台要求）。段落不存在＝0.9.0 之前建立的 brief。
 dk_brief_constraints() { dk_brief_section "$1" "## 全域約束"; }

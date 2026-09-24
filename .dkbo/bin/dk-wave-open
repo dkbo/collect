@@ -20,7 +20,7 @@ else
   if [ "$live" -ne 0 ]; then
     names=$(awk 'NF>=6 && $5==0 {next} NF>0 {print $1}' "$dir/.panes")
     # 全部都是計畫審查 pane 時，「dk-wave-close first」跟 gate1 的「no wave open」互指、指不出真正的出路
-    if ! printf '%s\n' "$names" | grep -vqE -- '-reviewer-p[0-9]+$'; then
+    if ! grep -vqE -- '-reviewer-p[0-9]+$' <<< "$names"; then   # here-string：printf | grep -q 在 pipefail 下會偶發 SIGPIPE（見 lib/repos.sh）
       agents=$(printf '%s' "$names" | tr '\n' ' ' | sed 's/ *$//')
       dk_die "計畫審查的 pane 還開著（$agents）：先逐個 dk-wave-close --agent <agent> 關掉，再 dk-task-new $DK_SHORT --gate1 過關卡①（見 .dkbo/skills/plan/SKILL.md 第 6 步）"
     fi
@@ -46,8 +46,9 @@ constraints=$(dk_brief_constraints "$brief")
 peers=$(echo "$members" | tr '\n' ' ' | sed 's/ $//')
 mkdir -p "$dir/briefs"
 for m in $members; do m="${m%%(*}"
-  rows=$(dk_brief_waves "$brief" | awk -F'|' -v m="$m" -v n="$n" '$1==n && $3==m {printf "| %s | %s | %s | %s | %s | %s | %s |\n", $1,$2,$3,$4,$5,$6,$7}')
-  own=$(dk_brief_owners "$brief" | awk -F'|' -v m="$m" '$1==m {printf "| %s | %s | %s |\n", $1,$2,$3}')
+  # 跳脫感知地切（lib/brief.sh）：欄內的 \| 是字面管線，裸 awk -F'|' 會把整列錯位
+  rows=$(dk_brief_waves "$brief" | dk_brief_md_rows 7 1 "$n" 3 "$m")
+  own=$(dk_brief_owners "$brief" | dk_brief_md_rows 3 1 "$m")
   [ -n "$own" ] || echo "dk-wave-open: $m has no row in 檔案所有權 (run dk-brief-check)" >&2
   dk_render "$DK_ROOT/templates/brief-member.md" "DISPLAY=$DK_DISPLAY" "MEMBER=$m" "WAVE=$n" "BRIEF=$brief" "GOAL=$goal" \
     "CONSTRAINTS=$constraints" \

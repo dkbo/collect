@@ -104,12 +104,18 @@ if [ "$run" = 1 ]; then
 
   if [ "$materialized" = 0 ]; then
     # ws 空值檢查提早到切 worktree／跑 DK_SETUP_CMD 之前：純前置條件，不看工作樹狀態，
-    # 早失敗省一次白付的依賴安裝。DK_WORKSPACE 原本是空字串時才用 HERDR_WORKSPACE_ID 補上
-    # 並落盤（契約：.task.env 的 DK_TASK_TAB），好讓 dk-spawn 的溢出 tab 讀得到；
-    # DK_WORKSPACE 原本非空則一律不動。
-    ws="${DK_WORKSPACE:-${HERDR_WORKSPACE_ID:-}}"
+    # 早失敗省一次白付的依賴安裝。tab 開在人叫 /dkbo-run 當下所在的 workspace
+    # （HERDR_WORKSPACE_ID），空才退回 .task.env 的 DK_WORKSPACE —— 計畫到交棒之間人可能換了
+    # workspace，開回舊的那一個他根本看不到（BACKLOG #17，人拍板的語意反轉）。
+    # 兩者不同時回寫 DK_WORKSPACE 並落盤，好讓 dk-spawn 的溢出 tab 開在同一個 workspace。
+    ws="${HERDR_WORKSPACE_ID:-${DK_WORKSPACE:-}}"
     [ -n "$ws" ] || dk_die "DK_WORKSPACE 與 HERDR_WORKSPACE_ID 都是空的；--run 要在 herdr 環境內跑（要有所屬的 workspace）"
-    if [ -z "${DK_WORKSPACE:-}" ]; then dk_env_set DK_WORKSPACE "$ws"; DK_WORKSPACE="$ws"; fi
+    if [ -z "${DK_WORKSPACE:-}" ]; then dk_env_set DK_WORKSPACE "$ws"; DK_WORKSPACE="$ws"
+    elif [ "$ws" != "$DK_WORKSPACE" ]; then
+      moved="workspace $DK_WORKSPACE → $ws（--run 開在當下所在的 workspace）"
+      dk_env_set DK_WORKSPACE "$ws"; DK_WORKSPACE="$ws"
+      dk_process "$moved"; echo "dk-leader: $moved"
+    fi
 
     # 交棒當下每個 repo 都要是乾淨的 git 根（乾淨只看已追蹤檔）。dk-task-new 已經做過名字、
     # 主 repo、git 根三項；「乾淨」是這裡才驗的那一項 —— worktree 從 HEAD 切，此刻才算數。
@@ -143,8 +149,8 @@ if [ "$run" = 1 ]; then
     fi
     # 任務根 tab 只是一個「cwd 指向主樹、label 是分支名」的容器：領導必須站在主樹（.dkbo/ 在
     # 主樹，跑的也是主樹的腳本），員工 pane 照舊各自 --cwd。所以不用 herdr worktree create
-    # （plan.md 決策①）。開在任務所屬的 workspace（DK_WORKSPACE，計畫時記下；退路
-    # HERDR_WORKSPACE_ID）底下，不再開一個任務專屬 workspace（plan.md tasktab 決策）。
+    # （plan.md 決策①）。開在人當下所在的 workspace（上面選好的 ws：HERDR_WORKSPACE_ID，
+    # 空才退回 DK_WORKSPACE）底下，不再開一個任務專屬 workspace（plan.md tasktab 決策）。
     out=$(herdr tab create --workspace "$ws" --cwd "$DK_PROJECT_ROOT" --label "dk/$short" --no-focus \
             --env "DK_ROOT=$DK_ROOT" --env "HERDR_ENV=1" 2>/dev/null || true)
     new_tab=$(printf '%s' "$out" | dk_json '.result.tab.tab_id // empty' 2>/dev/null || true)

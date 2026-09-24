@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # dk-kind [status]     — 列出專案層熔斷未恢復的 kind
 # dk-kind up <kind>    — 解除一個 kind 的熔斷（kinds-down 的所有該 kind 列，與綁著任務時的 DK_KIND_DOWN）
+# dk-kind down <kind> [--until YYYY-MM-DDTHH:MM] [--note <文字>]
+#                      — 領導手動登記額度耗盡（畫面以外的來源：CLI 狀態列、前任務 ruling、人告知）；up 的對稱
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/kinds.sh"
 
-usage() { echo "usage: dk-kind [status] | dk-kind up <kind>" >&2; exit 2; }
+usage() { echo "usage: dk-kind [status] | dk-kind up <kind> | dk-kind down <kind> [--until YYYY-MM-DDTHH:MM] [--note <文字>]" >&2; exit 2; }
+known() { [ -f "$DK_ROOT/kinds/$1.sh" ] || { echo "dk-kind: unknown kind '$1' (no $DK_ROOT/kinds/$1.sh)" >&2; exit 2; }; }
 
 cmd="${1:-status}"
 case "$cmd" in
@@ -20,8 +23,7 @@ case "$cmd" in
     ;;
   up)
     [ $# -eq 2 ] || usage
-    k="$2"
-    [ -f "$DK_ROOT/kinds/$k.sh" ] || { echo "dk-kind: unknown kind '$k' (no $DK_ROOT/kinds/$k.sh)" >&2; exit 2; }
+    k="$2"; known "$k"
     removed=0
     dk_kinds_down_remove "$k" && removed=1
     # 綁著任務時才有 DK_KIND_DOWN 可拿；沒綁任務（領導在主樹、任務之間）就只動 kinds-down。
@@ -35,6 +37,38 @@ case "$cmd" in
     fi
     if [ "$removed" = 1 ]; then dk_process "kind $k up" 2>/dev/null || true; echo "kind $k up"
     else echo "kind $k 沒有熔斷"; fi
+    ;;
+  down)
+    [ $# -ge 2 ] || usage
+    k="$2"; shift 2; known "$k"
+    until=""; note="leader 人工登記"
+    while [ $# -gt 0 ]; do case "$1" in
+      --until) [ $# -ge 2 ] || usage; until="$2"; shift 2;;
+      --note)  [ $# -ge 2 ] && [ -n "$2" ] || usage; note="$2"; shift 2;;
+      *) usage;; esac; done
+    now=$(date +%s)
+    if [ -n "$until" ]; then
+      # 本地牆鐘時間 → epoch 走分鐘差（同 dk_kind_recover_epoch 的 codex 分支），不用 date -d
+      tmin=$(dk_ts_minutes "$until") || { echo "dk-kind: --until 要 YYYY-MM-DDTHH:MM（本地時間），收到 '$until'" >&2; exit 2; }
+      diff=$(( tmin - $(dk_ts_minutes "$(dk_now)") ))
+      [ "$diff" -gt 0 ] || { echo "dk-kind: --until $until 已經過去" >&2; exit 2; }
+      epoch=$(( now + diff * 60 )); ex=exact
+    else
+      epoch=$(( now + 5 * 3600 )); ex=guess
+    fi
+    tn=-; bound=0
+    if d=$(dk_task_dir 2>/dev/null); then tn=$(basename "$d"); bound=1; fi
+    dk_kinds_down_set "$k" "$epoch" "$ex" "$tn" leader "$note"
+    if [ "$bound" = 1 ]; then
+      DK_TASK_DIR="$d"; export DK_TASK_DIR; dk_task_env
+      if [[ " ${DK_KIND_DOWN:-} " != *" $k "* ]]; then dk_env_set DK_KIND_DOWN "${DK_KIND_DOWN:+$DK_KIND_DOWN }$k"; fi
+    fi
+    # 印實際生效的那一列：同 kind 已有較晚的未過期列時，「取較晚」會留下它而不是這次給的時間
+    read -r _k e ex _rest <<< "$(dk_kinds_down_get "$k")"
+    tag=""; [ "$ex" = guess ] && tag=" (guess)"
+    at="$(dk_epoch_to_local "$e")$tag"
+    if [ "$bound" = 1 ]; then dk_process "kind $k down (leader) until $at" 2>/dev/null || true; fi
+    echo "kind $k down until $at"
     ;;
   *) usage;;
 esac

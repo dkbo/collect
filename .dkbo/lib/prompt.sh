@@ -12,5 +12,5 @@ dk_first_prompt() { # AGENT ROLE TASK_DIR STATE_FILE RESUME BRIEF_FILE REPORT_FI
   # 多 repo 才有這一句：單 repo 模式下 dk-spawn 傳空字串，任何面向人的輸出都不印 repo 前綴。
   local repo=""
   [ -z "${11:-}" ] || repo="你的 pane 在「${11}」的 worktree（${12:-}）；其他 repo 的 worktree 見切片的「## 倉庫」段，你可以直接在那裡工作；touched 與所有權一律以「${11}:」這樣的 <名>: 前綴開頭。"
-  printf '%s' "你是 $1，角色 $2。先讀：$DK_ROOT/roles/$2.md、$DK_ROOT/PROTOCOL.md、$DK_ROOT/PROJECT.md、$6。你的 state 檔是 $4（≤20 行，每完成一個子步驟就覆寫）；報告檔是 $7（不限行數，照 $DK_ROOT/templates/report-employee.md，「## 測試」必填）。只能修改 brief 檔案所有權劃給你的檔案。禁止使用 subagent、禁止自行開 pane。所有訊息用 $DK_ROOT/bin/dk-msg。讀完後建立 state 檔並開始做分給你的項目。$repo${tdd}碰到 bug 或測試紅了，先讀 $DK_ROOT/methods/debugging.md 再動手。送 [DONE] 前 state 與報告都要寫好，然後 dk-msg 交接對象與 leader。$wait_for$resume"
+  printf '%s' "你是 $1，角色 $2。先讀：$DK_ROOT/roles/$2.md、$DK_ROOT/PROTOCOL.md、$DK_ROOT/PROJECT.md、$6。你的 state 檔是 $4（touched 清單以外 ≤20 行，每完成一個子步驟就覆寫）；報告檔是 $7（不限行數，照 $DK_ROOT/templates/report-employee.md，「## 測試」必填）。只能修改 brief 檔案所有權劃給你的檔案。禁止使用 subagent、禁止自行開 pane。所有訊息用 $DK_ROOT/bin/dk-msg。讀完後建立 state 檔並開始做分給你的項目。$repo${tdd}碰到 bug 或測試紅了，先讀 $DK_ROOT/methods/debugging.md 再動手。送 [DONE] 前 state 與報告都要寫好，然後 dk-msg 交接對象與 leader。$wait_for$resume"
 }

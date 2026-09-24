@@ -108,7 +108,9 @@ dk_glob_check() { # TASK_DIR GLOB → 0＝合法；非零時 stdout 是理由（
   name=$(dk_glob_split "$g" | cut -f1)
   if dk_repos_multi; then
     [ -n "$name" ] || { echo "多 repo 模式的 glob 必須帶 <名>: 前綴：$g"; return 1; }
-    printf '%s\n' "$(dk_repos_known "$d")" | grep -qx "$name" \
+    # here-string 而不是 printf | grep -q：grep 命中就退出，printf 偶爾還沒寫完會吃 SIGPIPE，
+    # 呼叫端的 pipefail 下整條管線非零 —— 合法的名字被判成未知（直呼 3000 次約 20 次）。
+    grep -qx "$name" <<< "$(dk_repos_known "$d")" \
       || { echo "未知的 repo 名字 $name（不在 DK_REPOS 裡）：$g"; return 1; }
   else
     [ -z "$name" ] || { echo "單 repo 模式的 glob 不得帶 <名>: 前綴：$g"; return 1; }

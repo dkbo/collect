@@ -31,7 +31,7 @@
 - 任何「選 A 或 B」、任何共用契約的變更，一律 ESCALATE。
 - 只能修改切片所有權劃給你的檔案。要動別人的檔 → 用 QUESTION 請擁有者改，或 ESCALATE。
 - 禁止使用 subagent、禁止自行開 pane 或啟動其他 agent。
-- 測試：做的過程只跑跟改動相關的測試檔；專案的完整測試只在送 `[DONE]`／`[FIXED]` 前跑一次。wave-close 會再跑一次完整測試當閘，而同波夥伴共用 worktree，每多跑一次全套就拖慢每個人。
+- 測試：做的過程只跑跟改動相關的測試檔；專案的完整測試只在送 `[DONE]`／`[FIXED]` 前跑一次。wave-close 會再跑一次完整測試當閘，而同波夥伴共用 worktree，每多跑一次全套就拖慢每個人。取紅（證明新測試會紅）一律 cp 到獨立目錄或 `git archive <base>` 解到暫存目錄做，不在共用 worktree 用 `git stash`／`git checkout -- <檔>`：夥伴並跑的測試會讀到舊碼而假紅，stash 堆疊也跨 worktree 共用。
 - 只有本人能寫自己的 state 與 report 檔；員工不寫 process.md、brief.md、report.md（任務結案報告）。
 - dk-msg 回傳非零（對方卡住、送不進）：把這件事寫進 state 的 `blocked_by`，繼續做別的事。
 
@@ -39,7 +39,7 @@
 不 push、不改寫歷史（rebase/amend 已推送的 commit、force）、不刪分支、不動所有權外的檔、不裝依賴（it 角色除外）、不改 `.dkbo/` 下的規則檔。
 不跑會跳權限確認的指令：`rm -rf`、`git push`、`git reset --hard`、`git clean`、部署類（`pnpm deploy`／`pnpm cp`）。你跑在 acceptEdits 模式，這類指令會停在「Do you want to proceed?」等人按，而你的 pane 沒人在看。要刪專案內的檔就 `rm -r <單一路徑>`（不加 `-f`）或用工具自帶的清理指令（如 `vite --force`），做不到就 ESCALATE。
 
-## state 檔（≤20 行，每完成一個子步驟就覆寫）
+## state 檔（`touched:` 底下的清單項以外 ≤20 行，每完成一個子步驟就覆寫）
 ```
 status: working | blocked | done
 wave: 1
@@ -52,7 +52,7 @@ blocked_by: （無則省略）
 report: state/<你的 state 名>.report.md
 notes: 給接手者的必要事實，≤5 行
 ```
-`touched:` 冒號後只能是空白或 `[]`；有項目時每一項各佔一行、以兩個空白加 `- ` 開頭（如上例），不得用 `{`、`}`、`*`、`?`。DONE 前 `touched` 必須完整。`dk-wave-close` 不是看你自報的清單，而是拿 worktree 的真實 git diff（含未 commit 與未追蹤）比對所有權：動了不屬於本波任何人的檔，整波關不掉；自己擁有但漏寫進 `touched` 的檔會被列成 `unreported change`。
+`touched:` 冒號後只能是空白或 `[]`；有項目時每一項各佔一行、以兩個空白加 `- ` 開頭（如上例），不得用 `{`、`}`、`*`、`?`。DONE 前 `touched` 必須完整。`dk-wave-close` 不是看你自報的清單，而是拿 worktree 的真實 git diff（含未 commit 與未追蹤）比對所有權：動了不屬於本波任何人的檔，整波關不掉；自己擁有但漏寫進 `touched` 的檔會被列成 `unreported change`。行數上限不算 `touched:` 之後以 `  - ` 開頭的連續行，其餘超過 20 行 wave-close 印 `state too long`（只警告）。
 
 多 repo 專案（「## 倉庫」段的列帶 `<名> →`，如 `api → /path/to/worktree`）：所有權表的 glob 與 `touched` 一律帶 `<名>:` 前綴（如 `api:src/routes/**`），前綴取自「## 倉庫」段列出的 repo 名；同一條路徑在不同 repo 是兩個不同的檔，不跨 repo 比對。單 repo 專案的切片也有「## 倉庫」段，但只印一行 worktree 路徑、不帶名字與 `→`，不帶前綴，行為不變。你的 pane 已經 `--cwd` 在你第一個可改 repo 的 worktree；其他 repo 的 worktree 路徑見切片的「## 倉庫」段，可以直接在那裡工作。
 
@@ -70,7 +70,7 @@ notes: 給接手者的必要事實，≤5 行
 
 雜務員工（`chore-*`）沒有任務綁定，不寫 state 檔。你的 chore 檔**整份是你的**，
 格式隨你寫，機器不讀它——但正因為機器不讀，**完成一定要跑
-`dk-msg leader "[DONE] <一句結果>"`，那是領導唯一收得到的完成訊號，不跑就關不掉**。
-守望看的是你的 agent 狀態不是你的檔案，你卡在審批超過門檻就推 `[BLOCKED]` 給派你的領導；回報一律 `dk-msg leader "[DONE] <一句結果>"`（只能對 leader，腳本會等領導閒置再送、記到 `tasks/_chores/messages.log`）。不要直接用 `herdr agent prompt` 回報：領導忙碌時那樣送會被吃掉。
+`dk-msg leader "[DONE] <一句結果>"`，那是領導唯一收得到的完成訊號，不跑就關不掉**（只能對 leader，腳本會等領導閒置再送、記到 `tasks/_chores/messages.log`）。
+守望看的是你的 agent 狀態不是你的檔案，你卡在審批超過門檻就推 `[BLOCKED]` 給派你的領導。不要直接用 `herdr agent prompt` 回報：領導忙碌時那樣送會被吃掉。
 
 執行環境（dev server、port、db、docker）是**全隊共用**的：worktree 隔離檔案，不隔離它們。不要 kill 進程、不要重啟或佔用服務、不要去探別人的 port —— 主樹上有領導，其他 worktree 裡有同事。需要動就 `dk-msg leader "[ESCALATE] <要動什麼、為什麼>"` 讓領導決定。任務那側這件事寫在 brief 的「獨佔資源」欄，雜務沒有 brief，所以寫在這裡。

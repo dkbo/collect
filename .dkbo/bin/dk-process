@@ -3,4 +3,13 @@
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 [ $# -gt 0 ] || dk_die "usage: dk-process \"<line>\""
+# 整枝評議只讀合 DK_MINOR_RE 的 minor 行：`minor task: x` 這種寫錯的照收會靜靜漏掉（BACKLOG #24）。
+# 本文部分直接從 DK_MINOR_RE 去掉時間戳前綴，不另寫一份正規式。
+minor_body_re="^${DK_MINOR_RE#'^[^ ]+ '}"
+case "$*" in
+  'minor '*|minor:*)
+    if [[ ! "$*" =~ $minor_body_re ]]; then
+      echo 'dk-process: minor 行格式不符（要 "minor: …" 或 "minor <波號>: …"），整枝評議讀不到這種行' >&2; exit 2
+    fi;;
+esac
 dk_process "$*"

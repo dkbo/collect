@@ -27,7 +27,7 @@ DK_SETUP_CMD="pnpm install --frozen-lockfile --prefer-offline"
 > herdr --version && command -v jq git claude >/dev/null || { echo "缺少 herdr/jq/git/claude"; exit 1; }
 > git status --porcelain | grep -q . && { echo "工作樹不乾淨，請先 commit 或 stash"; exit 1; }
 > REPO=https://github.com/dkbo/dkbo-team.git   # fork 的話改這裡
-> VER=v0.15.0   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
+> VER=v0.16.0   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
 > tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" "$REPO" "$tmp" && (cd "$tmp/.dkbo" && rm -rf tasks decisions.md PROJECT.md settings.env .sessions) && cp -r "$tmp/.dkbo" ./.dkbo && rm -rf "$tmp"
 > .dkbo/install.sh
 > git add -A && git commit -m "chore: add dkbo"
@@ -38,7 +38,7 @@ DK_SETUP_CMD="pnpm install --frozen-lockfile --prefer-offline"
 
 預期輸出的最後兩行：
 ```
-dkbo 0.15.0 installed into /path/to/project
+dkbo 0.16.0 installed into /path/to/project
 leader
 ```
 
@@ -51,7 +51,7 @@ leader
 ## 驗證
 ```bash
 .dkbo/bin/dk-whoami            # leader
-.dkbo/bin/dk-version           # dkbo 0.15.0
+.dkbo/bin/dk-version           # dkbo 0.16.0
 ls -l .claude/skills .agents/skills | grep dkbo   # 十個 symlink
 tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 ```
@@ -59,7 +59,7 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 ## 日常使用
 沒叫 skill 時，dkbo 不會啟動 —— 在專案裡開一個 session 就是一個普通的 session。要用才叫：斜線指令只有 claude 有，領導若是 codex 或 agy（`DK_LEADER_KIND`），沒有斜線指令可打，改指名對應的 SKILL.md：`.dkbo/skills/plan/SKILL.md`、`.dkbo/skills/run/SKILL.md`、`.dkbo/skills/brain/SKILL.md`。
 - 開任務：`/dkbo-plan`，然後說「開任務 login，顯示名『使用者登入』，需求是…」。它會寫 `request.md`、`brief.md`，`dk-brief-check` 過了才進入審查；接著 `dk-brief-review` 派 2 到 3 個不同 kind 讀需求原文與 brief，領導裁定並改完 brief，才把三份（需求原文、brief、裁定摘要）給你確認（關卡①）後停下來；你確認完叫 `/dkbo-run` 開始分波派工，開跑後不再停下來問你（員工升報由領導自己裁定，記 `ruling: [自主]`），結案時給你 report 拍板（關卡③），裡面列出這些自主裁定供你複核。
-- 交棒（0.11.0 起）：`dk-task-new` 只建任務資料夾，不切 worktree、不開 tab——計畫完可能不做，不先付那些成本。你叫 `/dkbo-run` 的那一刻，`dk-leader <short> --run` 才把任務「實體化」：對 `settings.env` 的 `DK_REPOS` 每個 repo 各切一個 `dk/<short>` 的 worktree、跑一次 `DK_SETUP_CMD` 依賴鉤子、用 `herdr tab create` 在任務所屬的 workspace（`.task.env` 的 `DK_WORKSPACE`，計畫時記下；空時退回 `HERDR_WORKSPACE_ID`）開一個 label `dk/<short>` 的任務根 tab，並在它的根 pane 起一位執行領導交棒——你這個 session 的任務就結束了，員工格子從此填在那個 tab，你的 session 可以空出來開下一個 `/dkbo-plan`。單 repo 專案（`DK_REPOS` 是空字串）一樣走開 tab 與交棒，只是只切一個 worktree。任何一步在 agent 起來之前失敗都會整組 rollback（worktree、分支、tab、`.task.env`），重跑 `--run` 是幂等的。
+- 交棒（0.11.0 起）：`dk-task-new` 只建任務資料夾，不切 worktree、不開 tab——計畫完可能不做，不先付那些成本。你叫 `/dkbo-run` 的那一刻，`dk-leader <short> --run` 才把任務「實體化」：對 `settings.env` 的 `DK_REPOS` 每個 repo 各切一個 `dk/<short>` 的 worktree、跑一次 `DK_SETUP_CMD` 依賴鉤子、用 `herdr tab create` 在你叫 `/dkbo-run` 當下所在的 workspace（`HERDR_WORKSPACE_ID`；空時退回 `.task.env` 的 `DK_WORKSPACE`，兩者不同時回寫它並記 process）開一個 label `dk/<short>` 的任務根 tab，並在它的根 pane 起一位執行領導交棒——你這個 session 的任務就結束了，員工格子從此填在那個 tab，你的 session 可以空出來開下一個 `/dkbo-plan`。單 repo 專案（`DK_REPOS` 是空字串）一樣走開 tab 與交棒，只是只切一個 worktree。任何一步在 agent 起來之前失敗都會整組 rollback（worktree、分支、tab、`.task.env`），重跑 `--run` 是幂等的。
 - 雜務與諮詢：`/dkbo-brain`，然後說「翻譯 README 成英文」「先修登入頁那個 bug」「這個設計該走哪條路」。它評估後派一位員工或給你三選一，不自己動手。
 - 領導失憶：在領導 pane `/clear`，然後叫 `/dkbo-run`（它第一步就是 `dk-resume`）。
 - 想知道現在做到哪：隨時跑 `.dkbo/bin/dk-resume`，不必先叫 skill —— 它是唯讀看板，開頭就印任務與本波已進行多久、每位員工等了幾分鐘。
@@ -68,7 +68,8 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 - 第二位領導：在任何 herdr shell 執行 `.dkbo/bin/dk-leader pay "金流"`。它的 kind 取 `DK_LEADER_KIND`，model/effort 取該 kind `KIND_DEFAULT_TIERS` 的 L 檔；`--kind` / `--model` / `--effort` 可逐次覆寫。
 - 每波自動附審查：dev DONE 後領導派 1–3 位 reviewer（kind 依 `.dkbo/settings.env` 的 `DK_REVIEW_KINDS`，檔位依 `DK_REVIEW_TIER`，預設 L）與 qa 並行；wave-close 會檢查裁定、每位 dev 的 report、`DK_TEST_CMD`，以及拿 worktree 的真實 git diff 比對本波的檔案所有權（沒人擁有的檔一律不放行），四道全過才關 pane 並在 worktree 內 commit 這一波。純文件波在 brief 審查欄寫 `skip: <理由>`。
 - 波中改 brief：`dk-wave-open <N> --refresh` 依當下 brief 重產第 N 波所有成員的切片並重算整波逾時，不動 base、不重派；改完再 `dk-msg <員工> "[TASK] 重讀切片"`。
-- 專案層熔斷：`dk-kind` 看跨任務仍在熔斷的 kind 與恢復時間，`dk-kind up <k>` 解除。
+- 專案層熔斷：`dk-kind` 看跨任務仍在熔斷的 kind 與恢復時間，`dk-kind up <k>` 解除；從畫面、CLI 狀態列、前一個任務的 ruling 或別人口中確認某 kind 額度耗盡，當下 `dk-kind down <k> [--until YYYY-MM-DDTHH:MM] [--note <文字>]` 登記（沒給 `--until` 就猜現在＋5 小時），下一次派 reviewer 或員工就會跳過它。
+- 結案：`dk-task-close` 合併回主分支；任務 tab 不自動關（最後一行印 `herdr tab close <id>`），看完 report 自己關。
 - 人多時的版面：領導在 tab 1 左欄，員工填右側 2×2（或 3×2）；第 5 位起自動開 `<short>-2` 等 tab，每 tab 6 位。
 
 ## 目錄
@@ -87,7 +88,7 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 只更新核心，保留你的 `tasks/`、`PROJECT.md`、`decisions.md` 與自訂角色：
 先用 .dkbo/bin/dk-version 看目前版本，再到 tags 頁挑要升的版本。
 ```bash
-VER=v0.15.0 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
+VER=v0.16.0 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
 rsync -a --exclude=tasks --exclude=PROJECT.md --exclude=decisions.md --exclude='roles/*' --exclude=.sessions --exclude=settings.env "$tmp/.dkbo/" ./.dkbo/
 rsync -a --ignore-existing "$tmp/.dkbo/roles/" ./.dkbo/roles/   # 只補新角色，不覆蓋既有
 rm -rf "$tmp" && .dkbo/install.sh && git add -A && git commit -m "chore: update dkbo"
@@ -105,7 +106,7 @@ rm -rf "$tmp" && .dkbo/install.sh && git add -A && git commit -m "chore: update 
 | 新任務一派 reviewer 就跳過某個 kind | `dk-watch` 判定撞額度、專案層熔斷還沒恢復。`dk-kind` 看清單與恢復時間，`dk-kind up <k>` 解除；不要叫員工自己跑，命中行會印在他畫面上。 |
 | codex / agy 不照協定回訊 | 確認 `AGENTS.md` 最後一行是入口行，且該 worktree 分支含這個 commit。 |
 | 領導自己開始寫程式 | 提醒它讀 `.dkbo/LEADER.md` 與當前階段那篇（`skills/{brain,plan,run}/SKILL.md`）；必要時 `/clear` 後重新叫該 skill。 |
-| 領導收到 `[TIMEOUT]` | reviewer 超過 `DK_REVIEW_TIMEOUT_MIN` 沒 DONE，多半是該 CLI 用量到頂（訊息含 rate limit / quota / 429 / usage limit 會標 `(quota?)`）。該 kind 本任務內熔斷；領導 `dk-wave-close --agent <reviewer>` 後照 `skills/run/SKILL.md` 補位。 |
+| 領導收到 `[TIMEOUT]` | reviewer 超過 `DK_REVIEW_TIMEOUT_MIN` 沒 DONE，多半是該 CLI 用量到頂（訊息含 rate limit / quota / 429 / usage limit 會標 `(quota?)`）。訊息寫「逾時但仍在工作（未熔斷）」的是它還在寫，照常等；一般的 `[TIMEOUT]` 表示該 kind 本任務內熔斷，領導 `dk-wave-close --agent <reviewer>` 後照 `skills/run/SKILL.md` 補位（再跑 `dk-review --kinds <k>`）。「閒置 N 分鐘未交」是 dev／qa 停著沒交，不熔斷，先看 messages.log 有沒有它在等的訊息。 |
 | 領導收到 `[LIMIT]` | `dk-watch` 判定撞額度：先讀 `.blocked/<員工>.limit` 的 `hit:` 行（或 `herdr agent read`）確認不是誤判；真的撞到會同時寫進跨任務的專案層熔斷檔，讓下一個任務自動跳過該 kind，誤判用 `dk-kind up <k>` 解除。 |
 | `dk-wave-close` 拒絕 | 印出的每一條都是缺的東西：裁定行、dev 的 `## 測試`、測試失敗、`unowned change`（本波改了沒人擁有的檔）。補齊再跑；真要跳過用 `--force` 並在 process 記理由。 |
 | 跑了 `git clean -xdf` 之後雜務關不掉 | `.dkbo/.sessions/chores/<agent>` 是正在跑的雜務的身分證，因為是 gitignored 所以 `git clean -xdf` 會把它連同其他忽略檔一起清掉；雜務本身（pane、worktree、branch）沒事，但 `dk-chore-close` 從此找不到它。復原：`dk-chore-close <agent> --abandon`（清掉 pane、worktree、branch，不 merge）。 |

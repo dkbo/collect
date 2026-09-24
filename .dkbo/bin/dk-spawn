@@ -54,7 +54,10 @@ report="$dir/state/$sname.report.md"
 # DK_WORKTREE 為空＝任務還沒實體化（計畫階段的 reviewer），那時只有主樹可用。
 mcwd="${DK_WORKTREE:-$DK_PROJECT_ROOT}"; mrepo=""; mrepo_wt=""
 if [ -n "${DK_WORKTREE:-}" ]; then
-  first_glob=$(dk_brief_owners "$dir/brief.md" 2>/dev/null | awk -F'|' -v m="$sname" '$1==m{print $2; exit}' | cut -d, -f1 | sed 's/^ *//; s/ *$//')
+  # 跳脫感知切欄（同 dk_owned）：可改欄的 \| 不是分隔，切完才還原成字面 |。
+  # awk 變數不能叫 m、c、p、i、j、v、nf、line：DK__BRIEF_SPLIT 自己用它們，會被蓋掉。
+  first_glob=$(dk_brief_owners "$dir/brief.md" 2>/dev/null | awk -v who="$sname" "$DK__BRIEF_SPLIT"'c[1]==who{print c[2]; exit}' \
+    | cut -d, -f1 | sed 's/^ *//; s/ *$//; s/\\|/|/g')
   if [ -n "$first_glob" ]; then
     mrepo=$(dk_glob_split "$first_glob" | cut -f1)
     mrepo_wt=""
@@ -73,8 +76,10 @@ if [ "$resume" = 1 ]; then
   old=$(awk -v a="$agent" '$1==a{print $2}' "$dir/.panes" | tail -1 || true)
   if [ -n "$old" ]; then
     herdr pane close "$old" >/dev/null 2>&1 </dev/null || true
-    grep -v "^$agent " "$dir/.panes" > "$dir/.panes.tmp" || true
-    mv "$dir/.panes.tmp" "$dir/.panes"
+    mkdir -p "$dir/.blocked"   # 改寫 .panes 一律拿 .blocked/panes.lock（與 dk-msg redispatch、dk-wave-close 同一把）
+    ( flock -w 5 9 || true
+      grep -v "^$agent " "$dir/.panes" > "$dir/.panes.tmp" || true
+      mv "$dir/.panes.tmp" "$dir/.panes" ) 9>"$dir/.blocked/panes.lock"
     dk_process "resume $agent: closed old pane $old"
   fi
 fi
@@ -113,7 +118,9 @@ if ! herdr agent start "$agent" --kind "$kind" --pane "$pane" -- $args >/dev/nul
   dk_process "spawn $agent failed: pane $pane kept for diagnosis"
   dk_die "agent start failed for $agent; pane $pane 保留著 —— herdr pane read $pane --source recent-unwrapped 看它卡在什麼，處理後 herdr pane close $pane"
 fi
-echo "$agent $pane $(date +%s) $group $tab_no $slot" >> "$dir/.panes"
+mkdir -p "$dir/.blocked"
+( flock -w 5 9 || true
+  echo "$agent $pane $(date +%s) $group $tab_no $slot" >> "$dir/.panes" ) 9>"$dir/.blocked/panes.lock"
 # 整枝評議 I2：波開著時把一位 group=dev 成員寫進 .panes 的同一步刪掉 wave-N.devdone，
 # 新 dev 交 [DONE] 時 dk-watch 才會再推聚合；devdone 的語意屬 dk-watch，這裡只負責刪。
 # reviewer-a Important 1（波 3）：已交付的 dev latch（wave-N.<sname>.done）還在時不刪 ——

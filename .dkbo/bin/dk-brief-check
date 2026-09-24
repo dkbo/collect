@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # dk-brief-check [<brief.md>] — mechanical pre-flight before gate ①. Read-only; exit 1 on any FAIL.
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/repos.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/repos.sh"; . "$DK_ROOT/lib/ownership.sh"
 dk_settings
 brief="${1:-}"; [ -n "$brief" ] || brief="$(dk_task_dir)/brief.md"
 [ -f "$brief" ] || dk_die "no brief at $brief"
@@ -11,12 +11,17 @@ tdir=$(dirname "$brief")
 fails=0; warns=0
 fail() { echo "FAIL $1: $2"; fails=$((fails+1)); }
 warn() { echo "WARN $1: $2"; warns=$((warns+1)); }
+# dk_brief_* 的輸出把欄內的字面管線留成 \|：下面的 IFS='|' read 先把它換成哨兵再切，
+# 用到欄位內容時再換回來。少了這一步，「做什麼」欄寫個 a\|b 難度與審查欄就全部錯位一格。
+esc=$(printf '\034')
+unesc() { printf '%s' "${1//$esc/\\|}"; }
 
 # ── 檔案所有權
 owners=$(dk_brief_owners "$brief"); [ -n "$owners" ] || fail 所有權 "沒有任何成員列"
 members=" "
-while IFS='|' read -r m globs ro; do
+while IFS='|' read -r m globs ro _res; do
   [ -n "$m" ] || continue
+  globs=$(unesc "$globs"); ro=$(unesc "$ro")
   [[ "$m" =~ ^[a-z][a-z0-9_-]*$ ]] || fail "所有權 $m" "成員欄須為 <角色>[-<別名>]（ascii 小寫）"
   dk_member_role "$m" >/dev/null 2>&1 || fail "所有權 $m" "找不到角色檔（用 add-role skill 建立）"
   [[ "$members" == *" $m "* ]] && fail "所有權 $m" "成員重複"
@@ -32,8 +37,15 @@ while IFS='|' read -r m globs ro; do
     [ -n "$g" ] || continue
     why=$(dk_glob_check "$tdir" "$g") || fail "所有權 $m" "$why"
   done <<< "$(printf '%s\n%s\n' "$globs" "$ro" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true)"
-done <<< "$owners"
-all_globs=$(printf '%s\n' "$owners" | awk -F'|' '{n=split($2,g,","); for(i=1;i<=n;i++){x=g[i]; gsub(/^ +| +$/,"",x); if(x!="" && x!="—") print $1 "\t" x}}')
+done <<< "$(printf '%s\n' "$owners" | sed "s/\\\\|/$esc/g")"
+# 欄數閘：3 欄是 0.9.x 的格式（fixture_brief、templates/brief-member.md 的表頭也是），第 4 欄
+# 獨佔資源選填。其他欄數＝某一格裡有裸管線（或少了一格），後面每一欄都跟著錯位，不能靜默讀下去。
+while IFS=$'\t' read -r nc m; do
+  [ -n "$nc" ] || continue
+  [ "$nc" -ge 3 ] && [ "$nc" -le 4 ] || fail "所有權 $m" "每列須 3 或 4 欄（成員｜可改｜只讀［｜獨佔資源］），得到 $nc 欄（欄內的字面管線要寫成 \\|）"
+done <<< "$(printf '%s\n' "$owners" | dk_brief_ncols 1)"
+# 可改欄同樣要跳脫感知地切：裸 -F'|' 會在 \| 處把可改欄切斷，後面的 glob 整段漏判重疊。
+all_globs=$(printf '%s\n' "$owners" | awk "$DK__BRIEF_SPLIT"'{n=split(c[2],g,","); for(i=1;i<=n;i++){x=g[i]; gsub(/^ +| +$/,"",x); if(x!="" && x!="—") print c[1] "\t" x}}')
 overlap() { # G1 G2 → 0 when the two 可改 globs can match the same path (literal equality, or a dir/** tree containing the other)
   # 多 repo 時先按 repo 分組：兩個 repo 裡的同一條 glob 是兩組不同的檔，不算重疊。
   local a b ra rb s
@@ -53,6 +65,48 @@ while IFS=$'\t' read -r m1 g1; do
   done <<< "$all_globs"
 done <<< "$all_globs"
 
+# ── 無主測試檔（只 WARN）：成員的可改檔被某個測試檔引用，那個測試檔卻不在任何人的可改欄 ——
+# 改行為時斷言舊行為的那條測試會紅，而沒有人能改它（testtrust 的 BACKLOG #15）。
+# 來源只取不含萬用字元、且不是 .md 的路徑（glob 沒有檔名可找；文件被引用多半是文件斷言，
+# 那是 docs 的事）。每個 repo 在自己的 ls-files 裡找，多 repo 時路徑帶 <名>:。
+srcs=$(while IFS='|' read -r m globs _ro _res; do
+  [ -n "$m" ] || continue
+  while IFS= read -r g; do
+    case "$g" in ""|—|*'*'*|*'?'*|*'['*|*.md) continue;; esac
+    sp=$(dk_glob_split "$g"); gp="${sp#*$'\t'}"
+    rp="${sp%%$'\t'*}"   # 單 repo 沒有前綴：寫成 -，因為 IFS=$'\t' read 會吃掉開頭的空欄
+    printf '%s\t%s\t%s\n' "${rp:--}" "${gp##*/}" "$m"
+  done <<< "$(unesc "$globs" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+done <<< "$(printf '%s\n' "$owners" | sed "s/\\\\|/$esc/g")")
+if [ -f "$tdir/.repos" ]; then repo_list=$(dk_repos_rows "$tdir" | awk '{print $1, $2}'); else repo_list=$(dk_repos_parse); fi
+orphans=""
+while read -r rname rroot; do
+  [ -n "$rname" ] && [ -n "$srcs" ] || continue
+  if dk_repos_multi; then rkey="$rname"; pre="$rname:"; else rkey="-"; pre=""; fi
+  tfiles=$(git -C "$rroot" -c core.quotePath=false ls-files 2>/dev/null | awk '
+    /^\.dkbo\/tasks\// || /\.(log|md|txt)$/ {next}
+    { b = $0; sub(/.*\//, "", b) } b ~ /\.bats$/ || b ~ /_test\./ || b ~ /\.test\./ || b ~ /\.spec\./' || true)
+  [ -n "$tfiles" ] || continue
+  while IFS=$'\t' read -r sr bn sm; do
+    [ -n "$bn" ] && [ "$sr" = "$rkey" ] || continue
+    while IFS= read -r h; do
+      [ -n "$h" ] || continue
+      owner=""
+      for om in $members; do if dk_owned "$brief" "$om" "$pre$h"; then owner="$om"; break; fi; done
+      [ -n "$owner" ] || orphans="$orphans$pre$h	$bn	$sm
+"
+    done <<< "$(cd "$rroot" && printf '%s\n' "$tfiles" | tr '\n' '\0' | xargs -0 grep -lF -- "$bn" 2>/dev/null || true)"
+  done <<< "$srcs"
+done <<< "$repo_list"
+while IFS=$'\t' read -r tf bns ms; do
+  [ -n "$tf" ] || continue
+  warn 所有權 "$tf 引用了 $bns（$ms 的可改檔），但沒人擁有它（改行為時斷言舊行為的測試會紅）"
+done <<< "$(printf '%s' "$orphans" | awk -F'\t' '
+  !($1 in seen) { seen[$1] = 1; order[++n] = $1 }
+  !(($1 SUBSEP $2) in sb) { sb[$1, $2] = 1; b[$1] = b[$1] (b[$1] == "" ? "" : ", ") $2 }
+  !(($1 SUBSEP $3) in sm) { sm[$1, $3] = 1; m[$1] = m[$1] (m[$1] == "" ? "" : ", ") $3 }
+  END { for (i = 1; i <= n; i++) print order[i] "\t" b[order[i]] "\t" m[order[i]] }')"
+
 # ── 波次表
 waves=$(dk_brief_waves "$brief"); [ -n "$waves" ] || fail 波次表 "沒有任何列"
 prev=0
@@ -68,20 +122,25 @@ while IFS='|' read -r w _type m _what tier _done review; do
       read -ra ks <<< "${review#kinds:}"
       [ "${#ks[@]}" -ge 1 ] && [ "${#ks[@]}" -le 3 ] || fail "波次表 $w" "kinds 須 1 至 3 個"
       for k in "${ks[@]}"; do [ -f "$DK_ROOT/kinds/$k.sh" ] || fail "波次表 $w" "未知 kind $k"; done;;
-    *) fail "波次表 $w" "審查欄須為 預設、skip: <理由> 或 kinds: <k1> [k2] [k3]，得到 '$review'";;
+    *) fail "波次表 $w" "審查欄須為 預設、skip: <理由> 或 kinds: <k1> [k2] [k3]，得到 '$(unesc "$review")'";;
   esac
-done <<< "$waves"
+done <<< "$(printf '%s\n' "$waves" | sed "s/\\\\|/$esc/g")"
+# 欄數閘：波次表固定 7 欄（跳脫的 \| 不算分隔）。
+while IFS=$'\t' read -r nc w m; do
+  [ -n "$nc" ] || continue
+  [ "$nc" -eq 7 ] || fail "波次表 $w $m" "每列須 7 欄，得到 $nc 欄（欄內的字面管線要寫成 \\|）"
+done <<< "$(printf '%s\n' "$waves" | dk_brief_ncols 1 3)"
 for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -un); do
   [ -n "$(dk_brief_wave_review "$brief" "$w")" ] || fail "波次表 $w" "審查欄未填（預設 / skip: <理由> / kinds: …）"
   devs=0
-  for m in $(printf '%s\n' "$waves" | awk -F'|' -v n="$w" '$1==n{print $3}'); do
+  for m in $(printf '%s\n' "$waves" | awk -v n="$w" "$DK__BRIEF_SPLIT"'c[1]==n{print c[3]}'); do
     [ "$(dk_member_group "$m" 2>/dev/null || true)" = dev ] && devs=$((devs+1))
   done
   [ "$devs" -le "$DK_TAB1_SLOTS" ] || warn "波次表 $w" "dev 成員 $devs 位超過 tab 1 的 $DK_TAB1_SLOTS 格，建議拆波"
   # 同一波不得有兩位成員宣告同一個獨佔資源：worktree 隔離檔案，但兩位 dev 仍會對同一個
   # dev DB 跑 migration、搶同一個 port、重啟同一組 docker。
   claimed=""
-  for m in $(printf '%s\n' "$waves" | awk -F'|' -v n="$w" '$1==n{print $3}'); do
+  for m in $(printf '%s\n' "$waves" | awk -v n="$w" "$DK__BRIEF_SPLIT"'c[1]==n{print c[3]}'); do
     # 同 line 27 的理由改成 while read：獨佔資源是自由文字（db、port:3000、docker…），
     # 可以含 * 與 ?，未加引號的 $(…) 會拿 cwd 的檔名把它換掉。上面兩層迴圈跑的是波號
     # （純數字）與成員名（已驗過 [a-z][a-z0-9_-]*），沒有這個曝險，所以只改這一層。
@@ -91,7 +150,7 @@ for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -u
       if [ -n "$prev" ]; then fail "波次表 $w" "獨佔資源 $r 同時被 $prev 與 $m 宣告（同一波不得共用）"
       else claimed="$claimed$r	$m
 "; fi
-    done <<< "$(printf '%s\n' "$owners" | awk -F'|' -v mm="$m" '$1==mm{print $4}' \
+    done <<< "$(printf '%s\n' "$owners" | awk -v mm="$m" "$DK__BRIEF_SPLIT"'c[1]==mm{print c[4]}' \
                | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true)"
   done
 done
@@ -110,23 +169,37 @@ fi
 ct=$(dk_brief_section "$brief" "## 共用契約")
 if [ -z "$(printf '%s\n' "$ct" | grep -v '^（' | grep -v '^[[:space:]]*$' || true)" ]; then
   fail 共用契約 "段落為空（無契約請保留表頭；舊格式請寫「無」）"
-elif ! printf '%s\n' "$ct" | grep -qE '^\| *契約 *\|'; then
+elif ! grep -qE '^\| *契約 *\|' <<< "$ct"; then   # here-string：printf | grep -q 在 pipefail 下會偶發 SIGPIPE（見 lib/repos.sh）
   # 判別器是表頭而不是資料列：新格式底下「沒有任何契約」就是只有表頭、沒有資料列，
   # 那是合法的。拿資料列當判別器會把這個合法狀態誤判成舊 brief，它從此拿不到欄位檢查。
   warn 共用契約 "非表格格式（0.9.0 之後建立的任務請用 契約｜擁有者｜消費者｜形狀／簽名｜變更流程 五欄）"
 else
   # dk_brief_interfaces 的輸出把欄內的字面管線留成 \|，所以這裡也要跳脫感知地切：
   # 先換哨兵再讓 IFS 切，切完還原。少了這一步，形狀欄寫個正規表示式就會多切出一欄。
-  esc=$(printf '\034')
+  # 擁有者／消費者欄：<成員>、<成員>@波<N> 或 —。@波N 標出契約在哪一波定稿／被消費，
+  # 波號要真的存在、那位成員也要在那一波有列 —— 寫錯了等於把人指到一個不會發生的交接。
+  wave_mw=$(printf '%s\n' "$waves" | awk "$DK__BRIEF_SPLIT"'NF {print c[1] " " c[3]}')
+  party() { # 欄名 值 契約名
+    local who="$2" wn=""
+    [ "$who" = "—" ] && return 0
+    if [[ "$who" == *@* ]]; then
+      wn="${who#*@}"; who="${who%%@*}"
+      [[ "$wn" =~ ^波[0-9]+$ ]] || { fail "共用契約 $3" "$1 $2 的波次須寫 @波<N>"; return 0; }
+      wn="${wn#波}"
+    fi
+    [[ "$members" == *" $who "* ]] || { fail "共用契約 $3" "$1 $2 不在檔案所有權表"; return 0; }
+    [ -n "$wn" ] || return 0
+    printf '%s\n' "$wave_mw" | awk -v n="$wn" '$1==n{f=1} END{exit !f}' \
+      || { fail "共用契約 $3" "$1 $2 的波 $wn 不在波次表"; return 0; }
+    grep -qxF "$wn $who" <<< "$wave_mw" || fail "共用契約 $3" "$1 $2 不在第 $wn 波"
+  }
   while IFS='|' read -r c owner consumers _shape _flow extra; do
     [ -n "$c" ] || continue
     cname=$(printf '%s' "$c" | sed "s/$esc/\\\\|/g")
     # 裸管線在 markdown 裡就是欄位分隔，切出第六欄 —— 那是真的寫錯了，不能靜默錯位下去
     [ -z "$extra" ] || fail "共用契約 $cname" "欄數超過五欄（欄位內容裡的字面管線要寫成 \\|）"
-    [ "$owner" = "—" ] || [[ "$members" == *" $owner "* ]] || fail "共用契約 $cname" "擁有者 $owner 不在檔案所有權表"
-    for cs in $(printf '%s' "$consumers" | tr ',' ' '); do
-      [ "$cs" = "—" ] || [[ "$members" == *" $cs "* ]] || fail "共用契約 $cname" "消費者 $cs 不在檔案所有權表"
-    done
+    party 擁有者 "$owner" "$cname"
+    for cs in $(printf '%s' "$consumers" | tr ',' ' '); do party 消費者 "$cs" "$cname"; done
   done <<< "$(dk_brief_interfaces "$brief" | sed "s/\\\\|/$esc/g")"
 fi
 

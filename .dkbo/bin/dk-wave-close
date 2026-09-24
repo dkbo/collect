@@ -10,7 +10,9 @@ if [ "${1:-}" = --agent ]; then   # close one employee (e.g. a timed-out reviewe
   line=$(awk -v a="$a" '$1==a' "$dir/.panes" | tail -1); [ -n "$line" ] || dk_die "no live pane for $a"
   read -r _ pane _ _ tab _ <<< "$line"
   herdr pane close "$pane" >/dev/null 2>&1 </dev/null || true
-  grep -v "^$a " "$dir/.panes" > "$dir/.panes.tmp" || true; mv "$dir/.panes.tmp" "$dir/.panes"
+  mkdir -p "$dir/.blocked"   # 與 dk-msg redispatch、dk-spawn 同一把鎖：背景送達的 redispatch 可能同時改寫 .panes
+  ( flock -w 5 9 || true
+    grep -v "^$a " "$dir/.panes" > "$dir/.panes.tmp" || true; mv "$dir/.panes.tmp" "$dir/.panes" ) 9>"$dir/.blocked/panes.lock"
   # 聚合標記要重置：這位多半是撞額度被關掉、等著換 kind 重派的。標記若停在 delivered，
   # 補上的那位做完也不會再有人通知領導，整波就這樣啞掉。
   # latch 也要收：這位的交付隨著 pane 一起作廢，否則補上的那位什麼都還沒寫，聚合就先喊全員完成
@@ -50,7 +52,8 @@ if [ "$legacy" = 0 ]; then
     vline=$(grep -E "^[^ ]+ review $n verdict" "$dir/process.md" | tail -1 || true)
     if [ -n "$vline" ]; then
       for al in $(grep -E "^[^ ]+ review $n spawned " "$dir/process.md" | tail -1 | grep -oE 'reviewer-[a-z]' | sed 's/reviewer-//' | sort -u); do
-        case "$vline" in *"$al:"*) ;; *) problems="$problems\n  review $n verdict does not account for reviewer $al (record its result, or '$al: skipped (<理由>)')";; esac
+        # 詞界比對（前面是行首或空白）：子字串比對會讓 note:／if: 冒充 e:／f: 的交代
+        case " $vline" in *" $al:"*) ;; *) problems="$problems\n  review $n verdict does not account for reviewer $al (record its result, or '$al: skipped (<理由>)')";; esac
       done
     fi
   fi
@@ -97,7 +100,7 @@ if [ "$legacy" = 0 ]; then
       if [ -z "$owner" ]; then
         problems="$problems\n  unowned change: $p (no wave ${n:-?} member may change it)"
         dk_process "violation unowned: $p"
-      elif ! printf '%s\n' "$reported" | grep -qxF "$p"; then
+      elif ! grep -qxF "$p" <<< "$reported"; then   # here-string：printf | grep -q 在 pipefail 下會偶發 SIGPIPE（見 lib/repos.sh）
         echo "dk-wave-close: unreported change: $p (owner $owner); $owner's state left it out of touched"
         dk_process "unreported $p (owner $owner)"
       fi
@@ -108,14 +111,15 @@ if [ -n "$problems" ] && [ "$force" = 0 ]; then printf 'dk-wave-close: refused (
 tests="skipped (no DK_TEST_CMD)"
 if [ "$legacy" = 0 ]; then   # gate c
   mkdir -p "$dir/waves"
-  # 測試指令拿到的是一個不含任何 DK_* 的環境。領導這一側的 DK_ROOT／DK_PROJECT_ROOT／DK_WORKTREE
+  # 測試指令拿到的是一個不含任何 DK_* 與 HERDR_* 的環境。領導這一側的 DK_ROOT／DK_PROJECT_ROOT／DK_WORKTREE
   # 整包傳下去的話，測試裡任何 source lib/common.sh 的東西都會照 `${DK_X:-預設}` 吃到繼承值而打到
   # 真 repo —— 2026-09-19 領導在自己 session 跑 gate c，就這樣在源碼倉建了 7 個 worktree 與 8 個
-  # 分支（BACKLOG）。PATH、HOME 等非 DK_* 照舊，測試指令本身還是要找得到工具。
+  # 分支（BACKLOG）。HERDR_* 同理剝掉：HERDR_PANE_ID 等繼承值會讓專案測試以為自己在領導的
+  # pane 裡，打到真 herdr。PATH、HOME 等其他變數照舊，測試指令本身還是要找得到工具。
   # env 的第一個元素讓陣列永不為空：bash 3.2 對空陣列展開在 set -u 下會死。
   clean=(env)
-  # shellcheck disable=SC2086  # ${!DK_@} 要斷詞，一個變數名一個元素
-  for v in ${!DK_@}; do clean+=(-u "$v"); done
+  # shellcheck disable=SC2086  # ${!DK_@}／${!HERDR_@} 要斷詞，一個變數名一個元素
+  for v in ${!DK_@} ${!HERDR_@}; do clean+=(-u "$v"); done
   if [ "$multi" = 0 ]; then   # 單 repo：0.9.2 的行為一字不動（本波有沒有變更都跑）
     if [ -n "${DK_TEST_CMD:-}" ]; then
       log="$dir/waves/${n:-forced}.test.log"
@@ -165,12 +169,16 @@ closed=0; tabs=""
 while read -r agent pane _epoch _group tab _; do
   sname="${agent#"$DK_SHORT"-}"; sf="$dir/state/$sname.md"
   if [ -f "$sf" ]; then   # ownership is checked against the real diff above (gate d), not this file
-    [ "$(wc -l < "$sf")" -le 20 ] || echo "dk-wave-close: state too long: $sf"
+    # ≤20 行不含 touched 清單項（PROTOCOL 的 state 檔規則）：touched 要完整，大波一列 20 個檔
+    # 很正常，把它算進去等於逼人在「完整」與「不超長」之間二選一。只跳過 touched: 之後連續的
+    # `  - ` 行，todo 之類其他清單的項目照算。
+    [ "$(awk '/^touched:/{t=1; n++; next} t && /^  - /{next} {t=0; n++} END{print n+0}' "$sf")" -le 20 ] \
+      || echo "dk-wave-close: state too long: $sf"
   fi
   herdr pane close "$pane" >/dev/null </dev/null && closed=$((closed+1))
   if [ -n "${tab:-}" ] && [[ " $tabs " != *" $tab "* ]]; then tabs="$tabs $tab"; fi
 done < "$dir/.panes"
-: > "$dir/.panes"
+mkdir -p "$dir/.blocked"; ( flock -w 5 9 || true; : > "$dir/.panes" ) 9>"$dir/.blocked/panes.lock"
 if [ "$legacy" = 1 ]; then dk_process "wave-close: $closed agents closed"
 else
   dk_env_set DK_WAVE ""; dk_env_set DK_WAVE_STARTED ""

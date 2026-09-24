@@ -25,7 +25,7 @@ tier=$(dk_review_tier "$tier")
 use=$(dk_review_kinds "$kinds" dk-brief-review "brief-review") || exit 1
 
 constraints=$(dk_brief_constraints "$dir/brief.md")
-aliases=$(dk_review_aliases "p1 p2 p3" "$use")
+aliases=$(dk_review_aliases "p1 p2 p3 p4 p5 p6" "$use" brief-review)
 mkdir -p "$dir/briefs" "$dir/state"
 for a in $aliases; do
   sname="reviewer-$a"

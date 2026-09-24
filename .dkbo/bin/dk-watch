@@ -14,40 +14,85 @@ cdir="$DK_ROOT/tasks/_chores"                       # chore mode: no .task.env, 
 cmark="$DK_ROOT/.sessions/chores.blocked"           # .sessions, which is gitignored and already holds transient state
 cpid="$DK_ROOT/.sessions/chores.watch.pid"
 crdir="$DK_ROOT/.sessions/chores"                   # 一件雜務一個記錄檔；存在 ⟺ 它還在跑
+wlog="$DK_ROOT/.sessions/chores.watch.log"          # 背景守望的遺言；任務模式下面改成 <任務目錄名>.watch.log
 alive() { [[ "${1:-}" =~ ^[0-9]+$ ]] && ps -p "$1" -o args= 2>/dev/null | grep -q "${2:-dk-watch}"; }
 # the full command line, not kill -0: pids get recycled and kill -0 would call a stranger alive
 
+# 守望曾經無聲死掉、沒人發現（BACKLOG）。三件事一起補：stdout／stderr 追加到 watch.log 而不是丟
+# /dev/null（.sessions/ 已 gitignore、結案不刪）；有 setsid 就用它起，脫離呼叫者的 session，關掉
+# 那個 pane 送的 HUP 打不到它，沒有（macOS）照舊 nohup；--ensure 看到死 pid 先記一行 watch died。
+# 不得用 `setsid -f`：它一定 fork，$! 會變成 setsid 自己。非互動 shell 的 & 不是行程組長，
+# setsid 不必 fork、直接 exec，所以 $! 就是 dk-watch 本身。
+# 非 job control 的 & 會讓子行程忽略 INT，而進場前就被忽略的訊號 bash 不准 trap —— 守望的 INT trap
+# 形同虛設。GNU env 的 --default-signal 把它還原；同 setsid，有才用（macOS 沒有），env 也是 exec，pid 不變。
+# 用 setsid 時連 HUP 一起還原：呼叫者本身可能是 nohup 起的（dk-msg 背景那一份），HUP 會以「已忽略」
+# 繼承下來。脫離了 session 就沒有終端機會送 HUP，交給 trap 記一行照跑；只有 nohup 可用時不動它。
+bg_start() { # LOG [FLAG] → new=<pid>
+  local l=nohup sigs=INT; command -v setsid >/dev/null 2>&1 && { l=setsid; sigs=INT,HUP; }
+  # 3>&-：bats 與 herdr 不等它；8>&-：--ensure 的鎖不能跟著常駐行程活下去，否則下一個 --ensure 永遠拿不到
+  if env --default-signal=INT true 2>/dev/null; then
+    "$l" env --default-signal="$sigs" "$DK_ROOT/bin/dk-watch" ${2:+"$2"} </dev/null >>"$1" 2>&1 3>&- 8>&- &
+  else
+    "$l" "$DK_ROOT/bin/dk-watch" ${2:+"$2"} </dev/null >>"$1" 2>&1 3>&- 8>&- &
+  fi
+  new=$!
+}
+bg_settle() { # PID PATTERN — 等它 exec 成 dk-watch（最多 3 秒）。fork 之後、exec 之前 args 還是
+  # --ensure 自己，這時放鎖，下一個 --ensure 會把它看成死的再起一隻
+  local i=0; while [ "$i" -lt 30 ]; do alive "$1" "$2" && return 0; sleep 0.1; i=$((i+1)); done
+}
+# --ensure 整段串行化：dk-msg 每則都會呼叫它，四人波幾秒內接連送 [DONE] 時不能起兩隻、後寫的 pid
+# 蓋掉先寫的。鎖檔與 dk_env_set 的 <任務>.lock 不同檔、fd 也不同（8 對 9），鎖內呼叫它不會自鎖。
+ensure_lock() { # LOCKFILE
+  mkdir -p "$(dirname "$1")"; exec 8>"$1"
+  flock -w 10 8 || echo "watch: lock timeout on $1; continuing" >&2
+}
+wlog_last() { # PID → watch.log 裡該 pid 的最後一行，沒有就 no log。詞界比對：pid 12 不吃到 pid 123
+  local l=""
+  [[ "$1" =~ ^[0-9]+$ ]] && [ -f "$wlog" ] && l=$(grep -E " pid $1( |\$)" "$wlog" | tail -1 || true)
+  printf '%s' "${l:-no log}"
+}
+
 if [ "$chores" = 1 ] && [ "$ensure" = 1 ]; then   # idempotent start; the last chore closing lets it exit on its own
   [ -z "${DK_NO_WATCH:-}" ] || { echo "watch: disabled (DK_NO_WATCH)"; exit 0; }
+  ensure_lock "$DK_ROOT/.sessions/chores.watch.lock"
   pid=$(cat "$cpid" 2>/dev/null || true)
   if alive "$pid" 'dk-watch.*--chores'; then echo "watch: chores running (pid $pid)"; exit 0; fi
-  mkdir -p "$(dirname "$cpid")"
-  nohup "$DK_ROOT/bin/dk-watch" --chores </dev/null >/dev/null 2>&1 3>&- &
-  pid=$!; echo "$pid" > "$cpid"
+  bg_start "$wlog" --chores; pid=$new; echo "$pid" > "$cpid"
+  bg_settle "$pid" 'dk-watch.*--chores'
   echo "watch: chores started (pid $pid)"; exit 0
 fi
 
-if [ "$chores" = 0 ]; then dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; fi
+if [ "$chores" = 0 ]; then
+  dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env
+  wlog="$DK_ROOT/.sessions/$(basename "$dir").watch.log"
+fi
 dk_settings
 thr="${DK_BLOCK_SEC:-60}"
 
 ensure_events() { # 訂閱器與輪詢是兩條獨立的命脈，各自 ensure：一條死掉另一條還在
   [ -z "${DK_NO_WATCH:-}" ] || { echo "events: disabled (DK_NO_WATCH)"; return 0; }
   if alive "${DK_EVENTS_PID:-}" 'dk-watch.*--events'; then echo "events: running (pid $DK_EVENTS_PID)"; return 0; fi
-  DK_TASK_DIR="$dir" nohup "$DK_ROOT/bin/dk-watch" --events </dev/null >/dev/null 2>&1 3>&- &
-  new=$!
+  [ -z "${DK_EVENTS_PID:-}" ] || dk_process "watch died: events pid $DK_EVENTS_PID last: $(wlog_last "$DK_EVENTS_PID")"
+  bg_start "$wlog" --events
   dk_env_set DK_EVENTS_PID "$new"; dk_process "events started (pid $new)"
+  bg_settle "$new" 'dk-watch.*--events'
   echo "events: started (pid $new)"
 }
 
+if [ "$ensure" = 1 ] && [ -z "${DK_NO_WATCH:-}" ]; then
+  ensure_lock "$DK_ROOT/.sessions/$(basename "$dir").watch.lock"
+  dk_task_env   # 鎖外讀到的 pid 可能已被前一個 --ensure 改掉，鎖內重讀
+fi
 if [ "$events" = 1 ] && [ "$ensure" = 1 ]; then ensure_events; exit 0; fi
 
 if [ "$ensure" = 1 ]; then   # idempotent start: the safety net must not disappear silently
   [ -z "${DK_NO_WATCH:-}" ] || { echo "watch: disabled (DK_NO_WATCH)"; exit 0; }
   if alive "${DK_WATCH_PID:-}" 'dk-watch$'; then echo "watch: running (pid $DK_WATCH_PID)"; ensure_events; exit 0; fi
-  DK_TASK_DIR="$dir" nohup "$DK_ROOT/bin/dk-watch" </dev/null >/dev/null 2>&1 3>&- &
-  new=$!
+  [ -z "${DK_WATCH_PID:-}" ] || dk_process "watch died: poll pid $DK_WATCH_PID last: $(wlog_last "$DK_WATCH_PID")"
+  bg_start "$wlog"
   dk_env_set DK_WATCH_PID "$new"; dk_process "watch restarted (pid $new)"
+  bg_settle "$new" 'dk-watch$'
   echo "watch: restarted (pid $new)"; ensure_events; exit 0
 fi
 
@@ -218,6 +263,51 @@ dev_delivered() { # AGENT SNAME — 這一波真的交了嗎
   : > "$latch"
 }
 
+# 0.16.0 AC2（#10）：dev 與 qa 閒置未交。它們不在 reviewer 逾時的名單上，idle 卻沒交就只剩整波
+# 逾時一個出口。門檻刻意沿用 DK_REVIEW_TIMEOUT_MIN：這裡只算 idle／done 的時間，工作中的不算。
+# 只提醒、永不熔斷 kind —— 閒著不是額度問題。標記 .idle 存當時的 .panes 第 3 欄，同一個 epoch
+# 只推一次；被重新指派（epoch 變了）自動重新武裝，不必 dk-msg 來清。
+# 計時起點：dev＝最後一次送達指派的 epoch；qa＝max(它的 epoch, 本波聚合的 at=)，還沒聚合不計時
+# ——qa 與 dev 同時開工，等 dev 的 [DONE] 是它的正常閒置。畫面已說話（.blocked／.limit 標記在）的
+# 不重複吵：領導已經收過 [BLOCKED]／[LIMIT]。
+idle_check() { # NOW LIST
+  local now="$1" list="$2" agent epoch group st start at sf rd m mins
+  while read -r agent _pane epoch group _; do
+    [[ "${epoch:-}" =~ ^[0-9]+$ ]] || continue
+    case "${group:-}" in
+      dev) ;;
+      review) [[ "$agent" == *-reviewer-* || "$agent" == *-reviewer ]] && continue ;;
+      *) continue ;;
+    esac
+    st=$(agent_status "$agent" "$list")
+    [ "$st" = idle ] || [ "$st" = "done" ] || continue
+    [ -f "$dir/.blocked/$agent" ] || [ -f "$dir/.blocked/$agent.limit" ] && continue
+    sf="$dir/state/${agent#"$DK_SHORT"-}.md"
+    if [ "$group" = dev ]; then
+      dev_delivered "$agent" "${agent#"$DK_SHORT"-}" && continue
+      start="$epoch"
+    else
+      rd="$dir/.blocked/$agent.redispatch"   # 與 reviewer 逾時同一個判準
+      if [ -f "$sf" ] && grep -q '^status: done' "$sf" \
+         && { [ ! -f "$rd" ] || [ "$(cksum < "$sf")" != "$(cat "$rd")" ]; }; then continue; fi
+      at=$(sed -n 's/^at=//p' "$dir/.blocked/wave-$DK_WAVE.devdone" 2>/dev/null | head -1 || true)   # 還沒聚合就沒這個檔
+      [[ "$at" =~ ^[0-9]+$ ]] || continue
+      start="$epoch"; [ "$at" -gt "$start" ] && start="$at"
+    fi
+    [ $((now - start)) -gt $((DK_REVIEW_TIMEOUT_MIN * 60)) ] || continue
+    m="$dir/.blocked/$agent.idle"
+    if [ "$(head -1 "$m" 2>/dev/null)" = "$epoch" ]; then
+      grep -q '^delivered$' "$m" && continue
+      mins=$(sed -n 's/^min=//p' "$m" | head -1)   # 重試沿用第一次的分鐘數，訊息才一致
+    else
+      mins=$(( (now - start) / 60 ))
+      dk_process "idle $agent ${mins}min"; printf '%s\nmin=%s\n' "$epoch" "$mins" > "$m"
+    fi
+    if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" \
+         "[TIMEOUT] from dk-watch: $agent 閒置 $mins 分鐘未交（state 不是這一輪的 done）"; then echo delivered >> "$m"; fi
+  done < "$dir/.panes"
+}
+
 tick() {
   [ -f "$dir/.panes" ] || exit 0
   local now list; now=$(date +%s); list=$(dk_h_soft agent list) || return 0
@@ -244,17 +334,27 @@ tick() {
       if [ -f "$sf" ] && grep -q '^status: done' "$sf" \
          && { [ ! -f "$rd" ] || [ "$(cksum < "$sf")" != "$(cat "$rd")" ]; }; then continue; fi
       [ $((now - epoch)) -gt $((DK_REVIEW_TIMEOUT_MIN * 60)) ] || continue
+      # 0.16.0 AC1（#16）：herdr 明說 working 就不是掛了，是在寫長報告 —— 熔斷它會把還能用的 kind
+      # 也關掉。只提醒一次（標記存這一輪的 epoch，重新指派自動重新武裝），
+      # 等它不再 working 且仍未交，下一 tick 才落到下面既有的熔斷。status 拿不到照既有行為。
+      if [ "$(agent_status "$agent" "$list")" = working ]; then
+        wm="$dir/.blocked/$agent.working"
+        if [ "$(head -1 "$wm" 2>/dev/null)" != "$epoch" ]; then
+          dk_process "timeout $agent working (no kind down)"; echo "$epoch" > "$wm"
+        fi
+        grep -q '^delivered$' "$wm" && continue
+        if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" "[TIMEOUT] from dk-watch: $agent 逾時但仍在工作（未熔斷）"; then echo delivered >> "$wm"; fi
+        continue
+      fi
       kind=$(agent_kind "$agent")
       tag=""
-      # agent_status 前提（AC2）：working 就不看畫面，畫面上的字是它的工作內容
-      if [ "$(agent_status "$agent" "$list")" != working ]; then
-        txt=$(pane_text "$agent")
-        # 它不是掛了，是在等人按一下 —— 主迴圈的 assess 已經送過 [BLOCKED]，這裡只要不熔斷
-        screen_hits "$txt" "$(dk_kind_re "$kind" block)" && continue
-        # 標記走該 kind 自己的額度式子，不另寫一條。原本那條裸 `quota` 會把 agy 的啟動橫幅
-        # `bal@host (Antigravity Starter Quota)` 標成疑似撞額度，領導會去換 kind 而不是去看它卡在哪。
-        screen_hits "$txt" "$(dk_kind_re "$kind" quota)" && tag=" (quota?)"
-      fi
+      # 走到這裡 agent_status 已不是 working（AC1 那段先攔了），畫面上的字才算證據
+      txt=$(pane_text "$agent")
+      # 它不是掛了，是在等人按一下 —— 主迴圈的 assess 已經送過 [BLOCKED]，這裡只要不熔斷
+      screen_hits "$txt" "$(dk_kind_re "$kind" block)" && continue
+      # 標記走該 kind 自己的額度式子，不另寫一條。原本那條裸 `quota` 會把 agy 的啟動橫幅
+      # `bal@host (Antigravity Starter Quota)` 標成疑似撞額度，領導會去換 kind 而不是去看它卡在哪。
+      screen_hits "$txt" "$(dk_kind_re "$kind" quota)" && tag=" (quota?)"
       herdr notification show "dkbo: $agent timeout" --body "reviewer 逾時${tag}，該 kind 已熔斷" --sound request >/dev/null 2>&1 </dev/null || true
       # 熔斷與事件紀錄不等領導：這是任務狀態的改變，領導收不收得到訊息都一樣成立
       if [ -n "$kind" ] && [[ " ${DK_KIND_DOWN:-} " != *" $kind "* ]]; then
@@ -282,13 +382,16 @@ tick() {
     if [ "$cnt" -gt 0 ] && [ "$all" = 1 ]; then
       m="$dir/.blocked/wave-$DK_WAVE.devdone"
       if ! { [ -f "$m" ] && grep -q '^delivered$' "$m"; }; then
-        if [ ! -f "$m" ]; then dk_process "dev-done wave $DK_WAVE ($cnt: $devs)"; echo notified > "$m"; fi
+        # at= 是 qa 閒置計時的起點（AC2）；不用 mtime，delivered 行的追加會改掉它
+        if [ ! -f "$m" ]; then dk_process "dev-done wave $DK_WAVE ($cnt: $devs)"; printf 'notified\nat=%s\n' "$now" > "$m"; fi
         if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" \
              "[DONE] from dk-watch: wave $DK_WAVE dev 全員完成（$cnt 位：$devs）→ dk-review-pack $DK_WAVE"; then
           echo delivered >> "$m"; fi
       fi
     fi
   fi
+
+  [ -z "${DK_WAVE:-}" ] || idle_check "$now" "$list"
 
   # 整波逾時：員工沒 blocked、reviewer 也沒逾時，但這一波就是卡著不動的情況
   if [ -n "${DK_WAVE:-}" ] && [[ "${DK_WAVE_TIMEOUT_MIN:-0}" =~ ^[0-9]+$ ]] && [ "${DK_WAVE_TIMEOUT_MIN:-0}" -gt 0 ] \
@@ -324,9 +427,28 @@ events_tick() { # 一輪訂閱：每個 pane 一個等待者，誰先命中誰�
     [ -n "$agent" ] && [ -n "$pane" ] || continue
     events_arm "$agent" "$pane" &
   done < "$dir/.panes"
-  wait
+  # 有 trap 的訊號（HUP）會讓 wait 立刻回 >128；set -e 下那等於整隻退出，所以等到真的收齊為止
+  until wait; do :; done
 }
 
 run() { if [ "$chores" = 1 ]; then chore_tick; elif [ "$events" = 1 ]; then events_tick; else tick; fi; }
 if [ "$once" = 1 ]; then run; exit 0; fi
-while :; do run; sleep "$interval"; done
+
+# 常駐行程在 watch.log 留 start／signal／exit 三種行：死因從此看得到（--ensure 的 watch died 引它最後一行）。
+# HUP 記一行照跑（nohup 語意）；INT／TERM 記一行後結束。
+# 輪與輪之間的 sleep 放背景再 wait：bash 要等前景指令結束才跑 trap，前景 sleep 會讓 TERM 晚一整個
+# --interval 才生效（dk-task-close 殺完就驗它走了沒）；wait 則會被有 trap 的訊號當場打斷。
+# 仍然會延後的：tick 裡正在跑的前景指令（herdr、jq）要跑完 trap 才輪到；events 模式的 herdr pane
+# wait-output 子行程在 TERM 後變成孤兒，跑到自己的 --timeout 才走。
+# 以 nohup 起（沒有 setsid）時 HUP 在進場前就被忽略、trap 不生效；env 不支援 --default-signal 時，
+# --ensure 起的守望 INT 同理被忽略（見 bg_start）——這兩種都只是少了那一行，行為仍是不退出／不理會。
+if [ "$chores" = 1 ]; then mode=chores; elif [ "$events" = 1 ]; then mode=events; else mode=poll; fi
+wline() { { echo "$(dk_now) $1 $mode pid $$${2:-}" >> "$wlog"; } 2>/dev/null || true; }
+mkdir -p "$(dirname "$wlog")"
+spid=""
+trap 'wline exit " rc=$?"; [ -z "$spid" ] || kill "$spid" 2>/dev/null || true' EXIT
+trap 'wline "signal HUP"' HUP
+trap 'wline "signal INT"; exit 130' INT
+trap 'wline "signal TERM"; exit 143' TERM
+wline start
+while :; do run; sleep "$interval" & spid=$!; wait "$spid" || kill "$spid" 2>/dev/null || true; spid=""; done

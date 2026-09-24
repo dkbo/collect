@@ -34,7 +34,7 @@ if [ "$task" = 1 ]; then   # 整枝評議才 triage：一條風格意見不該�
 else
   minors="（逐波審查不 triage 累積的 Minor；整枝評議才做）"
 fi
-aliases=$(dk_review_aliases "a b c" "$use")
+aliases=$(dk_review_aliases "a b c d e f" "$use" "review $n")
 mkdir -p "$dir/briefs"
 for a in $aliases; do
   sname="reviewer-$a"

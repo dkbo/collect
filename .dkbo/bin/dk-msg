@@ -72,7 +72,17 @@ else
   leader=$(dk_leader_name); sender="${DK_AGENT:-$leader}"; log="$dir/messages.log"
 fi
 
-if [ "${1:-}" = "--ack" ]; then echo "$(dk_now) $sender [ACK]" >> "$log"; exit 0; fi
+# 守望曾經無聲死掉整波沒人發現：事故那一波唯一還在跑的是員工的 dk-msg。所以綁著任務時，每一個
+# 寫 messages.log 的出口（含背景送的前景那一半）之後都 --ensure 一次，死了就地叫回來、process 記 watch died。
+# 雜務的守望由 dk-chore 負責；--ensure 自己有鎖，四人波接連送 [DONE] 不會起兩隻。
+# .panes 不在＝任務已結案（dk-task-close 刪它）：還在背景送的那一份不能對已 commit 的任務目錄
+# 記 watch died、改 .task.env、起一對第一輪就自己退出的守望（rest 波 1 審查 M1）。
+wake_watch() {
+  [ "$chore" = 0 ] && [ -z "${DK_NO_WATCH:-}" ] && [ -f "$dir/.panes" ] || return 0
+  "$DK_ROOT/bin/dk-watch" --ensure </dev/null >/dev/null 2>&1 || true
+}
+
+if [ "${1:-}" = "--ack" ]; then echo "$(dk_now) $sender [ACK]" >> "$log"; wake_watch; exit 0; fi
 target="${1:-}"; text="${2:-}"
 [ -n "$target" ] && [ -n "$text" ] || dk_die "usage: dk-msg <target> \"[TYPE] body\""
 [ "$target" = leader ] && target="$leader"
@@ -119,7 +129,7 @@ if [ "$chore" = 0 ] && [ "$type" = DONE ] && [ "$target" = "$leader" ] \
   err=$(dk_state_format_error "$sf" "$dir")
   [ -z "$err" ] || { echo "dk-msg: state 格式錯：$err" >&2; exit 2; }
   echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"
-  exit 0
+  wake_watch; exit 0
 fi
 
 line="[$type] from $sender: $body"
@@ -142,9 +152,20 @@ if [ "$chore" = 0 ]; then
 fi
 [ "$fallback" = "$target" ] && fallback=""
 
+group_of() { awk -v n="$1" '$1==n{print $4; exit}' "$dir/.panes" 2>/dev/null; }
+
+# AC6：重派已交付的 dev 時提醒他這一輪也要改寫 state —— 不改寫的話 dk-watch 的聚合永遠等不到他。
+# 「送達當下」才判：背景那一份可能等了半小時，這期間他可能已經自己把 state 改回 working。
+delivered_note() { # → 尾註或空字串；只對 TASK／BUG 的 group=dev 收件者
+  [ "$chore" = 0 ] && { [ "$type" = TASK ] || [ "$type" = BUG ]; } || return 0
+  [ "$(group_of "$target")" = dev ] || return 0
+  grep -q '^status: done' "$dir/state/${target#"$DK_SHORT"-}.md" 2>/dev/null || return 0
+  printf '%s' '（你已交付過：做完先改寫 state 再回 [FIXED]）'
+}
+
 deliver() { # TARGET — 等它閒下來再送；兩步任一步失敗都算沒送到
   herdr agent wait "$1" --until idle --until "done" --timeout "${DK_MSG_WAIT_MS:-300000}" >/dev/null 2>&1 \
-    && herdr agent prompt "$1" "$line" >/dev/null 2>&1
+    && herdr agent prompt "$1" "$line$(delivered_note)" >/dev/null 2>&1
 }
 
 # [TASK]／[BUG] 開啟新的一輪。`.panes` 的 epoch 從此是「最後一次指派」而不是「spawn 以來」—— 不重設的話，
@@ -157,10 +178,27 @@ redispatch() { # AGENT — 只動 .panes 裡真的有的列；雜務與已收工
   p="$dir/.panes"; sf="$dir/state/${a#"$DK_SHORT"-}.md"
   [ -f "$p" ] || return 0
   awk -v n="$a" '$1==n{f=1} END{exit !f}' "$p" || return 0
-  awk -v n="$a" -v t="$(date +%s)" 'NF>=3 && $1==n {$3=t} {print}' "$p" > "$p.tmp" && mv "$p.tmp" "$p"
+  # AC5 之後這一步在背景、送達那一刻才跑：多位收件者的背景那一份會同時改寫 .panes，用 flock 互斥。
+  # 改寫 .panes 的人（dk-spawn、dk-wave-close）都拿同一把 .blocked/panes.lock；鎖檔放 .blocked/ 而不是任務目錄根，
+  # 結案時跟著 .blocked 一起刪，不會被 commit 進記憶。拿鎖逾時仍照做，所以 mv 前再比一次內容，
+  # 變了就重讀重寫，不蓋掉別人剛 append 的列（review Minor 7）。
   mkdir -p "$dir/.blocked"
+  ( flock -w 5 9 || true
+    local before n=0
+    while :; do
+      before=$(cksum < "$p")
+      awk -v n="$a" -v t="$(date +%s)" 'NF>=3 && $1==n {$3=t} {print}' "$p" > "$p.tmp"
+      if [ "$(cksum < "$p")" = "$before" ] || [ "$n" -ge 5 ]; then mv "$p.tmp" "$p"; break; fi
+      n=$((n+1))
+    done ) 9>"$dir/.blocked/panes.lock"
   rm -f "$dir/.blocked/$a.timeout"   # 上一輪的逾時已結案；留著的 delivered 會讓這一輪永遠不再報
   if [ -f "$sf" ]; then cksum < "$sf"; else printf ''; fi > "$dir/.blocked/$a.redispatch"
+  # AC6：重派 dev 就是開新的一輪交付。上一輪的 latch 與本波聚合標記不刪，dk-watch 會拿舊的 done
+  # 當場再推一次聚合（或因 devdone 已 delivered 而永不再推）；快照改成此刻內容，他改寫 state 才算交。
+  if [ -n "${DK_WAVE:-}" ] && [ "$(group_of "$a")" = dev ]; then
+    rm -f "$dir/.blocked/wave-$DK_WAVE.${a#"$DK_SHORT"-}.done" "$dir/.blocked/wave-$DK_WAVE.devdone"
+    if [ -f "$sf" ]; then cksum < "$sf"; else printf ''; fi > "$dir/.blocked/$a.spawn"
+  fi
 }
 
 # dev → qa 的 [DONE] 改背景送：qa 多半正在寫探測腳本，前景等它閒下來會把 dev 的 pane 卡住
@@ -171,7 +209,53 @@ if [ "$chore" = 0 ] && [ "$type" = DONE ] && [ -z "${DK_MSG_BG:-}" ] && [ -f "$d
    && [ "$(awk -v n="$target" '$1==n{print $4; exit}' "$dir/.panes")" = review ]; then
   DK_MSG_BG=1 nohup "$0" "$target" "$text" </dev/null >/dev/null 2>&1 3>&- &
   echo "dk-msg: 改在背景等 $target 閒下來再送（結果記在 messages.log），你直接往下做"
-  exit 0
+  wake_watch; exit 0
+fi
+
+# AC5（#14）：領導送給員工的指派型訊息也改背景送。領導前景等員工閒下來，一則就能卡掉五分鐘，
+# 等不到還整則放棄（UNDELIVERED）——而領導卡住的那段時間整隊都在等他。背景那一份等得比較久
+# （預設 6 次 × 5 分＝30 分），送達才 redispatch，最終送不到另記 process，dk-resume 翻得到。
+# 對象限 .panes 裡的員工：雜務與已收工的人不在 .panes，照舊前景送。
+if [ "$chore" = 0 ] && [ "$sender" = "$leader" ] && [ "$target" != "$leader" ] && [ -z "${DK_MSG_BG:-}" ] \
+   && [[ "$type" =~ ^(TASK|BUG|DECISION|STOP)$ ]] && in_panes "$target"; then
+  q="$dir/.blocked/msgq-$target"; mkdir -p "$dir/.blocked"
+  DK_MSG_BG=1 DK_MSG_QUEUED=1 DK_MSG_TRIES="${DK_MSG_TRIES:-6}" nohup "$0" "$target" "$text" </dev/null >/dev/null 2>&1 3>&- &
+  # 排隊號碼在前景就落下：連送兩則時第二則一定排在第一則後面，不看背景那一份誰先醒。
+  ( flock -w 5 9 || true; echo "$!" >> "$q" ) 9>"$q.lock"
+  echo "dk-msg: 改在背景等 $target 閒下來再送（結果記在 messages.log），你直接往下做"
+  wake_watch; exit 0
+fi
+
+# 背景那一份：同一收件者一次只送一則、照送出順序（FIFO）。輪到自己＝佇列頭是自己的 pid；
+# 佇列頭的行程已經不在（被殺、機器重開）就剔掉它，免得後面整排永遠等下去。
+queue_wait() { # QUEUE — 回傳時自己已是佇列頭（最多等 DK_MSG_QUEUE_SEC 秒，預設一小時，過了就不排了）
+  local q="$1" head waited=0
+  while :; do
+    head=$( (flock -w 5 9 || true
+      while :; do
+        h=$(head -n 1 "$q" 2>/dev/null) || h=""
+        if [ -n "$h" ] && [ "$h" != "$$" ] && ! kill -0 "$h" 2>/dev/null; then
+          sed '1d' "$q" > "$q.tmp" && mv "$q.tmp" "$q"; continue
+        fi
+        echo "$h"; break
+      done) 9>"$q.lock")
+    # 前景還沒來得及寫下這一份的 pid（空佇列）也算還沒輪到；佇列檔整個不見（任務被收掉）就不排了
+    [ "$head" = "$$" ] && return 0
+    [ -f "$q" ] || return 0
+    [ "$waited" -ge $(( ${DK_MSG_QUEUE_SEC:-3600} * 5 )) ] && return 0
+    sleep 0.2; waited=$((waited+1))
+  done
+}
+# shellcheck disable=SC2317  # 只經 trap EXIT 呼叫
+queue_leave() { # QUEUE
+  # 只剩自己時 grep -vx 沒輸出、回 1：set -e 下不吞掉它，subshell 會在 mv 之前退出、把自己的 pid 留在佇列頭
+  ( flock -w 5 9 || true; { grep -vx "$$" "$1" 2>/dev/null || true; } > "$1.tmp"; mv "$1.tmp" "$1" ) 9>"$1.lock"
+}
+# 只有前景真的替它排了隊（DK_MSG_QUEUED）才進佇列。只看佇列檔在不在的話，檔一建就永遠在，
+# dev→qa 的背景 [DONE] 與測試裡的 DK_MSG_BG=1 都會空等到 DK_MSG_QUEUE_SEC 才送（review I1）。
+bgq=""
+if [ -n "${DK_MSG_QUEUED:-}" ] && [ "$chore" = 0 ]; then
+  bgq="$dir/.blocked/msgq-$target"; queue_wait "$bgq"; trap 'queue_leave "$bgq"' EXIT
 fi
 
 # 重試而不是一次定生死：實跑中 reviewer 的 [DONE] 曾在一分鐘內就被判失敗、整筆遺失，
@@ -181,11 +265,12 @@ while [ "$i" -le "$tries" ]; do
   # log 一律記解析後的名字，不記 pane id：那是人與 dk-wave-close 讀的那一欄。
   if deliver "$target" || { [ -n "$fallback" ] && deliver "$fallback"; }; then
     if [ "$chore" = 0 ] && { [ "$type" = TASK ] || [ "$type" = BUG ]; }; then redispatch "$target"; fi
-    echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"; exit 0
+    echo "$(dk_now) $sender -> $target [$type] $body" >> "$log"; wake_watch; exit 0
   fi
   [ "$i" -lt "$tries" ] && sleep "${DK_MSG_RETRY_SEC:-5}"
   i=$((i+1))
 done
 echo "$(dk_now) $sender -> $target [UNDELIVERED] [$type] $body" >> "$log"
+[ "$chore" = 1 ] || [ "$sender" != "$leader" ] || dk_process "undelivered $target [$type]"
 echo "dk-msg: undelivered to $target (logged); note it in your state blocked_by and continue" >&2
-exit 1
+wake_watch; exit 1

@@ -3,13 +3,19 @@
 # 呼叫端有些只 source 了 ownership.sh，所以缺了就自己補上（source 兩次是冪等的）。
 # shellcheck source=/dev/null
 command -v dk_glob_split >/dev/null 2>&1 || . "$DK_ROOT/lib/repos.sh"
+# shellcheck source=/dev/null
+command -v dk_brief_owners >/dev/null 2>&1 || . "$DK_ROOT/lib/brief.sh"
 
 # dk_owned BRIEF STATE_NAME PATH → exit 0 if PATH matches one of the member's 可改 globs.
 # 多 repo 模式下 PATH 與 glob 都帶 `<名>:` 前綴，前綴不同就不比 —— 兩個 repo 裡的同名路徑
 # 是兩個檔。單 repo 模式兩邊都沒有前綴，比法與 0.9.2 相同。
 dk_owned() {
   local brief="$1" who="$2" path="$3" globs g s prepo ppath grepo gglob
-  globs=$(awk -F'|' -v w="$who" '{c=$2; gsub(/^ +| +$/, "", c)} c==w {print $3; exit}' "$brief" | tr ',' '\n' | sed 's/^ *//; s/ *$//')
+  # 只讀「## 檔案所有權」段、用跳脫感知切欄：對整份 brief 裸 awk -F'|' 的話，前面段落裡第一格
+  # 恰好是成員名的表格會被當成所有權列，欄內的 \| 也會把可改欄截斷。切完才把 \| 還原成
+  # 字面 |（同 dk_brief_md_rows：切欄時保留跳脫，用到值的那一刻才還原）。
+  globs=$(dk_brief_owners "$brief" 2>/dev/null | awk -v w="$who" "$DK__BRIEF_SPLIT"'c[1]==w {print c[2]; exit}' \
+    | tr ',' '\n' | sed 's/^ *//; s/ *$//; s/\\|/|/g')
   [ -n "$globs" ] || return 1
   # 用參數展開切，不用 `IFS=$'\t' read`：tab 是 IFS 的空白字元，read 會把「開頭的空欄」
   # 整個吃掉 —— 沒有前綴的 "\tsrc/api/**" 會被讀成 repo=src/api/** 、glob 空。
