@@ -1109,16 +1109,20 @@ html {
   @apply inline-flex items-center justify-center gap-1.5 rounded-[22px] border-[3px] border-[#f3b6d4] bg-white px-3 sm:px-[22px] py-2.5 sm:py-3 text-sm sm:text-base font-black text-[#c2185b] cursor-pointer shadow-[0_5px_0_#e8a7c8] active:translate-y-[3px] active:shadow-[0_2px_0_#e8a7c8];
 }
 
+/* 上內距 56px 讓出橫條模式的圓鈕；兩側模式圓鈕在右緣不會壓到卡片，只留 16px */
 .candy-mask {
-  @apply absolute inset-0 z-30 flex flex-col items-center justify-center-safe overflow-y-auto bg-[#12083a]/80 backdrop-blur-[6px] px-4 pb-4 pt-14;
+  @apply absolute inset-0 z-30 flex flex-col items-center justify-center-safe overflow-y-auto bg-[#12083a]/80 backdrop-blur-[6px] px-4 pb-4 pt-14 [[data-hud=side]_&]:pt-4;
 }
 
 .candy-mask-top {
   @apply z-40;
 }
 
+.candy-dialog-fit {
+  @apply mt-8 shrink-0 w-full max-w-[420px];
+}
 .candy-dialog {
-  @apply relative mt-8 shrink-0 w-full max-w-[420px] rounded-[30px] border-4 border-white bg-gradient-to-b from-[#fff8fc] to-[#ffe0ef] px-5 sm:px-8 pt-[50px] sm:pt-[62px] pb-5 sm:pb-7 flex flex-col items-center gap-3.5 text-center shadow-[0_16px_40px_#0008];
+  @apply relative w-full origin-top rounded-[30px] border-4 border-white bg-gradient-to-b from-[#fff8fc] to-[#ffe0ef] px-5 sm:px-8 pt-[50px] sm:pt-[62px] pb-5 sm:pb-7 flex flex-col items-center gap-3.5 text-center shadow-[0_16px_40px_#0008];
 }
 .candy-dialog-lose {
   @apply from-[#f4f0ff] to-[#e4dcff];
@@ -1142,9 +1146,35 @@ html {
   @apply rounded-lg bg-[#e01f78] px-2 py-1 text-right text-xs font-bold text-white;
 }
 
+/* 頁首／工具列／載入畫面（A 亮面經典配色） */
+.candy-title {
+  @apply text-3xl md:text-5xl font-black leading-tight bg-gradient-to-b from-[#ff7cc0] via-[#ff4fa3] to-[#e01f78] bg-clip-text text-transparent drop-shadow-[0_3px_0_#8c0f4a55];
+}
+.candy-subtitle {
+  @apply mt-3 text-sm md:text-base text-[#7a1d52] dark:text-[#d9ccff] max-w-2xl mx-auto leading-relaxed;
+}
+.candy-tool-btn {
+  @apply inline-flex h-8 items-center gap-1 rounded-full border-2 border-[#f3b6d4] bg-white px-3 text-xs font-bold text-[#c2185b] cursor-pointer shadow-[0_3px_0_#e8a7c8] transition-transform hover:bg-[#fff0f7] active:translate-y-[2px] active:shadow-[0_1px_0_#e8a7c8];
+}
+.candy-loading {
+  @apply absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[radial-gradient(at_50%_40%,#3a1f8c,#12083a_70%)] select-none;
+}
+.candy-loading-icon {
+  @apply flex size-20 items-center justify-center rounded-full border-4 border-white text-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a,inset_0_4px_4px_#ffffff66] animate-bounce;
+}
+.candy-loading-text {
+  @apply text-base font-bold tracking-widest text-[#ffe4f2] animate-pulse;
+}
+
 /* 窄畫面（寬高比 < 4:3）退回上方橫條 */
 .candy-topbar {
   @apply relative z-20 shrink-0 flex flex-col gap-2 px-3 py-2 bg-gradient-to-b from-[#3a1f8c] to-[#241062] border-b-2 border-white/15 select-none;
+}
+.candy-topbar-btns {
+  @apply h-[38px] items-center gap-1.5;
+}
+.candy-topbar-btns-sm {
+  @apply gap-1 [&_.candy-round-btn]:size-8 [&_svg]:size-4;
 }
 .candy-level-sm {
   @apply flex items-baseline gap-1.5 rounded-2xl border-2 border-white py-0.5 px-3 bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_3px_0_#8c0f4a];
@@ -1158,7 +1188,9 @@ html {
 
 @media (prefers-reduced-motion: reduce) {
   .candy-star-pop,
-  .candy-moves-low {
+  .candy-moves-low,
+  .candy-loading-icon,
+  .candy-loading-text {
     animation: none;
   }
 }

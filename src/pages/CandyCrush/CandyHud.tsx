@@ -29,7 +29,7 @@ function StarTrack({ starSize }: { starSize: number }) {
           earned={stars >= star}
           size={starSize}
           className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ left: `${Math.min(percent, 96)}%` }}
+          style={{ left: `${percent}%` }}
           label={`${star} 星刻度`}
         />
       ))}
@@ -88,42 +88,67 @@ export function SideHud({ scale }: { scale: number }) {
   )
 }
 
-/** 上方橫條（寬高比 < 4:3）：第一列關卡／步數（右側留位給 HudButtons），第二列分數＋星級進度 */
-export function TopBar() {
+/**
+ * 上方橫條（寬高比 < 4:3）：第一列關卡／步數（右側留位給 HudButtons），第二列分數＋星級進度；
+ * compact（窄橫條）時步數球移到第二列開頭（免得與圓鈕重疊）、星級條獨立成第三列（免得被擠到刻度星重疊）
+ */
+export function TopBar({ compact }: { compact: boolean }) {
   const { level, score, moves, target } = useCandyStore()
+  const movesBall = (
+    <div className={`candy-moves-sm ${isLowMoves(moves) ? 'candy-moves-low' : ''}`} title="剩餘步數" aria-label="剩餘步數">
+      <span className="candy-num text-[18px] leading-none" data-testid="hud-moves">{moves}</span>
+    </div>
+  )
   return (
-    <div className="candy-topbar" data-testid="candy-hud">
+    <div
+      className="candy-topbar"
+      style={{
+        paddingTop: 'calc(8px + env(safe-area-inset-top))',
+        paddingLeft: 'calc(12px + env(safe-area-inset-left))',
+        paddingRight: 'calc(12px + env(safe-area-inset-right))',
+      }}
+      data-testid="candy-hud"
+    >
       <div className="flex h-[38px] items-center gap-2">
         <div className="candy-level-sm">
           <span className="candy-num text-[11px] tracking-[2px] text-[#ffe4f2]">LV</span>
           <span className="candy-num text-[24px] leading-none text-white" data-testid="hud-level">{level}</span>
         </div>
-        <div className={`candy-moves-sm ${isLowMoves(moves) ? 'candy-moves-low' : ''}`} title="剩餘步數" aria-label="剩餘步數">
-          <span className="candy-num text-[18px] leading-none" data-testid="hud-moves">{moves}</span>
-        </div>
+        {!compact && movesBall}
       </div>
-      <div className="flex items-center gap-3 pb-1">
-        <span className="candy-num min-w-14 text-[22px] text-[#ffe066] [text-shadow:0_2px_0_#b8520a]" data-testid="hud-score">
+      <div className={`flex items-center pb-1 ${compact ? 'gap-2' : 'gap-3'}`}>
+        {compact && movesBall}
+        <span className="candy-num min-w-10 text-[22px] text-[#ffe066] [text-shadow:0_2px_0_#b8520a]" data-testid="hud-score">
           {score.toLocaleString()}
         </span>
-        <div className="flex-1">
-          <StarTrack starSize={20} />
-        </div>
+        {compact ? (
+          <div className="flex-1" />
+        ) : (
+          <div className="flex-1">
+            <StarTrack starSize={20} />
+          </div>
+        )}
         <span className="text-[11px] text-[#d9ccff] whitespace-nowrap">
           目標 <span className="candy-num text-white">{target.toLocaleString()}</span>
         </span>
       </div>
+      {compact && (
+        <div className="px-2.5 pb-1.5">
+          <StarTrack starSize={20} />
+        </div>
+      )}
     </div>
   )
 }
 
 /**
  * 4 顆圓鈕（靜音、暫停、全螢幕、說明）。獨立疊在覆蓋層之上（z-30、DOM 後置），
- * 暫停與結算時仍可點；兩側模式對齊右欄並同步縮放，橫條模式放在橫條第一列右側。
+ * 暫停與結算時仍可點；兩側模式對齊右欄並同步縮放，橫條模式放在橫條第一列右側（窄橫條縮成 32px）。
  */
 export function HudButtons({
   mode,
   scale,
+  compact,
   isFullscreen,
   onMute,
   onPause,
@@ -132,6 +157,7 @@ export function HudButtons({
 }: {
   mode: 'side' | 'top'
   scale: number
+  compact: boolean
   isFullscreen: boolean
   onMute: () => void
   onPause: () => void
@@ -151,9 +177,10 @@ export function HudButtons({
           right: 'calc(12px + env(safe-area-inset-right))',
           top: 'calc(8px + env(safe-area-inset-top))',
         }
+  const layoutClass = mode === 'side' ? 'gap-2' : compact ? 'candy-topbar-btns candy-topbar-btns-sm' : 'candy-topbar-btns'
 
   return (
-    <div className="absolute z-30 flex gap-2" style={style}>
+    <div className={`absolute z-30 flex ${layoutClass}`} style={style}>
       <button
         type="button"
         className="candy-round-btn"

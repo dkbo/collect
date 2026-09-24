@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Candy, HelpCircle } from 'lucide-react'
 import { useCandyStore } from '@/store/useCandyStore'
 import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
 import { useFullscreen } from '@/lib/useFullscreen'
 import { HudButtons, SideHud, TopBar } from '@/pages/CandyCrush/CandyHud'
 import { InstructionsDialog, PauseOverlay, ResultDialog } from '@/pages/CandyCrush/CandyOverlays'
-import { hudLayout, type HudLayout } from '@/pages/CandyCrush/candyHud'
+import { hudLayout, isCompactTopBar, type HudLayout } from '@/pages/CandyCrush/candyHud'
 
 /** 關卡總數（與 godot-candy-src/data/candy_levels.json 同步） */
 const MAX_LEVEL = 5
@@ -20,6 +19,7 @@ export function CandyCrush() {
   const screenRef = useRef<HTMLDivElement>(null)
   const [showInstructions, setShowInstructions] = useState(false)
   const [layout, setLayout] = useState<HudLayout>({ mode: 'side', scale: 1 })
+  const [compactBar, setCompactBar] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(
     () => window.matchMedia('(pointer: coarse)').matches
   )
@@ -81,13 +81,15 @@ export function CandyCrush() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  // HUD 版面以 .rpg-screen 容器寬高比為準（含全螢幕），尺寸變化即重算
-  useEffect(() => {
+  // HUD 版面以 .rpg-screen 容器寬高比為準（含全螢幕），尺寸變化即重算；
+  // 用 layout effect 在首次繪製前量好，避免手機首幀閃一次兩側 HUD
+  useLayoutEffect(() => {
     const el = screenRef.current
     if (!el) return
     const update = () => {
       const next = hudLayout(el.clientWidth, el.clientHeight)
       setLayout((prev) => (prev.mode === next.mode && prev.scale === next.scale ? prev : next))
+      setCompactBar(isCompactTopBar(el.clientWidth))
     }
     update()
     const observer = new ResizeObserver(update)
@@ -108,29 +110,23 @@ export function CandyCrush() {
   return (
     <div className="max-w-5xl mx-auto pb-12" data-testid="page-candy-crush">
       <header className="text-center mb-8">
-        <h1 className="text-3xl md:text-5xl font-extrabold bg-gradient-to-r from-pink-500 via-rose-400 to-orange-400 bg-clip-text text-transparent leading-tight">
-          糖果消消樂
-        </h1>
-        <p className="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
-          以 Godot 4 打造的 match-3 三消遊戲。引擎於 iframe 內運行，與 React 透過 postMessage 雙向通訊。
+        <h1 className="candy-title">糖果消消樂</h1>
+        <p className="candy-subtitle">
+          以 <span className="candy-num">Godot 4</span> 打造的 <span className="candy-num">match-3</span> 三消遊戲。引擎於 <span className="candy-num">iframe</span> 內運行，與 <span className="candy-num">React</span> 透過 <span className="candy-num">postMessage</span> 雙向通訊。
         </p>
       </header>
 
       <div className="flex flex-wrap items-center gap-2 mb-4 justify-between select-none">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => toggleInstructions(true)}
-          className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
-        >
+        <button type="button" onClick={() => toggleInstructions(true)} className="candy-tool-btn">
           <HelpCircle className="size-3.5" aria-hidden="true" />
           遊戲說明
-        </Button>
+        </button>
       </div>
 
       <div className="rpg-cabinet">
         <div
           ref={screenRef}
+          data-hud={layout.mode}
           className={
             isFullscreen
               ? 'fixed inset-0 w-screen h-dvh bg-black z-50 border-0 rounded-none select-none'
@@ -138,7 +134,7 @@ export function CandyCrush() {
           }
         >
           <div className="absolute inset-0 flex flex-col">
-            {layout.mode === 'top' && <TopBar />}
+            {layout.mode === 'top' && <TopBar compact={compactBar} />}
             {/* iframe 的 DOM 位置固定，切換版面不會重載遊戲 */}
             <div className="relative min-h-0 flex-1">
               <iframe
@@ -158,11 +154,11 @@ export function CandyCrush() {
           {layout.mode === 'side' && <SideHud scale={layout.scale} />}
 
           {!isReady && (
-            <div className="absolute inset-0 bg-black flex flex-col justify-center items-center z-50 animate-fade-in">
-              <Candy className="size-12 text-pink-500 animate-bounce mb-4" />
-              <div className="text-white text-base tracking-widest animate-pulse font-mono font-bold select-none">
-                糖果消消樂載入中...
+            <div className="candy-loading" data-testid="candy-loading">
+              <div className="candy-loading-icon">
+                <Candy className="size-10" aria-hidden="true" />
               </div>
+              <div className="candy-loading-text">糖果消消樂載入中...</div>
             </div>
           )}
 
@@ -180,6 +176,7 @@ export function CandyCrush() {
           <HudButtons
             mode={layout.mode}
             scale={layout.scale}
+            compact={compactBar}
             isFullscreen={isFullscreen}
             onMute={() => { setMuted(!isMuted); focusGame() }}
             onPause={togglePause}

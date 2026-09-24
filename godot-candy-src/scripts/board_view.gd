@@ -1,7 +1,7 @@
 class_name BoardView
 extends Node2D
 
-## 盤面渲染與操作：依 CandyBoard 狀態生成 CandyPiece、棋盤格背景與裝飾邊框；
+## 盤面渲染與操作：依 CandyBoard 狀態生成 CandyPiece、bg_night 背景、board_frame 九宮格框與程式畫的格子；
 ## 處理點選交換與拖曳 swipe。56px 格、448×448 盤面以節點原點為中心，
 ## _layout() 依 viewport 尺寸動態置中縮放（手機直式也能滿版）。
 ## 狀態機 IDLE → SWAP →（Step 4 接 RESOLVE → FALL → CHECK），動畫中鎖輸入。
@@ -17,6 +17,29 @@ const SWIPE_THRESHOLD := 24.0  # 拖曳判定距離（px）
 
 const CandyPieceScript := preload("res://scripts/candy_piece.gd")
 
+# ---- A 亮面經典盤面（spec §4.1、§5） ----
+const BG_PATH := "res://assets/candy/bg_night.webp"
+const FRAME_PATH := "res://assets/candy/board_frame.webp"
+const FONT_PATH := "res://assets/fonts/Fredoka-Bold.ttf"
+const GRADIENT_SHADER_PATH := "res://shaders/banner_gradient.gdshader"
+const FRAME_PAD := 14.0  # 框到格子的邊距（邏輯）
+const FRAME_MARGIN := 56  # 九宮格邊距（@2x 貼圖像素）
+const FRAME_RADIUS := 26
+const GRID_CELL := 53.0
+const GRID_RADIUS := 9.0
+const GRID_COLORS: Array[Color] = [Color("#3a2c8c"), Color("#30237a")]
+const Z_BOARD := -2  # 框與格子在糖果光暈（-1）之下
+
+## Godot 內 banner 樣式（spec §6.5）：[字級, 外框, 外框色, 落影色, 落影 y]
+const BANNER_STYLES := {
+	"Level": [48, 8, "#e01f78", "#8c0f4a", 5],
+	"Sweet!": [44, 6, "#ff4fa3", "#8c0f4a", 4],
+	"Tasty!": [48, 6, "#ff8a1f", "#b04500", 4],
+	"Divine!": [52, 6, "#b04dff", "#56128f", 4],
+	"Sweet Crush!": [64, 8, "#e01f78", "#8c0f4a", 5],
+	"No more moves!": [36, 6, "#1f8cff", "#0a3a9e", 4],
+}
+
 enum State { IDLE, ANIM }
 
 const NO_CELL := Vector2i(-1, -1)
@@ -31,20 +54,100 @@ var _selected := NO_CELL
 var _press_cell := NO_CELL  # 按下時的格子（swipe 起點）
 var _press_pos := Vector2.ZERO
 var _swiped := false  # 本次按壓已觸發 swipe，release 不再當點選
+var _bg: Sprite2D
 
 
 func _ready() -> void:
+	_build_board_layers()
 	CandyBridge.command_received.connect(_on_command)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	_start_level(1)
 
 
-## 依 viewport 尺寸置中並等比縮放（stretch=expand 下直式螢幕 viewport 會拉長）。
+## 依 viewport 尺寸置中並等比縮放（stretch=expand 下直式螢幕 viewport 會拉長）；
+## 背景另在 CanvasLayer 以 cover 縮放鋪滿整個 viewport。
 func _layout() -> void:
 	var vp := get_viewport_rect().size
 	position = vp / 2.0
 	scale = Vector2.ONE * (minf(vp.x, vp.y) / DESIGN_MIN)
+	if _bg and _bg.texture:
+		_bg.position = vp / 2.0
+		_bg.scale = Vector2.ONE * bg_cover_scale(vp, _bg.texture.get_size())
+
+
+## 背景貼圖 cover 縮放：取寬高比例較大者，寬螢幕與直式都不露底。
+static func bg_cover_scale(vp: Vector2, tex_size: Vector2) -> float:
+	return maxf(vp.x / tex_size.x, vp.y / tex_size.y)
+
+
+## 背景（CanvasLayer −1）→ 框落影 → board_frame 九宮格 → 格子，糖果之後才加入。
+func _build_board_layers() -> void:
+	var bg_layer := CanvasLayer.new()
+	bg_layer.name = "BgLayer"
+	bg_layer.layer = -1
+	add_child(bg_layer)
+	_bg = Sprite2D.new()
+	_bg.name = "Bg"
+	_bg.texture = load(BG_PATH) if ResourceLoader.exists(BG_PATH) else null
+	_bg.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	bg_layer.add_child(_bg)
+
+	var frame_rect := Rect2(ORIGIN - Vector2.ONE * FRAME_PAD,
+		Vector2.ONE * (BOARD_PX + FRAME_PAD * 2))
+	# 稿上的大落影（y+12 blur 28）放不進九宮格邊距，另以 StyleBoxFlat shadow 補畫
+	var shadow := Panel.new()
+	shadow.name = "FrameShadow"
+	var sb := StyleBoxFlat.new()
+	sb.draw_center = false
+	sb.set_corner_radius_all(FRAME_RADIUS)
+	sb.shadow_color = Color(0.039, 0.016, 0.125, 0.6)
+	sb.shadow_size = 20
+	sb.shadow_offset = Vector2(0, 12)
+	shadow.add_theme_stylebox_override("panel", sb)
+	shadow.position = frame_rect.position
+	shadow.size = frame_rect.size
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shadow.z_index = Z_BOARD
+	add_child(shadow)
+
+	var frame := NinePatchRect.new()
+	frame.name = "Frame"
+	frame.texture = load(FRAME_PATH) if ResourceLoader.exists(FRAME_PATH) else null
+	frame.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	frame.patch_margin_left = FRAME_MARGIN
+	frame.patch_margin_top = FRAME_MARGIN
+	frame.patch_margin_right = FRAME_MARGIN
+	frame.patch_margin_bottom = FRAME_MARGIN
+	# @2x 貼圖：以 2 倍大小鋪、再縮 0.5，角落就是 28 邏輯單位
+	frame.position = frame_rect.position
+	frame.size = frame_rect.size * 2.0
+	frame.scale = Vector2.ONE * 0.5
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.z_index = Z_BOARD
+	add_child(frame)
+
+	var grid := Node2D.new()
+	grid.name = "Grid"
+	grid.z_index = Z_BOARD
+	grid.draw.connect(_draw_grid.bind(grid))
+	add_child(grid)
+
+
+## 格子：53×53、圓角 9，#3A2C8C／#30237A 交替，置中於 56 格。
+func _draw_grid(grid: Node2D) -> void:
+	var boxes: Array[StyleBoxFlat] = []
+	for col in GRID_COLORS:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = col
+		sb.set_corner_radius_all(int(GRID_RADIUS))
+		boxes.append(sb)
+	var inset := (CELL - GRID_CELL) / 2.0
+	for y in CandyBoard.SIZE:
+		for x in CandyBoard.SIZE:
+			var r := Rect2(ORIGIN + Vector2(x, y) * CELL + Vector2.ONE * inset,
+				Vector2.ONE * GRID_CELL)
+			grid.draw_style_box(boxes[(x + y) % 2], r)
 
 
 func _start_level(n: int) -> void:
@@ -259,7 +362,7 @@ func _resolve(pending := {}, pending_triggers := 0) -> void:
 			break
 		var mult := 1.0 + 0.5 * cascade
 		if cascade >= 1 and not groups.is_empty():  # 連鎖喝采文字
-			_show_banner(["Sweet!", "Tasty!", "Divine!"][mini(cascade - 1, 2)], 34)
+			_show_banner(["Sweet!", "Tasty!", "Divine!"][mini(cascade - 1, 2)])
 		var removed := pending
 		pending = {}
 		var spawns := {}  # cell -> {color, special}
@@ -491,15 +594,46 @@ func _shuffle_board() -> void:
 		pieces[c].special = board.get_special(c)
 
 
+static func _banner_style(text: String) -> Array:
+	if text.begins_with("Level"):
+		return BANNER_STYLES["Level"]
+	return BANNER_STYLES.get(text, BANNER_STYLES["Sweet!"])
+
+
+static func banner_uses_gradient(text: String) -> bool:
+	return text == "Sweet Crush!"
+
+
+## banner 的 LabelSettings：Fredoka、白色填色、外框、與外框同寬的硬落影（spec §6.5）。
+static func banner_settings(text: String) -> LabelSettings:
+	var st := _banner_style(text)
+	var ls := LabelSettings.new()
+	if ResourceLoader.exists(FONT_PATH):
+		ls.font = load(FONT_PATH)
+	ls.font_size = st[0]
+	ls.font_color = Color.WHITE
+	ls.outline_size = st[1]
+	ls.outline_color = Color(st[2])
+	ls.shadow_color = Color(st[3])
+	ls.shadow_size = st[1]
+	ls.shadow_offset = Vector2(0, st[4])
+	return ls
+
+
 ## 盤面中央橫幅文字（漸大淡出）。
-func _show_banner(text: String, font_size := 40) -> void:
+func _show_banner(text: String) -> void:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", Color("#fbcfe8"))
-	label.add_theme_color_override("font_outline_color", Color("#831843"))
-	label.add_theme_constant_override("outline_size", 8)
+	label.label_settings = banner_settings(text)
 	label.z_index = 10
+	if banner_uses_gradient(text) and ResourceLoader.exists(GRADIENT_SHADER_PATH):
+		var mat := ShaderMaterial.new()
+		mat.shader = load(GRADIENT_SHADER_PATH)
+		var fs := label.label_settings.font_size
+		var ascent := label.label_settings.font.get_ascent(fs) if label.label_settings.font else fs * 0.9
+		mat.set_shader_parameter("y_top", ascent - fs * 0.72)  # 約字母頂端
+		mat.set_shader_parameter("y_bottom", ascent)  # 基線
+		label.material = mat
 	add_child(label)
 	await get_tree().process_frame  # 等 label 取得尺寸再置中
 	label.position = -label.size / 2  # 節點原點即盤面中心
@@ -581,14 +715,3 @@ func _animate_swap(a: Vector2i, b: Vector2i) -> void:
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 
-
-func _draw() -> void:
-	# 裝飾外框（雙層圓角）
-	var outer := Rect2(ORIGIN - Vector2(14, 14), Vector2(BOARD_PX + 28, BOARD_PX + 28))
-	draw_rect(outer, Color("#3b2a52"))
-	draw_rect(outer.grow(-4), Color("#160f24"))
-	# 棋盤格底
-	for y in CandyBoard.SIZE:
-		for x in CandyBoard.SIZE:
-			var col := Color("#1e293b") if (x + y) % 2 == 0 else Color("#243349")
-			draw_rect(Rect2(ORIGIN + Vector2(x, y) * CELL, Vector2(CELL, CELL)), col)

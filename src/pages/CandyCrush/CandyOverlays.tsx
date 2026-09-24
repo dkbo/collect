@@ -1,8 +1,9 @@
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowRight, RotateCcw, X } from 'lucide-react'
 import { useCandyStore } from '@/store/useCandyStore'
 import { useCountUp } from '@/lib/useCountUp'
 import { CandyStar } from '@/pages/CandyCrush/CandyStar'
-import { resultSubtitle } from '@/pages/CandyCrush/candyHud'
+import { dialogFitScale, resultSubtitle } from '@/pages/CandyCrush/candyHud'
 
 /** 結算星星尺寸：中間那顆較大且高 22px */
 const RESULT_STARS = [
@@ -10,6 +11,50 @@ const RESULT_STARS = [
   { star: 2, size: 84, lift: 22, sizeClass: 'size-16 sm:size-[84px]' },
   { star: 3, size: 64, lift: 0, sizeClass: 'size-12 sm:size-16' },
 ]
+
+/** 緞帶壓在卡片上緣的外凸高度（外框 mt-8） */
+const RIBBON_OVERHANG = 32
+
+/**
+ * 卡片外框：遮罩可用高度放不下卡片時等比縮小（scale 不影響量到的 offsetHeight，不會循環），
+ * 外框高度同步縮成縮放後的高度，讓遮罩置中與捲動以縮放後尺寸計算
+ */
+function FitDialog({ className = '', children }: { className?: string; children: ReactNode }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState<{ scale: number; height?: number }>({ scale: 1 })
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    const mask = wrapRef.current?.parentElement
+    if (!dialog || !mask) return
+    const update = () => {
+      const cs = getComputedStyle(mask)
+      const available =
+        mask.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - RIBBON_OVERHANG
+      const natural = dialog.offsetHeight
+      const scale = dialogFitScale(available, natural)
+      setFit((prev) => (prev.scale === scale && prev.height === natural * scale ? prev : { scale, height: natural * scale }))
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(mask)
+    observer.observe(dialog)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={wrapRef} className="candy-dialog-fit" style={{ height: fit.height }}>
+      <div
+        ref={dialogRef}
+        className={`candy-dialog ${className}`}
+        style={fit.scale < 1 ? { transform: `scale(${fit.scale})` } : undefined}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
 
 /** 結算（勝／敗）：緞帶、星星依序彈出、分數 0.8s 滾動 */
 export function ResultDialog({
@@ -25,7 +70,7 @@ export function ResultDialog({
 
   return (
     <div className="candy-mask animate-fade-in" data-testid="candy-result">
-      <div className={`candy-dialog ${won ? '' : 'candy-dialog-lose'}`}>
+      <FitDialog className={won ? '' : 'candy-dialog-lose'}>
         <h2 className={`candy-ribbon ${won ? '' : 'candy-ribbon-lose'}`}>
           {won ? `第 ${endLevel} 關 通關！` : '步數用完 挑戰失敗'}
         </h2>
@@ -96,7 +141,7 @@ export function ResultDialog({
             </button>
           )}
         </div>
-      </div>
+      </FitDialog>
     </div>
   )
 }
@@ -129,7 +174,7 @@ export function InstructionsDialog({ isTouchDevice, onClose }: { isTouchDevice: 
 
   return (
     <div className="candy-mask animate-fade-in candy-mask-top" data-testid="candy-instructions">
-      <div className="candy-dialog">
+      <FitDialog>
         <h3 className="candy-ribbon">操作說明</h3>
         <button
           type="button"
@@ -156,7 +201,7 @@ export function InstructionsDialog({ isTouchDevice, onClose }: { isTouchDevice: 
         <button type="button" className="candy-btn mt-2 w-full" onClick={onClose}>
           開始遊戲
         </button>
-      </div>
+      </FitDialog>
     </div>
   )
 }

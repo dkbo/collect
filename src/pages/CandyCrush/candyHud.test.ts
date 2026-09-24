@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  dialogFitScale,
   hudLayout,
+  isCompactTopBar,
   isLowMoves,
   nextStarScore,
   progressPercent,
@@ -28,8 +30,40 @@ describe('hudLayout', () => {
     expect(hudLayout(320, 450).mode).toBe('top')
   })
 
+  it('兩側縮放低於 0.6（字太小）時也退回上方橫條', () => {
+    // md 斷點附近 .rpg-screen ≈ 740×550（剛過 4:3）：k = (740 - 489) / 2 / 240 ≈ 0.52
+    expect(hudLayout(740, 550)).toEqual({ mode: 'top', scale: 1 })
+    // 縮放剛好 0.6 仍在兩側
+    expect(hudLayout(576, 324).mode).toBe('side')
+  })
+
   it('尺寸未知（0）時退回上方橫條', () => {
     expect(hudLayout(0, 0).mode).toBe('top')
+  })
+})
+
+describe('isCompactTopBar', () => {
+  it('橫條寬度放不下「LV＋步數球＋4 顆圓鈕」時改精簡排法（步數球移到第二列）', () => {
+    // 320px 手機：.rpg-screen ≈ 248px
+    expect(isCompactTopBar(248)).toBe(true)
+    // 390px 手機：.rpg-screen ≈ 318px
+    expect(isCompactTopBar(318)).toBe(false)
+  })
+})
+
+describe('dialogFitScale', () => {
+  it('放得下就不縮', () => {
+    expect(dialogFitScale(486, 436)).toBe(1)
+  })
+
+  it('放不下時等比縮到剛好塞進可用高度', () => {
+    // 390×844 最後一關：可用 346、卡片 390
+    expect(dialogFitScale(346, 390)).toBeCloseTo(346 / 390, 5)
+  })
+
+  it('尺寸未知（0）時不縮', () => {
+    expect(dialogFitScale(0, 0)).toBe(1)
+    expect(dialogFitScale(300, 0)).toBe(1)
   })
 })
 
@@ -51,8 +85,8 @@ describe('nextStarScore', () => {
     expect(nextStarScore(2, 4000)).toBe(8000)
   })
 
-  it('1.5 倍非整數時無條件進位', () => {
-    expect(nextStarScore(1, 1001)).toBe(1502)
+  it('1.5 倍非整數時無條件捨去（與 Godot level_manager int(1.5*target) 一致）', () => {
+    expect(nextStarScore(1, 1001)).toBe(1501)
   })
 
   it('三星時沒有下一顆', () => {
