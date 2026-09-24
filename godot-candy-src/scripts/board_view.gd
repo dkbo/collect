@@ -5,6 +5,8 @@ extends Node2D
 ## 處理點選交換與拖曳 swipe。56px 格、448×448 盤面以節點原點為中心，
 ## _layout() 依 viewport 尺寸動態置中縮放（手機直式也能滿版）。
 ## 狀態機 IDLE → SWAP →（Step 4 接 RESOLVE → FALL → CHECK），動畫中鎖輸入。
+## 特效（spec §7）由 Fx 子節點（CandyFx）播放；特殊糖觸發時把每格的消除延遲與特效事件
+## 記在 _fx_delays／_fx_events，_animate_remove 依此排程，不影響盤面邏輯與計分。
 
 const CELL := 56.0
 const BOARD_PX := CELL * CandyBoard.SIZE
@@ -14,8 +16,21 @@ const SWAP_TIME := 0.15
 const REMOVE_TIME := 0.2
 const FALL_PER_CELL := 0.08
 const SWIPE_THRESHOLD := 24.0  # 拖曳判定距離（px）
+const SQUASH_SCALE := 1.15  # 消除前先放大
+const SQUASH_TIME := 0.06
+const LAND_TIME := 0.1  # 落地 squash 回彈
+const STRIPE_STEP := 0.02  # 條紋清行逐格延遲
+const BOLT_STEP := 0.03  # 彩色炸彈電光依序射出間隔
+const BOLT_ARRIVE := 0.06  # 最後一條電光到位後才一起消除
+const RIPPLE_STEP := 0.03  # 炸彈＋炸彈由中心向外，每格距離的延遲
+const SHAKE_PX := 4.0
+const SHAKE_TIME := 0.15
+const CRUSH_STEP := 0.05  # Sweet Crush 逐顆轉條紋的間隔
+const GOLD := Color("#ffc21a")
+const COMBO_TEXTS: Array[String] = ["Sweet!", "Tasty!", "Divine!"]
 
 const CandyPieceScript := preload("res://scripts/candy_piece.gd")
+const CandyFxScript := preload("res://scripts/fx/candy_fx.gd")
 
 # ---- A 亮面經典盤面（spec §4.1、§5） ----
 const BG_PATH := "res://assets/candy/bg_night.webp"
@@ -55,10 +70,25 @@ var _press_cell := NO_CELL  # 按下時的格子（swipe 起點）
 var _press_pos := Vector2.ZERO
 var _swiped := false  # 本次按壓已觸發 swipe，release 不再當點選
 var _bg: Sprite2D
+var fx: CandyFx
+var last_particle_total := 0  # 最近一次消除的粒子總數（[fx] particles= 同值）
+var _fx_delays := {}  # Vector2i -> 消除延遲秒數（特殊糖觸發的連帶格）
+var _fx_events: Array = []  # [{type: beam|ring|bolt|ripple, cell, delay, ...}]
+var _base_pos := Vector2.ZERO  # _layout 算出的置中位置（震動以此為基準）
+var _shake_tween: Tween
+var _fps_timer: Timer
 
 
 func _ready() -> void:
 	_build_board_layers()
+	fx = CandyFxScript.new()
+	fx.name = "Fx"
+	fx.z_index = 5  # 糖果之上、banner 之下
+	add_child(fx)
+	_fps_timer = Timer.new()
+	_fps_timer.wait_time = 1.0
+	_fps_timer.timeout.connect(_print_fps)
+	add_child(_fps_timer)
 	CandyBridge.command_received.connect(_on_command)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -69,7 +99,8 @@ func _ready() -> void:
 ## 背景另在 CanvasLayer 以 cover 縮放鋪滿整個 viewport。
 func _layout() -> void:
 	var vp := get_viewport_rect().size
-	position = vp / 2.0
+	_base_pos = vp / 2.0
+	position = _base_pos
 	scale = Vector2.ONE * (minf(vp.x, vp.y) / DESIGN_MIN)
 	if _bg and _bg.texture:
 		_bg.position = vp / 2.0
@@ -246,6 +277,7 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 		_swap_a = a
 		_swap_b = b
 		level_mgr.moves_left -= 1  # 僅有效交換扣步
+		_fx_reset()
 		var initial := _special_swap_effect(a, b)
 		await _resolve(initial["cells"], initial["triggered"])
 		await _check_level_end()
@@ -283,7 +315,6 @@ func _sugar_crush() -> void:
 	if level_mgr.moves_left <= 0:
 		return
 	_show_banner("Sweet Crush!")
-	CandySfx.play("special")
 	var candidates: Array[Vector2i] = []
 	for y in CandyBoard.SIZE:
 		for x in CandyBoard.SIZE:
@@ -299,6 +330,10 @@ func _sugar_crush() -> void:
 		board.set_special(p, sp)
 		pieces[p].special = sp
 		converted[p] = true
+		# 每顆轉換一次金色閃光＋「叮」，0.05s 連響
+		fx.flash(pieces[p].position, GOLD, 1.2)
+		CandySfx.play("special", 1.0 + 0.03 * mini(i, 10))
+		await get_tree().create_timer(CRUSH_STEP).timeout
 	level_mgr.moves_left = 0
 	_post_state()
 	await get_tree().create_timer(0.9).timeout
@@ -318,25 +353,37 @@ func _special_swap_effect(a: Vector2i, b: Vector2i) -> Dictionary:
 	if board.get_special(b) == CandyBoard.Special.BOMB:
 		bombs.append(b)
 	if bombs.size() == 2:  # 炸彈+炸彈：全盤清除
+		var center := Vector2(CandyBoard.SIZE - 1, CandyBoard.SIZE - 1) / 2.0
 		for y in CandyBoard.SIZE:
 			for x in CandyBoard.SIZE:
 				removed[Vector2i(x, y)] = true
+				_fx_delays[Vector2i(x, y)] = RIPPLE_STEP * Vector2(x, y).distance_to(center)
+		_fx_events.append({"type": "ripple", "cell": b, "delay": 0.0})
 		triggered = 2
 	elif bombs.size() == 1:  # 炸彈+糖果：清除全盤同色（對方若為特殊糖會鏈式觸發）
 		var bomb := bombs[0]
 		var other := b if bomb == a else a
 		var target_color := board.get_cell(other)
 		removed[bomb] = true
+		var targets: Array[Vector2i] = []
 		for y in CandyBoard.SIZE:
 			for x in CandyBoard.SIZE:
 				if board.get_cell(Vector2i(x, y)) == target_color:
 					removed[Vector2i(x, y)] = true
+					targets.append(Vector2i(x, y))
+		_fx_bomb(bomb, targets, 0.0)
 		triggered = 1
 	else:  # 條紋+條紋：十字（以交換目標格為中心），兩顆條紋就地消耗
 		for x in CandyBoard.SIZE:
 			removed[Vector2i(x, b.y)] = true
+			_fx_delays[Vector2i(x, b.y)] = STRIPE_STEP * absi(x - b.x)
 		for y in CandyBoard.SIZE:
 			removed[Vector2i(b.x, y)] = true
+			_fx_delays[Vector2i(b.x, y)] = STRIPE_STEP * absi(y - b.y)
+		_fx_events.append({"type": "beam", "cell": b, "delay": 0.0, "horizontal": true,
+			"color": _cell_color(b)})
+		_fx_events.append({"type": "beam", "cell": b, "delay": 0.0, "horizontal": false,
+			"color": _cell_color(b)})
 		triggered = 2
 		board.set_special(a, CandyBoard.Special.NONE)
 		board.set_special(b, CandyBoard.Special.NONE)
@@ -355,6 +402,7 @@ var _swap_b := NO_CELL
 ## 計分：群組 n 顆 = 60 + 20(n-3)，連鎖第 k 層 ×(1 + 0.5k)；特殊糖觸發每顆 +40。
 func _resolve(pending := {}, pending_triggers := 0) -> void:
 	var cascade := 0
+	_fps_timer.start()
 	while true:
 		var groups := board.find_match_groups()
 		var armed := _armed_wrapped_cells()
@@ -362,7 +410,7 @@ func _resolve(pending := {}, pending_triggers := 0) -> void:
 			break
 		var mult := 1.0 + 0.5 * cascade
 		if cascade >= 1 and not groups.is_empty():  # 連鎖喝采文字
-			_show_banner(["Sweet!", "Tasty!", "Divine!"][mini(cascade - 1, 2)])
+			_show_banner(COMBO_TEXTS[mini(cascade - 1, COMBO_TEXTS.size() - 1)])
 		var removed := pending
 		pending = {}
 		var spawns := {}  # cell -> {color, special}
@@ -393,13 +441,16 @@ func _resolve(pending := {}, pending_triggers := 0) -> void:
 			board.set_special(cell, spawns[cell]["special"])
 			pieces[cell].color_id = spawns[cell]["color"]
 			pieces[cell].special = spawns[cell]["special"]
-		await _animate_remove(removed.keys())
+		await _animate_remove(removed.keys(), cascade)
+		_fx_reset()
 		board.clear_cells(removed.keys())
 		for c in removed:
 			pieces[c].queue_free()
 			pieces.erase(c)
 		await _animate_fall(board.apply_gravity(), board.refill())
 		cascade += 1
+	_fps_timer.stop()
+	_print_fps()  # 短連鎖不滿 1 秒也留一筆
 	_swap_a = NO_CELL
 	_swap_b = NO_CELL
 	if not board.has_legal_move():
@@ -447,6 +498,8 @@ func _expand_specials(removed: Dictionary, protected: Dictionary) -> int:
 		if sp == CandyBoard.Special.NONE:
 			continue
 		triggered += 1
+		var d: float = _fx_delays.get(c, 0.0)
+		var color := _cell_color(c)
 		var add: Array[Vector2i] = []
 		match sp:
 			CandyBoard.Special.STRIPED_H:
@@ -469,15 +522,61 @@ func _expand_specials(removed: Dictionary, protected: Dictionary) -> int:
 						for x in CandyBoard.SIZE:
 							if board.get_cell(Vector2i(x, y)) == most:
 								add.append(Vector2i(x, y))
+		var newly: Array[Vector2i] = []
 		for cell in add:
 			if cell in removed or cell in protected:
 				continue
 			if board.get_cell(cell) == CandyBoard.EMPTY:
 				continue
 			removed[cell] = true
+			newly.append(cell)
 			if board.get_special(cell) != CandyBoard.Special.NONE:
 				queue.append(cell)
+		_fx_special(sp, c, d, color, newly)
 	return triggered
+
+
+func _fx_reset() -> void:
+	_fx_delays.clear()
+	_fx_events.clear()
+
+
+## 記錄一次特殊糖觸發的特效事件與連帶格的消除延遲（只影響動畫排程）。
+func _fx_special(sp: int, c: Vector2i, d: float, color: Color, cells: Array[Vector2i]) -> void:
+	match sp:
+		CandyBoard.Special.STRIPED_H, CandyBoard.Special.STRIPED_V:
+			var horizontal := sp == CandyBoard.Special.STRIPED_H
+			_fx_events.append({"type": "beam", "cell": c, "delay": d, "horizontal": horizontal,
+				"color": color})
+			for cell in cells:
+				var dist := absi(cell.x - c.x) if horizontal else absi(cell.y - c.y)
+				_fx_delays[cell] = d + STRIPE_STEP * dist
+		CandyBoard.Special.WRAPPED, CandyBoard.Special.WRAPPED_ARMED:
+			_fx_events.append({"type": "ring", "cell": c, "delay": d, "color": color})
+			for cell in cells:
+				_fx_delays[cell] = d
+		CandyBoard.Special.BOMB:
+			_fx_bomb(c, cells, d)
+
+
+## 彩色炸彈：由近到遠每顆目標一條電光、間隔 0.03s，全部到位後炸彈與目標同時消除。
+func _fx_bomb(bomb: Vector2i, targets: Array[Vector2i], d: float) -> void:
+	var order := targets.filter(func(t): return t != bomb)
+	order.sort_custom(func(p, q): return Vector2(p - bomb).length() < Vector2(q - bomb).length())
+	var arrive := d + BOLT_STEP * maxi(order.size() - 1, 0) + BOLT_ARRIVE
+	for i in order.size():
+		var t: Vector2i = order[i]
+		_fx_events.append({"type": "bolt", "cell": bomb, "target": t, "delay": d + BOLT_STEP * i,
+			"hold": arrive - (d + BOLT_STEP * i), "color": _cell_color(t)})
+		_fx_delays[t] = arrive
+	_fx_delays[bomb] = arrive
+
+
+func _cell_color(c: Vector2i) -> Color:
+	var col := board.get_cell(c)
+	if col < 0 or board.get_special(c) == CandyBoard.Special.BOMB:
+		return Color.WHITE
+	return CandyPiece.COLORS[posmod(col, CandyPiece.COLORS.size())]
 
 
 func _around_3x3(c: Vector2i) -> Array[Vector2i]:
@@ -513,42 +612,87 @@ func _most_common_color() -> int:
 	return best
 
 
-## 消除動畫：縮放至 0 + 同色粒子噴發。
-func _animate_remove(cells: Array) -> void:
-	var tween := create_tween().set_parallel()
+## 消除動畫：先播特殊糖事件（光束、衝擊波、電光），各格依 _fx_delays 延遲後
+## squash 到 1.15 再 TRANS_BACK 縮到 0，同時播本色 fx_flash 與 fx_sugar 糖粒。
+## 連鎖第 k 層閃光放大 1+0.1k、粒子 +2k；整次消除粒子總量受 CandyFx.particle_budget 限制。
+func _animate_remove(cells: Array, cascade := 0) -> void:
+	if cells.is_empty():
+		return
+	_play_fx_events()
+	var counts := []
 	for c in cells:
-		var piece: CandyPiece = pieces[c]
+		counts.append(CandyFxScript.cascade_particles(randi_range(8, 12), cascade))
+	var budget := CandyFxScript.particle_budget(counts)
+	last_particle_total = 0
+	for n in budget:
+		last_particle_total += n
+	print("[fx] particles=%d" % last_particle_total)
+	var last: Tween
+	var last_delay := -1.0
+	for i in cells.size():
+		var piece: CandyPiece = pieces[cells[i]]
 		piece.set_selected(false)
-		tween.tween_property(piece, "scale", Vector2.ZERO, REMOVE_TIME) \
+		var delay: float = _fx_delays.get(cells[i], 0.0)
+		var t := piece.create_tween()
+		if delay > 0.0:
+			t.tween_interval(delay)
+		t.tween_callback(_pop_fx.bind(piece.position, _piece_burst_color(piece), budget[i], cascade))
+		t.tween_property(piece, "scale", Vector2.ONE * SQUASH_SCALE, SQUASH_TIME) \
+			.set_ease(Tween.EASE_OUT)
+		t.tween_property(piece, "scale", Vector2.ZERO, REMOVE_TIME) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-		_spawn_burst(piece.position, _piece_burst_color(piece))
-	await tween.finished
+		if delay > last_delay:
+			last_delay = delay
+			last = t
+	await last.finished
+
+
+func _pop_fx(pos: Vector2, color: Color, amount: int, cascade: int) -> void:
+	fx.flash(pos, color, CandyFxScript.flash_scale(cascade))
+	fx.burst(pos, color, amount)
+
+
+func _play_fx_events() -> void:
+	for e in _fx_events:
+		var pos := cell_to_pos(e["cell"])
+		var d: float = e["delay"]
+		match e["type"]:
+			"beam":  # 以該行／列中心展開到整盤寬
+				var at := Vector2(0.0, pos.y) if e["horizontal"] else Vector2(pos.x, 0.0)
+				fx.later(d, fx.beam.bind(at, e["horizontal"], e["color"].lightened(0.4), BOARD_PX))
+			"ring":
+				fx.later(d, fx.ring.bind(pos, e["color"].lightened(0.5)))
+				fx.later(d, shake.bind(SHAKE_PX, SHAKE_TIME))
+			"bolt":
+				fx.later(d, fx.bolt.bind(pos, cell_to_pos(e["target"]), e["color"], e["hold"]))
+			"ripple":  # 炸彈＋炸彈：盤心一記大閃光，其餘格由延遲排出波紋
+				fx.flash(Vector2.ZERO, Color.WHITE, 4.0, 0.35)
+				shake(SHAKE_PX, SHAKE_TIME)
+
+
+## 畫面震動：以 _layout 的置中位置為基準隨機偏移、線性衰減到 0。
+func shake(px := SHAKE_PX, dur := SHAKE_TIME) -> void:
+	if _shake_tween:
+		_shake_tween.kill()
+	_shake_tween = create_tween()
+	_shake_tween.tween_method(_apply_shake.bind(px), 1.0, 0.0, dur)
+
+
+func _apply_shake(strength: float, px: float) -> void:
+	var off := Vector2.ZERO
+	if strength > 0.0:
+		off = Vector2.from_angle(randf() * TAU) * px * strength * scale.x
+	position = _base_pos + off
+
+
+func _print_fps() -> void:
+	print("[fx] fps=%d" % Engine.get_frames_per_second())
 
 
 static func _piece_burst_color(piece: CandyPiece) -> Color:
 	if piece.special == CandyBoard.Special.BOMB:
 		return Color.WHITE
 	return CandyPiece.COLORS[posmod(piece.color_id, CandyPiece.COLORS.size())]
-
-
-## 單格消除粒子（一次性爆發，播完自毀）。
-func _spawn_burst(pos: Vector2, color: Color) -> void:
-	var p := CPUParticles2D.new()
-	p.position = pos
-	p.one_shot = true
-	p.amount = 10
-	p.lifetime = 0.45
-	p.explosiveness = 1.0
-	p.spread = 180.0
-	p.initial_velocity_min = 60.0
-	p.initial_velocity_max = 150.0
-	p.gravity = Vector2(0, 260)
-	p.scale_amount_min = 2.0
-	p.scale_amount_max = 4.0
-	p.color = color
-	add_child(p)
-	p.emitting = true
-	get_tree().create_timer(p.lifetime + 0.2).timeout.connect(p.queue_free)
 
 
 ## 下落動畫：既有糖果下沉 + 新糖果自盤面上方落入，每格 0.08s、落地微彈跳。
@@ -581,6 +725,8 @@ func _tween_fall(tween: Tween, piece: CandyPiece, to: Vector2i) -> void:
 	var dur := maxf(FALL_PER_CELL, FALL_PER_CELL * dist / CELL)
 	tween.tween_property(piece, "position", cell_to_pos(to), dur) \
 		.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	# 落地當下（bounce 第一次觸地，約 36% 處）squash (1.1, 0.9) → (1, 1)
+	tween.tween_method(piece.set_land, 0.0, 1.0, LAND_TIME).set_delay(dur / 2.75)
 
 
 ## 死局：顯示提示後保留糖果重排。
@@ -598,6 +744,10 @@ static func _banner_style(text: String) -> Array:
 	if text.begins_with("Level"):
 		return BANNER_STYLES["Level"]
 	return BANNER_STYLES.get(text, BANNER_STYLES["Sweet!"])
+
+
+static func is_combo(text: String) -> bool:
+	return text in COMBO_TEXTS
 
 
 static func banner_uses_gradient(text: String) -> bool:
@@ -638,6 +788,9 @@ func _show_banner(text: String) -> void:
 	await get_tree().process_frame  # 等 label 取得尺寸再置中
 	label.position = -label.size / 2  # 節點原點即盤面中心
 	label.pivot_offset = label.size / 2
+	if is_combo(text):
+		_animate_combo(label)
+		return
 	label.scale = Vector2.ONE * 0.5
 	var tween := create_tween()
 	tween.tween_property(label, "scale", Vector2.ONE * 1.2, 0.4) \
@@ -645,6 +798,34 @@ func _show_banner(text: String) -> void:
 	tween.tween_interval(0.3)
 	tween.tween_property(label, "modulate:a", 0.0, 0.3)
 	tween.tween_callback(label.queue_free)
+
+
+## Combo 字（spec §7）：scale 0.3→1.15→1.0、旋轉 −6°→0（0.25s），停 0.35s，
+## 再上升 20px 淡出（0.25s）；背後一張放大的 fx_flash（alpha 0.5、外框色）當爆光。
+func _animate_combo(label: Label) -> Tween:
+	var glow := Sprite2D.new()
+	glow.texture = CandyFxScript.FLASH_TEX
+	glow.material = CandyFxScript.additive()
+	glow.show_behind_parent = true
+	glow.position = label.size / 2
+	glow.scale = Vector2.ONE * label.size.x * 1.6 / CandyFxScript.FLASH_TEX.get_width()
+	glow.modulate = Color(label.label_settings.outline_color, 0.5)
+	label.add_child(glow)
+	label.scale = Vector2.ONE * 0.3
+	label.rotation = deg_to_rad(-6.0)
+	var tween := create_tween()
+	tween.tween_property(label, "scale", Vector2.ONE * 1.15, 0.17) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(label, "rotation", 0.0, 0.25) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(label, "scale", Vector2.ONE, 0.08) \
+		.set_ease(Tween.EASE_IN_OUT).set_delay(0.17)  # 與旋轉同一段，彈入總長 0.25s
+	tween.tween_interval(0.35)
+	tween.tween_property(label, "position:y", label.position.y - 20.0, 0.25) \
+		.set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.25)
+	tween.tween_callback(label.queue_free)
+	return tween
 
 
 # ---------- Bridge ----------

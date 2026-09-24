@@ -4,11 +4,17 @@ extends Node2D
 ## 單顆糖果：以 A 亮面經典的 WebP 貼圖（Sprite2D、@2x 128px 以 0.5 倍呈現成 64 邏輯單位）
 ## 依色碼／特殊糖顯示 31 種造型；貼圖缺檔時退回程式自繪幾何造型（圓/方/三角/菱/六角/環）。
 ## 選中時播放縮放呼吸動畫，底下的 fx_select_halo 光暈同步脈動。
+## 特殊糖才掛 shader（spec §7 效能）：條紋流光、包裝扭結擺動、炸彈糖粒緩轉；已引爆包裝另以 tween 脈動。
 
 const RADIUS := 22.0
 const TEX_SCALE := 0.5  # @2x 貼圖 → 邏輯尺寸
 const HALO_TINT := Color("#fff4b3")
 const HALO_PATH := "res://assets/candy/fx_select_halo.webp"
+const SPRINKLES_PATH := "res://assets/candy/candy_bomb_sprinkles.webp"
+const SHEEN_SHADER := preload("res://shaders/candy_sheen.gdshader")
+const WRAPPED_SHADER := preload("res://shaders/candy_wrapped.gdshader")
+const BOMB_SHADER := preload("res://shaders/candy_bomb.gdshader")
+const ARMED_PULSE_TIME := 0.6  # 已引爆：scale 1.0↔1.08、亮度 1.0↔1.3 一輪
 
 ## 本色（spec §4.3），粒子上色也用這組
 const COLORS: Array[Color] = [
@@ -48,6 +54,7 @@ var texture_root := "res://assets/candy/":
 		_refresh()
 
 var _select_tween: Tween
+var _pulse_tween: Tween
 var _sprite: Sprite2D
 var _halo: Sprite2D
 
@@ -95,7 +102,74 @@ func _refresh() -> void:
 		return
 	_sprite.texture = _load_tex(texture_path(color_id, special, texture_root))
 	_sprite.visible = _sprite.texture != null
+	_sprite.material = _special_material(_sprite.material as ShaderMaterial)
+	_update_pulse()
 	queue_redraw()
+
+
+func _ready() -> void:
+	_update_pulse()  # 進樹前設的 special 在這裡補開脈動
+
+
+## 依 special 決定 shader；同一種 shader 沿用既有材質（保留錯開的相位）。
+func _special_material(current: ShaderMaterial) -> ShaderMaterial:
+	var shader: Shader = null
+	match special:
+		CandyBoard.Special.STRIPED_H, CandyBoard.Special.STRIPED_V:
+			shader = SHEEN_SHADER
+		CandyBoard.Special.WRAPPED, CandyBoard.Special.WRAPPED_ARMED:
+			shader = WRAPPED_SHADER
+		CandyBoard.Special.BOMB:
+			shader = BOMB_SHADER
+	if shader == null or _sprite.texture == null:
+		return null
+	if shader == BOMB_SHADER and _load_tex(SPRINKLES_PATH) == null:
+		return null  # 糖粒層缺檔：sampler 預設白色會蓋掉整顆，改用無 shader 的原圖
+	if current and current.shader == shader:
+		return current
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("phase", randf() * 6.0)
+	if shader == BOMB_SHADER:
+		mat.set_shader_parameter("sprinkles", _load_tex(SPRINKLES_PATH))
+	return mat
+
+
+func is_pulsing() -> bool:
+	return _pulse_tween != null and _pulse_tween.is_valid()
+
+
+## 已引爆包裝的外發光脈動，直到第二段爆炸（special 改掉）為止。
+func _update_pulse() -> void:
+	var want := special == CandyBoard.Special.WRAPPED_ARMED and _sprite.visible
+	if want == is_pulsing() or (want and not is_inside_tree()):
+		return
+	if _pulse_tween:
+		_pulse_tween.kill()
+		_pulse_tween = null
+	_sprite.scale = Vector2.ONE * TEX_SCALE
+	_sprite.modulate = Color.WHITE
+	if not want:
+		return
+	var half := ARMED_PULSE_TIME / 2.0
+	_pulse_tween = create_tween().set_loops()
+	_pulse_tween.tween_property(_sprite, "scale", Vector2.ONE * TEX_SCALE * 1.08, half) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_pulse_tween.parallel().tween_property(_sprite, "modulate", Color(1.3, 1.3, 1.3), half) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_pulse_tween.tween_property(_sprite, "scale", Vector2.ONE * TEX_SCALE, half) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_pulse_tween.parallel().tween_property(_sprite, "modulate", Color.WHITE, half) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+## 落地 squash：t=0 時 (1.1, 0.9)，t=1 回 (1, 1)。
+static func land_scale(t: float) -> Vector2:
+	return Vector2(1.1, 0.9).lerp(Vector2.ONE, clampf(t, 0.0, 1.0))
+
+
+func set_land(t: float) -> void:
+	scale = land_scale(t)
 
 
 func set_selected(selected: bool) -> void:
