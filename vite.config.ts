@@ -13,9 +13,16 @@ export default defineConfig({
   build: {
     outDir: 'docs',
     emptyOutDir: true,
+    // 只為 vendor-babylon：深層匯入後實測約 1,741 kB（Babylon 核心 Engine／Scene／材質／shader 無法再切小），上限取 +10%
+    chunkSizeWarningLimit: 1915,
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Babylon.js 體積大且僅 /battle（lazy）使用，獨立成 chunk；
+          // 必須最先判斷：深層路徑如 Shaders/default.vertex.js 會命中下方 'fault'／'format' 而被誤歸 vendor-syntax
+          if (id.includes('@babylonjs')) {
+            return 'vendor-babylon'
+          }
           if (
             id.includes('react-syntax-highlighter') ||
             id.includes('prismjs') ||
@@ -39,10 +46,6 @@ export default defineConfig({
           // firebase 體積大且僅 /battle（lazy）使用，獨立成 chunk 以免進初始載入
           if (id.includes('/firebase/') || id.includes('@firebase')) {
             return 'vendor-firebase'
-          }
-          // Babylon.js 體積大且僅 /battle（lazy）使用，獨立成 chunk
-          if (id.includes('@babylonjs')) {
-            return 'vendor-babylon'
           }
           if (
             id.includes('react') ||

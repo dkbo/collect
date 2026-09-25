@@ -11,7 +11,7 @@ import {
   Vector3,
   type Camera,
   type Scene,
-} from '@babylonjs/core'
+} from '@/babylon/babylonCore'
 
 export interface TextPanel {
   /** 重繪（多行以 \n 分隔；空字串隱藏；內容沒變就跳過） */

@@ -1,4 +1,4 @@
-import type { Scene } from '@babylonjs/core'
+import type { Scene } from '@/babylon/babylonCore'
 import type { GameNetMessage, NetTransport } from '@/core/webrtc'
 
 /** 對戰中的玩家精簡資訊（由房間玩家列表帶入） */

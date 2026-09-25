@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArcRotateCamera, Engine, Scene } from '@babylonjs/core'
+import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
 import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { NetTransport } from '@/core/webrtc'
