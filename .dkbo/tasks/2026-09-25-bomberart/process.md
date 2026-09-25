@@ -121,3 +121,4 @@
 2026-09-25T19:26 commit c20cbe7 wave 4
 2026-09-25T19:27 report written; gate3 pending
 2026-09-25T20:19 ruling: 關卡③ 使用者回「合併」 — 人明確拍板 — 若錯：無
+2026-09-25T20:19 task-close merged 25bb228
