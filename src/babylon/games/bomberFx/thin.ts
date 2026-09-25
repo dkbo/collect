@@ -52,12 +52,16 @@ export class ThinGroup<K> {
   sync(): void {
     if (!this.slots.dirty) return
     if (this.version !== this.slots.bufferVersion) {
+      // 換新 buffer：整份上傳（Babylon 會把 count 設成容量，下面再改回實際數量）
       this.mesh.thinInstanceSetBuffer('matrix', this.slots.buffer, 16, false)
       this.version = this.slots.bufferVersion
+      this.mesh.thinInstanceCount = this.slots.count
     } else {
+      // 先設 count 再上傳：thinInstanceBufferUpdated 只上傳「當下 count 筆」，
+      // 反過來的話新增的 slot 不會上 GPU，會沿用前任的矩陣（畫到錯格）
+      this.mesh.thinInstanceCount = this.slots.count
       this.mesh.thinInstanceBufferUpdated('matrix')
     }
-    this.mesh.thinInstanceCount = this.slots.count
     this.mesh.isVisible = this.slots.count > 0
     this.slots.dirty = false
   }

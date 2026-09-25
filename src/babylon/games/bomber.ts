@@ -1,7 +1,6 @@
 import {
   ArcRotateCamera,
   Color4,
-  HemisphericLight,
   ParticleSystem,
   SceneInstrumentation,
   Texture,
@@ -60,8 +59,9 @@ import {
 import { AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
 import { ToyBoard } from '@/babylon/games/bomberFx/board'
 import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
-import { colorIndexOf, invincibleBlinkOn, type ColorIndex } from '@/babylon/games/bomberFx/palette'
+import { colorIndexOf, invincibleBlinkOn, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
+import { ToyLook } from '@/babylon/games/bomberFx/look'
 
 /**
  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
@@ -239,6 +239,7 @@ class BomberScene implements GameModule {
   private banner!: TextPanel
   private board!: ToyBoard
   private avatarKit!: AvatarKit
+  private look!: ToyLook
   private instr: SceneInstrumentation | null = null
   private lastPerfLog = 0
   private explosionPs: ParticleSystem | null = null
@@ -317,6 +318,10 @@ class BomberScene implements GameModule {
       isAI: this.isBot(id),
       isSelf: id === this.ctx.selfId,
     })
+    // 光影登記：投影＋描邊；AI 天線球進 Glow 白名單
+    this.look.caster(toy.body)
+    this.look.outline(toy.body)
+    if (toy.antenna) this.look.glowMesh(toy.antenna, TOY.aiAntenna)
     const av: Avatar = { root: toy.root, toy, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
     this.faceCamera(av)
     return av
@@ -1125,7 +1130,9 @@ class BomberScene implements GameModule {
 
     // 固定俯視相機（不開放操作）
     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 30, Vector3.Zero(), scene)
-    new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
+    // 光影與後製（AC4／AC7）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位
+    const halfDiag = Math.hypot(GRID_W * CELL, GRID_H * CELL) / 2
+    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + CELL })
 
     // 場景物件（A「Toy Box」）：地面單 mesh＋程式棋盤，柱牆／外框／木箱／落牆／炸彈／火焰／道具走 thin instance
     this.board = new ToyBoard(scene, {
@@ -1135,6 +1142,12 @@ class BomberScene implements GameModule {
       toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
     })
     this.avatarKit = new AvatarKit(scene)
+    const fx = this.board.fxTargets()
+    this.look.toon(...fx.toon, this.avatarKit.bodyMat)
+    this.look.receiver(...fx.receivers)
+    this.look.caster(...fx.casters)
+    this.look.outline(...fx.outlined)
+    for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
     // AC8：draw calls 量測（每 PERF_LOG_MS 印一次）
     this.instr = new SceneInstrumentation(scene)
 
@@ -1191,7 +1204,7 @@ class BomberScene implements GameModule {
       c2: Color4,
       o: { size: [number, number]; life: [number, number]; power: [number, number]; gravity: number }
     ): ParticleSystem => {
-      const ps = new ParticleSystem(name, 150, scene)
+      const ps = new ParticleSystem(name, this.look.settings.particleCap, scene)
       ps.particleTexture = px
       ps.emitter = Vector3.Zero()
       ps.minEmitBox = new Vector3(-0.3, 0, -0.3)
@@ -1413,6 +1426,8 @@ class BomberScene implements GameModule {
 
   update(deltaMs: number): void {
     const phase = this.flow.state.phase
+    // AC7：連續 60 幀平均過低就自動降一級（描邊 → Glow → 陰影）
+    this.look.update(deltaMs)
 
     // 自己
     if (this.selfAvatar) {
@@ -1621,6 +1636,7 @@ class BomberScene implements GameModule {
     this.board.dispose()
     this.instr?.dispose()
     this.instr = null
+    this.look.dispose()
     this.explosionPs?.dispose()
     this.debrisPs?.dispose()
     this.puffPs?.dispose()

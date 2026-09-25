@@ -24,6 +24,20 @@ import { BLOCK_TILE, createBlockAtlas, createGroundTexture, createItemAtlas, ITE
 
 export type ItemKindName = (typeof ITEM_ORDER)[number]
 
+/** 光影登記用：依用途分好的 mesh 與材質（ToyLook 用） */
+export interface BoardFxTargets {
+  /** 卡通 ramp（發光物與預告格走 emissive，不在內） */
+  toon: StandardMaterial[]
+  /** 接影：地面、牆、箱 */
+  receivers: Mesh[]
+  /** 投影：炸彈、道具 */
+  casters: Mesh[]
+  /** 描邊：炸彈、箱子、道具 */
+  outlined: Mesh[]
+  /** GlowLayer 白名單：火焰外層、將爆炸彈、無敵代幣 */
+  glow: { mesh: Mesh; color: string; strength: number }[]
+}
+
 export interface BoardConfig {
   gridW: number
   gridH: number
@@ -82,6 +96,7 @@ export class ToyBoard {
   private items!: Record<ItemKindName, ThinGroup<number>>
   private itemRecs = new Map<number, ItemRec>()
   private groups: ThinGroup<number | string>[] = []
+  private toonMats: StandardMaterial[] = []
 
   constructor(scene: Scene, cfg: BoardConfig) {
     this.scene = scene
@@ -118,12 +133,14 @@ export class ToyBoard {
     this.ground.material = this.mat('bomber-ground-mat', (m) => {
       m.diffuseTexture = groundTex
     })
+    this.toonMats.push(this.ground.material as StandardMaterial)
 
     const atlas = createBlockAtlas(scene)
     this.textures.push(atlas)
     const blockMat = this.mat('bomber-block-mat', (m) => {
       m.diffuseTexture = atlas
     })
+    this.toonMats.push(blockMat)
 
     // 柱牆：固定在（奇, 奇）格
     this.pillars = this.group('bomber-pillars', toMesh('p', pillarData(cell), scene), blockMat, 32)
@@ -177,6 +194,7 @@ export class ToyBoard {
       m.specularColor = new Color3(0.55, 0.55, 0.6)
       m.specularPower = 48
     })
+    this.toonMats.push(bombMat)
     this.bombs = {
       normal: this.group('bomber-bombs', toMesh('bn', bombData(false), scene), bombMat, 24),
       flash: this.group('bomber-bombs-flash', toMesh('bf', bombData(true), scene), bombMat, 24),
@@ -200,12 +218,32 @@ export class ToyBoard {
       m.specularColor = new Color3(0.45, 0.45, 0.45)
       m.specularPower = 40
     })
+    this.toonMats.push(itemMat)
     const items = {} as Record<ItemKindName, ThinGroup<number>>
     ITEM_ORDER.forEach((kind, i) => {
       items[kind] = this.group(`bomber-item-${kind}`, toMesh('it', tokenData(cell, i, ITEM_COLORS[kind]), scene), itemMat, 16)
     })
     this.items = items
     this.syncAll()
+  }
+
+  fxTargets(): BoardFxTargets {
+    const crates = Object.values(this.crates).map((g) => g.mesh)
+    const bombs = [this.bombs.normal.mesh, this.bombs.flash.mesh]
+    const items = Object.values(this.items).map((g) => g.mesh)
+    return {
+      toon: [...this.toonMats],
+      receivers: [this.ground, this.pillars.mesh, this.border.mesh, this.sudden.mesh, ...crates],
+      casters: [...bombs, ...items],
+      outlined: [...crates, ...bombs, ...items],
+      glow: [
+        { mesh: this.flameArms[0].mesh, color: TOY.flame[0], strength: 1 },
+        { mesh: this.flameCaps[0].mesh, color: TOY.flame[0], strength: 1 },
+        { mesh: this.bombs.flash.mesh, color: TOY.bombFlash, strength: 1 },
+        // 代幣本身不發光、又疊 bloom，全強度會糊成一團白；壓到一半只留金色光暈
+        { mesh: this.items.invincible.mesh, color: TOY.invincible, strength: 0.5 },
+      ],
+    }
   }
 
   // ---- 木箱 ----
@@ -376,6 +414,7 @@ export class ToyBoard {
     for (const m of this.mats) m.dispose()
     for (const t of this.textures) t.dispose()
     this.mats = []
+    this.toonMats = []
     this.textures = []
     this.flames.clear()
     this.itemRecs.clear()
