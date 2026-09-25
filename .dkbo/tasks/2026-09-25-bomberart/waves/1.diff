@@ -1,0 +1,4360 @@
+# 炸彈超人美術優化（A Toy Box） — wave 1 since 13dd7c6 — 2026-09-25T15:20
+# files changed: 31 (working tree included)
+
+## commits
+
+## stat
+ public/battle/bomber/LICENSE.txt               |  12 +
+ public/battle/bomber/fx_circle.webp            | Bin 0 -> 3458 bytes
+ public/battle/bomber/fx_smoke.webp             | Bin 0 -> 3432 bytes
+ public/battle/bomber/fx_spark.webp             | Bin 0 -> 2946 bytes
+ public/battle/bomber/fx_star.webp              | Bin 0 -> 3606 bytes
+ public/battle/bomber/items_atlas.webp          | Bin 0 -> 4880 bytes
+ src/babylon/babylonCore.ts                     |  13 +-
+ src/babylon/games/bomber.ts                    | 679 +++++++------------------
+ src/babylon/games/bomberFx/avatar.ts           | 232 +++++++++
+ src/babylon/games/bomberFx/board.ts            | 385 ++++++++++++++
+ src/babylon/games/bomberFx/flames.test.ts      |  20 +
+ src/babylon/games/bomberFx/flames.ts           |  28 +
+ src/babylon/games/bomberFx/geometry.test.ts    | 115 +++++
+ src/babylon/games/bomberFx/geometry.ts         | 196 +++++++
+ src/babylon/games/bomberFx/models.ts           | 164 ++++++
+ src/babylon/games/bomberFx/palette.test.ts     |  53 ++
+ src/babylon/games/bomberFx/palette.ts          |  85 ++++
+ src/babylon/games/bomberFx/rig.test.ts         |  28 +
+ src/babylon/games/bomberFx/rig.ts              |  25 +
+ src/babylon/games/bomberFx/suddenDeath.test.ts |  32 ++
+ src/babylon/games/bomberFx/suddenDeath.ts      |  29 ++
+ src/babylon/games/bomberFx/textures.ts         | 371 ++++++++++++++
+ src/babylon/games/bomberFx/thin.ts             |  68 +++
+ src/babylon/games/bomberFx/thinSlots.test.ts   |  60 +++
+ src/babylon/games/bomberFx/thinSlots.ts        |  82 +++
+ src/babylon/types.ts                           |  32 ++
+ src/index.css                                  | 182 +++++++
+ src/pages/Battle/BabylonCanvas.tsx             |  11 +-
+ src/pages/Battle/BomberHud.tsx                 | 204 ++++++++
+ src/pages/Battle/bomberHud.test.ts             | 155 ++++++
+ src/pages/Battle/bomberHud.ts                  |  71 +++
+ 31 files changed, 2823 insertions(+), 509 deletions(-)
+
+## diff (-U10)
+diff --git a/public/battle/bomber/LICENSE.txt b/public/battle/bomber/LICENSE.txt
+new file mode 100644
+index 0000000..fc734de
+--- /dev/null
++++ b/public/battle/bomber/LICENSE.txt
+@@ -0,0 +1,12 @@
++bomber 素材授權（2026-09-25，assets 角色）
++
++以下檔案皆為本專案原創：以手寫 SVG 自繪（依 spec 的 Toy Box 方向），
++用 Chromium headless 透明底光柵化後以 cwebp 轉 WebP。未使用任何第三方素材。
++授權：CC0 1.0 Universal（公眾領域貢獻）https://creativecommons.org/publicdomain/zero/1.0/
++
++fx_circle.webp   128x128  軟邊白色圓形粒子（可 tint）          原創 / CC0
++fx_star.webp     128x128  白色四芒星芒粒子                      原創 / CC0
++fx_smoke.webp    128x128  白色柔邊煙團粒子                      原創 / CC0
++fx_spark.webp    128x128  白色十字火花粒子                      原創 / CC0
++items_atlas.webp 768x128  道具圖示 6 格橫排（每格 128x128）      原創 / CC0
++                 順序：bomb(白) fire(白) speed(#3A2A00) kick(白) throw(白) invincible(#3A2A00)
+diff --git a/public/battle/bomber/fx_circle.webp b/public/battle/bomber/fx_circle.webp
+new file mode 100644
+index 0000000..7ce45bf
+Binary files /dev/null and b/public/battle/bomber/fx_circle.webp differ
+diff --git a/public/battle/bomber/fx_smoke.webp b/public/battle/bomber/fx_smoke.webp
+new file mode 100644
+index 0000000..c3de32e
+Binary files /dev/null and b/public/battle/bomber/fx_smoke.webp differ
+diff --git a/public/battle/bomber/fx_spark.webp b/public/battle/bomber/fx_spark.webp
+new file mode 100644
+index 0000000..38aa6c2
+Binary files /dev/null and b/public/battle/bomber/fx_spark.webp differ
+diff --git a/public/battle/bomber/fx_star.webp b/public/battle/bomber/fx_star.webp
+new file mode 100644
+index 0000000..27a84a6
+Binary files /dev/null and b/public/battle/bomber/fx_star.webp differ
+diff --git a/public/battle/bomber/items_atlas.webp b/public/battle/bomber/items_atlas.webp
+new file mode 100644
+index 0000000..502abaf
+Binary files /dev/null and b/public/battle/bomber/items_atlas.webp differ
+diff --git a/src/babylon/babylonCore.ts b/src/babylon/babylonCore.ts
+index fbff4af..8498371 100644
+--- a/src/babylon/babylonCore.ts
++++ b/src/babylon/babylonCore.ts
+@@ -1,41 +1,50 @@
+ /**
+  * Babylon.js 集中匯入點：一律走深層路徑，不從 `@babylonjs/core` 整包匯入。
+  * 整包匯入會把整個引擎（約 6.4 MB）打進 vendor-babylon；深層匯入只帶實際用到的模組。
+  * 不用 `*.pure` 版本：非 pure 模組會順便註冊副作用（scene 元件、engine extension 等）；
+  * 非 pure 入口也不會帶的（scene.pick 的 Ray、ParticleSystem 的 scene 元件、edges renderer）在下方明確補上。
+  */
+ import '@babylonjs/core/Culling/ray' // scene.pick：指標／觸控移動時 InputManager 會呼叫，缺了會報「Ray needs to be imported」
+ import '@babylonjs/core/Particles/particleSystemComponent' // ParticleSystem 的 scene 元件與 createEffectForParticles
+ import '@babylonjs/core/Rendering/edgesRenderer' // mesh.enableEdgesRendering()
++import '@babylonjs/core/Meshes/thinInstanceMesh' // mesh.thinInstanceSetBuffer()／thinInstanceCount（bomber 的牆、箱、炸彈、火焰、道具）
+ 
+ import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder'
+-import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
++import { CreateCylinder, CreateCylinderVertexData } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
+ import { CreateDisc } from '@babylonjs/core/Meshes/Builders/discBuilder'
+ import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder'
+ import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder'
+-import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder'
++import { CreateSphere, CreateSphereVertexData } from '@babylonjs/core/Meshes/Builders/sphereBuilder'
+ import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder'
+ 
+ export { Engine } from '@babylonjs/core/Engines/engine'
+ export { Scene } from '@babylonjs/core/scene'
+ export { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera'
+ export type { Camera } from '@babylonjs/core/Cameras/camera'
+ export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'
+ export { Color3, Color4 } from '@babylonjs/core/Maths/math.color'
+ export { Vector3 } from '@babylonjs/core/Maths/math.vector'
+ export { Mesh } from '@babylonjs/core/Meshes/mesh'
+ export { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
+ export { Texture } from '@babylonjs/core/Materials/Textures/texture'
+ export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture'
+ export { ParticleSystem } from '@babylonjs/core/Particles/particleSystem'
++export { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData'
++export { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation'
+ 
+ /** 只收專案用到的 builder；官方 MeshBuilder 會把所有形狀一起帶進來 */
+ export const MeshBuilder = {
+   CreateBox,
+   CreateCylinder,
+   CreateDisc,
+   CreateGround,
+   CreatePlane,
+   CreateSphere,
+   CreateTorus,
+ }
++
++/** 只取頂點資料、不建 mesh（程式建模合併多個部件用） */
++export const VertexBuilders = {
++  CreateCylinderVertexData,
++  CreateSphereVertexData,
++}
+diff --git a/src/babylon/games/bomber.ts b/src/babylon/games/bomber.ts
+index 67d4335..2e8a42b 100644
+--- a/src/babylon/games/bomber.ts
++++ b/src/babylon/games/bomber.ts
+@@ -1,21 +1,19 @@
+ import {
+   ArcRotateCamera,
+-  Color3,
+   Color4,
+   HemisphericLight,
+-  Mesh,
+-  MeshBuilder,
+   ParticleSystem,
+-  StandardMaterial,
++  SceneInstrumentation,
+   Texture,
+   Vector3,
++  type Mesh,
+ } from '@/babylon/babylonCore'
+ import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+ import {
+   canAdvanceMidRound,
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+@@ -52,20 +50,25 @@ import {
+   type BoomPayload,
+   type BombMovePayload,
+   type BombPayload,
+   type BotEntry,
+   type BotsPayload,
+   type CloseWallPayload,
+   type Drop,
+   type ItemKind,
+   type PickupPayload,
+ } from './bomberNet'
++import { AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
++import { ToyBoard } from '@/babylon/games/bomberFx/board'
++import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
++import { colorIndexOf, invincibleBlinkOn, type ColorIndex } from '@/babylon/games/bomberFx/palette'
++import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
+ 
+ /**
+  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
+  *
+  * 同步模型：Host Authority 事件制——
+  * - 位置：各自模擬自己的人（ownership 20Hz 廣播 {x,z}，他人插值）
+  * - 地圖：host 播種 seed（reliable + channel open 補送），各端決定性生成
+  * - 炸彈：guest 廣播 bombReq → host 驗證 → 廣播 bomb（放置）/ boom（爆炸格、毀箱、擊殺）
+  * - 勝負：host 裁決最後生存者 → flow.endGame
+  */
+@@ -86,26 +89,28 @@ interface BombMotion {
+   endAt: number // 動畫結束時刻
+   arc: number // 拋物線高度（0 表示貼地滑行，>0 表示丟出的弧）
+ }
+ 
+ interface BombInfo {
+   id: string // 與 bombs Map 的 key 相同（applyBomb 是唯一建立處）
+   cx: number // 目標/當前所在格（動畫進行中即終點格）
+   cy: number
+   owner: string
+   explodeAt: number // host 引爆依據；各端亦用於將爆閃紅提示
+-  mesh: Mesh
++  x: number // 畫面位置（移動動畫中與邏輯格不同）
++  y: number
++  z: number
+   motion?: BombMotion // 進行中的移動動畫；結束後清除
+ }
+ 
+ interface FlameInfo {
+-  mesh: Mesh
++  fx: number // ToyBoard 的火焰 id
+   until: number
+   bornAt: number
+   cx: number
+   cy: number
+ }
+ 
+ interface Standing {
+   id: string
+   name: string
+   alive: boolean
+@@ -115,59 +120,57 @@ interface Standing {
+ interface RoundResult {
+   standings: Standing[] // 本局名次（沿用既有計算）
+   scores: { id: string; name: string; score: number }[] // 累積勝場（分數高→低）
+   target: number // = MATCH_TARGET
+   matchOver: boolean // 是否已有人達標奪冠
+   championId: string | null // matchOver 時的冠軍 id
+ }
+ 
+ interface ItemInfo {
+   kind: ItemKind
+-  mesh: Mesh
+ }
+ 
+ /** 玩家能力值（每輪重置；吃道具成長） */
+ interface PlayerStat {
+   bombs: number // 同時可放炸彈數上限
+   fire: number // 爆炸延伸格數
+   speed: number // 移速等級（0 起算）
+   kick: boolean // 能否踢炸彈（撞到炸彈時推著滑行）
+   throw: boolean // 能否丟炸彈（站在自己炸彈上往面向拋幾格）
+   invincibleUntil: number // 無敵到期時間戳（performance.now()，0 表示無）
+ }
+ 
+-/** 人形角色：root 為位移錨點，四肢相對 root 擺動 */
++/** 人形角色：root 為位移錨點（不旋轉），toy.body 轉面向、四肢由頂點擺動 */
+ interface Avatar {
+   root: Mesh
+-  legL: Mesh
+-  legR: Mesh
+-  armL: Mesh
+-  armR: Mesh
++  toy: ToyAvatar
+   walkPhase: number
+   amp: number // 走路擺幅（0~1），停步時平滑歸零
+   yaw: number // 面向角度
+   prevX: number
+   prevZ: number
+ }
+ 
+ const SIM_HZ = 30
+ const CELL = 2
+ const MOVE_SPEED = 5.5
+ const SPEED_STEP = 0.9 // 每級速度道具增加的移速
+ const PLAYER_R = 0.55
+ const BOMB_FUSE_MS = 2000
+ const BOMB_FLASH_MS = 600 // 將爆前閃紅提示時長
+ const FLAME_MS = 550
+ const FLAME_GROW_MS = 90 // 火焰冒出的生長時間
+ const FLAME_FADE_MS = 180 // 火焰消退的收縮時間
+ const BOMB_INPUT_COOLDOWN_MS = 250
+ const SHAKE_MS = 220 // 爆炸相機震動時長
++const CLOSE_WARN_MS = 400 // 突然死亡落牆前的紅色預告格時長（純視覺）
++const PERF_LOG_MS = 2000 // draw calls / fps 量測輸出間隔
+ 
+ // 道具：初始一顆彈、火力 1，吃道具才成長
+ const INIT_BOMBS = 1
+ const INIT_FIRE = 1
+ const MAX_BOMBS = 6
+ const MAX_FIRE = 6
+ const MAX_SPEED_LV = 3
+ const ITEM_DROP_CHANCE = 0.45 // 木箱炸毀後掉落道具的機率（host 決定）
+ const INVINCIBLE_MS = 7000 // 無敵 buff 持續時間
+ const KICK_STEP_MS = 120 // 踢炸彈每滑一格的時間（各端依此插值）
+@@ -190,92 +193,78 @@ const worldToCell = (w: number, count: number): number => Math.round(w / CELL +
+ class BomberScene implements GameModule {
+   readonly gameId = 'bomber'
+   private ctx!: GameContext
+   private keys = new Set<string>()
+   private ticker!: FixedTicker
+   private own!: OwnershipSync<BomberState>
+   private flow!: GameFlow
+   private offOpen: (() => void) | null = null
+ 
+   private map: Uint8Array = new Uint8Array(GRID_W * GRID_H)
+-  private crates = new Map<number, Mesh>()
+   private bombs = new Map<string, BombInfo>()
+   private flames: FlameInfo[] = []
+   private items = new Map<number, ItemInfo>() // 場上道具，keyed by cellIndex
+   private shakeUntil = 0 // 爆炸相機震動截止時刻
+ 
+   private state: BomberState = { x: 0, z: 0 }
+   private alive = new Map<string, boolean>()
+   private deathOrder: string[] = []
+   // 多回合計分制：累積勝場（host 權威，跨回合保留，僅 resetMatchScores 歸零）
+   private scores = new Map<string, number>()
+   // 突然死亡：本局 playing 起始、螺旋落牆進度、上次落牆時刻、已落下的牆 mesh
+   private playingSince = 0
+   private closeIndex = 0
+   private lastClose = 0
+   private wasPlaying = false // 偵測 phase 轉入 playing
+-  private closingWalls: Mesh[] = []
++  private lastCloseApplied = 0 // 本端最近一次套用落牆的時刻（預告格計時，host/guest 共用）
++  private closePreviewFrom = 0 // 預告格從螺旋序的這個 index 起找
+   private lastBombInput = 0
+   private lastKickInput = 0
+   private bombSeq = 0
+   private ownerBombCount = new Map<string, number>()
+   private stats = new Map<string, PlayerStat>()
+   private resultElapsed = 0
+   private lastOverlayKey = '' // 僅在內容變動時才更新 React 覆蓋層
+ 
+   private selfAvatar?: Avatar
+   private peerAvatars = new Map<string, Avatar>()
+   // 電腦玩家（補滿至 4 人）：名冊由 host 決定並隨 seed 廣播
+   private bots: BotEntry[] = []
+   private botAvatars = new Map<string, Avatar>()
+   private botState = new Map<string, { x: number; z: number }>() // host 模擬位置
+   private botTarget = new Map<string, { x: number; z: number }>() // guest 插值目標
+   private botBombInput = new Map<string, number>() // 每隻 bot 放彈冷卻
+   private lastBotBroadcast = 0
+   private camera!: ArcRotateCamera
+   private hud!: TextPanel
+   private banner!: TextPanel
+-  private crateMat!: StandardMaterial
+-  private wallMat!: StandardMaterial // 固定柱牆材質，突然死亡落牆重用
+-  // 木箱皮膚調色盤（共用材質，依 cell hash 挑選，避免每箱新建）
+-  private crateSkinMats: StandardMaterial[] = []
+-  private crateHardMat!: StandardMaterial
+-  private crateHardTrimMat!: StandardMaterial
+-  private crateDamagedMat!: StandardMaterial
+-  private flameMat!: StandardMaterial
+-  private flameCoreMat!: StandardMaterial
+-  private bombMat!: StandardMaterial
+-  private bombFlashMat!: StandardMaterial
+-  private itemBombMat!: StandardMaterial
+-  private itemFireMat!: StandardMaterial
+-  private itemSpeedMat!: StandardMaterial
+-  // 道具美化用調色盤（組合 mesh 共用，避免每顆道具建大量材質）
+-  private itemMats: Record<string, StandardMaterial> = {}
+-  private decorations: Mesh[] = []
++  private board!: ToyBoard
++  private avatarKit!: AvatarKit
++  private instr: SceneInstrumentation | null = null
++  private lastPerfLog = 0
+   private explosionPs: ParticleSystem | null = null
+   private debrisPs: ParticleSystem | null = null
+   private puffPs: ParticleSystem | null = null
+   private sparklePs: ParticleSystem | null = null
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const key = e.key.toLowerCase()
+     this.keys.add(key)
+     if (key === ' ' || key === 'enter') this.requestBomb()
+     if (key === 'f' || key === 'shift') this.requestThrow()
+     if (key === 'r') this.requestRestart()
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+ 
+-  private colorFor(id: string): Color3 {
+-    let h = 0
+-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+-    return Color3.FromHSV(h % 360, 0.7, 0.9)
++  /** 固定 4 色：依實體序（= 出生角 SPAWN_CORNERS 順序）取色，各端一致 */
++  private colorIndex(id: string): ColorIndex {
++    return colorIndexOf(id, this.entities().map((e) => e.id))
+   }
+ 
+   private nameFor(id: string): string {
+     return (
+       this.ctx.players.find((p) => p.id === id)?.name ??
+       this.bots.find((b) => b.id === id)?.name ??
+       id.slice(0, 6)
+     )
+   }
+ 
+@@ -315,146 +304,80 @@ class BomberScene implements GameModule {
+     return s
+   }
+ 
+   /** 某實體當前位置（自己用本地、bot 用模擬/目標位置、其餘遠端用最新插值樣本） */
+   private posOf(pid: string): BomberState | null {
+     if (pid === this.ctx.selfId) return this.state
+     if (this.isBot(pid)) return this.botState.get(pid) ?? this.botTarget.get(pid) ?? null
+     return this.own.latestRemote(pid)
+   }
+ 
+-  /** 建立人形角色（頭/身/雙臂/雙腿），可走路擺動、面向移動方向 */
++  /** 建立 Q 版角色（程式建模，單一 mesh），可走路擺動、面向移動方向 */
+   private makePlayer(id: string): Avatar {
+-    const scene = this.ctx.scene
+-    const color = this.colorFor(id)
+-
+-    const bodyMat = new StandardMaterial(`pl-mat-${id}`, scene)
+-    bodyMat.diffuseColor = color
+-    const limbMat = new StandardMaterial(`pl-limb-${id}`, scene)
+-    limbMat.diffuseColor = color.scale(0.55) // 四肢用較深的同色
+-    const faceMat = new StandardMaterial(`pl-face-${id}`, scene)
+-    faceMat.diffuseColor = new Color3(0.12, 0.13, 0.18)
+-
+-    const root = new Mesh(`pl-${id}`, scene)
+-    root.position.y = 0
+-
+-    const body = MeshBuilder.CreateBox(`pl-body-${id}`, { width: 0.6, height: 0.55, depth: 0.45 }, scene)
+-    body.material = bodyMat
+-    body.parent = root
+-    body.position.set(0, 0.78, 0)
+-
+-    const head = MeshBuilder.CreateSphere(`pl-head-${id}`, { diameter: 0.74 }, scene)
+-    head.material = bodyMat
+-    head.parent = root
+-    head.position.set(0, 1.32, 0)
+-
+-    // 面罩（朝預設正面 +Z），讓面向方向看得出來
+-    const face = MeshBuilder.CreateBox(`pl-face-${id}`, { width: 0.5, height: 0.22, depth: 0.1 }, scene)
+-    face.material = faceMat
+-    face.parent = root
+-    face.position.set(0, 1.3, 0.33)
+-
+-    // 經典炸彈人頭盔：淺色半罩 + 天線 + 天線球
+-    const helmMat = new StandardMaterial(`pl-helm-${id}`, scene)
+-    helmMat.diffuseColor = Color3.Lerp(color, Color3.White(), 0.35)
+-    const helm = MeshBuilder.CreateSphere(`pl-helm-${id}`, { diameter: 0.8, slice: 0.5 }, scene)
+-    helm.material = helmMat
+-    helm.parent = root
+-    helm.position.set(0, 1.38, 0)
+-    const antenna = MeshBuilder.CreateCylinder(`pl-ant-${id}`, { height: 0.22, diameter: 0.05 }, scene)
+-    antenna.material = faceMat
+-    antenna.parent = root
+-    antenna.position.set(0, 1.78, 0)
+-    const antBall = MeshBuilder.CreateSphere(`pl-antball-${id}`, { diameter: 0.16 }, scene)
+-    antBall.material = helmMat
+-    antBall.parent = root
+-    antBall.position.set(0, 1.92, 0)
+-
+-    // 電腦玩家細微標記：頭頂小齒輪狀環，與真人區分
+-    if (id.startsWith('bot-')) {
+-      const botMat = new StandardMaterial(`pl-bot-${id}`, scene)
+-      botMat.diffuseColor = new Color3(0.85, 0.85, 0.9)
+-      botMat.emissiveColor = new Color3(0.4, 0.42, 0.5)
+-      const ring = MeshBuilder.CreateTorus(`pl-botring-${id}`, { diameter: 0.5, thickness: 0.07, tessellation: 8 }, scene)
+-      ring.material = botMat
+-      ring.parent = root
+-      ring.position.set(0, 2.08, 0)
+-      ring.rotation.x = Math.PI / 2
+-    }
++    const toy = buildAvatar(this.ctx.scene, this.avatarKit, id, this.colorIndex(id), {
++      isAI: this.isBot(id),
++      isSelf: id === this.ctx.selfId,
++    })
++    const av: Avatar = { root: toy.root, toy, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
++    this.faceCamera(av)
++    return av
++  }
+ 
+-    // 雙腿：樞紐設在髖部（腿頂），繞 X 軸前後擺動
+-    const mkLeg = (sx: number): Mesh => {
+-      const leg = MeshBuilder.CreateBox(`pl-leg-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.26, height: 0.5, depth: 0.3 }, scene)
+-      leg.material = limbMat
+-      leg.parent = root
+-      leg.position.set(sx * 0.16, 0.25, 0)
+-      leg.setPivotPoint(new Vector3(0, 0.25, 0))
+-      return leg
+-    }
+-    const legL = mkLeg(-1)
+-    const legR = mkLeg(1)
+-
+-    // 雙臂：樞紐設在肩部（臂頂），與對側腿同相擺動
+-    const mkArm = (sx: number): Mesh => {
+-      const arm = MeshBuilder.CreateBox(`pl-arm-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.18, height: 0.46, depth: 0.2 }, scene)
+-      arm.material = limbMat
+-      arm.parent = root
+-      arm.position.set(sx * 0.42, 0.78, 0)
+-      arm.setPivotPoint(new Vector3(0, 0.23, 0))
+-      return arm
+-    }
+-    const armL = mkArm(-1)
+-    const armR = mkArm(1)
++  /** 開局面向鏡頭（−Z），與 variant-A 稿一致；之後依移動方向更新 */
++  private faceCamera(av: Avatar): void {
++    av.yaw = Math.PI
++    av.toy.body.rotation.y = Math.PI
++  }
+ 
+-    return { root, legL, legR, armL, armR, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
++  /** 名冊變動（seed 帶來 bot、玩家序改變）後顏色不對的化身就重建 */
++  private recolor(av: Avatar | undefined, id: string): Avatar | undefined {
++    if (!av || av.toy.colorIndex === this.colorIndex(id)) return av
++    const enabled = av.root.isEnabled()
++    const next = this.makePlayer(id)
++    next.root.position.copyFrom(av.root.position)
++    next.yaw = av.yaw
++    next.prevX = av.prevX
++    next.prevZ = av.prevZ
++    next.root.setEnabled(enabled)
++    disposeAvatar(av.toy)
++    return next
+   }
+ 
+   /** 取得任一實體的化身（自己 / 遠端 / bot） */
+   private avatarOf(id: string): Avatar | undefined {
+     if (id === this.ctx.selfId) return this.selfAvatar
+     return this.peerAvatars.get(id) ?? this.botAvatars.get(id)
+   }
+ 
+   /** 依本幀位移驅動走路擺動與面向（自己與遠端皆共用） */
+   private animateAvatar(av: Avatar, dtMs: number): void {
+     const dx = av.root.position.x - av.prevX
+     const dz = av.root.position.z - av.prevZ
+     av.prevX = av.root.position.x
+     av.prevZ = av.root.position.z
++    // 一幀跨超過一格＝出生／重生瞬移，不當成走路（否則會轉去面向瞬移方向）
++    if (Math.hypot(dx, dz) > CELL) return
+ 
+     const moving = Math.hypot(dx, dz) > dtMs * 0.0005
+     if (moving) av.yaw = Math.atan2(dx, dz)
+-    av.root.rotation.y = av.yaw
++    av.toy.body.rotation.y = av.yaw
+ 
+     // 擺幅平滑進出，避免起步/停步跳動
+     const ease = Math.min(1, dtMs * 0.012)
+     av.amp += ((moving ? 1 : 0) - av.amp) * ease
+     if (av.amp > 0.01) av.walkPhase += dtMs * 0.013
+ 
+-    const swing = Math.sin(av.walkPhase) * 0.7 * av.amp
+-    av.legL.rotation.x = swing
+-    av.legR.rotation.x = -swing
+-    av.armL.rotation.x = -swing
+-    av.armR.rotation.x = swing
++    poseAvatar(av.toy, Math.sin(av.walkPhase) * 0.7 * av.amp)
+   }
+ 
+   // ---- 地圖 ----
+ 
+-  /** 依 (cx,cy,seed) 的決定性 hash（各端一致，不可用 Math.random） */
+-  private cellHash(cx: number, cy: number): number {
+-    let h = (this.currentSeed ^ 0x9e3779b1) >>> 0
+-    h = Math.imul(h ^ cx, 0x85ebca6b) >>> 0
+-    h = Math.imul(h ^ cy, 0xc2b2ae35) >>> 0
+-    h ^= h >>> 13
+-    return h >>> 0
+-  }
+-
+   /** 突然死亡用：由外圈往內、順時針的螺旋格序列（涵蓋整個 GRID_W×GRID_H）。
+    *  各端決定性一致（純由 GRID 推導，無隨機），快取避免每幀重算。 */
+   private spiralCells(): [number, number][] {
+     if (this.spiralCache) return this.spiralCache
+     const cells: [number, number][] = []
+     let top = 0
+     let bottom = GRID_H - 1
+     let left = 0
+     let right = GRID_W - 1
+     while (top <= bottom && left <= right) {
+@@ -465,156 +388,108 @@ class BomberScene implements GameModule {
+       top++
+       bottom--
+       left++
+       right--
+     }
+     this.spiralCache = cells
+     return cells
+   }
+   private spiralCache: [number, number][] | null = null
+ 
++  /** 某格在螺旋序中的 index（找不到回 -1） */
++  private spiralIndexOf(cx: number, cy: number): number {
++    return this.spiralCells().findIndex(([x, y]) => x === cx && y === cy)
++  }
++
+   /** host：所有實體勝場歸零（新比賽開始時呼叫；單局重置不動 scores） */
+   private resetMatchScores(): void {
+     for (const e of this.entities()) this.scores.set(e.id, 0)
+   }
+ 
+-  /** 木箱工廠：軟箱依 hash 挑形狀/皮膚變體；硬箱套用高辨識度「強化」外觀（要炸兩次）。
+-   *  共用調色盤材質，不每箱新建材質。 */
+-  private makeCrate(cx: number, cy: number, hard: boolean): Mesh {
+-    const scene = this.ctx.scene
+-    const h = this.cellHash(cx, cy)
+-    const sz = CELL * 0.9
+-    const wx = cellToWorld(cx, GRID_W)
+-    const wz = cellToWorld(cy, GRID_H)
+-
+-    if (hard) {
+-      // 強化箱：金屬/石材方體 + 四角鉚釘 + 中央箍帶，較亮 edges
+-      const root = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: sz }, scene)
+-      root.position = new Vector3(wx, CELL * 0.45, wz)
+-      root.material = this.crateHardMat
+-      root.enableEdgesRendering()
+-      root.edgesWidth = 3.5
+-      root.edgesColor = new Color4(0.85, 0.8, 0.5, 1)
+-      // 水平箍帶
+-      const band = MeshBuilder.CreateBox(`crate-band-${cx}-${cy}`, { width: sz * 1.02, height: sz * 0.16, depth: sz * 1.02 }, scene)
+-      band.parent = root
+-      band.material = this.crateHardTrimMat
+-      // 四角鉚釘
+-      const d = sz * 0.42
+-      for (const sx of [-1, 1]) {
+-        for (const sz2 of [-1, 1]) {
+-          const rivet = MeshBuilder.CreateSphere(`crate-rivet-${cx}-${cy}-${sx}-${sz2}`, { diameter: sz * 0.16 }, scene)
+-          rivet.parent = root
+-          rivet.position.set(sx * d, sz * 0.35, sz2 * d)
+-          rivet.material = this.crateHardTrimMat
+-        }
+-      }
+-      return root
+-    }
+-
+-    // 軟箱：形狀在 方塊 / 圓角體 / 圓柱(木桶) / 略球感 間變化
+-    const shape = h % 4
+-    const matIdx = (h >>> 3) % this.crateSkinMats.length
+-    let m: Mesh
+-    if (shape === 0) {
+-      m = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: sz }, scene)
+-    } else if (shape === 1) {
+-      // 圓角體（多段、近似圓角箱）
+-      m = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: sz * 0.92 }, scene)
+-      m.scaling.set(1, 0.94, 1)
+-    } else if (shape === 2) {
+-      // 木桶
+-      m = MeshBuilder.CreateCylinder(`crate-${cx}-${cy}`, { height: sz, diameterTop: sz * 0.78, diameterBottom: sz * 0.92, tessellation: 12 }, scene)
+-    } else {
+-      // 略球感（壓扁球）
+-      m = MeshBuilder.CreateSphere(`crate-${cx}-${cy}`, { diameter: sz * 0.98, segments: 8 }, scene)
+-      m.scaling.set(1, 0.86, 1)
+-    }
+-    m.position = new Vector3(wx, CELL * 0.45, wz)
+-    m.material = this.crateSkinMats[matIdx]
+-    m.enableEdgesRendering()
+-    m.edgesWidth = 2
+-    m.edgesColor = new Color4(0.32, 0.2, 0.08, 1)
+-    return m
+-  }
+-
+   /** 依 seed 重建一輪：地圖/木箱/炸彈/火焰/存活/出生位置全部重置 */
+   private applySeed(seed: number): void {
+-    this.currentSeed = seed // makeCrate 的 cellHash 依此
++    this.currentSeed = seed
+     this.map = generateMap(seed)
+ 
+-    for (const m of this.crates.values()) m.dispose()
+-    this.crates.clear()
+-    for (const b of this.bombs.values()) b.mesh.dispose()
++    this.board.clearCrates()
++    this.board.clearBombs()
+     this.bombs.clear()
+-    for (const f of this.flames) f.mesh.dispose()
++    this.board.clearFlames()
+     this.flames = []
+-    for (const it of this.items.values()) it.mesh.dispose()
++    this.board.clearItems()
+     this.items.clear()
+     // 突然死亡：場地復原——清掉已落下的牆、重置螺旋進度與計時（scores 不在此清，跨回合保留）
+-    for (const w of this.closingWalls) w.dispose()
+-    this.closingWalls = []
++    this.board.clearClosingWalls()
++    this.board.setWarning(null, 0)
++    this.lastCloseApplied = 0
++    this.closePreviewFrom = 0
+     this.closeIndex = 0
+     this.lastClose = 0
+     this.playingSince = 0
+     this.wasPlaying = false
+     this.ownerBombCount.clear()
+     this.deathOrder = []
+     this.stats.clear()
+     this.botBombInput.clear()
+     const ents = this.entities()
+     for (const e of ents) {
+       this.alive.set(e.id, true)
+       this.stats.set(e.id, { bombs: INIT_BOMBS, fire: INIT_FIRE, speed: 0, kick: false, throw: false, invincibleUntil: 0 })
+       if (!this.scores.has(e.id)) this.scores.set(e.id, 0)
+     }
+ 
+     for (let cy = 0; cy < GRID_H; cy++) {
+       for (let cx = 0; cx < GRID_W; cx++) {
+         const tile = this.map[cellIndex(cx, cy)]
+         if (tile !== TILE_CRATE && tile !== TILE_CRATE_HARD) continue
+-        this.crates.set(cellIndex(cx, cy), this.makeCrate(cx, cy, tile === TILE_CRATE_HARD))
++        this.board.setCrate(cellIndex(cx, cy), cx, cy, tile === TILE_CRATE_HARD ? 'hard' : 'soft')
+       }
+     }
+ 
+     // 出生角：依 entities 合併排序（players 在前、bots 在後）對應 SPAWN_CORNERS
+     const spawnOf = (id: string): { x: number; z: number } => {
+       const idx = Math.max(0, ents.findIndex((e) => e.id === id))
+       const [cx, cy] = SPAWN_CORNERS[idx % SPAWN_CORNERS.length]
+       return { x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }
+     }
+ 
+-    // 自己回出生角
++    // 自己回出生角；名冊（bot 補位）可能改變實體序 → 顏色不對的化身重建
+     this.state = spawnOf(this.ctx.selfId)
++    this.selfAvatar = this.recolor(this.selfAvatar, this.ctx.selfId)
++    if (this.selfAvatar) this.faceCamera(this.selfAvatar)
+     this.selfAvatar?.root.setEnabled(true)
+-    for (const a of this.peerAvatars.values()) a.root.setEnabled(true)
++    for (const [id, a] of this.peerAvatars) {
++      const next = this.recolor(a, id) as Avatar
++      this.faceCamera(next)
++      this.peerAvatars.set(id, next)
++      next.root.setEnabled(true)
++    }
+ 
+     // bot 化身與位置：依名冊重建（不走 own.remoteIds）
+     for (const [id, a] of this.botAvatars) {
+       if (this.bots.some((b) => b.id === id)) continue
+-      a.root.dispose(false, true)
++      disposeAvatar(a.toy)
+       this.botAvatars.delete(id)
+     }
+     this.botState.clear()
+     this.botTarget.clear()
+     for (const b of this.bots) {
+       const sp = spawnOf(b.id)
+       this.botState.set(b.id, { ...sp })
+       this.botTarget.set(b.id, { ...sp })
+-      let a = this.botAvatars.get(b.id)
+-      if (!a) {
+-        a = this.makePlayer(b.id)
+-        this.botAvatars.set(b.id, a)
+-      }
++      let a = this.recolor(this.botAvatars.get(b.id), b.id)
++      if (!a) a = this.makePlayer(b.id)
++      this.botAvatars.set(b.id, a)
+       a.root.position.set(sp.x, 0, sp.z)
+       a.prevX = sp.x
+       a.prevZ = sp.z
++      this.faceCamera(a)
+       a.root.setEnabled(true)
+     }
+   }
+ 
+   /** 玩家目前圓身覆蓋的格（站在炸彈上時允許走出） */
+   private overlapCells(px: number, pz: number): Set<number> {
+     const cells = new Set<number>()
+     for (const ox of [-PLAYER_R, PLAYER_R])
+       for (const oz of [-PLAYER_R, PLAYER_R])
+         cells.add(cellIndex(worldToCell(px + ox, GRID_W), worldToCell(pz + oz, GRID_H)))
+@@ -829,37 +704,32 @@ class BomberScene implements GameModule {
+   private validateBomb(owner: string, cx: number, cy: number): void {
+     if (this.flow.state.phase !== 'playing' || !this.isAlive(owner)) return
+     if (isBlocked(this.map, cx, cy)) return
+     for (const b of this.bombs.values()) if (b.cx === cx && b.cy === cy) return
+     if ((this.ownerBombCount.get(owner) ?? 0) >= this.statOf(owner).bombs) return
+     this.hostBroadcast('bomb', { id: `b${this.bombSeq++}`, cx, cy, owner })
+   }
+ 
+   private applyBomb(p: BombPayload): void {
+     playSfx('bomb_place')
+-    const scene = this.ctx.scene
+-    const mesh = MeshBuilder.CreateSphere(`bomb-${p.id}`, { diameter: 1.1 }, scene)
+-    mesh.position = new Vector3(cellToWorld(p.cx, GRID_W), 0.55, cellToWorld(p.cy, GRID_H))
+-    mesh.material = this.bombMat
+-    // 頂部引信（子節點，隨炸彈脈動/釋放）
+-    const fuse = MeshBuilder.CreateCylinder(`bomb-fuse-${p.id}`, { height: 0.35, diameter: 0.1 }, scene)
+-    fuse.parent = mesh
+-    fuse.position.set(0.05, 0.62, 0)
+-    fuse.rotation.z = 0.35
+-    fuse.material = this.itemFireMat // 橘紅 emissive，像點燃的引信
++    const x = cellToWorld(p.cx, GRID_W)
++    const z = cellToWorld(p.cy, GRID_H)
++    this.board.setBomb(p.id, x, 0.55, z, 1, false)
+     this.bombs.set(p.id, {
+       id: p.id,
+       cx: p.cx,
+       cy: p.cy,
+       owner: p.owner,
+       explodeAt: performance.now() + BOMB_FUSE_MS,
+-      mesh,
++      x,
++      y: 0.55,
++      z,
+     })
+     this.ownerBombCount.set(p.owner, (this.ownerBombCount.get(p.owner) ?? 0) + 1)
+   }
+ 
+   /** 某格是否可作為炸彈落點（空地、無炸彈、無玩家站位）。
+    *  ignoreId：滑行/拋出中忽略自身炸彈所在格。 */
+   private cellFreeForBomb(cx: number, cy: number, ignoreId?: string): boolean {
+     if (isBlocked(this.map, cx, cy)) return false
+     for (const [bid, b] of this.bombs) {
+       if (bid === ignoreId) continue
+@@ -931,22 +801,22 @@ class BomberScene implements GameModule {
+     })
+   }
+ 
+   /** 套用炸彈移動（踢滑行 / 丟拋物）：更新邏輯格與動畫，各端依時間插值。 */
+   private applyBombMove(p: BombMovePayload): void {
+     const b = this.bombs.get(p.id)
+     if (!b) return
+     playSfx(p.arc > 0 ? 'bomb_place' : 'pickup')
+     const now = performance.now()
+     b.motion = {
+-      fromX: b.mesh.position.x,
+-      fromZ: b.mesh.position.z,
++      fromX: b.x,
++      fromZ: b.z,
+       toX: cellToWorld(p.toCx, GRID_W),
+       toZ: cellToWorld(p.toCy, GRID_H),
+       startAt: now,
+       endAt: now + Math.max(1, p.durMs),
+       arc: p.arc,
+     }
+     // 邏輯格立即更新為終點（爆炸/連鎖/再踢一律以終點格為準）
+     b.cx = p.toCx
+     b.cy = p.toCy
+   }
+@@ -997,64 +867,56 @@ class BomberScene implements GameModule {
+     for (const [bid, b] of this.bombs) {
+       if (cellSet.has(cellIndex(b.cx, b.cy))) this.hostExplode(bid)
+     }
+   }
+ 
+   private applyBoom(p: BoomPayload): void {
+     playSfx('explosion')
+     this.shakeUntil = performance.now() + SHAKE_MS
+     const bomb = this.bombs.get(p.id)
+     if (bomb) {
+-      bomb.mesh.dispose()
++      this.board.removeBomb(p.id)
+       this.bombs.delete(p.id)
+       const n = (this.ownerBombCount.get(bomb.owner) ?? 1) - 1
+       this.ownerBombCount.set(bomb.owner, Math.max(0, n))
+     }
+     // 爆心火花
+     const [ccx, ccy] = p.cells[0]
+     this.burst(this.explosionPs, new Vector3(cellToWorld(ccx, GRID_W), 0.8, cellToWorld(ccy, GRID_H)), 40)
+     for (const [cx, cy] of p.destroyed) {
+       this.map[cellIndex(cx, cy)] = 0
+-      this.crates.get(cellIndex(cx, cy))?.dispose()
+-      this.crates.delete(cellIndex(cx, cy))
++      this.board.setCrate(cellIndex(cx, cy), cx, cy, null)
+       // 木箱碎片
+       this.burst(this.debrisPs, new Vector3(cellToWorld(cx, GRID_W), 1, cellToWorld(cy, GRID_H)), 14)
+     }
+-    // 硬箱降級：map 由硬箱降為軟箱，mesh 換成受損外觀（重建為軟箱）+ 一小撮碎片
++    // 硬箱降級：map 由硬箱降為軟箱，外觀換成受損硬磚（鐵箍斷開＋裂痕）+ 一小撮碎片
+     for (const [cx, cy] of p.damaged ?? []) {
+       const ci = cellIndex(cx, cy)
+       if (this.map[ci] !== TILE_CRATE_HARD) continue
+       this.map[ci] = TILE_CRATE
+-      this.crates.get(ci)?.dispose()
+-      const dmg = this.makeCrate(cx, cy, false)
+-      dmg.material = this.crateDamagedMat
+-      this.crates.set(ci, dmg)
++      this.board.setCrate(ci, cx, cy, 'damaged')
+       this.burst(this.debrisPs, new Vector3(cellToWorld(cx, GRID_W), 1, cellToWorld(cy, GRID_H)), 6)
+     }
+     // 燒毀既有道具
+     for (const [cx, cy] of p.itemKills ?? []) {
+       const ci = cellIndex(cx, cy)
+-      this.items.get(ci)?.mesh.dispose()
++      this.board.removeItem(ci)
+       this.items.delete(ci)
+     }
+     // 掉落新道具
+     for (const d of p.drops ?? []) this.spawnItem(d.cx, d.cy, d.kind)
+-    // 火焰格：中心亮黃、延伸橘紅；生長/收縮動畫於 update 驅動
++    // 火焰格：爆心圓帽、臂圓角條、端頭半格＋圓帽（外／中／芯三層）；生長/收縮動畫於 update 驅動
+     const born = performance.now()
+     const until = born + FLAME_MS
+-    p.cells.forEach(([cx, cy], i) => {
+-      const f = MeshBuilder.CreateBox(`flame-${cx}-${cy}-${p.id}`, { width: CELL * 0.9, height: 0.6, depth: CELL * 0.9 }, this.ctx.scene)
+-      f.position = new Vector3(cellToWorld(cx, GRID_W), 0.3, cellToWorld(cy, GRID_H))
+-      f.material = i === 0 ? this.flameCoreMat : this.flameMat
+-      f.scaling.setAll(0.01) // 從極小生長，避免首幀閃現
+-      this.flames.push({ mesh: f, until, bornAt: born, cx, cy })
+-    })
++    for (const c of classifyFlameCells(p.cells)) {
++      this.flames.push({ fx: this.board.addFlame(c), until, bornAt: born, cx: c.cx, cy: c.cy })
++    }
+     this.killPlayers(p.kills)
+   }
+ 
+   /** host：突然死亡推進——時間到後，每 CLOSE_INTERVAL_MS 沿螺旋取下一個「尚非牆」的格落牆。
+    *  落牆 kills = 站在該格、仍 alive 的所有實體（無視無敵，落牆即死，確保逼出結局）。 */
+   private tickSuddenDeath(): void {
+     if (this.playingSince === 0) return
+     const now = performance.now()
+     if (now - this.playingSince <= SUDDEN_DEATH_MS) return
+     if (this.lastClose !== 0 && now - this.lastClose < CLOSE_INTERVAL_MS) return
+@@ -1081,46 +943,40 @@ class BomberScene implements GameModule {
+     }
+     // index 走完即停止（整張圖已封）
+   }
+ 
+   /** 套用突然死亡落牆（host 本地 + guest 套用）：該格設為牆、清掉既有物件、建落牆 mesh、致死。 */
+   private applyCloseWall(p: CloseWallPayload): void {
+     const ci = cellIndex(p.cx, p.cy)
+     this.map[ci] = TILE_WALL
+ 
+     // 清該格既有木箱
+-    this.crates.get(ci)?.dispose()
+-    this.crates.delete(ci)
++    this.board.setCrate(ci, p.cx, p.cy, null)
+     // 清該格既有道具
+-    this.items.get(ci)?.mesh.dispose()
++    this.board.removeItem(ci)
+     this.items.delete(ci)
+     // 清該格既有炸彈（直接 dispose、不引爆；修正 ownerBombCount）
+     for (const [bid, b] of [...this.bombs]) {
+       if (b.cx === p.cx && b.cy === p.cy) {
+-        b.mesh.dispose()
++        this.board.removeBomb(bid)
+         this.bombs.delete(bid)
+         const n = (this.ownerBombCount.get(b.owner) ?? 1) - 1
+         this.ownerBombCount.set(b.owner, Math.max(0, n))
+       }
+     }
+ 
+-    // 落下的牆 mesh（重用 wallMat、尺寸同固定柱牆）；由上落下 + 著地縮放動畫
+-    const scene = this.ctx.scene
++    // 落牆：柱牆模型＋紅色警示頂，由高處落下（board.update 驅動）；預告格往下一格推進
+     const wx = cellToWorld(p.cx, GRID_W)
+     const wz = cellToWorld(p.cy, GRID_H)
+-    const w = MeshBuilder.CreateBox(`close-${p.cx}-${p.cy}`, { size: CELL * 0.96 }, scene)
+-    w.material = this.wallMat
+-    w.enableEdgesRendering()
+-    w.edgesWidth = 1.5
+-    w.edgesColor = new Color4(0.25, 0.27, 0.32, 1)
+-    w.position = new Vector3(wx, CELL * 0.48 + 6, wz) // 從高處落下
+-    this.closingWalls.push(w)
++    this.board.addClosingWall(ci, p.cx, p.cy)
++    this.lastCloseApplied = performance.now()
++    this.closePreviewFrom = this.spiralIndexOf(p.cx, p.cy) + 1
+ 
+     // 打擊感：碎片 + 相機震動
+     this.burst(this.debrisPs, new Vector3(wx, CELL * 0.5, wz), 12)
+     playSfx('explosion')
+     this.shakeUntil = performance.now() + SHAKE_MS
+ 
+     this.killPlayers(p.kills)
+   }
+ 
+   /** 套用陣亡（boom 與 burn 共用）：音效 + 白煙 + 隱藏角色 */
+@@ -1138,130 +994,47 @@ class BomberScene implements GameModule {
+     }
+   }
+ 
+   /** 對指定粒子系統在某位置噴一波（fire-and-forget 爆發） */
+   private burst(ps: ParticleSystem | null, pos: Vector3, count: number): void {
+     if (!ps) return
+     ps.emitter = pos.clone()
+     ps.manualEmitCount = Math.max(0, ps.manualEmitCount) + count
+   }
+ 
+-  /** 道具落地：建立旋轉小物件，存入 items（同格已有則先清除） */
++  /** 道具落地：代幣（board 的 thin instance），存入 items（同格已有則先清除） */
+   private spawnItem(cx: number, cy: number, kind: ItemKind): void {
+     const ci = cellIndex(cx, cy)
+-    this.items.get(ci)?.mesh.dispose() // 同格舊道具連同子節點一併清除
+-    const scene = this.ctx.scene
+-    const M = this.itemMats
+-
+-    // root 為位移/旋轉/浮動錨點（自身無幾何）；子節點組成造型，dispose(root) 連帶清除
+-    const root = new Mesh(`item-${ci}`, scene)
+-    root.position = new Vector3(cellToWorld(cx, GRID_W), 0.55, cellToWorld(cy, GRID_H))
+-
+-    const child = (m: Mesh, matKey: string): Mesh => {
+-      m.parent = root
+-      m.material = M[matKey]
+-      return m
+-    }
+-    // 共用底座光環：torus 圈 + 中心微亮，無敵另加金色強化
+-    const ring = MeshBuilder.CreateTorus(`item-ring-${ci}`, { diameter: 0.85, thickness: 0.09, tessellation: 20 }, scene)
+-    ring.rotation.x = Math.PI / 2
+-    ring.position.y = -0.35
+-    child(ring, kind === 'invincible' ? 'gold' : 'ring')
+-
+-    if (kind === 'bomb') {
+-      // 小炸彈造型：黑球 + 點燃引信
+-      const ball = MeshBuilder.CreateSphere(`item-b-${ci}`, { diameter: 0.62 }, scene)
+-      child(ball, 'dark')
+-      const fuse = MeshBuilder.CreateCylinder(`item-bf-${ci}`, { height: 0.28, diameter: 0.07 }, scene)
+-      fuse.position.set(0.06, 0.4, 0)
+-      fuse.rotation.z = 0.4
+-      child(fuse, 'cyan')
+-      const spark = MeshBuilder.CreateSphere(`item-bs-${ci}`, { diameter: 0.16 }, scene)
+-      spark.position.set(0.12, 0.55, 0)
+-      child(spark, 'fireHot')
+-    } else if (kind === 'fire') {
+-      // 火焰/星形：橘紅水滴 + 內層亮黃 + 上揚尖端
+-      const flame = MeshBuilder.CreateSphere(`item-f-${ci}`, { diameter: 0.62, slice: 0.85 }, scene)
+-      flame.scaling.set(1, 1.25, 1)
+-      child(flame, 'fire')
+-      const core = MeshBuilder.CreateSphere(`item-fc-${ci}`, { diameter: 0.34 }, scene)
+-      core.position.y = 0.05
+-      child(core, 'fireHot')
+-      const tip = MeshBuilder.CreateCylinder(`item-ft-${ci}`, { height: 0.4, diameterTop: 0, diameterBottom: 0.32 }, scene)
+-      tip.position.y = 0.42
+-      child(tip, 'fire')
+-    } else if (kind === 'speed') {
+-      // 翅膀/箭頭：黃色箭頭主體 + 兩側白翼
+-      const arrow = MeshBuilder.CreateCylinder(`item-s-${ci}`, { height: 0.6, diameterTop: 0, diameterBottom: 0.46, tessellation: 4 }, scene)
+-      child(arrow, 'yellow')
+-      for (const sx of [-1, 1]) {
+-        const wing = MeshBuilder.CreateBox(`item-sw${sx}-${ci}`, { width: 0.38, height: 0.06, depth: 0.22 }, scene)
+-        wing.position.set(sx * 0.28, 0.02, -0.05)
+-        wing.rotation.z = sx * 0.5
+-        child(wing, 'wing')
+-      }
+-    } else if (kind === 'kick') {
+-      // 踢：靴子（鞋身 + 鞋頭）+ 方向箭環
+-      const boot = MeshBuilder.CreateBox(`item-k-${ci}`, { width: 0.34, height: 0.4, depth: 0.3 }, scene)
+-      boot.position.y = 0.05
+-      child(boot, 'boot')
+-      const toe = MeshBuilder.CreateBox(`item-kt-${ci}`, { width: 0.34, height: 0.18, depth: 0.34 }, scene)
+-      toe.position.set(0, -0.12, 0.28)
+-      child(toe, 'boot')
+-      const arrow = MeshBuilder.CreateCylinder(`item-ka-${ci}`, { height: 0.3, diameterTop: 0, diameterBottom: 0.26, tessellation: 4 }, scene)
+-      arrow.rotation.x = Math.PI / 2
+-      arrow.position.set(0, 0.05, 0.5)
+-      child(arrow, 'wing')
+-    } else if (kind === 'throw') {
+-      // 丟：手套（掌 + 拇指）+ 上方拋出的小球（拋物提示）
+-      const palm = MeshBuilder.CreateBox(`item-t-${ci}`, { width: 0.4, height: 0.34, depth: 0.22 }, scene)
+-      child(palm, 'glove')
+-      const thumb = MeshBuilder.CreateBox(`item-tt-${ci}`, { width: 0.12, height: 0.22, depth: 0.18 }, scene)
+-      thumb.position.set(-0.24, 0.06, 0)
+-      thumb.rotation.z = 0.5
+-      child(thumb, 'glove')
+-      const proj = MeshBuilder.CreateSphere(`item-tp-${ci}`, { diameter: 0.24 }, scene)
+-      proj.position.set(0.1, 0.42, 0)
+-      child(proj, 'dark')
+-    } else {
+-      // 無敵：金色星核 + 護盾光環（更醒目）
+-      const star = MeshBuilder.CreateSphere(`item-i-${ci}`, { diameter: 0.52 }, scene)
+-      child(star, 'gold')
+-      const shield = MeshBuilder.CreateTorus(`item-is-${ci}`, { diameter: 0.78, thickness: 0.1, tessellation: 24 }, scene)
+-      child(shield, 'shield')
+-      const shield2 = MeshBuilder.CreateTorus(`item-is2-${ci}`, { diameter: 0.78, thickness: 0.1, tessellation: 24 }, scene)
+-      shield2.rotation.z = Math.PI / 2
+-      child(shield2, 'shield')
+-    }
+-
+-    this.items.set(ci, { kind, mesh: root })
++    this.board.addItem(ci, kind, cx, cy)
++    this.items.set(ci, { kind })
+   }
+ 
+   /** host：偵測站到道具上的存活玩家，發放並廣播 pickup */
+   private detectPickups(): void {
+     if (this.items.size === 0) return
+     for (const e of this.entities()) {
+       if (!this.isAlive(e.id)) continue
+       const pos = this.posOf(e.id)
+       if (!pos) continue
+       const ci = cellIndex(worldToCell(pos.x, GRID_W), worldToCell(pos.z, GRID_H))
+       if (this.items.has(ci)) this.hostBroadcast('pickup', { ci, who: e.id })
+     }
+   }
+ 
+   /** 套用拾取：移除道具、提升該玩家能力值（上限封頂） */
+   private applyPickup(p: PickupPayload): void {
+     const it = this.items.get(p.ci)
+     if (!it) return
+     playSfx('pickup')
+-    this.burst(this.sparklePs, it.mesh.position.clone(), 14)
+-    it.mesh.dispose()
++    const ip = this.board.itemPos(p.ci)
++    if (ip) this.burst(this.sparklePs, new Vector3(ip.x, ip.y, ip.z), 14)
++    this.board.removeItem(p.ci)
+     this.items.delete(p.ci)
+     const s = this.statOf(p.who)
+     if (it.kind === 'bomb') s.bombs = Math.min(MAX_BOMBS, s.bombs + 1)
+     else if (it.kind === 'fire') s.fire = Math.min(MAX_FIRE, s.fire + 1)
+     else if (it.kind === 'speed') s.speed = Math.min(MAX_SPEED_LV, s.speed + 1)
+     else if (it.kind === 'kick') s.kick = true
+     else if (it.kind === 'throw') s.throw = true
+     else if (it.kind === 'invincible') s.invincibleUntil = performance.now() + INVINCIBLE_MS
+   }
+ 
+@@ -1347,144 +1120,30 @@ class BomberScene implements GameModule {
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+     // 固定俯視相機（不開放操作）
+     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 30, Vector3.Zero(), scene)
+     new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
+ 
+-    // 共用材質
+-    this.crateMat = new StandardMaterial('crate-mat', scene)
+-    this.crateMat.diffuseColor = new Color3(0.62, 0.45, 0.22)
+-    // 木箱皮膚調色盤（數種木質/苔綠/舊木色，共用少量材質）
+-    const skin = (name: string, c: Color3): StandardMaterial => {
+-      const m = new StandardMaterial(name, scene)
+-      m.diffuseColor = c
+-      return m
+-    }
+-    this.crateSkinMats = [
+-      skin('crate-skin-0', new Color3(0.62, 0.45, 0.22)), // 木質
+-      skin('crate-skin-1', new Color3(0.72, 0.52, 0.28)), // 淺木
+-      skin('crate-skin-2', new Color3(0.5, 0.36, 0.18)), // 深木
+-      skin('crate-skin-3', new Color3(0.42, 0.5, 0.28)), // 苔綠
+-      skin('crate-skin-4', new Color3(0.58, 0.48, 0.36)), // 舊木
+-    ]
+-    // 硬箱：灰金屬／石材主體 + 較亮鉚釘箍帶
+-    this.crateHardMat = new StandardMaterial('crate-hard-mat', scene)
+-    this.crateHardMat.diffuseColor = new Color3(0.46, 0.49, 0.55)
+-    this.crateHardMat.specularColor = new Color3(0.6, 0.62, 0.68)
+-    this.crateHardTrimMat = new StandardMaterial('crate-hard-trim-mat', scene)
+-    this.crateHardTrimMat.diffuseColor = new Color3(0.78, 0.72, 0.4)
+-    this.crateHardTrimMat.emissiveColor = new Color3(0.22, 0.2, 0.1)
+-    // 硬箱降級後的受損外觀（裂痕色）
+-    this.crateDamagedMat = new StandardMaterial('crate-damaged-mat', scene)
+-    this.crateDamagedMat.diffuseColor = new Color3(0.5, 0.38, 0.2)
+-    this.bombMat = new StandardMaterial('bomb-mat', scene)
+-    this.bombMat.diffuseColor = new Color3(0.12, 0.12, 0.15)
+-    this.bombFlashMat = new StandardMaterial('bomb-flash-mat', scene)
+-    this.bombFlashMat.diffuseColor = new Color3(0.9, 0.15, 0.1)
+-    this.bombFlashMat.emissiveColor = new Color3(0.7, 0.1, 0.05)
+-    this.flameMat = new StandardMaterial('flame-mat', scene)
+-    this.flameMat.emissiveColor = new Color3(1, 0.45, 0.1)
+-    this.flameMat.disableLighting = true
+-    this.flameCoreMat = new StandardMaterial('flame-core-mat', scene)
+-    this.flameCoreMat.emissiveColor = new Color3(1, 0.85, 0.3)
+-    this.flameCoreMat.disableLighting = true
+-    // 道具材質：炸彈 up 青色、火力 up 橘紅、速度 up 亮黃，emissive 讓它在地圖上醒目
+-    this.itemBombMat = new StandardMaterial('item-bomb-mat', scene)
+-    this.itemBombMat.diffuseColor = new Color3(0.1, 0.6, 0.9)
+-    this.itemBombMat.emissiveColor = new Color3(0.1, 0.5, 0.85)
+-    this.itemFireMat = new StandardMaterial('item-fire-mat', scene)
+-    this.itemFireMat.diffuseColor = new Color3(0.95, 0.35, 0.1)
+-    this.itemFireMat.emissiveColor = new Color3(0.85, 0.3, 0.05)
+-    this.itemSpeedMat = new StandardMaterial('item-speed-mat', scene)
+-    this.itemSpeedMat.diffuseColor = new Color3(0.95, 0.85, 0.15)
+-    this.itemSpeedMat.emissiveColor = new Color3(0.85, 0.75, 0.1)
+-
+-    // 道具美化調色盤：組合 mesh 用的發光材質（底座/主體/圖示），各道具共用同一組
+-    const mat = (name: string, diff: Color3, emis: Color3): StandardMaterial => {
+-      const m = new StandardMaterial(name, scene)
+-      m.diffuseColor = diff
+-      m.emissiveColor = emis
+-      return m
+-    }
+-    this.itemMats = {
+-      base: mat('it-base', new Color3(0.1, 0.12, 0.18), new Color3(0.05, 0.06, 0.1)), // 深色底座
+-      ring: mat('it-ring', new Color3(0.85, 0.9, 1), new Color3(0.4, 0.55, 0.85)), // 光環
+-      dark: mat('it-dark', new Color3(0.1, 0.1, 0.13), new Color3(0.02, 0.02, 0.03)), // 炸彈黑
+-      cyan: mat('it-cyan', new Color3(0.15, 0.7, 0.95), new Color3(0.1, 0.55, 0.85)),
+-      fire: mat('it-fire', new Color3(1, 0.45, 0.12), new Color3(0.9, 0.32, 0.06)),
+-      fireHot: mat('it-firehot', new Color3(1, 0.85, 0.3), new Color3(1, 0.7, 0.2)),
+-      wing: mat('it-wing', new Color3(0.95, 0.97, 1), new Color3(0.65, 0.72, 0.85)),
+-      yellow: mat('it-yellow', new Color3(1, 0.9, 0.2), new Color3(0.9, 0.78, 0.12)),
+-      boot: mat('it-boot', new Color3(0.7, 0.25, 0.2), new Color3(0.4, 0.12, 0.08)),
+-      glove: mat('it-glove', new Color3(0.95, 0.55, 0.15), new Color3(0.6, 0.32, 0.08)),
+-      gold: mat('it-gold', new Color3(1, 0.82, 0.2), new Color3(0.95, 0.7, 0.12)),
+-      shield: mat('it-shield', new Color3(0.4, 0.85, 1), new Color3(0.3, 0.7, 0.95)),
+-    }
+-
+-    // 地板 + 固定柱牆（柱牆不隨 seed 變動，建一次即可）
+-    const ground = MeshBuilder.CreateGround('ground', { width: GRID_W * CELL + 2, height: GRID_H * CELL + 2 }, scene)
+-    const gmat = new StandardMaterial('gmat', scene)
+-    gmat.diffuseColor = new Color3(0.16, 0.34, 0.2)
+-    ground.material = gmat
+-
+-    // 棋盤格草地（雙色交錯，經典炸彈人場地感）
+-    const tileA = new StandardMaterial('tile-a', scene)
+-    tileA.diffuseColor = new Color3(0.24, 0.48, 0.28)
+-    const tileB = new StandardMaterial('tile-b', scene)
+-    tileB.diffuseColor = new Color3(0.2, 0.42, 0.24)
+-    for (let cy = 0; cy < GRID_H; cy++) {
+-      for (let cx = 0; cx < GRID_W; cx++) {
+-        const tile = MeshBuilder.CreateBox(`tile-${cx}-${cy}`, { width: CELL * 0.98, height: 0.02, depth: CELL * 0.98 }, scene)
+-        tile.position = new Vector3(cellToWorld(cx, GRID_W), 0.01, cellToWorld(cy, GRID_H))
+-        tile.material = (cx + cy) % 2 === 0 ? tileA : tileB
+-        this.decorations.push(tile)
+-      }
+-    }
+-
+-    // 外圍邊框牆：包住場地
+-    const borderMat = new StandardMaterial('border-mat', scene)
+-    borderMat.diffuseColor = new Color3(0.36, 0.4, 0.46)
+-    const gw = GRID_W * CELL
+-    const gh = GRID_H * CELL
+-    const borders = [
+-      { w: gw + 4, d: 1, x: 0, z: -(gh / 2 + 0.5) },
+-      { w: gw + 4, d: 1, x: 0, z: gh / 2 + 0.5 },
+-      { w: 1, d: gh + 2, x: -(gw / 2 + 0.5), z: 0 },
+-      { w: 1, d: gh + 2, x: gw / 2 + 0.5, z: 0 },
+-    ]
+-    for (let i = 0; i < borders.length; i++) {
+-      const b = borders[i]
+-      const wall = MeshBuilder.CreateBox(`border-${i}`, { width: b.w, height: 1.3, depth: b.d }, scene)
+-      wall.position.set(b.x, 0.65, b.z)
+-      wall.material = borderMat
+-      wall.enableEdgesRendering()
+-      wall.edgesWidth = 1.5
+-      wall.edgesColor = new Color4(0.2, 0.22, 0.27, 1)
+-      this.decorations.push(wall)
+-    }
+-
+-    this.wallMat = new StandardMaterial('wall-mat', scene)
+-    this.wallMat.diffuseColor = new Color3(0.42, 0.45, 0.5)
+-    for (let cy = 1; cy < GRID_H; cy += 2) {
+-      for (let cx = 1; cx < GRID_W; cx += 2) {
+-        const w = MeshBuilder.CreateBox(`wall-${cx}-${cy}`, { size: CELL * 0.96 }, scene)
+-        w.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.48, cellToWorld(cy, GRID_H))
+-        w.material = this.wallMat
+-        w.enableEdgesRendering()
+-        w.edgesWidth = 1.5
+-        w.edgesColor = new Color4(0.25, 0.27, 0.32, 1)
+-      }
+-    }
++    // 場景物件（A「Toy Box」）：地面單 mesh＋程式棋盤，柱牆／外框／木箱／落牆／炸彈／火焰／道具走 thin instance
++    this.board = new ToyBoard(scene, {
++      gridW: GRID_W,
++      gridH: GRID_H,
++      cell: CELL,
++      toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
++    })
++    this.avatarKit = new AvatarKit(scene)
++    // AC8：draw calls 量測（每 PERF_LOG_MS 印一次）
++    this.instr = new SceneInstrumentation(scene)
+ 
+     this.initParticles()
+ 
+     this.selfAvatar = this.makePlayer(ctx.selfId)
+     this.hud = createTextPanel(scene, this.camera, 'hud', 3.4, 0.56, new Vector3(0, 2.72, 8), 'glass')
+     this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+     window.addEventListener('keyup', this.onKeyUp)
+ 
+@@ -1572,20 +1231,22 @@ class BomberScene implements GameModule {
+ 
+   /** 固定步長：移動 +（host）引信與勝負裁決 */
+   private simulate(dt: number): void {
+     const playing = this.flow.state.phase === 'playing'
+ 
+     // 偵測 phase 轉入/離開 playing：記錄本局起始時刻（突然死亡計時依此，各端一致地以本地 now 起算）
+     if (playing && !this.wasPlaying) {
+       this.playingSince = performance.now()
+       this.lastClose = 0
+       this.closeIndex = 0
++      this.lastCloseApplied = 0
++      this.closePreviewFrom = 0
+     } else if (!playing && this.wasPlaying) {
+       this.playingSince = 0
+     }
+     this.wasPlaying = playing
+ 
+     if (playing && this.isAlive(this.ctx.selfId)) {
+       const k = this.keys
+       const dx = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)
+       const dz = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0)
+       if (dx !== 0 || dz !== 0) {
+@@ -1757,21 +1418,21 @@ class BomberScene implements GameModule {
+     if (this.selfAvatar) {
+       this.selfAvatar.root.position.x = this.state.x
+       this.selfAvatar.root.position.z = this.state.z
+       this.animateAvatar(this.selfAvatar, deltaMs)
+     }
+ 
+     // 遠端：增刪 + 插值
+     const ids = new Set(this.own.remoteIds())
+     for (const [id, a] of this.peerAvatars) {
+       if (ids.has(id)) continue
+-      a.root.dispose(false, true)
++      disposeAvatar(a.toy)
+       this.peerAvatars.delete(id)
+     }
+     for (const id of ids) {
+       let a = this.peerAvatars.get(id)
+       if (!a) {
+         a = this.makePlayer(id)
+         a.root.setEnabled(this.isAlive(id))
+         this.peerAvatars.set(id, a)
+       }
+       const s = this.own.sampleRemote(id)
+@@ -1795,88 +1456,100 @@ class BomberScene implements GameModule {
+         if (t) {
+           const k = Math.min(1, deltaMs * 0.012)
+           a.root.position.x += (t.x - a.root.position.x) * k
+           a.root.position.z += (t.z - a.root.position.z) * k
+         }
+       }
+       a.root.setEnabled(this.isAlive(id))
+       this.animateAvatar(a, deltaMs)
+     }
+ 
+-    // 無敵視覺：閃爍半透明（無敵結束自動恢復為實心）
++    // 無敵視覺：身體外圈金色光殼閃爍（8Hz，最後 1.5 秒 16Hz）
+     const nowVis = performance.now()
+     const applyInvis = (av: Avatar | undefined, id: string) => {
+       if (!av || !av.root.isEnabled()) return
+-      const inv = this.statOf(id).invincibleUntil
+-      const vis = inv > nowVis ? 0.35 + 0.35 * (Math.sin(nowVis * 0.02) * 0.5 + 0.5) : 1
+-      for (const child of av.root.getChildMeshes()) child.visibility = vis
++      av.toy.halo.isVisible = invincibleBlinkOn(nowVis, this.statOf(id).invincibleUntil)
+     }
+     applyInvis(this.selfAvatar, this.ctx.selfId)
+     for (const [id, a] of this.peerAvatars) applyInvis(a, id)
+     for (const [id, a] of this.botAvatars) applyInvis(a, id)
+ 
+     // 火焰：到期清除 + 生長/收縮動畫
+     const now = performance.now()
+     this.flames = this.flames.filter((f) => {
+       if (f.until <= now) {
+-        f.mesh.dispose()
++        this.board.removeFlame(f.fx)
+         return false
+       }
+       const grow = Math.min(1, (now - f.bornAt) / FLAME_GROW_MS)
+       const fade = Math.min(1, (f.until - now) / FLAME_FADE_MS)
+       const s = grow * (0.4 + 0.6 * fade)
+-      f.mesh.scaling.set(s, s * (1 + 0.3 * Math.sin(now * 0.02 + f.cx + f.cy)), s)
++      this.board.poseFlame(f.fx, grow, s, 1 + 0.3 * Math.sin(now * 0.02 + f.cx + f.cy))
+       return true
+     })
+ 
+-    // 炸彈脈動；將爆前轉紅快閃；踢滑行/丟拋物的位置插值
+-    for (const b of this.bombs.values()) {
++    // 炸彈脈動；將爆前閃紅並放大脈動（1.0↔1.12）；踢滑行/丟拋物的位置插值
++    for (const [id, b] of this.bombs) {
+       const left = b.explodeAt - now
+-      const pulse = 1 + 0.07 * Math.sin(now * (left < BOMB_FLASH_MS ? 0.035 : 0.012))
+-      b.mesh.scaling.set(pulse, pulse, pulse)
+-      b.mesh.material = left < BOMB_FLASH_MS && Math.sin(now * 0.04) > 0 ? this.bombFlashMat : this.bombMat
+-      // 移動動畫：依時間插值 mesh 位置；拋物加上弧高；結束後吸附終點並清除 motion
++      const flashing = left < BOMB_FLASH_MS
++      const pulse = flashing ? 1.06 + 0.06 * Math.sin(now * 0.035) : 1 + 0.04 * Math.sin(now * 0.012)
++      // 移動動畫：依時間插值位置；拋物加上弧高；結束後吸附終點並清除 motion
+       const m = b.motion
+       if (m) {
+         const t = Math.min(1, (now - m.startAt) / (m.endAt - m.startAt))
+-        b.mesh.position.x = m.fromX + (m.toX - m.fromX) * t
+-        b.mesh.position.z = m.fromZ + (m.toZ - m.fromZ) * t
+-        b.mesh.position.y = 0.55 + m.arc * Math.sin(Math.PI * t)
++        b.x = m.fromX + (m.toX - m.fromX) * t
++        b.z = m.fromZ + (m.toZ - m.fromZ) * t
++        b.y = 0.55 + m.arc * Math.sin(Math.PI * t)
+         if (t >= 1) {
+-          b.mesh.position.set(m.toX, 0.55, m.toZ)
++          b.x = m.toX
++          b.y = 0.55
++          b.z = m.toZ
+           b.motion = undefined
+         }
+       }
++      this.board.setBomb(id, b.x, b.y, b.z, pulse, flashing && Math.sin(now * 0.04) > 0)
+     }
+ 
+-    // 突然死亡落牆：由高處快速落到定位（著地後維持）
+-    const groundY = CELL * 0.48
+-    for (const w of this.closingWalls) {
+-      if (w.position.y > groundY) {
+-        w.position.y += (groundY - w.position.y) * Math.min(1, deltaMs * 0.02)
+-        if (w.position.y - groundY < 0.02) w.position.y = groundY
+-      }
+-    }
++    // 突然死亡預告格：下一面牆落下前 CLOSE_WARN_MS 在該格畫紅色脈動格（純視覺，時刻對齊 host 的落牆節奏）
++    const warnOn =
++      phase === 'playing' &&
++      closeWarningActive({
++        now,
++        playingSince: this.playingSince,
++        lastClose: this.lastCloseApplied,
++        suddenMs: SUDDEN_DEATH_MS,
++        intervalMs: CLOSE_INTERVAL_MS,
++        leadMs: CLOSE_WARN_MS,
++      })
++    const warnCell = warnOn
++      ? nextCloseCell(this.spiralCells(), (cx, cy) => this.map[cellIndex(cx, cy)] === TILE_WALL, this.closePreviewFrom)
++      : null
++    this.board.setWarning(warnCell, 0.5 + 0.5 * Math.sin(now * 0.025))
+ 
+     // 爆炸相機震動（衰減的隨機偏移）
+     const shakeLeft = this.shakeUntil - now
+     if (shakeLeft > 0) {
+       const k = (shakeLeft / SHAKE_MS) * 0.4
+       this.camera.target.set((Math.random() - 0.5) * k, 0, (Math.random() - 0.5) * k)
+     } else {
+       this.camera.target.set(0, 0, 0)
+     }
+ 
+-    // 道具旋轉浮動，提示可拾取
+-    for (const it of this.items.values()) {
+-      it.mesh.rotation.y += deltaMs * 0.004
+-      it.mesh.position.y = 0.55 + Math.sin(now * 0.004 + it.mesh.position.x) * 0.12
++    // 道具浮動擺盪、落牆下落、所有 thin instance 上傳（每幀一次）
++    this.board.update(now, deltaMs)
++
++    // AC8：每 2 秒印 draw calls 與 fps（讀的是上一幀的完整計數）
++    if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
++      this.lastPerfLog = now
++      const calls = this.instr.drawCallsCounter.current
++      const fps = Math.round(this.ctx.scene.getEngine().getFps())
++      console.info(`[bomber] drawCalls=${calls} fps=${fps}`)
+     }
+ 
+     // HUD / 橫幅：精簡單行——存活數 + 能力值（能力旗標/無敵僅在持有時顯示）；
+     // hud.draw 會在超寬時自動縮字級，常見比例下完整不被切。
+     if (phase === 'playing') {
+       const aliveCount = this.entities().filter((e) => this.isAlive(e.id)).length
+       const me = this.statOf(this.ctx.selfId)
+       const flags: string[] = []
+       if (me.kick) flags.push('👟')
+       if (me.throw) flags.push('🧤')
+@@ -1925,40 +1598,36 @@ class BomberScene implements GameModule {
+   }
+ 
+   dispose(): void {
+     window.removeEventListener('keydown', this.onKeyDown)
+     window.removeEventListener('keyup', this.onKeyUp)
+     stopAllAudio()
+     this.ticker.stop()
+     this.own.stop()
+     this.flow.dispose()
+     this.offOpen?.()
+-    this.selfAvatar?.root.dispose(false, true)
+-    for (const a of this.peerAvatars.values()) a.root.dispose(false, true)
++    if (this.selfAvatar) disposeAvatar(this.selfAvatar.toy)
++    this.selfAvatar = undefined
++    for (const a of this.peerAvatars.values()) disposeAvatar(a.toy)
+     this.peerAvatars.clear()
+-    for (const a of this.botAvatars.values()) a.root.dispose(false, true)
++    for (const a of this.botAvatars.values()) disposeAvatar(a.toy)
+     this.botAvatars.clear()
++    this.avatarKit.dispose()
+     this.botState.clear()
+     this.botTarget.clear()
+     this.bots = []
+-    for (const m of this.crates.values()) m.dispose()
+-    this.crates.clear()
+-    for (const b of this.bombs.values()) b.mesh.dispose()
+     this.bombs.clear()
+-    for (const f of this.flames) f.mesh.dispose()
+     this.flames = []
+-    for (const it of this.items.values()) it.mesh.dispose()
+     this.items.clear()
+-    for (const w of this.closingWalls) w.dispose()
+-    this.closingWalls = []
+-    for (const m of this.decorations) m.dispose()
+-    this.decorations = []
++    this.board.dispose()
++    this.instr?.dispose()
++    this.instr = null
+     this.explosionPs?.dispose()
+     this.debrisPs?.dispose()
+     this.puffPs?.dispose()
+     this.sparklePs?.dispose()
+     this.explosionPs = this.debrisPs = this.puffPs = this.sparklePs = null
+     this.hud.dispose()
+     this.banner.dispose()
+   }
+ }
+ 
+diff --git a/src/babylon/games/bomberFx/avatar.ts b/src/babylon/games/bomberFx/avatar.ts
+new file mode 100644
+index 0000000..3811b46
+--- /dev/null
++++ b/src/babylon/games/bomberFx/avatar.ts
+@@ -0,0 +1,232 @@
++/**
++ * Q 版角色（spec §4）：身體、頭盔、臉、眼睛、四肢合併成一個頂點色 mesh（1 個 draw call），
++ * 四肢擺動由 CPU 改寫頂點（rig.ts）。AI 天線球、AI 小章、「你」標記、無敵金圈是另外的小 mesh，
++ * 方便 GlowLayer 白名單與顯示切換。
++ */
++import { Color3, Mesh, MeshBuilder, StandardMaterial, type DynamicTexture, type Scene } from '@/babylon/babylonCore'
++import { mergeData, roundedBox, type MeshData } from '@/babylon/games/bomberFx/geometry'
++import { at, radial, rgba, solid, sphere, cylinder, toMesh } from '@/babylon/games/bomberFx/models'
++import { PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
++import { swingRange } from '@/babylon/games/bomberFx/rig'
++import { createLabelTexture } from '@/babylon/games/bomberFx/textures'
++
++type Limb = 'legL' | 'legR' | 'armL' | 'armR'
++
++interface LimbRange {
++  limb: Limb
++  start: number
++  count: number
++  pivot: { y: number; z: number }
++}
++
++export interface ToyAvatar {
++  /** 位移錨點（不旋轉）；標記掛這裡才不會跟著面向轉 */
++  root: Mesh
++  /** 合併後的身體，rotation.y = 面向 */
++  body: Mesh
++  /** AI 的青色天線球（Glow 白名單用） */
++  antenna?: Mesh
++  tag?: Mesh
++  marker?: Mesh
++  halo: Mesh
++  colorIndex: ColorIndex
++  isAI: boolean
++  isSelf: boolean
++  base: Float32Array
++  baseN: Float32Array
++  pos: Float32Array
++  nrm: Float32Array
++  limbs: LimbRange[]
++  lastSwing: number
++}
++
++/** 外觀放大倍率：對齊 variant-A-sheet 的頭身比例（頭盔約 0.6 格寬） */
++export const AVATAR_SCALE = 1.35
++const LEG_PIVOT = { y: 0.4, z: 0 }
++const HEAD_Y = 1.24
++/** 頭往鏡頭仰的角度（Babylon rotation.x，負值讓 +Z 臉朝上） */
++const HEAD_TILT = -0.42
++/** 頭心座標系中天線球的位置，轉成身體座標（AI 發光球要跟著仰） */
++const ANTENNA_BALL = { y: HEAD_Y + 0.68 * Math.cos(HEAD_TILT), z: 0.68 * Math.sin(HEAD_TILT) }
++const ARM_PIVOT = { y: 0.8, z: 0 }
++
++/** 角色共用的材質與標籤貼圖（每個場景一份） */
++export class AvatarKit {
++  readonly bodyMat: StandardMaterial
++  readonly haloMat: StandardMaterial
++  readonly antennaMat: StandardMaterial
++  private labelMats = new Map<string, StandardMaterial>()
++  private textures: DynamicTexture[] = []
++  private readonly scene: Scene
++
++  constructor(scene: Scene) {
++    this.scene = scene
++    this.bodyMat = new StandardMaterial('toy-avatar-mat', scene)
++    this.bodyMat.diffuseColor = Color3.White()
++    this.bodyMat.specularColor = new Color3(0.18, 0.18, 0.18)
++    this.haloMat = new StandardMaterial('toy-halo-mat', scene)
++    this.haloMat.emissiveColor = Color3.FromHexString(TOY.invincible)
++    this.haloMat.disableLighting = true
++    this.haloMat.alpha = 0.32
++    this.antennaMat = new StandardMaterial('toy-ai-antenna-mat', scene)
++    this.antennaMat.emissiveColor = Color3.FromHexString(TOY.aiAntenna)
++    this.antennaMat.disableLighting = true
++  }
++
++  labelMat(key: string, text: string, bg: string, w: number, h: number): StandardMaterial {
++    let m = this.labelMats.get(key)
++    if (m) return m
++    const tex = createLabelTexture(this.scene, `toy-label-${key}`, text, bg, w, h)
++    this.textures.push(tex)
++    m = new StandardMaterial(`toy-label-mat-${key}`, this.scene)
++    m.diffuseTexture = tex
++    m.useAlphaFromDiffuseTexture = true
++    m.emissiveColor = Color3.White()
++    m.disableLighting = true
++    m.backFaceCulling = false
++    this.labelMats.set(key, m)
++    return m
++  }
++
++  dispose(): void {
++    this.bodyMat.dispose()
++    this.haloMat.dispose()
++    this.antennaMat.dispose()
++    for (const m of this.labelMats.values()) m.dispose()
++    for (const t of this.textures) t.dispose()
++    this.labelMats.clear()
++    this.textures = []
++  }
++}
++
++const rbox = (w: number, h: number, d: number, r: number): MeshData => roundedBox({ width: w, height: h, depth: d, radius: r, segments: 2 })
++
++/** 組身體頂點；回傳合併資料與四肢頂點範圍 */
++function bodyData(ci: ColorIndex, isAI: boolean): { data: MeshData; limbs: LimbRange[] } {
++  const pal = PLAYER_PALETTE[ci]
++  const legC = rgba('#3B3453')
++  const footC = rgba(TOY.outline)
++  const white = rgba('#FFFFFF')
++  const parts: { d: MeshData; limb?: Limb; pivot?: { y: number; z: number } }[] = []
++  const limb = (l: Limb, pivot: { y: number; z: number }, ...ds: MeshData[]) => parts.push({ d: mergeData(ds), limb: l, pivot })
++
++  for (const [l, sx] of [['legL', -1], ['legR', 1]] as const) {
++    limb(
++      l,
++      LEG_PIVOT,
++      at(solid(rbox(0.22, 0.34, 0.24, 0.07), legC), { x: sx * 0.14, y: 0.25, z: 0 }),
++      at(solid(rbox(0.26, 0.14, 0.34, 0.06), footC), { x: sx * 0.14, y: 0.07, z: 0.04 })
++    )
++  }
++  parts.push({ d: at(radial(rbox(0.6, 0.46, 0.44, 0.14), pal.light, pal.base, pal.dark), { x: 0, y: 0.6, z: 0 }) })
++  parts.push({ d: at(solid(rbox(0.63, 0.1, 0.47, 0.05), rgba(pal.dark)), { x: 0, y: 0.47, z: 0 }) })
++  for (const [l, sx] of [['armL', -1], ['armR', 1]] as const) {
++    limb(
++      l,
++      ARM_PIVOT,
++      at(radial(rbox(0.16, 0.3, 0.18, 0.07), pal.light, pal.base, pal.dark), { x: sx * 0.38, y: 0.66, z: 0 }),
++      at(solid(sphere(0.21, 10), white), { x: sx * 0.39, y: 0.48, z: 0 })
++    )
++  }
++  // 頭盔（徑向漸層）＋臉＋眼睛（白色光點）＋天線：以頭心為原點組好，整顆往鏡頭仰 HEAD_TILT，
++  // 俯視 3/4 角度下臉才看得到（對照 variant-A-sheet 的正臉）
++  const head: MeshData[] = [
++    radial(sphere(0.92, 16), pal.light, pal.base, pal.dark),
++    at(solid(sphere(1, 14), rgba(TOY.face)), { x: 0, y: -0.04, z: 0.3, sx: 0.66, sy: 0.54, sz: 0.5 }),
++  ]
++  for (const sx of [-1, 1]) {
++    head.push(at(solid(sphere(1, 10), rgba(TOY.eye)), { x: sx * 0.12, y: 0.01, z: 0.53, sx: 0.11, sy: 0.2, sz: 0.08 }))
++    head.push(at(solid(sphere(0.06, 6), white), { x: sx * 0.12 - 0.025, y: 0.06, z: 0.575 }))
++  }
++  head.push(at(solid(cylinder(0.2, 0.045, 6), rgba(TOY.outline)), { x: 0, y: 0.54, z: 0 }))
++  // 真人天線球是粉紅（併進身體）；AI 另建青色發光球
++  if (!isAI) head.push(at(radial(sphere(0.19, 10), '#FFB3D6', '#FF5AA8', '#C2307A'), { x: 0, y: 0.68, z: 0 }))
++  parts.push({ d: at(mergeData(head), { x: 0, y: HEAD_Y, z: 0, pitch: HEAD_TILT }) })
++
++  const limbs: LimbRange[] = []
++  let v = 0
++  for (const p of parts) {
++    const n = p.d.positions.length / 3
++    if (p.limb && p.pivot) limbs.push({ limb: p.limb, start: v, count: n, pivot: p.pivot })
++    v += n
++  }
++  return { data: mergeData(parts.map((p) => p.d)), limbs }
++}
++
++export function buildAvatar(scene: Scene, kit: AvatarKit, id: string, ci: ColorIndex, opts: { isAI: boolean; isSelf: boolean }): ToyAvatar {
++  const root = new Mesh(`pl-${id}`, scene)
++  const { data, limbs } = bodyData(ci, opts.isAI)
++  const body = toMesh(`pl-body-${id}`, data, scene, true)
++  body.material = kit.bodyMat
++  body.parent = root
++  body.alwaysSelectAsActiveMesh = true // 四肢改頂點會跑出原 bounding
++  body.scaling.setAll(AVATAR_SCALE) // 只放大外觀，碰撞半徑（PLAYER_R）不變
++
++  let antenna: Mesh | undefined
++  let tag: Mesh | undefined
++  if (opts.isAI) {
++    antenna = MeshBuilder.CreateSphere(`pl-ai-ant-${id}`, { diameter: 0.21, segments: 10 }, scene)
++    antenna.material = kit.antennaMat
++    antenna.parent = body
++    antenna.position.set(0, ANTENNA_BALL.y, ANTENNA_BALL.z)
++    tag = MeshBuilder.CreatePlane(`pl-ai-tag-${id}`, { width: 0.5, height: 0.28 }, scene)
++    tag.material = kit.labelMat('ai', 'AI', TOY.aiAntenna, 112, 64)
++    tag.parent = root
++    tag.position.set(0.42 * AVATAR_SCALE, 1.66 * AVATAR_SCALE, 0)
++    tag.billboardMode = Mesh.BILLBOARDMODE_ALL
++  }
++  let marker: Mesh | undefined
++  if (opts.isSelf) {
++    marker = MeshBuilder.CreatePlane(`pl-you-${id}`, { width: 0.8, height: 0.42 }, scene)
++    marker.material = kit.labelMat(`you-${ci}`, '你', PLAYER_PALETTE[ci].base, 128, 68)
++    marker.parent = root
++    marker.position.set(0, 2.45 * AVATAR_SCALE, 0)
++    marker.billboardMode = Mesh.BILLBOARDMODE_ALL
++  }
++  const halo = MeshBuilder.CreateSphere(`pl-halo-${id}`, { diameter: 1, segments: 12 }, scene)
++  halo.material = kit.haloMat
++  halo.parent = root
++  halo.position.set(0, 1.0 * AVATAR_SCALE, 0)
++  halo.scaling.set(1.3 * AVATAR_SCALE, 2.15 * AVATAR_SCALE, 1.3 * AVATAR_SCALE)
++  halo.isVisible = false
++  halo.isPickable = false
++
++  const base = new Float32Array(data.positions)
++  const baseN = new Float32Array(data.normals)
++  return {
++    root,
++    body,
++    antenna,
++    tag,
++    marker,
++    halo,
++    colorIndex: ci,
++    isAI: opts.isAI,
++    isSelf: opts.isSelf,
++    base,
++    baseN,
++    pos: new Float32Array(base),
++    nrm: new Float32Array(baseN),
++    limbs,
++    lastSwing: 0,
++  }
++}
++
++const SWING_SIGN: Record<Limb, number> = { legL: 1, legR: -1, armL: -1, armR: 1 }
++
++/** 擺動四肢（角度沒變就不重傳頂點） */
++export function poseAvatar(av: ToyAvatar, swing: number): void {
++  if (Math.abs(swing - av.lastSwing) < 1e-3) return
++  av.lastSwing = swing
++  for (const l of av.limbs) {
++    const a = swing * SWING_SIGN[l.limb]
++    swingRange(av.base, av.pos, l.start, l.count, l.pivot, a)
++    swingRange(av.baseN, av.nrm, l.start, l.count, null, a)
++  }
++  av.body.updateVerticesData('position', av.pos)
++  av.body.updateVerticesData('normal', av.nrm)
++}
++
++export function disposeAvatar(av: ToyAvatar): void {
++  av.root.dispose(false, false)
++}
+diff --git a/src/babylon/games/bomberFx/board.ts b/src/babylon/games/bomberFx/board.ts
+new file mode 100644
+index 0000000..19e9dd0
+--- /dev/null
++++ b/src/babylon/games/bomberFx/board.ts
+@@ -0,0 +1,385 @@
++/**
++ * 炸彈超人場景物件（spec §5／§10）：地面 1 個 mesh；柱牆、外框、木箱三態、落牆、炸彈、火焰、道具
++ * 各自一個 thin instance 群組，場上物件再多 draw call 也固定。遊戲邏輯留在 bomber.ts，這裡只管畫。
++ */
++import { Color3, MeshBuilder, StandardMaterial, type DynamicTexture, type Mesh, type Scene } from '@/babylon/babylonCore'
++import type { FlameCell } from '@/babylon/games/bomberFx/flames'
++import type { Trs } from '@/babylon/games/bomberFx/geometry'
++import {
++  bombData,
++  borderBlockData,
++  crateData,
++  flameArmData,
++  flameCapData,
++  FLAME_LAYERS,
++  pillarData,
++  toMesh,
++  tokenData,
++  warnQuadData,
++  type CrateVariant,
++} from '@/babylon/games/bomberFx/models'
++import { ITEM_COLORS, TOY } from '@/babylon/games/bomberFx/palette'
++import { ThinGroup } from '@/babylon/games/bomberFx/thin'
++import { BLOCK_TILE, createBlockAtlas, createGroundTexture, createItemAtlas, ITEM_ORDER } from '@/babylon/games/bomberFx/textures'
++
++export type ItemKindName = (typeof ITEM_ORDER)[number]
++
++export interface BoardConfig {
++  gridW: number
++  gridH: number
++  cell: number
++  toWorld: (cx: number, cy: number) => { x: number; z: number }
++}
++
++interface FlamePart {
++  group: ThinGroup<number>
++  key: number
++  x: number
++  z: number
++  yaw: number
++  /** 沿臂長方向的比例（臂 1、端頭半格 0.5、帽 = 截面） */
++  len: number
++  /** 截面比例（爆心帽放大） */
++  girth: number
++  isCap: boolean
++}
++
++interface ClosingWall {
++  x: number
++  z: number
++  y: number
++}
++
++interface ItemRec {
++  kind: ItemKindName
++  x: number
++  z: number
++}
++
++const FLAME_CENTER_GIRTH = 1.22
++const WALL_DROP_FROM = 6
++
++export class ToyBoard {
++  private readonly scene: Scene
++  private readonly cfg: BoardConfig
++  private textures: DynamicTexture[] = []
++  private mats: StandardMaterial[] = []
++  private ground!: Mesh
++  private warn!: Mesh
++  private warnMat!: StandardMaterial
++  private pillars!: ThinGroup<number>
++  private border!: ThinGroup<number>
++  private crates!: Record<CrateVariant, ThinGroup<number>>
++  private crateOf = new Map<number, CrateVariant>()
++  private sudden!: ThinGroup<number>
++  private closing = new Map<number, ClosingWall>()
++  private bombs!: { normal: ThinGroup<string>; flash: ThinGroup<string> }
++  private flameArms: ThinGroup<number>[] = []
++  private flameCaps: ThinGroup<number>[] = []
++  private flames = new Map<number, FlamePart[]>()
++  private flameSeq = 0
++  private partSeq = 0
++  private items!: Record<ItemKindName, ThinGroup<number>>
++  private itemRecs = new Map<number, ItemRec>()
++  private groups: ThinGroup<number | string>[] = []
++
++  constructor(scene: Scene, cfg: BoardConfig) {
++    this.scene = scene
++    this.cfg = cfg
++    this.build()
++  }
++
++  private mat(name: string, setup: (m: StandardMaterial) => void): StandardMaterial {
++    const m = new StandardMaterial(name, this.scene)
++    m.specularColor = Color3.Black()
++    setup(m)
++    this.mats.push(m)
++    return m
++  }
++
++  private group<K extends number | string>(name: string, mesh: Mesh, mat: StandardMaterial, capacity: number): ThinGroup<K> {
++    mesh.name = name
++    mesh.material = mat
++    const g = new ThinGroup<K>(mesh, capacity)
++    this.groups.push(g as unknown as ThinGroup<number | string>)
++    return g
++  }
++
++  private build(): void {
++    const { scene } = this
++    const { gridW, gridH, cell } = this.cfg
++    const gw = gridW * cell
++    const gh = gridH * cell
++
++    // 地面：1 個 mesh + 程式棋盤貼圖（取代逐格 143 塊 Box）
++    const groundTex = createGroundTexture(scene, gridW, gridH)
++    this.textures.push(groundTex)
++    this.ground = MeshBuilder.CreateGround('bomber-ground', { width: gw, height: gh }, scene)
++    this.ground.material = this.mat('bomber-ground-mat', (m) => {
++      m.diffuseTexture = groundTex
++    })
++
++    const atlas = createBlockAtlas(scene)
++    this.textures.push(atlas)
++    const blockMat = this.mat('bomber-block-mat', (m) => {
++      m.diffuseTexture = atlas
++    })
++
++    // 柱牆：固定在（奇, 奇）格
++    this.pillars = this.group('bomber-pillars', toMesh('p', pillarData(cell), scene), blockMat, 32)
++    for (let cy = 1; cy < gridH; cy += 2) {
++      for (let cx = 1; cx < gridW; cx += 2) {
++        const { x, z } = this.cfg.toWorld(cx, cy)
++        this.pillars.put(cy * gridW + cx, { x, y: 0, z })
++      }
++    }
++
++    // 外框：沿場邊一格一段的紫灰石牆（高 1.3，沿用現有高度）
++    this.border = this.group('bomber-border', toMesh('b', borderBlockData(), scene), blockMat, 64)
++    let bk = 0
++    const H = 1.3
++    const edgeX = gw / 2 + 0.5
++    const edgeZ = gh / 2 + 0.5
++    for (let cx = 0; cx < gridW; cx++) {
++      const { x } = this.cfg.toWorld(cx, 0)
++      this.border.put(bk++, { x, y: 0, z: -edgeZ, sx: cell * 0.98, sy: H, sz: 1 })
++      this.border.put(bk++, { x, y: 0, z: edgeZ, sx: cell * 0.98, sy: H, sz: 1 })
++    }
++    for (let cy = 0; cy < gridH; cy++) {
++      const { z } = this.cfg.toWorld(0, cy)
++      this.border.put(bk++, { x: -edgeX, y: 0, z, sx: 1, sy: H, sz: cell * 0.98 })
++      this.border.put(bk++, { x: edgeX, y: 0, z, sx: 1, sy: H, sz: cell * 0.98 })
++    }
++    for (const sx of [-1, 1]) for (const sz of [-1, 1]) this.border.put(bk++, { x: sx * edgeX, y: 0, z: sz * edgeZ, sx: 1, sy: H, sz: 1 })
++
++    // 木箱三態（統一箱形，只差圖集格）
++    this.crates = {
++      soft: this.group('bomber-crates', toMesh('c', crateData(cell, 'soft'), scene), blockMat, 96),
++      hard: this.group('bomber-crates-hard', toMesh('ch', crateData(cell, 'hard'), scene), blockMat, 32),
++      damaged: this.group('bomber-crates-damaged', toMesh('cd', crateData(cell, 'damaged'), scene), blockMat, 32),
++    }
++
++    // 突然死亡落牆：柱牆模型換紅色警示頂；落下前 400ms 的紅色預告格
++    this.sudden = this.group('bomber-sudden', toMesh('s', pillarData(cell, BLOCK_TILE.suddenTop), scene), blockMat, 64)
++    this.warnMat = this.mat('bomber-warn-mat', (m) => {
++      m.emissiveColor = Color3.FromHexString(TOY.suddenWarn)
++      m.disableLighting = true
++      m.alpha = 0.4
++    })
++    this.warn = toMesh('bomber-warn', warnQuadData(cell), scene)
++    this.warn.material = this.warnMat
++    this.warn.isVisible = false
++    this.warn.isPickable = false
++
++    // 炸彈：一般與將爆各一組（將爆組之後進 GlowLayer 白名單）
++    const bombMat = this.mat('bomber-bomb-mat', (m) => {
++      m.diffuseColor = Color3.White()
++      m.specularColor = new Color3(0.55, 0.55, 0.6)
++      m.specularPower = 48
++    })
++    this.bombs = {
++      normal: this.group('bomber-bombs', toMesh('bn', bombData(false), scene), bombMat, 24),
++      flash: this.group('bomber-bombs-flash', toMesh('bf', bombData(true), scene), bombMat, 24),
++    }
++
++    // 火焰：外／中／芯三層，各有臂與帽兩種形狀
++    FLAME_LAYERS.forEach((_, i) => {
++      const m = this.mat(`bomber-flame-mat-${i}`, (mm) => {
++        mm.emissiveColor = Color3.FromHexString(TOY.flame[i])
++        mm.disableLighting = true
++      })
++      this.flameArms.push(this.group(`bomber-flame-arm-${i}`, toMesh('fa', flameArmData(cell, i), scene), m, 64))
++      this.flameCaps.push(this.group(`bomber-flame-cap-${i}`, toMesh('fc', flameCapData(cell, i), scene), m, 32))
++    })
++
++    // 道具代幣：6 種各一組，共用圖集材質（外殼頂點色 × 圖集白格；正面 quad 取圖示格）
++    const itemAtlas = createItemAtlas(scene)
++    this.textures.push(itemAtlas)
++    const itemMat = this.mat('bomber-item-mat', (m) => {
++      m.diffuseTexture = itemAtlas
++      m.specularColor = new Color3(0.45, 0.45, 0.45)
++      m.specularPower = 40
++    })
++    const items = {} as Record<ItemKindName, ThinGroup<number>>
++    ITEM_ORDER.forEach((kind, i) => {
++      items[kind] = this.group(`bomber-item-${kind}`, toMesh('it', tokenData(cell, i, ITEM_COLORS[kind]), scene), itemMat, 16)
++    })
++    this.items = items
++    this.syncAll()
++  }
++
++  // ---- 木箱 ----
++
++  /** 設定某格木箱外觀；null 代表清掉（炸毀時只更新 matrix buffer，不 dispose mesh） */
++  setCrate(ci: number, cx: number, cy: number, v: CrateVariant | null): void {
++    const cur = this.crateOf.get(ci)
++    if (cur) this.crates[cur].remove(ci)
++    this.crateOf.delete(ci)
++    if (!v) return
++    const { x, z } = this.cfg.toWorld(cx, cy)
++    this.crates[v].put(ci, { x, y: 0, z })
++    this.crateOf.set(ci, v)
++  }
++
++  clearCrates(): void {
++    for (const g of Object.values(this.crates)) g.clear()
++    this.crateOf.clear()
++  }
++
++  // ---- 突然死亡 ----
++
++  addClosingWall(ci: number, cx: number, cy: number): void {
++    const { x, z } = this.cfg.toWorld(cx, cy)
++    this.closing.set(ci, { x, z, y: WALL_DROP_FROM })
++    this.sudden.put(ci, { x, y: WALL_DROP_FROM, z })
++  }
++
++  clearClosingWalls(): void {
++    this.closing.clear()
++    this.sudden.clear()
++  }
++
++  /** 紅色預告格：傳 null 收起；pulse 0..1 */
++  setWarning(cell: { cx: number; cy: number } | null, pulse: number): void {
++    if (!cell) {
++      this.warn.isVisible = false
++      return
++    }
++    const { x, z } = this.cfg.toWorld(cell.cx, cell.cy)
++    this.warn.position.set(x, 0, z)
++    this.warn.isVisible = true
++    this.warnMat.alpha = 0.4 + 0.25 * pulse
++  }
++
++  // ---- 炸彈 ----
++
++  setBomb(id: string, x: number, y: number, z: number, scale: number, flash: boolean): void {
++    const on = flash ? this.bombs.flash : this.bombs.normal
++    const off = flash ? this.bombs.normal : this.bombs.flash
++    off.remove(id)
++    on.put(id, { x, y, z, sx: scale, sy: scale, sz: scale })
++  }
++
++  removeBomb(id: string): void {
++    this.bombs.normal.remove(id)
++    this.bombs.flash.remove(id)
++  }
++
++  clearBombs(): void {
++    this.bombs.normal.clear()
++    this.bombs.flash.clear()
++  }
++
++  // ---- 火焰 ----
++
++  /** 建一格火焰（三層），回傳 id；形狀依 classifyFlameCells 的分類 */
++  addFlame(c: FlameCell): number {
++    const id = this.flameSeq++
++    const { x, z } = this.cfg.toWorld(c.cx, c.cy)
++    const yaw = c.axis === 'z' ? Math.PI / 2 : 0
++    const parts: FlamePart[] = []
++    const cellHalf = this.cfg.cell / 4
++    for (let layer = 0; layer < FLAME_LAYERS.length; layer++) {
++      const push = (group: ThinGroup<number>, px: number, pz: number, len: number, girth: number, isCap: boolean) =>
++        parts.push({ group, key: this.partSeq++, x: px, z: pz, yaw, len, girth, isCap })
++      if (c.kind === 'center') {
++        push(this.flameCaps[layer], x, z, 1, FLAME_CENTER_GIRTH, true)
++      } else if (c.kind === 'arm') {
++        push(this.flameArms[layer], x, z, 1, 1, false)
++      } else {
++        // 端頭：往爆心那半格的臂 + 圓帽
++        const ox = c.axis === 'x' ? -c.dir * cellHalf : 0
++        const oz = c.axis === 'z' ? -c.dir * cellHalf : 0
++        push(this.flameArms[layer], x + ox, z + oz, 0.5, 1, false)
++        push(this.flameCaps[layer], x, z, 1, 1, true)
++      }
++    }
++    this.flames.set(id, parts)
++    this.poseFlame(id, 0.01, 0.01, 1)
++    return id
++  }
++
++  /** grow：沿臂生長 0..1；girth：截面 0..1；wobble：高度抖動倍率 */
++  poseFlame(id: number, grow: number, girth: number, wobble: number): void {
++    const parts = this.flames.get(id)
++    if (!parts) return
++    for (const p of parts) {
++      const g = girth * p.girth
++      const t: Trs = p.isCap
++        ? { x: p.x, y: 0, z: p.z, sx: g, sy: g * wobble, sz: g }
++        : { x: p.x, y: 0, z: p.z, yaw: p.yaw, sx: p.len * Math.max(0.01, grow), sy: g * wobble, sz: g }
++      p.group.put(p.key, t)
++    }
++  }
++
++  removeFlame(id: number): void {
++    for (const p of this.flames.get(id) ?? []) p.group.remove(p.key)
++    this.flames.delete(id)
++  }
++
++  clearFlames(): void {
++    for (const g of [...this.flameArms, ...this.flameCaps]) g.clear()
++    this.flames.clear()
++  }
++
++  // ---- 道具 ----
++
++  addItem(ci: number, kind: ItemKindName, cx: number, cy: number): void {
++    this.removeItem(ci)
++    const { x, z } = this.cfg.toWorld(cx, cy)
++    this.itemRecs.set(ci, { kind, x, z })
++  }
++
++  removeItem(ci: number): void {
++    const r = this.itemRecs.get(ci)
++    if (r) this.items[r.kind].remove(ci)
++    this.itemRecs.delete(ci)
++  }
++
++  itemPos(ci: number): { x: number; y: number; z: number } | null {
++    const r = this.itemRecs.get(ci)
++    return r ? { x: r.x, y: 0.6, z: r.z } : null
++  }
++
++  clearItems(): void {
++    for (const g of Object.values(this.items)) g.clear()
++    this.itemRecs.clear()
++  }
++
++  // ---- 每幀 ----
++
++  update(now: number, deltaMs: number): void {
++    // 道具：面朝鏡頭傾斜、左右輕擺、上下浮動
++    for (const [ci, r] of this.itemRecs) {
++      const y = 0.55 + Math.sin(now * 0.004 + r.x) * 0.12
++      this.items[r.kind].put(ci, { x: r.x, y, z: r.z, pitch: -0.55, yaw: Math.sin(now * 0.003 + r.x + r.z) * 0.35 })
++    }
++    // 落牆：由高處快速落到定位
++    for (const [ci, w] of this.closing) {
++      if (w.y <= 0) continue
++      w.y += (0 - w.y) * Math.min(1, deltaMs * 0.02)
++      if (w.y < 0.02) w.y = 0
++      this.sudden.put(ci, { x: w.x, y: w.y, z: w.z })
++    }
++    this.syncAll()
++  }
++
++  private syncAll(): void {
++    for (const g of this.groups) g.sync()
++  }
++
++  dispose(): void {
++    for (const g of this.groups) g.dispose()
++    this.groups = []
++    this.ground.dispose()
++    this.warn.dispose()
++    for (const m of this.mats) m.dispose()
++    for (const t of this.textures) t.dispose()
++    this.mats = []
++    this.textures = []
++    this.flames.clear()
++    this.itemRecs.clear()
++    this.closing.clear()
++    this.crateOf.clear()
++  }
++}
+diff --git a/src/babylon/games/bomberFx/flames.test.ts b/src/babylon/games/bomberFx/flames.test.ts
+new file mode 100644
+index 0000000..39fb823
+--- /dev/null
++++ b/src/babylon/games/bomberFx/flames.test.ts
+@@ -0,0 +1,20 @@
++import { describe, expect, it } from 'vitest'
++import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
++
++describe('classifyFlameCells', () => {
++  it('第一格是爆心，其餘依方向判定臂／端頭與生長順序', () => {
++    const cells: [number, number][] = [[5, 5], [6, 5], [7, 5], [4, 5], [5, 6]]
++    const out = classifyFlameCells(cells)
++    expect(out[0]).toMatchObject({ cx: 5, cy: 5, kind: 'center', order: 0 })
++    expect(out[1]).toMatchObject({ kind: 'arm', axis: 'x', dir: 1, order: 1 })
++    expect(out[2]).toMatchObject({ kind: 'end', axis: 'x', dir: 1, order: 2 })
++    expect(out[3]).toMatchObject({ kind: 'end', axis: 'x', dir: -1, order: 1 })
++    expect(out[4]).toMatchObject({ kind: 'end', axis: 'z', dir: 1, order: 1 })
++  })
++  it('只有爆心的一格也能分類', () => {
++    expect(classifyFlameCells([[1, 1]])).toEqual([{ cx: 1, cy: 1, kind: 'center', axis: 'x', dir: 0, order: 0 }])
++  })
++  it('空陣列回空', () => {
++    expect(classifyFlameCells([])).toEqual([])
++  })
++})
+diff --git a/src/babylon/games/bomberFx/flames.ts b/src/babylon/games/bomberFx/flames.ts
+new file mode 100644
+index 0000000..5d19c68
+--- /dev/null
++++ b/src/babylon/games/bomberFx/flames.ts
+@@ -0,0 +1,28 @@
++/** 爆炸格分類（純函式）：blastCells 的 cells[0] 是爆心，其餘沿四方向延伸 */
++
++export interface FlameCell {
++  cx: number
++  cy: number
++  kind: 'center' | 'arm' | 'end'
++  /** 臂的延伸軸（格座標 x ↔ 世界 X、y ↔ 世界 Z）；爆心固定 'x' */
++  axis: 'x' | 'z'
++  /** 往正或負方向延伸；爆心為 0 */
++  dir: -1 | 0 | 1
++  /** 離爆心的格數（依序生長用） */
++  order: number
++}
++
++export function classifyFlameCells(cells: ReadonlyArray<readonly [number, number]>): FlameCell[] {
++  if (cells.length === 0) return []
++  const [ox, oy] = cells[0]
++  const has = new Set(cells.map(([x, y]) => `${x},${y}`))
++  return cells.map(([cx, cy], i) => {
++    if (i === 0) return { cx, cy, kind: 'center', axis: 'x', dir: 0, order: 0 }
++    const dx = Math.sign(cx - ox)
++    const dy = Math.sign(cy - oy)
++    const axis = dy === 0 ? 'x' : 'z'
++    const dir = (axis === 'x' ? dx : dy) as -1 | 1
++    const end = !has.has(`${cx + dx},${cy + dy}`)
++    return { cx, cy, kind: end ? 'end' : 'arm', axis, dir, order: Math.abs(cx - ox) + Math.abs(cy - oy) }
++  })
++}
+diff --git a/src/babylon/games/bomberFx/geometry.test.ts b/src/babylon/games/bomberFx/geometry.test.ts
+new file mode 100644
+index 0000000..6c12d27
+--- /dev/null
++++ b/src/babylon/games/bomberFx/geometry.test.ts
+@@ -0,0 +1,115 @@
++import { describe, expect, it } from 'vitest'
++import { composeMatrix, mergeData, roundedBox, transformData, type MeshData } from '@/babylon/games/bomberFx/geometry'
++
++/** Babylon 列向量慣例：p' = p * M（平移在 m[12..14]） */
++const apply = (m: ArrayLike<number>, o: number, p: [number, number, number]): [number, number, number] => [
++  p[0] * m[o] + p[1] * m[o + 4] + p[2] * m[o + 8] + m[o + 12],
++  p[0] * m[o + 1] + p[1] * m[o + 5] + p[2] * m[o + 9] + m[o + 13],
++  p[0] * m[o + 2] + p[1] * m[o + 6] + p[2] * m[o + 10] + m[o + 14],
++]
++const close = (a: number[], b: number[]) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], 5))
++
++describe('composeMatrix', () => {
++  it('縮放→旋轉 Y→平移，與 Babylon RotationY 同向（+Z 在 yaw=π/2 轉到 +X）', () => {
++    const m = new Float32Array(32)
++    composeMatrix(m, 16, { x: 1, y: 2, z: 3, sx: 2, sy: 1, sz: 1, yaw: Math.PI / 2 })
++    close(apply(m, 16, [0, 0, 1]), [2, 2, 3])
++    close(apply(m, 16, [1, 0, 0]), [1, 2, 1])
++  })
++  it('pitch 繞 X 先於 yaw', () => {
++    const m = new Float32Array(16)
++    composeMatrix(m, 0, { x: 0, y: 0, z: 0, pitch: Math.PI / 2 })
++    // Babylon RotationX(π/2)：+Y → +Z
++    close(apply(m, 0, [0, 1, 0]), [0, 0, 1])
++  })
++  it('scale 0 可用來藏實例', () => {
++    const m = new Float32Array(16)
++    composeMatrix(m, 0, { x: 5, y: 0, z: 0, sx: 0, sy: 0, sz: 0 })
++    close(apply(m, 0, [1, 1, 1]), [5, 0, 0])
++  })
++})
++
++const tris = (d: MeshData) => {
++  const out: { a: number[]; b: number[]; c: number[]; n: number[] }[] = []
++  const P = (i: number) => [d.positions[i * 3], d.positions[i * 3 + 1], d.positions[i * 3 + 2]]
++  const N = (i: number) => [d.normals[i * 3], d.normals[i * 3 + 1], d.normals[i * 3 + 2]]
++  for (let t = 0; t < d.indices.length; t += 3) {
++    const [i, j, k] = [d.indices[t], d.indices[t + 1], d.indices[t + 2]]
++    const n = N(i).map((v, q) => v + N(j)[q] + N(k)[q])
++    out.push({ a: P(i), b: P(j), c: P(k), n })
++  }
++  return out
++}
++
++describe('roundedBox', () => {
++  const d = roundedBox({ width: 2, height: 1, depth: 1.5, radius: 0.2, segments: 3 })
++  it('頂點全部落在外框內，且外框被撐滿', () => {
++    const xs = d.positions.filter((_, i) => i % 3 === 0)
++    const ys = d.positions.filter((_, i) => i % 3 === 1)
++    const zs = d.positions.filter((_, i) => i % 3 === 2)
++    expect(Math.max(...xs)).toBeCloseTo(1, 5)
++    expect(Math.min(...ys)).toBeCloseTo(-0.5, 5)
++    expect(Math.max(...zs)).toBeCloseTo(0.75, 5)
++  })
++  it('角落被削圓：(±w/2, ±h/2, ±d/2) 的尖角不存在', () => {
++    for (let i = 0; i < d.positions.length; i += 3) {
++      const atCorner =
++        Math.abs(Math.abs(d.positions[i]) - 1) < 1e-6 &&
++        Math.abs(Math.abs(d.positions[i + 1]) - 0.5) < 1e-6 &&
++        Math.abs(Math.abs(d.positions[i + 2]) - 0.75) < 1e-6
++      expect(atCorner).toBe(false)
++    }
++  })
++  it('法線為單位長度，陣列長度一致', () => {
++    expect(d.normals.length).toBe(d.positions.length)
++    expect(d.uvs.length).toBe((d.positions.length / 3) * 2)
++    for (let i = 0; i < d.normals.length; i += 3) {
++      expect(Math.hypot(d.normals[i], d.normals[i + 1], d.normals[i + 2])).toBeCloseTo(1, 5)
++    }
++  })
++  it('三角形繞序與 Babylon CreateBox 相同（cross(b-a,c-a) 與法線反向）', () => {
++    for (const { a, b, c, n } of tris(d)) {
++      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
++      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
++      const cr = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
++      const area = Math.hypot(cr[0], cr[1], cr[2])
++      if (area < 1e-9) continue
++      expect(cr[0] * n[0] + cr[1] * n[1] + cr[2] * n[2]).toBeLessThan(0)
++    }
++  })
++  it('faceUV 把各面 UV 映到指定矩形（頂面 = index 4）', () => {
++    const faceUV: [number, number, number, number][] = Array.from({ length: 6 }, () => [0, 0, 0.5, 1])
++    faceUV[4] = [0.5, 0, 1, 1]
++    const t = roundedBox({ width: 1, height: 1, depth: 1, radius: 0.1, faceUV })
++    let topUs = 0
++    for (let i = 0; i < t.normals.length / 3; i++) {
++      if (t.normals[i * 3 + 1] > 0.999) {
++        expect(t.uvs[i * 2]).toBeGreaterThanOrEqual(0.5 - 1e-6)
++        topUs++
++      }
++    }
++    expect(topUs).toBeGreaterThan(0)
++  })
++})
++
++describe('transformData / mergeData', () => {
++  const tri: MeshData = { positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], normals: [0, 0, 1, 0, 0, 1, 0, 0, 1], uvs: [0, 0, 1, 0, 0, 1], indices: [0, 1, 2] }
++  it('transformData 平移位置、旋轉法線但不平移', () => {
++    const t = transformData(tri, { x: 1, y: 0, z: 0, yaw: Math.PI / 2 })
++    close(t.positions.slice(0, 3), [1, 0, 0])
++    close(t.normals.slice(0, 3), [1, 0, 0])
++  })
++  it('非等比縮放後法線仍為單位長度', () => {
++    const slanted: MeshData = { ...tri, normals: [Math.SQRT1_2, Math.SQRT1_2, 0, 0, 0, 1, 0, 0, 1] }
++    const t = transformData(slanted, { x: 0, y: 0, z: 0, sx: 3, sy: 1, sz: 1 })
++    expect(Math.hypot(t.normals[0], t.normals[1], t.normals[2])).toBeCloseTo(1, 5)
++    expect(t.normals[1]).toBeGreaterThan(t.normals[0]) // x 拉長 → 斜面法線往 y 偏
++  })
++  it('mergeData 串接並位移索引，缺 colors 的部件補白', () => {
++    const m = mergeData([tri, { ...tri, colors: [1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1] }])
++    expect(m.indices).toEqual([0, 1, 2, 3, 4, 5])
++    expect(m.positions.length).toBe(18)
++    expect(m.colors?.slice(0, 4)).toEqual([1, 1, 1, 1])
++    expect(m.colors?.slice(12, 16)).toEqual([1, 0, 0, 1])
++  })
++})
+diff --git a/src/babylon/games/bomberFx/geometry.ts b/src/babylon/games/bomberFx/geometry.ts
+new file mode 100644
+index 0000000..8c6fcc6
+--- /dev/null
++++ b/src/babylon/games/bomberFx/geometry.ts
+@@ -0,0 +1,196 @@
++/**
++ * 程式建模用的純幾何工具（不依賴 Babylon，可在 node 單測）。
++ * 輸出的 MeshData 與 Babylon VertexData 欄位同名，建 mesh 時直接灌進去；
++ * 矩陣一律用 Babylon 的列向量慣例（p' = p·M，平移在 m[12..14]），繞序對齊 CreateBox。
++ */
++
++export interface MeshData {
++  positions: number[]
++  normals: number[]
++  uvs: number[]
++  indices: number[]
++  /** RGBA，每頂點 4 個；沒有就代表白色 */
++  colors?: number[]
++}
++
++export interface Trs {
++  x: number
++  y: number
++  z: number
++  sx?: number
++  sy?: number
++  sz?: number
++  /** 繞 Y（Babylon rotation.y 同向），後於 pitch */
++  yaw?: number
++  /** 繞 X（Babylon rotation.x 同向） */
++  pitch?: number
++}
++
++/** 3×3 的 S·Rx·Ry（列向量），回傳 9 個數：row0, row1, row2 */
++function linear(t: Trs): number[] {
++  const cx = Math.cos(t.pitch ?? 0)
++  const sx = Math.sin(t.pitch ?? 0)
++  const cy = Math.cos(t.yaw ?? 0)
++  const sy = Math.sin(t.yaw ?? 0)
++  const kx = t.sx ?? 1
++  const ky = t.sy ?? 1
++  const kz = t.sz ?? 1
++  return [
++    kx * cy, 0, -kx * sy,
++    ky * sx * sy, ky * cx, ky * sx * cy,
++    kz * cx * sy, -kz * sx, kz * cx * cy,
++  ]
++}
++
++/** 把 TRS 寫成 4×4 矩陣到 out[offset..offset+16) */
++export function composeMatrix(out: Float32Array, offset: number, t: Trs): void {
++  const r = linear(t)
++  out[offset] = r[0]
++  out[offset + 1] = r[1]
++  out[offset + 2] = r[2]
++  out[offset + 3] = 0
++  out[offset + 4] = r[3]
++  out[offset + 5] = r[4]
++  out[offset + 6] = r[5]
++  out[offset + 7] = 0
++  out[offset + 8] = r[6]
++  out[offset + 9] = r[7]
++  out[offset + 10] = r[8]
++  out[offset + 11] = 0
++  out[offset + 12] = t.x
++  out[offset + 13] = t.y
++  out[offset + 14] = t.z
++  out[offset + 15] = 1
++}
++
++/** 對頂點套 TRS；法線走 S⁻¹·R 再正規化（非等比縮放也正確） */
++export function transformData(d: MeshData, t: Trs): MeshData {
++  const r = linear(t)
++  const rr = linear({ ...t, sx: 1, sy: 1, sz: 1 })
++  const inv = [1 / (t.sx || 1e-6), 1 / (t.sy || 1e-6), 1 / (t.sz || 1e-6)]
++  const positions: number[] = new Array(d.positions.length)
++  const normals: number[] = new Array(d.normals.length)
++  for (let i = 0; i < d.positions.length; i += 3) {
++    const [x, y, z] = [d.positions[i], d.positions[i + 1], d.positions[i + 2]]
++    positions[i] = x * r[0] + y * r[3] + z * r[6] + t.x
++    positions[i + 1] = x * r[1] + y * r[4] + z * r[7] + t.y
++    positions[i + 2] = x * r[2] + y * r[5] + z * r[8] + t.z
++    const nx = d.normals[i] * inv[0]
++    const ny = d.normals[i + 1] * inv[1]
++    const nz = d.normals[i + 2] * inv[2]
++    const ox = nx * rr[0] + ny * rr[3] + nz * rr[6]
++    const oy = nx * rr[1] + ny * rr[4] + nz * rr[7]
++    const oz = nx * rr[2] + ny * rr[5] + nz * rr[8]
++    const len = Math.hypot(ox, oy, oz) || 1
++    normals[i] = ox / len
++    normals[i + 1] = oy / len
++    normals[i + 2] = oz / len
++  }
++  return { positions, normals, uvs: d.uvs.slice(), indices: d.indices.slice(), colors: d.colors?.slice() }
++}
++
++/** 逐頂點上色（fn 拿位置與法線，回 RGBA） */
++export function colorize(
++  d: MeshData,
++  fn: (p: [number, number, number], n: [number, number, number]) => readonly [number, number, number, number]
++): MeshData {
++  const colors: number[] = []
++  for (let i = 0; i < d.positions.length; i += 3) {
++    colors.push(
++      ...fn([d.positions[i], d.positions[i + 1], d.positions[i + 2]], [d.normals[i], d.normals[i + 1], d.normals[i + 2]])
++    )
++  }
++  return { ...d, colors }
++}
++
++/** 串接多個部件成一個 mesh（索引位移；有任一部件帶色時，缺色的補白） */
++export function mergeData(parts: MeshData[]): MeshData {
++  const withColors = parts.some((p) => p.colors)
++  const out: MeshData = { positions: [], normals: [], uvs: [], indices: [], colors: withColors ? [] : undefined }
++  for (const p of parts) {
++    const base = out.positions.length / 3
++    const n = p.positions.length / 3
++    out.positions.push(...p.positions)
++    out.normals.push(...p.normals)
++    out.uvs.push(...(p.uvs.length === n * 2 ? p.uvs : new Array(n * 2).fill(0)))
++    for (const i of p.indices) out.indices.push(i + base)
++    if (out.colors) out.colors.push(...(p.colors ?? new Array(n * 4).fill(1)))
++  }
++  return out
++}
++
++export type FaceUV = [number, number, number, number]
++
++export interface RoundedBoxOpts {
++  width: number
++  height: number
++  depth: number
++  radius: number
++  /** 每個圓角的分段數（預設 2） */
++  segments?: number
++  /** 6 面的 UV 矩形 [u0, v0, u1, v1]，面序：+Z, −Z, +X, −X, +Y, −Y */
++  faceUV?: FaceUV[]
++}
++
++type V3 = [number, number, number]
++/** 面序：+Z, −Z, +X, −X, +Y, −Y；U = V × (−N)，從外面看不鏡像，V 在側面朝上 */
++const FACES: { n: V3; u: V3; v: V3 }[] = [
++  { n: [0, 0, 1], u: [-1, 0, 0], v: [0, 1, 0] },
++  { n: [0, 0, -1], u: [1, 0, 0], v: [0, 1, 0] },
++  { n: [1, 0, 0], u: [0, 0, 1], v: [0, 1, 0] },
++  { n: [-1, 0, 0], u: [0, 0, -1], v: [0, 1, 0] },
++  { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, 1] },
++  { n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, -1] },
++]
++
++/** 一軸上的取樣座標：中段兩點 ±(h−r)，圓角區以 tan 等角取樣到 ±h（每面只負責 45°） */
++function axisCoords(h: number, r: number, seg: number): number[] {
++  const inner = h - r
++  const side: number[] = []
++  for (let k = 1; k <= seg; k++) side.push(inner + r * Math.tan(((k / seg) * Math.PI) / 4))
++  return [...side.map((v) => -v).reverse(), -inner, inner, ...side]
++}
++
++/** 圓角盒：每面是一張網格，頂點投影到內框 + 半徑的圓角面上（法線連續，稜角平滑） */
++export function roundedBox(o: RoundedBoxOpts): MeshData {
++  const half: V3 = [o.width / 2, o.height / 2, o.depth / 2]
++  const r = Math.max(0, Math.min(o.radius, ...half))
++  const seg = Math.max(1, o.segments ?? 2)
++  const out: MeshData = { positions: [], normals: [], uvs: [], indices: [] }
++  const absAxis = (a: V3) => (a[0] !== 0 ? 0 : a[1] !== 0 ? 1 : 2)
++
++  FACES.forEach((f, fi) => {
++    const hn = half[absAxis(f.n)]
++    const hu = half[absAxis(f.u)]
++    const hv = half[absAxis(f.v)]
++    const us = axisCoords(hu, r, seg)
++    const vs = axisCoords(hv, r, seg)
++    const [u0, v0, u1, v1] = o.faceUV?.[fi] ?? [0, 0, 1, 1]
++    const base = out.positions.length / 3
++    for (const b of vs) {
++      for (const a of us) {
++        const p: V3 = [0, 1, 2].map((k) => f.n[k] * hn + f.u[k] * a + f.v[k] * b) as V3
++        const inner = p.map((c, k) => Math.max(-(half[k] - r), Math.min(half[k] - r, c))) as V3
++        let d = p.map((c, k) => c - inner[k]) as V3
++        const len = Math.hypot(...d)
++        d = len > 1e-9 ? (d.map((c) => c / len) as V3) : f.n
++        out.positions.push(...inner.map((c, k) => c + d[k] * r))
++        out.normals.push(...d)
++        const uu = (a + hu) / (2 * hu)
++        const vv = (b + hv) / (2 * hv)
++        out.uvs.push(u0 + uu * (u1 - u0), v0 + vv * (v1 - v0))
++      }
++    }
++    const w = us.length
++    for (let j = 0; j < vs.length - 1; j++) {
++      for (let i = 0; i < w - 1; i++) {
++        const a = base + j * w + i
++        const b = a + 1
++        const c = a + w + 1
++        const d = a + w
++        out.indices.push(a, b, c, a, c, d)
++      }
++    }
++  })
++  return out
++}
+diff --git a/src/babylon/games/bomberFx/models.ts b/src/babylon/games/bomberFx/models.ts
+new file mode 100644
+index 0000000..172096f
+--- /dev/null
++++ b/src/babylon/games/bomberFx/models.ts
+@@ -0,0 +1,164 @@
++/**
++ * 炸彈超人 A 方案的程式建模：把圓角盒、球、圓柱組成合併後的單一 mesh（頂點色／圖集 UV），
++ * 每種物件一個 mesh，重複的物件交給 thin instance（見 thin.ts）。
++ */
++import { Mesh, VertexBuilders, VertexData, type Scene } from '@/babylon/babylonCore'
++import { colorize, mergeData, roundedBox, transformData, type MeshData, type Trs } from '@/babylon/games/bomberFx/geometry'
++import { hexToRgb, TOY } from '@/babylon/games/bomberFx/palette'
++import { BLOCK_TILE, boxFaceUV, ITEM_WHITE_CELL, itemCellUV } from '@/babylon/games/bomberFx/textures'
++
++export type Rgba = readonly [number, number, number, number]
++export const rgba = (hex: string, a = 1): Rgba => [...hexToRgb(hex), a] as const
++const lerp = (a: Rgba, b: Rgba, t: number): Rgba => [
++  a[0] + (b[0] - a[0]) * t,
++  a[1] + (b[1] - a[1]) * t,
++  a[2] + (b[2] - a[2]) * t,
++  1,
++]
++
++/** Babylon VertexData → MeshData */
++const fromVD = (vd: VertexData): MeshData => ({
++  positions: Array.from(vd.positions ?? []),
++  normals: Array.from(vd.normals ?? []),
++  uvs: Array.from(vd.uvs ?? []),
++  indices: Array.from(vd.indices ?? []),
++})
++
++export const sphere = (diameter: number, segments = 12): MeshData =>
++  fromVD(VertexBuilders.CreateSphereVertexData({ diameter, segments }))
++
++export const cylinder = (height: number, diameter: number, tessellation = 10): MeshData =>
++  fromVD(VertexBuilders.CreateCylinderVertexData({ height, diameter, tessellation }))
++
++export const solid = (d: MeshData, c: Rgba): MeshData => colorize(d, () => c)
++
++/** 三段徑向漸層（亮 → 本色 → 暗），以法線與高光方向的夾角決定；對應 spec 的 radial gradient */
++export const radial = (d: MeshData, light: string, base: string, dark: string, dir: [number, number, number] = [-0.35, 0.85, -0.4]): MeshData => {
++  const len = Math.hypot(...dir)
++  const [hx, hy, hz] = dir.map((v) => v / len)
++  const L = rgba(light)
++  const B = rgba(base)
++  const D = rgba(dark)
++  return colorize(d, (_p, n) => {
++    const t = (1 - (n[0] * hx + n[1] * hy + n[2] * hz)) / 2 // 0 = 正對高光
++    return t < 0.5 ? lerp(L, B, t / 0.5) : lerp(B, D, (t - 0.5) / 0.5)
++  })
++}
++
++export const at = (d: MeshData, t: Trs): MeshData => transformData(d, t)
++
++/** MeshData → Babylon Mesh（updatable 供 CPU 擺動四肢） */
++export function toMesh(name: string, d: MeshData, scene: Scene, updatable = false): Mesh {
++  const vd = new VertexData()
++  vd.positions = d.positions
++  vd.normals = d.normals
++  vd.uvs = d.uvs
++  vd.indices = d.indices
++  if (d.colors) vd.colors = d.colors
++  const mesh = new Mesh(name, scene)
++  vd.applyToMesh(mesh, updatable)
++  return mesh
++}
++
++// ---- 方塊（圖集貼圖，底面貼地 y=0） ----
++
++/** 柱牆：圓角盒 0.96×1.1×0.96 CELL，淺灰石頂＋磚縫側面 */
++export const pillarData = (cell: number, topTile: number = BLOCK_TILE.pillarTop): MeshData => {
++  const h = cell * 1.1
++  return at(
++    roundedBox({ width: cell * 0.96, height: h, depth: cell * 0.96, radius: cell * 0.09, segments: 2, faceUV: boxFaceUV(BLOCK_TILE.pillarSide, topTile) }),
++    { x: 0, y: h / 2, z: 0 }
++  )
++}
++
++/** 外框牆單位塊（1×1×1，實例用 scale 撐成各段長度） */
++export const borderBlockData = (): MeshData =>
++  at(roundedBox({ width: 1, height: 1, depth: 1, radius: 0.08, segments: 2, faceUV: boxFaceUV(BLOCK_TILE.borderSide, BLOCK_TILE.borderTop) }), { x: 0, y: 0.5, z: 0 })
++
++export type CrateVariant = 'soft' | 'hard' | 'damaged'
++const CRATE_TILES: Record<CrateVariant, [number, number]> = {
++  soft: [BLOCK_TILE.crateSide, BLOCK_TILE.crateTop],
++  hard: [BLOCK_TILE.hardSide, BLOCK_TILE.hardTop],
++  damaged: [BLOCK_TILE.dmgSide, BLOCK_TILE.dmgTop],
++}
++
++/** 木箱三態統一箱形：0.9 CELL 圓角盒，差別只在圖集格 */
++export const crateData = (cell: number, v: CrateVariant): MeshData => {
++  const s = cell * 0.9
++  return at(roundedBox({ width: s, height: s, depth: s, radius: cell * 0.07, segments: 2, faceUV: boxFaceUV(...CRATE_TILES[v]) }), { x: 0, y: s / 2, z: 0 })
++}
++
++// ---- 炸彈（頂點色，中心在原點，半徑 0.55） ----
++
++export const bombData = (flash: boolean): MeshData => {
++  const [c0, c1, c2] = flash ? ['#FF8A80', TOY.bombFlash, '#B3122A'] : TOY.bomb
++  const body = radial(sphere(1.1, 16), c0, c1, c2)
++  const cap = at(solid(cylinder(0.14, 0.28, 12), rgba('#8E9AB0')), { x: 0, y: 0.56, z: 0 })
++  // 引信：沿二次曲線排 4 段小圓柱
++  const fuse: MeshData[] = []
++  const P = (t: number): [number, number] => [0.28 * t * t + 0.02 * t, 0.62 + 0.3 * t - 0.08 * t * t]
++  for (let i = 0; i < 4; i++) {
++    const [x0, y0] = P(i / 4)
++    const [x1, y1] = P((i + 1) / 4)
++    const len = Math.hypot(x1 - x0, y1 - y0)
++    // 圓柱沿 +Y：pitch 把 +Y 往 +Z 倒，再 yaw=π/2 把 +Z 轉到 +X，等於在 XY 平面內往 +X 傾斜
++    const ang = Math.atan2(x1 - x0, y1 - y0)
++    fuse.push(at(solid(cylinder(len + 0.02, 0.07, 6), rgba(TOY.fuse)), { x: (x0 + x1) / 2, y: (y0 + y1) / 2, z: 0, yaw: Math.PI / 2, pitch: ang }))
++  }
++  return mergeData([body, cap, ...fuse])
++}
++
++// ---- 火焰（三層：外、中、芯；底面貼地） ----
++
++export const FLAME_LAYERS = [
++  { w: 0.84, h: 0.5 },
++  { w: 0.56, h: 0.72 },
++  { w: 0.26, h: 0.88 },
++] as const
++
++/** 臂：沿 X 長 1 CELL 的圓角條（實例 yaw 轉到 Z 軸、scale 縮成半格當端頭） */
++export const flameArmData = (cell: number, layer: number): MeshData => {
++  const { w, h } = FLAME_LAYERS[layer]
++  return at(roundedBox({ width: cell, height: h, depth: cell * w, radius: Math.min(h, cell * w) * 0.45, segments: 2 }), { x: 0, y: h / 2, z: 0 })
++}
++
++/** 爆心／端頭帽：壓扁的球殼 */
++export const flameCapData = (cell: number, layer: number): MeshData => {
++  const { w, h } = FLAME_LAYERS[layer]
++  return at(sphere(1, 12), { x: 0, y: h / 2, z: 0, sx: cell * w, sy: h, sz: cell * w })
++}
++
++// ---- 道具代幣：圓角方塊外殼（頂點色）＋下唇＋正面圖示 quad（圖集 UV） ----
++
++export const tokenData = (cell: number, kindIndex: number, shell: string): MeshData => {
++  const s = cell * 0.66
++  const white = itemCellUV(ITEM_WHITE_CELL)
++  const whiteUV = Array.from({ length: 6 }, () => white)
++  const base = rgba(shell)
++  const dark: Rgba = [base[0] * 0.62, base[1] * 0.62, base[2] * 0.62, 1]
++  const shellBox = solid(roundedBox({ width: s, height: 0.2, depth: s, radius: 0.1, segments: 2, faceUV: whiteUV }), base)
++  const lip = at(solid(roundedBox({ width: s * 1.04, height: 0.12, depth: s * 1.04, radius: 0.08, segments: 1, faceUV: whiteUV }), dark), { x: 0, y: -0.1, z: 0 })
++  // 圖示 quad：法線 +Y，u 沿 +X、v 沿 +Z（canvas 上方 = 遠端 = 畫面上方）
++  const q = s * 0.86
++  const [u0, v0, u1, v1] = itemCellUV(kindIndex)
++  const icon: MeshData = {
++    positions: [-q / 2, 0.102, -q / 2, q / 2, 0.102, -q / 2, q / 2, 0.102, q / 2, -q / 2, 0.102, q / 2],
++    normals: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
++    uvs: [u0, v0, u1, v0, u1, v1, u0, v1],
++    // 與 Babylon 繞序一致：cross(b−a, c−a) 與法線反向
++    indices: [0, 1, 2, 0, 2, 3],
++    colors: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
++  }
++  return mergeData([shellBox, lip, icon])
++}
++
++/** 突然死亡預告格：貼地正方形 */
++export const warnQuadData = (cell: number): MeshData => {
++  const q = cell * 0.96
++  return {
++    positions: [-q / 2, 0.03, -q / 2, q / 2, 0.03, -q / 2, q / 2, 0.03, q / 2, -q / 2, 0.03, q / 2],
++    normals: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
++    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
++    indices: [0, 1, 2, 0, 2, 3],
++  }
++}
+diff --git a/src/babylon/games/bomberFx/palette.test.ts b/src/babylon/games/bomberFx/palette.test.ts
+new file mode 100644
+index 0000000..14fae29
+--- /dev/null
++++ b/src/babylon/games/bomberFx/palette.test.ts
+@@ -0,0 +1,53 @@
++import { describe, expect, it } from 'vitest'
++import { PLAYER_PALETTE, colorIndexOf, hexToRgb, invincibleBlinkOn } from '@/babylon/games/bomberFx/palette'
++
++describe('PLAYER_PALETTE', () => {
++  it('依 spec §4 固定 4 色（亮／本色／暗）', () => {
++    expect(PLAYER_PALETTE.map((p) => p.base)).toEqual(['#FF3B4E', '#2F86FF', '#2FCF5E', '#FFC21A'])
++    expect(PLAYER_PALETTE[0]).toEqual({ light: '#FF8A94', base: '#FF3B4E', dark: '#B3122A' })
++    expect(PLAYER_PALETTE[3]).toEqual({ light: '#FFF0A0', base: '#FFC21A', dark: '#C27D00' })
++  })
++})
++
++describe('colorIndexOf', () => {
++  const ents = ['uidA', 'uidB', 'bot-0', 'bot-1']
++  it('依實體序（= SPAWN_CORNERS 出生序）取色，不看 id 內容', () => {
++    expect(ents.map((id) => colorIndexOf(id, ents))).toEqual([0, 1, 2, 3])
++  })
++  it('同一名冊在不同 client 得到同一顏色（與 id hash 無關）', () => {
++    expect(colorIndexOf('uidB', ['uidA', 'uidB'])).toBe(colorIndexOf('uidB', ['uidA', 'uidB', 'bot-0']))
++  })
++  it('找不到的 id 退回 0（與 spawnOf 的 Math.max(0, idx) 一致）', () => {
++    expect(colorIndexOf('ghost', ents)).toBe(0)
++  })
++  it('超過 4 人時環繞', () => {
++    expect(colorIndexOf('e', ['a', 'b', 'c', 'd', 'e'])).toBe(0)
++  })
++})
++
++describe('hexToRgb', () => {
++  it('轉成 0..1 的 RGB', () => {
++    expect(hexToRgb('#FF0080')).toEqual([1, 0, 128 / 255])
++  })
++})
++
++describe('invincibleBlinkOn', () => {
++  it('不在無敵中恆為 false', () => {
++    expect(invincibleBlinkOn(1000, 0)).toBe(false)
++    expect(invincibleBlinkOn(1000, 1000)).toBe(false)
++  })
++  it('剩餘 > 1.5 秒時 8Hz：每 62.5ms 切換一次', () => {
++    const until = 10000
++    const t0 = until - 5000 + 20 // 取半週期中段，避開切換邊界
++    const a = invincibleBlinkOn(t0, until)
++    expect(invincibleBlinkOn(t0 + 62.5, until)).toBe(!a)
++    expect(invincibleBlinkOn(t0 + 125, until)).toBe(a)
++  })
++  it('最後 1.5 秒改 16Hz：每 31.25ms 切換一次', () => {
++    const until = 10000
++    const t0 = until - 1000 + 10
++    const a = invincibleBlinkOn(t0, until)
++    expect(invincibleBlinkOn(t0 + 31.25, until)).toBe(!a)
++    expect(invincibleBlinkOn(t0 + 62.5, until)).toBe(a)
++  })
++})
+diff --git a/src/babylon/games/bomberFx/palette.ts b/src/babylon/games/bomberFx/palette.ts
+new file mode 100644
+index 0000000..0a49d3f
+--- /dev/null
++++ b/src/babylon/games/bomberFx/palette.ts
+@@ -0,0 +1,85 @@
++/**
++ * 炸彈超人 A「Toy Box」配色（spec §4／§5）：純資料與純函式，不依賴 Babylon，可在 node 單測。
++ */
++
++export type ColorIndex = 0 | 1 | 2 | 3
++
++export interface PlayerPalette {
++  light: string
++  base: string
++  dark: string
++}
++
++/** 固定 4 色，依出生序（= SPAWN_CORNERS 順序）分配；P 編號 = index + 1 */
++export const PLAYER_PALETTE: readonly PlayerPalette[] = [
++  { light: '#FF8A94', base: '#FF3B4E', dark: '#B3122A' }, // P1 紅
++  { light: '#8CC4FF', base: '#2F86FF', dark: '#1446B8' }, // P2 藍
++  { light: '#93F0A8', base: '#2FCF5E', dark: '#138A3A' }, // P3 綠
++  { light: '#FFF0A0', base: '#FFC21A', dark: '#C27D00' }, // P4 黃
++]
++
++/** 場景物件色票（spec §5） */
++export const TOY = {
++  outline: '#2B2440',
++  face: '#FFF1E0',
++  eye: '#2B2440',
++  aiAntenna: '#39E6FF',
++  invincible: '#FFCF3F',
++  groundA: '#79C257',
++  groundB: '#6CB44C',
++  grassTuft: '#58A03C',
++  pillarTop: ['#E3E6EF', '#C4C8D6'],
++  pillarSide: ['#9BA1B8', '#767C95'],
++  pillarJoint: '#5D627A',
++  borderTop: '#B3A4C9',
++  borderSide: '#6F6490',
++  moss: '#7FB85A',
++  crateTop: '#F7C677',
++  crateSide: '#DC9A48',
++  crateBrace: '#8F561D',
++  hardWood: '#D99A5A',
++  hardIron: ['#8E9AB0', '#C3CBD8'],
++  hardRivet: '#FFE38A',
++  damagedWood: '#B98450',
++  suddenTop: '#FF5A4E',
++  suddenWarn: '#FF3B30',
++  bomb: ['#6B7089', '#2A2D3D', '#15161F'],
++  bombFlash: '#FF3B30',
++  fuse: '#D9A066',
++  flame: ['#FF7A1A', '#FFC53A', '#FFF6C8'], // 外、中、芯
++} as const
++
++/** 道具代幣底色（spec §5 道具列），圖示白色；速度、無敵用深色圖示 */
++export const ITEM_COLORS = {
++  bomb: '#4AA3FF',
++  fire: '#FF6B3D',
++  speed: '#FFD23F',
++  kick: '#B07CFF',
++  throw: '#3FD0A0',
++  invincible: '#FFCF3F',
++} as const
++export const ITEM_ICON_DARK = '#3A2A00'
++
++/** 依實體序取色：entityIds 為「真人在前、bot 在後」的合併名冊，與 spawnOf 用同一個順序，
++ *  所以同一位玩家在每個 client 上顏色一致。找不到回 0（對齊 spawnOf 的 Math.max(0, idx)）。 */
++export function colorIndexOf(id: string, entityIds: readonly string[]): ColorIndex {
++  const idx = Math.max(0, entityIds.indexOf(id))
++  return (idx % PLAYER_PALETTE.length) as ColorIndex
++}
++
++export function hexToRgb(hex: string): [number, number, number] {
++  const n = parseInt(hex.slice(1), 16)
++  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
++}
++
++export const INVINCIBLE_BLINK_HZ = 8
++export const INVINCIBLE_FAST_HZ = 16
++export const INVINCIBLE_FAST_MS = 1500
++
++/** 無敵金圈閃爍（方波）：剩 > 1.5 秒 8Hz，最後 1.5 秒 16Hz；以剩餘時間算相位，各端一致 */
++export function invincibleBlinkOn(now: number, until: number): boolean {
++  const left = until - now
++  if (left <= 0) return false
++  const hz = left > INVINCIBLE_FAST_MS ? INVINCIBLE_BLINK_HZ : INVINCIBLE_FAST_HZ
++  return Math.floor((left / 1000) * hz * 2) % 2 === 0
++}
+diff --git a/src/babylon/games/bomberFx/rig.test.ts b/src/babylon/games/bomberFx/rig.test.ts
+new file mode 100644
+index 0000000..6b711e7
+--- /dev/null
++++ b/src/babylon/games/bomberFx/rig.test.ts
+@@ -0,0 +1,28 @@
++import { describe, expect, it } from 'vitest'
++import { swingRange } from '@/babylon/games/bomberFx/rig'
++
++describe('swingRange', () => {
++  it('繞 X 軸以樞紐 (y,z) 旋轉指定範圍的頂點，範圍外不動', () => {
++    // 兩個頂點：第 0 個在樞紐正下方 1 單位，第 1 個不在範圍
++    const base = new Float32Array([0, -1, 0, 9, 9, 9])
++    const out = new Float32Array(base)
++    swingRange(base, out, 0, 1, { y: 0, z: 0 }, Math.PI / 2)
++    // Babylon RotationX(θ)：y' = y·c − z·s、z' = y·s + z·c
++    expect(out[1]).toBeCloseTo(0, 5)
++    expect(out[2]).toBeCloseTo(-1, 5)
++    expect(Array.from(out.slice(3))).toEqual([9, 9, 9])
++  })
++  it('pivot 為 null 時只旋轉（法線用），不帶平移', () => {
++    const base = new Float32Array([0, 0, 1])
++    const out = new Float32Array(3)
++    swingRange(base, out, 0, 1, null, Math.PI / 2)
++    expect(out[1]).toBeCloseTo(-1, 5)
++    expect(out[2]).toBeCloseTo(0, 5)
++  })
++  it('樞紐位移不影響距離', () => {
++    const base = new Float32Array([0, 0.25, 0])
++    const out = new Float32Array(3)
++    swingRange(base, out, 0, 1, { y: 0.5, z: 0 }, 0.7)
++    expect(Math.hypot(out[1] - 0.5, out[2])).toBeCloseTo(0.25, 5)
++  })
++})
+diff --git a/src/babylon/games/bomberFx/rig.ts b/src/babylon/games/bomberFx/rig.ts
+new file mode 100644
+index 0000000..092fe9e
+--- /dev/null
++++ b/src/babylon/games/bomberFx/rig.ts
+@@ -0,0 +1,25 @@
++/**
++ * 單一 mesh 角色的四肢擺動（純函式）：把 base 頂點中 [start, start+count) 繞 X 軸、以 (y,z) 樞紐旋轉寫進 out。
++ * 旋轉方向對齊 Babylon RotationX：y' = y·c − z·s、z' = y·s + z·c。pivot 傳 null 代表法線（只轉不移）。
++ */
++export function swingRange(
++  base: ArrayLike<number>,
++  out: Float32Array,
++  start: number,
++  count: number,
++  pivot: { y: number; z: number } | null,
++  angle: number
++): void {
++  const c = Math.cos(angle)
++  const s = Math.sin(angle)
++  const py = pivot?.y ?? 0
++  const pz = pivot?.z ?? 0
++  for (let v = start; v < start + count; v++) {
++    const o = v * 3
++    const y = base[o + 1] - py
++    const z = base[o + 2] - pz
++    out[o] = base[o]
++    out[o + 1] = y * c - z * s + py
++    out[o + 2] = y * s + z * c + pz
++  }
++}
+diff --git a/src/babylon/games/bomberFx/suddenDeath.test.ts b/src/babylon/games/bomberFx/suddenDeath.test.ts
+new file mode 100644
+index 0000000..3dbaedc
+--- /dev/null
++++ b/src/babylon/games/bomberFx/suddenDeath.test.ts
+@@ -0,0 +1,32 @@
++import { describe, expect, it } from 'vitest'
++import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
++
++describe('nextCloseCell', () => {
++  const spiral: [number, number][] = [[0, 0], [1, 0], [2, 0]]
++  it('從指定 index 往後找第一個尚非牆的格', () => {
++    const walls = new Set(['1,0'])
++    expect(nextCloseCell(spiral, (x, y) => walls.has(`${x},${y}`), 1)).toEqual({ index: 2, cx: 2, cy: 0 })
++  })
++  it('走完回 null', () => {
++    expect(nextCloseCell(spiral, () => true, 0)).toBeNull()
++    expect(nextCloseCell(spiral, () => false, 3)).toBeNull()
++  })
++})
++
++describe('closeWarningActive', () => {
++  const o = { suddenMs: 40000, intervalMs: 650, leadMs: 400 }
++  it('未開局（playingSince=0）不預告', () => {
++    expect(closeWarningActive({ ...o, now: 50000, playingSince: 0, lastClose: 0 })).toBe(false)
++  })
++  it('第一面牆：playingSince+40s 前 400ms 內預告', () => {
++    expect(closeWarningActive({ ...o, now: 1000 + 40000 - 401, playingSince: 1000, lastClose: 0 })).toBe(false)
++    expect(closeWarningActive({ ...o, now: 1000 + 40000 - 399, playingSince: 1000, lastClose: 0 })).toBe(true)
++  })
++  it('之後每面牆：lastClose+650 前 400ms 內預告', () => {
++    expect(closeWarningActive({ ...o, now: 60000 + 200, playingSince: 1000, lastClose: 60000 })).toBe(false)
++    expect(closeWarningActive({ ...o, now: 60000 + 300, playingSince: 1000, lastClose: 60000 })).toBe(true)
++  })
++  it('過了預定時間仍未落（網路延遲）持續預告，直到落牆更新 lastClose', () => {
++    expect(closeWarningActive({ ...o, now: 60000 + 900, playingSince: 1000, lastClose: 60000 })).toBe(true)
++  })
++})
+diff --git a/src/babylon/games/bomberFx/suddenDeath.ts b/src/babylon/games/bomberFx/suddenDeath.ts
+new file mode 100644
+index 0000000..2ebc43b
+--- /dev/null
++++ b/src/babylon/games/bomberFx/suddenDeath.ts
+@@ -0,0 +1,29 @@
++/** 突然死亡落牆預告（純函式）：落牆前 leadMs 在地上畫紅色預告格 */
++
++/** 從 fromIndex 起沿螺旋找第一個尚非牆的格 */
++export function nextCloseCell(
++  spiral: ReadonlyArray<readonly [number, number]>,
++  isWall: (cx: number, cy: number) => boolean,
++  fromIndex: number
++): { index: number; cx: number; cy: number } | null {
++  for (let i = Math.max(0, fromIndex); i < spiral.length; i++) {
++    const [cx, cy] = spiral[i]
++    if (!isWall(cx, cy)) return { index: i, cx, cy }
++  }
++  return null
++}
++
++/** 下一面牆預定落下前 leadMs 起（含延遲未到的時段）為 true。
++ *  預定時刻與 host tickSuddenDeath 相同：首面 = playingSince + suddenMs，之後 = lastClose + intervalMs。 */
++export function closeWarningActive(o: {
++  now: number
++  playingSince: number
++  lastClose: number
++  suddenMs: number
++  intervalMs: number
++  leadMs: number
++}): boolean {
++  if (o.playingSince === 0) return false
++  const nextAt = o.lastClose !== 0 ? o.lastClose + o.intervalMs : o.playingSince + o.suddenMs
++  return o.now >= nextAt - o.leadMs
++}
+diff --git a/src/babylon/games/bomberFx/textures.ts b/src/babylon/games/bomberFx/textures.ts
+new file mode 100644
+index 0000000..dc9ca63
+--- /dev/null
++++ b/src/babylon/games/bomberFx/textures.ts
+@@ -0,0 +1,371 @@
++/**
++ * 炸彈超人 A 方案的程式貼圖（DynamicTexture + Canvas 2D，不載入外部圖檔）。
++ * 地面棋盤、方塊圖集（柱牆／外框／落牆／木箱三態）、道具圖集、「你」與 AI 標籤。
++ */
++import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
++import { ITEM_COLORS, ITEM_ICON_DARK, TOY } from '@/babylon/games/bomberFx/palette'
++import type { FaceUV } from '@/babylon/games/bomberFx/geometry'
++
++type Ctx = CanvasRenderingContext2D
++
++const ctxOf = (tex: DynamicTexture): Ctx => tex.getContext() as unknown as Ctx
++
++const roundRect = (g: Ctx, x: number, y: number, w: number, h: number, r: number): void => {
++  g.beginPath()
++  g.moveTo(x + r, y)
++  g.arcTo(x + w, y, x + w, y + h, r)
++  g.arcTo(x + w, y + h, x, y + h, r)
++  g.arcTo(x, y + h, x, y, r)
++  g.arcTo(x, y, x + w, y, r)
++  g.closePath()
++}
++
++/** 決定性小亂數（貼圖點綴用，各端一致） */
++const rand = (seed: number): (() => number) => {
++  let s = seed >>> 0
++  return () => {
++    s = (Math.imul(s ^ (s >>> 15), 0x2c1b3c6d) + 0x9e3779b9) >>> 0
++    return s / 0x100000000
++  }
++}
++
++/** 地面棋盤：每格 PX 像素、NEAREST 取樣；A/B 交錯、格頂緣白色 13% 亮邊、草叢點綴。
++ *  canvas 上方 = 世界 +Z（CreateGround 的 v=1 在 +Z），所以 cy 由下往上畫。 */
++export function createGroundTexture(scene: Scene, gridW: number, gridH: number): DynamicTexture {
++  const PX = 32
++  const tex = new DynamicTexture('bomber-ground-tex', { width: gridW * PX, height: gridH * PX }, scene, false, Texture.NEAREST_SAMPLINGMODE)
++  const g = ctxOf(tex)
++  const rnd = rand(0xb0b)
++  for (let cy = 0; cy < gridH; cy++) {
++    for (let cx = 0; cx < gridW; cx++) {
++      const x = cx * PX
++      const y = (gridH - 1 - cy) * PX
++      g.fillStyle = (cx + cy) % 2 === 0 ? TOY.groundA : TOY.groundB
++      g.fillRect(x, y, PX, PX)
++      g.fillStyle = 'rgba(255,255,255,0.13)'
++      g.fillRect(x, y, PX, Math.max(1, Math.round(PX * 0.06)))
++      // 草叢：約三成的格子點 2–3 顆
++      if (rnd() < 0.32) {
++        g.fillStyle = TOY.grassTuft
++        const n = 2 + Math.floor(rnd() * 2)
++        const bx = x + 6 + Math.floor(rnd() * (PX - 14))
++        const by = y + 8 + Math.floor(rnd() * (PX - 14))
++        for (let i = 0; i < n; i++) g.fillRect(bx + i * 3, by + (i % 2) * 2, 2, 2)
++      }
++    }
++  }
++  tex.update()
++  tex.wrapU = Texture.CLAMP_ADDRESSMODE
++  tex.wrapV = Texture.CLAMP_ADDRESSMODE
++  return tex
++}
++
++/** 方塊圖集 4×4 格（每格 128px）：索引見 BLOCK_TILE */
++export const BLOCK_TILE = {
++  pillarSide: 0,
++  pillarTop: 1,
++  borderSide: 2,
++  borderTop: 3,
++  suddenTop: 4,
++  crateSide: 5,
++  crateTop: 6,
++  hardSide: 7,
++  hardTop: 8,
++  dmgSide: 9,
++  dmgTop: 10,
++  plain: 11,
++} as const
++const ATLAS_N = 4
++const TILE = 128
++
++/** 圖集第 i 格的 UV 矩形（內縮 1.5px 避免取樣滲色）；canvas 上方為 v=1 */
++export function blockTileUV(i: number): FaceUV {
++  const col = i % ATLAS_N
++  const row = Math.floor(i / ATLAS_N)
++  const size = ATLAS_N * TILE
++  const pad = 1.5 / size
++  return [col / ATLAS_N + pad, 1 - (row + 1) / ATLAS_N + pad, (col + 1) / ATLAS_N - pad, 1 - row / ATLAS_N - pad]
++}
++
++/** 圓角盒 faceUV：側面四面同一格、頂面一格、底面用 plain */
++export function boxFaceUV(side: number, top: number): FaceUV[] {
++  const s = blockTileUV(side)
++  return [s, s, s, s, blockTileUV(top), blockTileUV(BLOCK_TILE.plain)]
++}
++
++const vGrad = (g: Ctx, x: number, y: number, h: number, c0: string, c1: string): CanvasGradient => {
++  const gr = g.createLinearGradient(x, y, x, y + h)
++  gr.addColorStop(0, c0)
++  gr.addColorStop(1, c1)
++  return gr
++}
++
++function paintStoneSide(g: Ctx, x: number, y: number, top: string, bottom: string, joint: string, moss?: string): void {
++  g.fillStyle = vGrad(g, x, y, TILE, top, bottom)
++  g.fillRect(x, y, TILE, TILE)
++  g.strokeStyle = joint
++  g.lineWidth = 4
++  g.lineCap = 'round'
++  // 磚縫：兩道橫縫 + 錯開的豎縫
++  for (const [yy, xs] of [[0.42, [0.3, 0.72]], [0.72, [0.16, 0.54, 0.86]]] as const) {
++    g.beginPath()
++    g.moveTo(x + 14, y + TILE * yy)
++    g.lineTo(x + TILE - 14, y + TILE * yy)
++    g.stroke()
++    for (const xx of xs) {
++      g.beginPath()
++      g.moveTo(x + TILE * xx, y + TILE * yy + 4)
++      g.lineTo(x + TILE * xx, y + TILE * yy + 22)
++      g.stroke()
++    }
++  }
++  if (moss) {
++    g.fillStyle = moss
++    g.beginPath()
++    g.ellipse(x + TILE * 0.3, y + 10, 16, 7, 0, 0, Math.PI * 2)
++    g.ellipse(x + TILE * 0.78, y + 8, 10, 5, 0, 0, Math.PI * 2)
++    g.fill()
++  }
++}
++
++function paintStoneTop(g: Ctx, x: number, y: number, c0: string, c1: string, moss?: string): void {
++  g.fillStyle = vGrad(g, x, y, TILE, c0, c1)
++  g.fillRect(x, y, TILE, TILE)
++  g.fillStyle = 'rgba(255,255,255,0.35)'
++  roundRect(g, x + 14, y + 12, TILE - 28, 10, 5)
++  g.fill()
++  if (moss) {
++    g.fillStyle = moss
++    g.beginPath()
++    g.ellipse(x + TILE * 0.5, y + TILE * 0.18, 12, 6, 0, 0, Math.PI * 2)
++    g.fill()
++  }
++}
++
++function paintCrateSide(g: Ctx, x: number, y: number, wood: string, brace: string): void {
++  g.fillStyle = wood
++  g.fillRect(x, y, TILE, TILE)
++  g.strokeStyle = brace
++  g.lineWidth = 10
++  g.strokeRect(x + 5, y + 5, TILE - 10, TILE - 10)
++  g.lineWidth = 9
++  g.beginPath()
++  g.moveTo(x + 12, y + 12)
++  g.lineTo(x + TILE - 12, y + TILE - 12)
++  g.moveTo(x + TILE - 12, y + 12)
++  g.lineTo(x + 12, y + TILE - 12)
++  g.stroke()
++}
++
++function paintCrateTop(g: Ctx, x: number, y: number, wood: string, line: string): void {
++  g.fillStyle = wood
++  g.fillRect(x, y, TILE, TILE)
++  g.strokeStyle = line
++  g.lineWidth = 8
++  g.strokeRect(x + 4, y + 4, TILE - 8, TILE - 8)
++  g.lineWidth = 4
++  for (const yy of [0.37, 0.63]) {
++    g.beginPath()
++    g.moveTo(x + 12, y + TILE * yy)
++    g.lineTo(x + TILE - 12, y + TILE * yy)
++    g.stroke()
++  }
++}
++
++/** 硬磚：木板 + 四角鐵角 + 中央鐵箍與金色鉚釘；broken 時鐵箍中央斷開並疊裂痕 */
++function paintHard(g: Ctx, x: number, y: number, wood: string, top: boolean, broken: boolean): void {
++  g.fillStyle = wood
++  g.fillRect(x, y, TILE, TILE)
++  g.strokeStyle = 'rgba(90,50,20,0.55)'
++  g.lineWidth = 4
++  for (const yy of [0.3, 0.7]) {
++    g.beginPath()
++    g.moveTo(x + 8, y + TILE * yy)
++    g.lineTo(x + TILE - 8, y + TILE * yy)
++    g.stroke()
++  }
++  const [iron, ironHi] = TOY.hardIron
++  if (!top) {
++    // 鐵箍
++    const by = y + TILE * 0.42
++    g.fillStyle = iron
++    if (broken) {
++      g.fillRect(x, by, TILE * 0.4, 20)
++      g.fillRect(x + TILE * 0.6, by, TILE * 0.4, 20)
++    } else {
++      g.fillRect(x, by, TILE, 20)
++    }
++    g.fillStyle = ironHi
++    g.fillRect(x, by, broken ? TILE * 0.4 : TILE, 5)
++    if (broken) g.fillRect(x + TILE * 0.6, by, TILE * 0.4, 5)
++    g.fillStyle = TOY.hardRivet
++    for (const xx of broken ? [0.2, 0.8] : [0.3, 0.7]) {
++      g.beginPath()
++      g.arc(x + TILE * xx, by + 10, 5, 0, Math.PI * 2)
++      g.fill()
++    }
++  }
++  // 四角鐵角
++  for (const [ax, ay] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
++    const cx = x + (ax ? TILE - 30 : 0)
++    const cy = y + (ay ? TILE - 30 : 0)
++    g.fillStyle = iron
++    roundRect(g, cx, cy, 30, 30, 8)
++    g.fill()
++    g.fillStyle = ironHi
++    roundRect(g, cx + 5, cy + 5, 20, 8, 4)
++    g.fill()
++  }
++  if (broken) {
++    g.strokeStyle = TOY.outline
++    g.lineWidth = 5
++    g.lineJoin = 'round'
++    g.beginPath()
++    g.moveTo(x + TILE * 0.55, y + 10)
++    g.lineTo(x + TILE * 0.42, y + TILE * 0.35)
++    g.lineTo(x + TILE * 0.6, y + TILE * 0.55)
++    g.lineTo(x + TILE * 0.45, y + TILE * 0.9)
++    g.stroke()
++  }
++}
++
++/** 方塊圖集：柱牆、外框牆、落牆紅頂、木箱／硬磚／受損硬磚 */
++export function createBlockAtlas(scene: Scene): DynamicTexture {
++  const size = ATLAS_N * TILE
++  const tex = new DynamicTexture('bomber-block-atlas', { width: size, height: size }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  const g = ctxOf(tex)
++  const at = (i: number): [number, number] => [(i % ATLAS_N) * TILE, Math.floor(i / ATLAS_N) * TILE]
++
++  paintStoneSide(g, ...at(BLOCK_TILE.pillarSide), TOY.pillarSide[0], TOY.pillarSide[1], TOY.pillarJoint)
++  paintStoneTop(g, ...at(BLOCK_TILE.pillarTop), TOY.pillarTop[0], TOY.pillarTop[1])
++  paintStoneSide(g, ...at(BLOCK_TILE.borderSide), TOY.borderTop, TOY.borderSide, '#554a78', TOY.moss)
++  paintStoneTop(g, ...at(BLOCK_TILE.borderTop), TOY.borderTop, '#9d8db8', TOY.moss)
++  paintStoneTop(g, ...at(BLOCK_TILE.suddenTop), TOY.suddenTop, '#d8382e')
++  paintCrateSide(g, ...at(BLOCK_TILE.crateSide), TOY.crateSide, TOY.crateBrace)
++  paintCrateTop(g, ...at(BLOCK_TILE.crateTop), TOY.crateTop, '#d49a4a')
++  paintHard(g, ...at(BLOCK_TILE.hardSide), TOY.hardWood, false, false)
++  paintHard(g, ...at(BLOCK_TILE.hardTop), TOY.hardWood, true, false)
++  paintHard(g, ...at(BLOCK_TILE.dmgSide), TOY.damagedWood, false, true)
++  paintHard(g, ...at(BLOCK_TILE.dmgTop), TOY.damagedWood, true, true)
++  const [px, py] = at(BLOCK_TILE.plain)
++  g.fillStyle = '#5a4a3a'
++  g.fillRect(px, py, TILE, TILE)
++  tex.update()
++  return tex
++}
++
++/** 道具圖集：8 格橫排，0–5 依 ITEM_ORDER 畫底色＋圖示，6 為純白（代幣外殼取色用） */
++export const ITEM_ORDER = ['bomb', 'fire', 'speed', 'kick', 'throw', 'invincible'] as const
++export const ITEM_WHITE_CELL = 6
++const ITEM_CELLS = 8
++
++export function itemCellUV(i: number): FaceUV {
++  const pad = 1.5 / (ITEM_CELLS * TILE)
++  return [i / ITEM_CELLS + pad, 0.02, (i + 1) / ITEM_CELLS - pad, 0.98]
++}
++
++function paintIcon(g: Ctx, kind: (typeof ITEM_ORDER)[number], x: number, y: number): void {
++  const c = (kind === 'speed' || kind === 'invincible') ? ITEM_ICON_DARK : '#FFFFFF'
++  g.fillStyle = c
++  g.strokeStyle = c
++  g.lineWidth = 10
++  g.lineCap = 'round'
++  g.lineJoin = 'round'
++  const m = TILE / 2
++  if (kind === 'bomb') {
++    g.beginPath()
++    g.arc(x + m - 6, y + m + 8, 30, 0, Math.PI * 2)
++    g.stroke()
++    g.beginPath()
++    g.moveTo(x + m + 16, y + m - 14)
++    g.quadraticCurveTo(x + m + 30, y + m - 36, x + m + 40, y + m - 30)
++    g.stroke()
++  } else if (kind === 'fire') {
++    g.beginPath()
++    g.moveTo(x + m, y + 22)
++    g.bezierCurveTo(x + m + 40, y + 56, x + m + 34, y + 104, x + m, y + 106)
++    g.bezierCurveTo(x + m - 34, y + 104, x + m - 40, y + 64, x + m - 12, y + 44)
++    g.bezierCurveTo(x + m - 8, y + 60, x + m + 4, y + 62, x + m, y + 22)
++    g.fill()
++  } else if (kind === 'speed') {
++    g.beginPath()
++    g.moveTo(x + m + 12, y + 18)
++    g.lineTo(x + m - 26, y + 70)
++    g.lineTo(x + m - 2, y + 70)
++    g.lineTo(x + m - 12, y + 110)
++    g.lineTo(x + m + 26, y + 56)
++    g.lineTo(x + m + 2, y + 56)
++    g.closePath()
++    g.fill()
++  } else if (kind === 'kick') {
++    for (const [ox, oy] of [[-18, -6], [18, 10]]) {
++      g.beginPath()
++      g.ellipse(x + m + ox, y + m + oy - 8, 12, 22, 0, 0, Math.PI * 2)
++      g.fill()
++      g.beginPath()
++      g.ellipse(x + m + ox, y + m + oy + 26, 9, 8, 0, 0, Math.PI * 2)
++      g.fill()
++    }
++  } else if (kind === 'throw') {
++    roundRect(g, x + m - 28, y + m - 6, 56, 44, 16)
++    g.fill()
++    for (let i = 0; i < 4; i++) {
++      roundRect(g, x + m - 28 + i * 15, y + m - 34, 12, 36, 6)
++      g.fill()
++    }
++    roundRect(g, x + m - 44, y + m + 2, 20, 12, 6)
++    g.fill()
++  } else {
++    g.beginPath()
++    g.moveTo(x + m, y + 20)
++    g.lineTo(x + m + 36, y + 34)
++    g.quadraticCurveTo(x + m + 36, y + 90, x + m, y + 108)
++    g.quadraticCurveTo(x + m - 36, y + 90, x + m - 36, y + 34)
++    g.closePath()
++    g.stroke()
++  }
++}
++
++export function createItemAtlas(scene: Scene): DynamicTexture {
++  const tex = new DynamicTexture('bomber-item-atlas', { width: ITEM_CELLS * TILE, height: TILE }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  const g = ctxOf(tex)
++  ITEM_ORDER.forEach((kind, i) => {
++    const x = i * TILE
++    g.fillStyle = ITEM_COLORS[kind]
++    g.fillRect(x, 0, TILE, TILE)
++    // C 式鏡面高光（左上白色硬點）
++    g.fillStyle = 'rgba(255,255,255,0.55)'
++    g.beginPath()
++    g.ellipse(x + 30, 22, 16, 8, -0.4, 0, Math.PI * 2)
++    g.fill()
++    paintIcon(g, kind, x, 0)
++  })
++  g.fillStyle = '#FFFFFF'
++  g.fillRect(ITEM_WHITE_CELL * TILE, 0, TILE, TILE)
++  tex.update()
++  return tex
++}
++
++/** 膠囊標籤（「你」／AI 小章）：透明底、本色膠囊、深紫描邊、白字 */
++export function createLabelTexture(scene: Scene, name: string, text: string, bg: string, w = 128, h = 64): DynamicTexture {
++  const tex = new DynamicTexture(name, { width: w, height: h }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = true
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, w, h)
++  roundRect(g, 4, 4, w - 8, h - 8, (h - 8) / 2)
++  g.fillStyle = bg
++  g.fill()
++  g.lineWidth = 5
++  g.strokeStyle = TOY.outline
++  g.stroke()
++  g.fillStyle = '#FFFFFF'
++  g.font = `900 ${Math.round(h * 0.56)}px Fredoka, "Noto Sans TC", sans-serif`
++  g.textAlign = 'center'
++  g.textBaseline = 'middle'
++  g.lineWidth = 6
++  g.strokeStyle = TOY.outline
++  g.strokeText(text, w / 2, h / 2 + 2)
++  g.fillText(text, w / 2, h / 2 + 2)
++  tex.update()
++  return tex
++}
+diff --git a/src/babylon/games/bomberFx/thin.ts b/src/babylon/games/bomberFx/thin.ts
+new file mode 100644
+index 0000000..b1ee444
+--- /dev/null
++++ b/src/babylon/games/bomberFx/thin.ts
+@@ -0,0 +1,68 @@
++/**
++ * thin instance 群組：一個 mesh 畫同形狀的所有實例（1 個 draw call）。
++ * slot 管理在 ThinSlots（純邏輯），這裡只負責把 buffer 同步給 Babylon。
++ */
++import type { Mesh } from '@/babylon/babylonCore'
++import { composeMatrix, type Trs } from '@/babylon/games/bomberFx/geometry'
++import { ThinSlots } from '@/babylon/games/bomberFx/thinSlots'
++
++export class ThinGroup<K> {
++  readonly mesh: Mesh
++  readonly slots: ThinSlots<K>
++  private version: number
++
++  constructor(mesh: Mesh, capacity: number) {
++    this.mesh = mesh
++    this.slots = new ThinSlots<K>(capacity)
++    this.version = this.slots.bufferVersion
++    // 實例散在整張地圖、數量常變，不做 culling（省得每次重算 bounding）
++    mesh.alwaysSelectAsActiveMesh = true
++    mesh.thinInstanceSetBuffer('matrix', this.slots.buffer, 16, false)
++    mesh.thinInstanceCount = 0
++    mesh.isVisible = false
++  }
++
++  get count(): number {
++    return this.slots.count
++  }
++
++  has(key: K): boolean {
++    return this.slots.has(key)
++  }
++
++  keys(): K[] {
++    return this.slots.keys()
++  }
++
++  /** 新增或更新一個實例的 TRS */
++  put(key: K, t: Trs): void {
++    this.slots.add(key)
++    this.slots.write(key, (buf, o) => composeMatrix(buf, o, t))
++  }
++
++  remove(key: K): void {
++    this.slots.remove(key)
++  }
++
++  clear(): void {
++    this.slots.clear()
++  }
++
++  /** 每幀呼叫一次：有變動才上傳；buffer 擴充過就重新綁定 */
++  sync(): void {
++    if (!this.slots.dirty) return
++    if (this.version !== this.slots.bufferVersion) {
++      this.mesh.thinInstanceSetBuffer('matrix', this.slots.buffer, 16, false)
++      this.version = this.slots.bufferVersion
++    } else {
++      this.mesh.thinInstanceBufferUpdated('matrix')
++    }
++    this.mesh.thinInstanceCount = this.slots.count
++    this.mesh.isVisible = this.slots.count > 0
++    this.slots.dirty = false
++  }
++
++  dispose(): void {
++    this.mesh.dispose()
++  }
++}
+diff --git a/src/babylon/games/bomberFx/thinSlots.test.ts b/src/babylon/games/bomberFx/thinSlots.test.ts
+new file mode 100644
+index 0000000..575f34b
+--- /dev/null
++++ b/src/babylon/games/bomberFx/thinSlots.test.ts
+@@ -0,0 +1,60 @@
++import { describe, expect, it } from 'vitest'
++import { ThinSlots } from '@/babylon/games/bomberFx/thinSlots'
++
++const fill = (s: ThinSlots<number>, k: number, v: number) => s.write(k, (buf, o) => buf.fill(v, o, o + 16))
++
++describe('ThinSlots', () => {
++  it('add 依序配 slot、count 累加', () => {
++    const s = new ThinSlots<number>(4)
++    s.add(10)
++    s.add(20)
++    expect(s.count).toBe(2)
++    expect(s.slotOf(20)).toBe(1)
++    expect(s.has(10)).toBe(true)
++  })
++  it('remove 把最後一筆搬進空位（swap-remove），matrix 內容跟著搬', () => {
++    const s = new ThinSlots<number>(4)
++    for (const k of [1, 2, 3]) {
++      s.add(k)
++      fill(s, k, k)
++    }
++    s.remove(1)
++    expect(s.count).toBe(2)
++    expect(s.slotOf(3)).toBe(0)
++    expect(s.buffer[0]).toBe(3)
++    expect(s.slotOf(2)).toBe(1)
++    expect(s.has(1)).toBe(false)
++  })
++  it('remove 不存在的 key 不動', () => {
++    const s = new ThinSlots<number>(2)
++    s.add(1)
++    s.remove(9)
++    expect(s.count).toBe(1)
++  })
++  it('超出容量自動擴充並保留既有資料，版本號遞增', () => {
++    const s = new ThinSlots<number>(1)
++    s.add(1)
++    fill(s, 1, 7)
++    const v0 = s.bufferVersion
++    s.add(2)
++    expect(s.capacity).toBeGreaterThanOrEqual(2)
++    expect(s.buffer[0]).toBe(7)
++    expect(s.bufferVersion).toBe(v0 + 1)
++  })
++  it('重複 add 同 key 回原 slot', () => {
++    const s = new ThinSlots<number>(2)
++    s.add(1)
++    expect(s.add(1)).toBe(0)
++    expect(s.count).toBe(1)
++  })
++  it('clear 歸零、寫入標 dirty', () => {
++    const s = new ThinSlots<number>(2)
++    s.add(1)
++    s.dirty = false
++    fill(s, 1, 1)
++    expect(s.dirty).toBe(true)
++    s.clear()
++    expect(s.count).toBe(0)
++    expect(s.has(1)).toBe(false)
++  })
++})
+diff --git a/src/babylon/games/bomberFx/thinSlots.ts b/src/babylon/games/bomberFx/thinSlots.ts
+new file mode 100644
+index 0000000..660d6b5
+--- /dev/null
++++ b/src/babylon/games/bomberFx/thinSlots.ts
+@@ -0,0 +1,82 @@
++/**
++ * thin instance 的 slot 管理（純邏輯，不依賴 Babylon）：key → 連續 slot，matrix 攤平在一條 Float32Array。
++ * 刪除用 swap-remove（最後一筆搬進空位），所以 [0, count) 永遠是有效實例，mesh 只要設 thinInstanceCount。
++ */
++export class ThinSlots<K> {
++  buffer: Float32Array
++  count = 0
++  /** 有寫入待上傳 GPU */
++  dirty = true
++  /** buffer 重新配置的次數（變了就要重新 thinInstanceSetBuffer） */
++  bufferVersion = 0
++  private slots = new Map<K, number>()
++  private keyAt: K[] = []
++  private readonly stride: number
++
++  constructor(capacity: number, stride = 16) {
++    this.stride = stride
++    this.buffer = new Float32Array(Math.max(1, capacity) * stride)
++  }
++
++  get capacity(): number {
++    return this.buffer.length / this.stride
++  }
++
++  has(key: K): boolean {
++    return this.slots.has(key)
++  }
++
++  slotOf(key: K): number | undefined {
++    return this.slots.get(key)
++  }
++
++  keys(): K[] {
++    return this.keyAt.slice(0, this.count)
++  }
++
++  add(key: K): number {
++    const cur = this.slots.get(key)
++    if (cur !== undefined) return cur
++    if (this.count >= this.capacity) {
++      const next = new Float32Array(this.buffer.length * 2)
++      next.set(this.buffer)
++      this.buffer = next
++      this.bufferVersion++
++    }
++    const slot = this.count++
++    this.slots.set(key, slot)
++    this.keyAt[slot] = key
++    this.dirty = true
++    return slot
++  }
++
++  /** 寫入 key 的那一段（offset 為 buffer 內起點）；key 不存在就不做事 */
++  write(key: K, fn: (buf: Float32Array, offset: number) => void): void {
++    const slot = this.slots.get(key)
++    if (slot === undefined) return
++    fn(this.buffer, slot * this.stride)
++    this.dirty = true
++  }
++
++  remove(key: K): void {
++    const slot = this.slots.get(key)
++    if (slot === undefined) return
++    const last = this.count - 1
++    if (slot !== last) {
++      const lastKey = this.keyAt[last]
++      this.buffer.copyWithin(slot * this.stride, last * this.stride, (last + 1) * this.stride)
++      this.keyAt[slot] = lastKey
++      this.slots.set(lastKey, slot)
++    }
++    this.slots.delete(key)
++    this.count--
++    this.dirty = true
++  }
++
++  clear(): void {
++    this.slots.clear()
++    this.keyAt = []
++    this.count = 0
++    this.dirty = true
++  }
++}
+diff --git a/src/babylon/types.ts b/src/babylon/types.ts
+index a351774..3035b94 100644
+--- a/src/babylon/types.ts
++++ b/src/babylon/types.ts
+@@ -15,31 +15,63 @@ export interface OverlayAction {
+ }
+ 
+ /** 遊戲自畫面內彈出的 React 覆蓋層（陣亡/結算等情境的 UI 介面） */
+ export interface GameOverlay {
+   title: string
+   /** 副標，支援多行（\n）；如結算名次 */
+   subtitle?: string
+   actions: OverlayAction[]
+ }
+ 
++/** HUD 玩家卡資料；P 編號 = colorIndex + 1（固定 4 色依出生角） */
++export interface GameHudPlayer {
++  id: string
++  name: string
++  colorIndex: 0 | 1 | 2 | 3
++  isSelf: boolean
++  isAI: boolean
++  alive: boolean
++  wins: number
++  bombs: number
++  fire: number
++  speed: number
++  kick: boolean
++  throw: boolean
++  /** 無敵剩餘毫秒，0 表示沒有無敵 */
++  invincibleMs: number
++}
++
++/**
++ * 遊戲自畫面的 React HUD 資料（目前只有 bomber 使用，由 BabylonCanvas 渲染玩家卡與計時器）。
++ * 共用契約：欄位只增不改；其他遊戲不呼叫 setHud 即不受影響。
++ */
++export interface GameHud {
++  /** 距突然死亡倒數；suddenDeath 為 true 時 secondsLeft 無意義 */
++  timer: { secondsLeft: number; suddenDeath: boolean }
++  aliveCount: number
++  totalCount: number
++  players: GameHudPlayer[]
++}
++
+ /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
+ export interface GameContext {
+   scene: Scene
+   net: NetTransport
+   selfId: string
+   role: 'host' | 'guest'
+   /** 房主 uid（單人模式即自己）：guest 只信任來自它的權威訊息（安全審查 C1） */
+   hostId: string
+   players: GamePlayer[]
+   /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
+   setOverlay?: (overlay: GameOverlay | null) => void
++  /** 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件） */
++  setHud?: (hud: GameHud | null) => void
+ }
+ 
+ /**
+  * 對戰遊戲標準介面（計畫 §3）。
+  * 每款 Babylon 遊戲實作此介面 + 一個 Scene；新增遊戲不需 Godot 專案或匯出。
+  */
+ export interface GameModule {
+   readonly gameId: string
+   /** 建場景、註冊輸入、初始網路握手 */
+   init(ctx: GameContext): void
+diff --git a/src/index.css b/src/index.css
+index 5ed066e..d797ce7 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1187,10 +1187,192 @@ html {
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .candy-star-pop,
+   .candy-moves-low,
+   .candy-loading-icon,
+   .candy-loading-text {
+     animation: none;
+   }
+ }
++
++/* ===== 炸彈超人 HUD（A · Toy Box，spec §9）：以 960×540 設計尺寸排版，--bomber-scale 由 JS 依容器等比縮放 ===== */
++.bomber-hud {
++  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden [--bomber-ink:#2b2440];
++}
++
++.bomber-num {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold leading-none;
++}
++
++/* 計時器膠囊：頂部中央 */
++.bomber-timer {
++  @apply absolute left-1/2 top-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top))] flex h-[44px] min-w-[200px] -translate-x-1/2 origin-top items-center justify-center gap-2.5 whitespace-nowrap rounded-full border-[2.5px] border-(--bomber-ink) bg-[#fff6e3] px-4 text-(--bomber-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--bomber-scale)];
++}
++.bomber-timer-icon {
++  @apply size-5 shrink-0 text-[#ff6a3d];
++}
++.bomber-timer-text {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[28px] leading-none tabular-nums;
++}
++.bomber-timer-sudden-text {
++  @apply text-[17px] font-black leading-none;
++}
++.bomber-timer-sep {
++  @apply h-6 w-[2px] rounded-full bg-[#e4d6bc];
++}
++.bomber-timer-alive {
++  @apply text-[14px] font-extrabold text-[#8a7a66];
++}
++.bomber-timer-urgent {
++  @apply animate-[bomber-pulse_0.5s_ease-in-out_infinite] text-[#ff3b4e];
++}
++.bomber-timer-urgent .bomber-timer-icon {
++  @apply text-[#ff3b4e];
++}
++.bomber-timer-sudden {
++  @apply bg-[#ff3b4e] text-white;
++}
++.bomber-timer-sudden .bomber-timer-icon,
++.bomber-timer-sudden .bomber-timer-alive {
++  @apply text-white;
++}
++.bomber-timer-sudden .bomber-timer-sep {
++  @apply bg-white/50;
++}
++
++/* 兩側玩家卡欄：左 P1／P3、右 P2／P4 */
++.bomber-col {
++  @apply absolute top-[calc(70px_*_var(--bomber-scale)_+_env(safe-area-inset-top))] flex flex-col gap-[22px] [scale:var(--bomber-scale)];
++}
++.bomber-col-left {
++  @apply left-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-left))] origin-top-left;
++}
++.bomber-col-right {
++  @apply right-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-right))] origin-top-right;
++}
++
++.bomber-card {
++  @apply relative flex h-[206px] w-[118px] flex-col overflow-hidden rounded-2xl border-[2.5px] border-(--bomber-ink) bg-[#fff6e3] text-(--bomber-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] transition-[filter,opacity] duration-300;
++}
++.bomber-card-dead {
++  @apply opacity-60 grayscale;
++}
++.bomber-card-head {
++  @apply flex h-[34px] shrink-0 items-center justify-between gap-1 border-b-[2.5px] border-(--bomber-ink) bg-linear-to-b from-(--bc-light) to-(--bc-base) px-2;
++}
++.bomber-card-name {
++  @apply min-w-0 truncate text-[15px] font-black text-white [text-shadow:0_1.5px_0_var(--bomber-ink)];
++}
++.bomber-card-no {
++  @apply shrink-0 font-['Fredoka',_var(--font-sans)] font-bold text-[16px] leading-none text-white [text-shadow:0_1.5px_0_var(--bomber-ink)];
++}
++.bomber-card-skull {
++  @apply absolute right-1 top-[38px] text-[18px] leading-none;
++}
++.bomber-card-avatar {
++  @apply flex h-[78px] shrink-0 items-center justify-center bg-[radial-gradient(circle_at_60%_62%,#efe3cc_0,#efe3cc_32px,transparent_33px)];
++}
++.bomber-card-avatar-svg {
++  @apply -mb-1 size-[88px] shrink-0;
++}
++.bomber-card-stars {
++  @apply flex h-[24px] shrink-0 items-center justify-center gap-0.5;
++}
++.bomber-star {
++  @apply size-[20px] fill-[#e4d6bc] stroke-(--bomber-ink) stroke-[1.8];
++}
++.bomber-star-won {
++  @apply fill-[#ffcf3f];
++}
++.bomber-ai-tag {
++  @apply mr-0.5 rounded-[4px] bg-[#39e6ff] px-1 font-['Fredoka',_var(--font-sans)] font-bold text-[10px] leading-[14px] text-(--bomber-ink);
++}
++.bomber-card-stats {
++  @apply grid h-[46px] shrink-0 grid-cols-3 gap-1 px-1.5;
++}
++.bomber-stat {
++  @apply flex flex-col items-center justify-center gap-1 rounded-lg bg-[#f3e6cc] text-[17px];
++}
++.bomber-stat-icon {
++  @apply size-[15px] stroke-[2.5];
++}
++.bomber-stat-bomb {
++  @apply text-[#2f86ff];
++}
++.bomber-stat-fire {
++  @apply text-[#ff6a3d];
++}
++.bomber-stat-speed {
++  @apply text-[#f5a800];
++}
++.bomber-card-badges {
++  @apply flex h-[20px] shrink-0 items-center justify-center gap-1 pt-1;
++}
++.bomber-badge {
++  @apply flex h-[16px] items-center gap-0.5 rounded-full bg-(--bomber-ink) px-1.5 text-[10px] text-white;
++}
++.bomber-badge-inv {
++  @apply bg-[#ffcf3f] text-(--bomber-ink);
++}
++.bomber-badge-icon {
++  @apply size-[10px] stroke-[2.5];
++}
++
++/* 矮畫面用的頂部頭像膠囊（預設隱藏） */
++.bomber-pills {
++  @apply absolute left-1/2 top-[max(6px,env(safe-area-inset-top))] hidden -translate-x-1/2 gap-1.5;
++}
++.bomber-pill {
++  @apply relative flex h-[30px] items-center gap-1.5 rounded-full border-2 border-(--bomber-ink) bg-[#fff6e3] pr-2 text-(--bomber-ink) shadow-[0_3px_0_rgba(0,0,0,.4),inset_0_0_0_2px_var(--bc-base)];
++}
++.bomber-pill-avatar {
++  @apply -my-1 size-[34px] shrink-0;
++}
++.bomber-pill-stat {
++  @apply flex items-center gap-px font-['Fredoka',_var(--font-sans)] font-bold text-[12px] leading-none;
++}
++.bomber-pill-icon {
++  @apply size-[10px] stroke-[2.5];
++}
++.bomber-pill-skull {
++  @apply absolute -right-1 -top-2 text-[13px] leading-none;
++}
++
++@keyframes bomber-pulse {
++  0%, 100% { transform: scale(1); }
++  50% { transform: scale(1.08); }
++}
++
++/* 矮畫面（手機橫向）：玩家卡改成頂部 4 顆頭像膠囊，計時器移到下方中央 */
++@media (max-height: 500px) {
++  .bomber-col {
++    @apply hidden;
++  }
++  .bomber-pills {
++    @apply flex;
++  }
++  .bomber-timer {
++    @apply top-auto bottom-[max(8px,env(safe-area-inset-bottom))] h-[34px] min-w-0 origin-bottom gap-2 px-3 [scale:1];
++  }
++  .bomber-timer-text {
++    @apply text-[20px];
++  }
++  .bomber-timer-sudden-text {
++    @apply text-[14px];
++  }
++  .bomber-timer-icon {
++    @apply size-4;
++  }
++  .bomber-timer-sep {
++    @apply h-4;
++  }
++  .bomber-timer-alive {
++    @apply text-[12px];
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .bomber-timer-urgent {
++    animation: none;
++  }
++}
+diff --git a/src/pages/Battle/BabylonCanvas.tsx b/src/pages/Battle/BabylonCanvas.tsx
+index 7590f0a..f3dcdc5 100644
+--- a/src/pages/Battle/BabylonCanvas.tsx
++++ b/src/pages/Battle/BabylonCanvas.tsx
+@@ -1,19 +1,21 @@
+ import { useEffect, useMemo, useRef, useState } from 'react'
+ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
+ import { RotateCw } from 'lucide-react'
+ import { Button } from '@/components/ui/button'
+ import type { NetTransport } from '@/core/webrtc'
+-import type { GameOverlay, GamePlayer } from '@/babylon/types'
++import type { GameHud, GameOverlay, GamePlayer } from '@/babylon/types'
+ import { getGameFactory } from '@/babylon/games'
+ import type { GameType } from '@/core/room'
+ import { TouchControls, type TouchAction } from './TouchControls'
++import { BomberHud } from '@/pages/Battle/BomberHud'
++import { sameHud } from '@/pages/Battle/bomberHud'
+ 
+ interface BabylonCanvasProps {
+   gameType: GameType
+   net: NetTransport
+   selfId: string
+   role: 'host' | 'guest'
+   /** 房主 uid：遊戲層據此過濾非房主的權威訊息 */
+   hostId: string
+   players: GamePlayer[]
+ }
+@@ -33,20 +35,21 @@ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
+ }
+ 
+ /**
+  * Babylon 引擎掛載點（計畫 §2）。負責 Engine/Scene 生命週期、
+  * 依 gameType 實例化 GameModule、把 NetTransport 訊息轉進場景、跑 render loop，
+  * 卸載時依序釋放所有資源。遊戲本身與網路同處 JS context，無 iframe/postMessage。
+  */
+ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
+   const canvasRef = useRef<HTMLCanvasElement>(null)
+   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
++  const [hud, setHudState] = useState<GameHud | null>(null)
+   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
+   const isTouch = useMemo(() => window.matchMedia?.('(pointer: coarse)')?.matches ?? false, [])
+   // 觸控裝置強制橫向：直向時以提示蓋住遊戲，並嘗試原生鎖定方向
+   const [portrait, setPortrait] = useState(false)
+   // players 走 ref，避免列表變動觸發引擎重建（init 只在掛載時讀一次初始值）
+   const playersRef = useRef(players)
+   useEffect(() => {
+     playersRef.current = players
+   }, [players])
+ 
+@@ -75,21 +78,23 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+     }
+   }, [isTouch])
+ 
+   useEffect(() => {
+     const canvas = canvasRef.current
+     if (!canvas) return
+ 
+     const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true })
+     const scene = new Scene(engine)
+     const game = getGameFactory(gameType)()
+-    game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay })
++    // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪
++    const setHud = (next: GameHud | null) => setHudState((prev) => (sameHud(prev, next) ? prev : next))
++    game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
+ 
+     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
+ 
+     // 遊戲操作鍵（空白鍵/方向鍵）在 canvas 聚焦時不可觸發頁面捲動
+     const SCROLL_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+     const blockScrollKeys = (e: KeyboardEvent) => {
+       if (SCROLL_KEYS.includes(e.key)) e.preventDefault()
+     }
+     canvas.addEventListener('keydown', blockScrollKeys)
+ 
+@@ -133,32 +138,34 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+     return () => {
+       ro.disconnect()
+       window.removeEventListener('resize', resize)
+       canvas.removeEventListener('keydown', blockScrollKeys)
+       offMessage()
+       engine.stopRenderLoop()
+       game.dispose()
+       scene.dispose()
+       engine.dispose()
+       setOverlay(null)
++      setHudState(null)
+       ;(window as unknown as Record<string, unknown>).__BATTLE_READY = false
+     }
+   }, [gameType, net, selfId, role, hostId])
+ 
+   return (
+     <>
+       <canvas
+         ref={canvasRef}
+         data-testid="battle-canvas"
+         className="block size-full bg-slate-950 outline-none touch-none"
+         tabIndex={0}
+       />
++      {hud && <BomberHud hud={hud} />}
+       {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
+       {isTouch && portrait && (
+         <div
+           className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/95 p-6 text-center"
+           data-testid="rotate-prompt"
+         >
+           <RotateCw className="size-14 animate-pulse text-indigo-400" aria-hidden="true" />
+           <p className="text-lg font-bold text-slate-100">請將手機轉為橫向</p>
+           <p className="text-sm text-slate-400">本遊戲需橫向遊玩</p>
+         </div>
+diff --git a/src/pages/Battle/BomberHud.tsx b/src/pages/Battle/BomberHud.tsx
+new file mode 100644
+index 0000000..b618aa0
+--- /dev/null
++++ b/src/pages/Battle/BomberHud.tsx
+@@ -0,0 +1,204 @@
++import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
++import { AlarmClock, Bomb, Flame, Footprints, Hand, Shield, Star, Zap } from 'lucide-react'
++import type { GameHud, GameHudPlayer } from '@/babylon/types'
++import {
++  BOMBER_COLORS,
++  hudScale,
++  invincibleSeconds,
++  playerLabel,
++  splitColumns,
++  timerView,
++  winStars,
++} from '@/pages/Battle/bomberHud'
++
++/** 玩家色以 CSS 變數交給 .bomber-* class 取用 */
++function colorVars(colorIndex: number): CSSProperties {
++  const c = BOMBER_COLORS[colorIndex] ?? BOMBER_COLORS[0]
++  return { '--bc-light': c.light, '--bc-base': c.base, '--bc-dark': c.dark } as CSSProperties
++}
++
++/** Q 版頭像（inline SVG，依 colorIndex 上色）：頭盔徑向漸層、臉 #FFF1E0、眼睛帶白色光點；AI 天線球青色加 AI 小章 */
++export function BomberAvatar({ colorIndex, isAI, className }: { colorIndex: number; isAI: boolean; className?: string }) {
++  const c = BOMBER_COLORS[colorIndex] ?? BOMBER_COLORS[0]
++  const gradId = `bomber-helmet-${useId().replace(/[^\w-]/g, '')}`
++  const ink = '#2B2440'
++  return (
++    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
++      <defs>
++        <radialGradient id={gradId} cx="35%" cy="25%" r="80%">
++          <stop offset="0%" stopColor={c.light} />
++          <stop offset="50%" stopColor={c.base} />
++          <stop offset="100%" stopColor={c.dark} />
++        </radialGradient>
++      </defs>
++      <rect x="21" y="41" width="22" height="15" rx="6" fill={c.base} stroke={ink} strokeWidth="2" />
++      <rect x="22" y="47" width="20" height="3" fill={c.dark} />
++      <circle cx="18" cy="46" r="3.5" fill="#fff" stroke={ink} strokeWidth="1.5" />
++      <circle cx="46" cy="46" r="3.5" fill="#fff" stroke={ink} strokeWidth="1.5" />
++      <line x1="32" y1="11" x2="32" y2="5" stroke={ink} strokeWidth="2" />
++      <circle cx="32" cy="5" r="3.5" fill={isAI ? '#39E6FF' : '#FF5AA8'} stroke={ink} strokeWidth="1.5" />
++      <circle cx="32" cy="26" r="15" fill={`url(#${gradId})`} stroke={ink} strokeWidth="2" />
++      <rect x="21.5" y="21" width="21" height="14" rx="6.5" fill="#FFF1E0" stroke={ink} strokeWidth="1.5" />
++      <ellipse cx="28" cy="28" rx="2.3" ry="3.3" fill={ink} />
++      <ellipse cx="36" cy="28" rx="2.3" ry="3.3" fill={ink} />
++      <circle cx="28.8" cy="26.6" r="0.9" fill="#fff" />
++      <circle cx="36.8" cy="26.6" r="0.9" fill="#fff" />
++      {isAI && (
++        <g>
++          <rect x="40" y="8" width="15" height="9" rx="3" fill="#39E6FF" stroke={ink} strokeWidth="1.5" />
++          <text x="47.5" y="15" textAnchor="middle" fontSize="7" fontWeight="900" fill={ink}>
++            AI
++          </text>
++        </g>
++      )}
++    </svg>
++  )
++}
++
++function PlayerCard({ p }: { p: GameHudPlayer }) {
++  const inv = invincibleSeconds(p.invincibleMs)
++  return (
++    <div
++      className={p.alive ? 'bomber-card' : 'bomber-card bomber-card-dead'}
++      style={colorVars(p.colorIndex)}
++      data-bomber-card={p.colorIndex}
++      data-alive={p.alive}
++      title={p.name}
++    >
++      <div className="bomber-card-head">
++        <span className="bomber-card-name">{p.isSelf ? '你' : p.name}</span>
++        <span className="bomber-card-no">{playerLabel(p.colorIndex)}</span>
++      </div>
++      {!p.alive && <span className="bomber-card-skull">💀</span>}
++      <div className="bomber-card-avatar">
++        <BomberAvatar colorIndex={p.colorIndex} isAI={p.isAI} className="bomber-card-avatar-svg" />
++      </div>
++      <div className="bomber-card-stars" aria-label={`勝場 ${p.wins}`}>
++        {p.isAI && <span className="bomber-ai-tag">AI</span>}
++        {winStars(p.wins).map((won, i) => (
++          <Star key={i} className={won ? 'bomber-star bomber-star-won' : 'bomber-star'} />
++        ))}
++      </div>
++      <div className="bomber-card-stats">
++        <div className="bomber-stat" aria-label="炸彈數">
++          <Bomb className="bomber-stat-icon bomber-stat-bomb" />
++          <span className="bomber-num">{p.bombs}</span>
++        </div>
++        <div className="bomber-stat" aria-label="火力">
++          <Flame className="bomber-stat-icon bomber-stat-fire" />
++          <span className="bomber-num">{p.fire}</span>
++        </div>
++        <div className="bomber-stat" aria-label="速度">
++          <Zap className="bomber-stat-icon bomber-stat-speed" />
++          <span className="bomber-num">{p.speed}</span>
++        </div>
++      </div>
++      <div className="bomber-card-badges">
++        {p.kick && (
++          <span className="bomber-badge" data-bomber-badge="kick" aria-label="踢彈">
++            <Footprints className="bomber-badge-icon" />
++          </span>
++        )}
++        {p.throw && (
++          <span className="bomber-badge" data-bomber-badge="throw" aria-label="丟彈">
++            <Hand className="bomber-badge-icon" />
++          </span>
++        )}
++        {inv > 0 && (
++          <span className="bomber-badge bomber-badge-inv" data-bomber-badge="invincible" aria-label="無敵">
++            <Shield className="bomber-badge-icon" />
++            <span className="bomber-num">{inv}s</span>
++          </span>
++        )}
++      </div>
++    </div>
++  )
++}
++
++/** 矮畫面（max-height 500px）改用的頭像膠囊：頭像加炸彈／火力／速度三個小數字 */
++function PlayerPill({ p }: { p: GameHudPlayer }) {
++  return (
++    <div
++      className={p.alive ? 'bomber-pill' : 'bomber-pill bomber-card-dead'}
++      style={colorVars(p.colorIndex)}
++      data-bomber-pill={p.colorIndex}
++      title={`${playerLabel(p.colorIndex)} ${p.name}`}
++    >
++      <BomberAvatar colorIndex={p.colorIndex} isAI={p.isAI} className="bomber-pill-avatar" />
++      <span className="bomber-pill-stat">
++        <Bomb className="bomber-pill-icon" />
++        {p.bombs}
++      </span>
++      <span className="bomber-pill-stat">
++        <Flame className="bomber-pill-icon" />
++        {p.fire}
++      </span>
++      <span className="bomber-pill-stat">
++        <Zap className="bomber-pill-icon" />
++        {p.speed}
++      </span>
++      {!p.alive && <span className="bomber-pill-skull">💀</span>}
++    </div>
++  )
++}
++
++/**
++ * bomber 的 React HUD（spec §9）：左 P1／P3、右 P2／P4 玩家卡，頂部中央計時器膠囊。
++ * 以 960×540 設計尺寸排版，依容器大小等比縮放（--bomber-scale）；矮畫面由 CSS 切成頭像膠囊。
++ */
++export function BomberHud({ hud }: { hud: GameHud }) {
++  const rootRef = useRef<HTMLDivElement>(null)
++  const [scale, setScale] = useState(1)
++
++  useEffect(() => {
++    const el = rootRef.current
++    if (!el) return
++    const update = () => setScale(hudScale(el.clientWidth, el.clientHeight))
++    update()
++    const ro = new ResizeObserver(update)
++    ro.observe(el)
++    return () => ro.disconnect()
++  }, [])
++
++  const { left, right } = splitColumns(hud.players)
++  const timer = timerView(hud.timer)
++
++  return (
++    <div
++      ref={rootRef}
++      className="bomber-hud"
++      style={{ '--bomber-scale': scale } as CSSProperties}
++      data-bomber-hud=""
++    >
++      <div className={`bomber-timer bomber-timer-${timer.mode}`} data-bomber-timer={timer.mode}>
++        <AlarmClock className="bomber-timer-icon" />
++        <span className={timer.mode === 'sudden' ? 'bomber-timer-sudden-text' : 'bomber-timer-text'}>
++          {timer.text}
++        </span>
++        <span className="bomber-timer-sep" />
++        <span className="bomber-timer-alive">
++          存活 {hud.aliveCount}/{hud.totalCount}
++        </span>
++      </div>
++      <div className="bomber-col bomber-col-left">
++        {left.map((p) => (
++          <PlayerCard key={p.id} p={p} />
++        ))}
++      </div>
++      <div className="bomber-col bomber-col-right">
++        {right.map((p) => (
++          <PlayerCard key={p.id} p={p} />
++        ))}
++      </div>
++      <div className="bomber-pills">
++        {[...hud.players]
++          .sort((a, b) => a.colorIndex - b.colorIndex)
++          .map((p) => (
++            <PlayerPill key={p.id} p={p} />
++          ))}
++      </div>
++    </div>
++  )
++}
++
++export default BomberHud
+diff --git a/src/pages/Battle/bomberHud.test.ts b/src/pages/Battle/bomberHud.test.ts
+new file mode 100644
+index 0000000..e2aa229
+--- /dev/null
++++ b/src/pages/Battle/bomberHud.test.ts
+@@ -0,0 +1,155 @@
++import { describe, expect, it } from 'vitest'
++import type { GameHud, GameHudPlayer } from '@/babylon/types'
++import {
++  BOMBER_COLORS,
++  formatTimer,
++  hudScale,
++  invincibleSeconds,
++  playerLabel,
++  sameHud,
++  splitColumns,
++  timerView,
++  winStars,
++} from '@/pages/Battle/bomberHud'
++
++function player(colorIndex: 0 | 1 | 2 | 3, extra: Partial<GameHudPlayer> = {}): GameHudPlayer {
++  return {
++    id: `p${colorIndex}`,
++    name: `玩家${colorIndex + 1}`,
++    colorIndex,
++    isSelf: false,
++    isAI: false,
++    alive: true,
++    wins: 0,
++    bombs: 1,
++    fire: 2,
++    speed: 0,
++    kick: false,
++    throw: false,
++    invincibleMs: 0,
++    ...extra,
++  }
++}
++
++function hud(extra: Partial<GameHud> = {}): GameHud {
++  return {
++    timer: { secondsLeft: 24, suddenDeath: false },
++    aliveCount: 4,
++    totalCount: 4,
++    players: [player(0), player(1), player(2), player(3)],
++    ...extra,
++  }
++}
++
++describe('formatTimer', () => {
++  it('分:秒兩位數，小數無條件進位', () => {
++    expect(formatTimer(24)).toBe('0:24')
++    expect(formatTimer(23.2)).toBe('0:24')
++    expect(formatTimer(40)).toBe('0:40')
++    expect(formatTimer(65)).toBe('1:05')
++  })
++
++  it('負數與非有限值夾到 0:00', () => {
++    expect(formatTimer(-3)).toBe('0:00')
++    expect(formatTimer(Number.NaN)).toBe('0:00')
++  })
++})
++
++describe('timerView', () => {
++  it('一般倒數', () => {
++    expect(timerView({ secondsLeft: 24, suddenDeath: false })).toEqual({ mode: 'normal', text: '0:24' })
++  })
++
++  it('剩 10 秒內（含）變 urgent', () => {
++    expect(timerView({ secondsLeft: 10, suddenDeath: false }).mode).toBe('urgent')
++    expect(timerView({ secondsLeft: 0.4, suddenDeath: false }).mode).toBe('urgent')
++    expect(timerView({ secondsLeft: 10.2, suddenDeath: false }).mode).toBe('normal')
++  })
++
++  it('突然死亡時忽略 secondsLeft，改顯示縮圈中', () => {
++    expect(timerView({ secondsLeft: 5, suddenDeath: true })).toEqual({ mode: 'sudden', text: '縮圈中' })
++  })
++})
++
++describe('splitColumns', () => {
++  it('左欄 P1／P3、右欄 P2／P4，與輸入順序無關', () => {
++    const { left, right } = splitColumns([player(3), player(1), player(2), player(0)])
++    expect(left.map((p) => p.colorIndex)).toEqual([0, 2])
++    expect(right.map((p) => p.colorIndex)).toEqual([1, 3])
++  })
++
++  it('只有兩人時右欄只剩 P2', () => {
++    const { left, right } = splitColumns([player(1), player(0)])
++    expect(left.map((p) => p.colorIndex)).toEqual([0])
++    expect(right.map((p) => p.colorIndex)).toEqual([1])
++  })
++})
++
++describe('playerLabel', () => {
++  it('P 編號 = colorIndex + 1', () => {
++    expect(playerLabel(0)).toBe('P1')
++    expect(playerLabel(3)).toBe('P4')
++  })
++})
++
++describe('winStars', () => {
++  it('3 顆星，已得的在前', () => {
++    expect(winStars(0)).toEqual([false, false, false])
++    expect(winStars(2)).toEqual([true, true, false])
++  })
++
++  it('超過 3 勝或負數都夾住', () => {
++    expect(winStars(5)).toEqual([true, true, true])
++    expect(winStars(-1)).toEqual([false, false, false])
++  })
++})
++
++describe('invincibleSeconds', () => {
++  it('毫秒無條件進位成秒，0 以下為 0', () => {
++    expect(invincibleSeconds(6100)).toBe(7)
++    expect(invincibleSeconds(1)).toBe(1)
++    expect(invincibleSeconds(0)).toBe(0)
++    expect(invincibleSeconds(-50)).toBe(0)
++  })
++})
++
++describe('hudScale', () => {
++  it('960×540 設計尺寸縮放 1', () => {
++    expect(hudScale(960, 540)).toBe(1)
++  })
++
++  it('取寬高兩者較小的比例', () => {
++    expect(hudScale(960, 432)).toBeCloseTo(0.8)
++    expect(hudScale(1918, 864)).toBeCloseTo(1.6)
++  })
++
++  it('夾在 0.5–2 之間，0 尺寸不回 0', () => {
++    expect(hudScale(3840, 2160)).toBe(2)
++    expect(hudScale(200, 100)).toBe(0.5)
++    expect(hudScale(0, 0)).toBe(1)
++  })
++})
++
++describe('sameHud', () => {
++  it('內容相同視為相同（不同參照）', () => {
++    expect(sameHud(hud(), hud())).toBe(true)
++  })
++
++  it('任一欄位不同即不同', () => {
++    expect(sameHud(hud(), hud({ aliveCount: 3 }))).toBe(false)
++    const changed = hud()
++    changed.players[2] = player(2, { bombs: 2 })
++    expect(sameHud(hud(), changed)).toBe(false)
++  })
++
++  it('null 只等於 null', () => {
++    expect(sameHud(null, null)).toBe(true)
++    expect(sameHud(null, hud())).toBe(false)
++  })
++})
++
++describe('BOMBER_COLORS', () => {
++  it('固定 4 色對應 spec §4 本色', () => {
++    expect(BOMBER_COLORS.map((c) => c.base)).toEqual(['#FF3B4E', '#2F86FF', '#2FCF5E', '#FFC21A'])
++  })
++})
+diff --git a/src/pages/Battle/bomberHud.ts b/src/pages/Battle/bomberHud.ts
+new file mode 100644
+index 0000000..34c5660
+--- /dev/null
++++ b/src/pages/Battle/bomberHud.ts
+@@ -0,0 +1,71 @@
++import type { GameHud, GameHudPlayer } from '@/babylon/types'
++
++/** 固定 4 色（spec §4），索引 = colorIndex，P 編號 = colorIndex + 1 */
++export const BOMBER_COLORS = [
++  { light: '#FF8A94', base: '#FF3B4E', dark: '#B3122A' },
++  { light: '#8CC4FF', base: '#2F86FF', dark: '#1446B8' },
++  { light: '#93F0A8', base: '#2FCF5E', dark: '#138A3A' },
++  { light: '#FFF0A0', base: '#FFC21A', dark: '#C27D00' },
++] as const
++
++/** 勝場星數（bomber MATCH_TARGET） */
++const STAR_COUNT = 3
++/** HUD 以 960×540 設計尺寸排版，再依容器等比縮放 */
++const DESIGN_W = 960
++const DESIGN_H = 540
++const MIN_SCALE = 0.5
++const MAX_SCALE = 2
++/** 剩這麼多秒（含）以內計時器變紅跳動 */
++const URGENT_SECONDS = 10
++
++/** 秒數 → m:ss（小數無條件進位，負數與非有限值為 0:00） */
++export function formatTimer(seconds: number): string {
++  const s = Number.isFinite(seconds) ? Math.max(0, Math.ceil(seconds)) : 0
++  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
++}
++
++export type TimerMode = 'normal' | 'urgent' | 'sudden'
++
++/** 計時器膠囊的顯示狀態：突然死亡時忽略 secondsLeft */
++export function timerView(timer: GameHud['timer']): { mode: TimerMode; text: string } {
++  if (timer.suddenDeath) return { mode: 'sudden', text: '縮圈中' }
++  const text = formatTimer(timer.secondsLeft)
++  const mode = Math.ceil(timer.secondsLeft) <= URGENT_SECONDS ? 'urgent' : 'normal'
++  return { mode, text }
++}
++
++/** 左欄 P1／P3、右欄 P2／P4，各自依 P 編號排序 */
++export function splitColumns(players: GameHudPlayer[]): { left: GameHudPlayer[]; right: GameHudPlayer[] } {
++  const sorted = [...players].sort((a, b) => a.colorIndex - b.colorIndex)
++  return {
++    left: sorted.filter((p) => p.colorIndex % 2 === 0),
++    right: sorted.filter((p) => p.colorIndex % 2 === 1),
++  }
++}
++
++export function playerLabel(colorIndex: number): string {
++  return `P${colorIndex + 1}`
++}
++
++/** 勝場星：已得的在前，共 3 顆 */
++export function winStars(wins: number): boolean[] {
++  return Array.from({ length: STAR_COUNT }, (_, i) => i < wins)
++}
++
++export function invincibleSeconds(ms: number): number {
++  return ms > 0 ? Math.ceil(ms / 1000) : 0
++}
++
++/** 容器尺寸 → HUD 縮放（取寬高較小的比例，夾在 0.5–2；尺寸未知時為 1） */
++export function hudScale(width: number, height: number): number {
++  if (width <= 0 || height <= 0) return 1
++  const s = Math.min(width / DESIGN_W, height / DESIGN_H)
++  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
++}
++
++/** HUD 內容是否相同（遊戲可每幀 setHud，內容沒變就不重繪） */
++export function sameHud(a: GameHud | null, b: GameHud | null): boolean {
++  if (a === b) return true
++  if (!a || !b) return false
++  return JSON.stringify(a) === JSON.stringify(b)
++}
+

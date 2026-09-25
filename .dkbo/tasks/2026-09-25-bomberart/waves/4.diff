@@ -1,0 +1,355 @@
+# 炸彈超人美術優化（A Toy Box） — wave 4 since 1168cf0 — 2026-09-25T18:49
+# files changed: 6 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/games/bomber.ts                       | 23 +++++++------
+ src/babylon/games/bomberFx/hudModel.phase.test.ts | 42 +++++++++++++++++++++++
+ src/babylon/games/bomberFx/hudModel.ts            | 17 +++++++--
+ src/babylon/games/bomberFx/perfLog.test.ts        | 15 ++++++++
+ src/babylon/games/bomberFx/perfLog.ts             |  8 +++++
+ src/index.css                                     |  5 +--
+ 6 files changed, 95 insertions(+), 15 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/games/bomber.ts b/src/babylon/games/bomber.ts
+index fe1bf6e..5d0ec36 100644
+--- a/src/babylon/games/bomber.ts
++++ b/src/babylon/games/bomber.ts
+@@ -1,12 +1,12 @@
+ import { ArcRotateCamera, Quaternion, SceneInstrumentation, Vector3, type Mesh } from '@/babylon/babylonCore'
+-import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
++import type { GameContext, GameHud, GameModule, GameOverlay } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+ import { createCountdownPanel, type CountdownTheme, type TextPanel } from '@/babylon/hud'
+ import {
+   canAdvanceMidRound,
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   type FixedTicker,
+   type GameFlow,
+@@ -46,21 +46,22 @@ import {
+   type CloseWallPayload,
+   type Drop,
+   type ItemKind,
+   type PickupPayload,
+ } from './bomberNet'
+ import { AVATAR_SCALE, AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
+ import { ToyBoard } from '@/babylon/games/bomberFx/board'
+ import { ToyFx } from '@/babylon/games/bomberFx/effects'
+ import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
+ import { armDelayMs, deathPose, flameEmissive, placeScale } from '@/babylon/games/bomberFx/fxCurves'
+-import { buildBomberHud, suddenDeathSeconds } from '@/babylon/games/bomberFx/hudModel'
++import { buildBomberHud, phaseTimer } from '@/babylon/games/bomberFx/hudModel'
++import { perfLogLine } from '@/babylon/games/bomberFx/perfLog'
+ import { colorIndexOf, invincibleBlinkOn, PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
+ import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
+ import { ToyLook, UI_LAYER } from '@/babylon/games/bomberFx/look'
+ import { uprightAxis } from '@/babylon/games/bomberFx/upright'
+ 
+ /**
+  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
+  *
+  * 同步模型：Host Authority 事件制——
+  * - 位置：各自模擬自己的人（ownership 20Hz 廣播 {x,z}，他人插值）
+@@ -234,20 +235,21 @@ class BomberScene implements GameModule {
+   private lastBombInput = 0
+   private lastKickInput = 0
+   private bombSeq = 0
+   private ownerBombCount = new Map<string, number>()
+   private stats = new Map<string, PlayerStat>()
+   private resultElapsed = 0
+   private lastOverlayKey = '' // 僅在內容變動時才更新 React 覆蓋層
+   private dying = new Map<string, number>() // 陣亡動畫起點（純視覺；邏輯上已死）
+   private shownScores = new Map<string, number>() // HUD 勝場：取自最近一次結算（host／guest 一致）
+   private shownMatchOver = false
++  private lastPlayingTimer: GameHud['timer'] | null = null // 結算階段凍結的計時（最後一次 playing 的值）
+ 
+   private selfAvatar?: Avatar
+   private peerAvatars = new Map<string, Avatar>()
+   // 電腦玩家（補滿至 4 人）：名冊由 host 決定並隨 seed 廣播
+   private bots: BotEntry[] = []
+   private botAvatars = new Map<string, Avatar>()
+   private botState = new Map<string, { x: number; z: number }>() // host 模擬位置
+   private botTarget = new Map<string, { x: number; z: number }>() // guest 插值目標
+   private botBombInput = new Map<string, number>() // 每隻 bot 放彈冷卻
+   private lastBotBroadcast = 0
+@@ -433,20 +435,21 @@ class BomberScene implements GameModule {
+     this.bombs.clear()
+     this.board.clearFlames()
+     this.flames = []
+     this.board.clearItems()
+     this.items.clear()
+     // 突然死亡：場地復原——清掉已落下的牆、重置螺旋進度與計時（scores 不在此清，跨回合保留）
+     this.board.clearClosingWalls()
+     this.board.setWarning(null, 0)
+     this.fx.clearRound()
+     this.dying.clear()
++    this.lastPlayingTimer = null
+     // 上一場已奪冠 → 新比賽，HUD 勝場歸零（host 的 scores 已在 resetMatchScores 清掉）
+     if (this.shownMatchOver) {
+       this.shownScores.clear()
+       this.shownMatchOver = false
+     }
+     this.lastCloseApplied = 0
+     this.closePreviewFrom = 0
+     this.closeIndex = 0
+     this.lastClose = 0
+     this.playingSince = 0
+@@ -1604,26 +1607,25 @@ class BomberScene implements GameModule {
+ 
+     // 道具浮動擺盪、拾取飛行、落牆下落、所有 thin instance 上傳（每幀一次）；落牆落地：灰塵環＋音效＋震動
+     const landed = this.board.update(now, deltaMs)
+     for (const w of landed) {
+       this.fx.dust(w.x, w.z)
+       playSfx('explosion')
+       this.shakeUntil = now + SHAKE_MS
+     }
+     this.fx.update(now, deltaMs)
+ 
+-    // AC8：每 2 秒印 draw calls 與 fps（讀的是上一幀的完整計數）
++    // AC8：每 2 秒印 draw calls 與 fps（讀的是上一幀的完整計數；還沒渲染過的首次取樣不印）
+     if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
+       this.lastPerfLog = now
+-      const calls = this.instr.drawCallsCounter.current
+-      const fps = Math.round(this.ctx.scene.getEngine().getFps())
+-      console.info(`[bomber] drawCalls=${calls} fps=${fps}`)
++      const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps())
++      if (line) console.info(line)
+     }
+ 
+     // HUD：React 玩家卡＋計時器（共用契約 GameHud；每幀傳新物件，量化後內容沒變就不重繪）
+     this.syncHud(phase, now)
+ 
+     // 陣亡/結算的「重新開始」UI 交給 React 覆蓋層
+     this.syncOverlay()
+ 
+     if (phase === 'countdown') {
+       const n = Math.ceil(this.flow.countdownRemaining() / 1000)
+@@ -1652,35 +1654,34 @@ class BomberScene implements GameModule {
+ 
+   /** 組 HUD 資料交給 React（勝場取最近一次結算，host 與 guest 看到的一致） */
+   private syncHud(phase: string, now: number): void {
+     const setHud = this.ctx.setHud
+     if (!setHud) return
+     const result = this.flow.state.result as RoundResult | undefined
+     if (phase === 'result' && result) {
+       for (const sc of result.scores) this.shownScores.set(sc.id, sc.score)
+       this.shownMatchOver = result.matchOver
+     }
++    // 結算階段凍結在最後一次 playing 的值，不跳回完整時長
++    const timer = phaseTimer({ phase, now, playingSince: this.playingSince, suddenMs: SUDDEN_DEATH_MS, last: this.lastPlayingTimer })
++    if (phase === 'playing') this.lastPlayingTimer = timer
+     setHud(
+       buildBomberHud({
+         entities: this.entities().map((e) => ({
+           id: e.id,
+           name: this.nameFor(e.id),
+           isAI: this.isBot(e.id),
+           colorIndex: this.colorIndex(e.id),
+         })),
+         selfId: this.ctx.selfId,
+         now,
+-        timer: suddenDeathSeconds({
+-          now,
+-          playingSince: phase === 'playing' ? this.playingSince : 0,
+-          suddenMs: SUDDEN_DEATH_MS,
+-        }),
++        timer,
+         alive: (id) => this.isAlive(id),
+         wins: (id) => this.shownScores.get(id) ?? 0,
+         stat: (id) => this.statOf(id),
+       })
+     )
+   }
+ 
+   dispose(): void {
+     this.ctx.setHud?.(null)
+     window.removeEventListener('keydown', this.onKeyDown)
+diff --git a/src/babylon/games/bomberFx/hudModel.phase.test.ts b/src/babylon/games/bomberFx/hudModel.phase.test.ts
+new file mode 100644
+index 0000000..bb5175e
+--- /dev/null
++++ b/src/babylon/games/bomberFx/hudModel.phase.test.ts
+@@ -0,0 +1,42 @@
++import { describe, expect, it } from 'vitest'
++import { buildBomberHud, phaseTimer } from '@/babylon/games/bomberFx/hudModel'
++
++describe('buildBomberHud：陣亡玩家不帶無敵', () => {
++  it('陣亡玩家 invincibleMs 回 0，存活者照算', () => {
++    const hud = buildBomberHud({
++      entities: [
++        { id: 'me', name: '我', isAI: false, colorIndex: 0 },
++        { id: 'bot-0', name: '電腦1', isAI: true, colorIndex: 1 },
++      ],
++      selfId: 'me',
++      now: 5000,
++      timer: { secondsLeft: 12, suddenDeath: false },
++      alive: (id) => id === 'me',
++      wins: () => 0,
++      stat: () => ({ bombs: 1, fire: 1, speed: 0, kick: false, throw: false, invincibleUntil: 7000 }),
++    })
++    expect(hud.players[0].invincibleMs).toBe(2000)
++    expect(hud.players[1].invincibleMs).toBe(0)
++  })
++})
++
++describe('phaseTimer：結算階段凍結最後的值', () => {
++  const base = { now: 20000, playingSince: 1000, suddenMs: 40000 }
++
++  it('playing 照算距突然死亡倒數', () => {
++    expect(phaseTimer({ ...base, phase: 'playing', last: null })).toEqual({ secondsLeft: 21, suddenDeath: false })
++  })
++
++  it('result 沿用最後一次 playing 的值，不跳回完整時長', () => {
++    const last = { secondsLeft: 17, suddenDeath: false }
++    const t = phaseTimer({ ...base, phase: 'result', last })
++    expect(t).toEqual(last)
++    expect(t).not.toBe(last)
++    expect(phaseTimer({ ...base, phase: 'result', last: { secondsLeft: 0, suddenDeath: true } })).toEqual({ secondsLeft: 0, suddenDeath: true })
++  })
++
++  it('result 但沒有 playing 紀錄（中途加入）時顯示完整時長；countdown 照舊顯示完整時長', () => {
++    expect(phaseTimer({ ...base, phase: 'result', last: null })).toEqual({ secondsLeft: 40, suddenDeath: false })
++    expect(phaseTimer({ ...base, phase: 'countdown', last: { secondsLeft: 3, suddenDeath: false } })).toEqual({ secondsLeft: 40, suddenDeath: false })
++  })
++})
+diff --git a/src/babylon/games/bomberFx/hudModel.ts b/src/babylon/games/bomberFx/hudModel.ts
+index 3d64f7d..882b2d2 100644
+--- a/src/babylon/games/bomberFx/hudModel.ts
++++ b/src/babylon/games/bomberFx/hudModel.ts
+@@ -37,36 +37,49 @@ export function quantizeInvincible(ms: number): number {
+ }
+ 
+ /** 距突然死亡倒數（playingSince 為 0 = 還沒開打，顯示完整時長） */
+ export function suddenDeathSeconds(o: { now: number; playingSince: number; suddenMs: number }): GameHud['timer'] {
+   if (o.playingSince === 0) return { secondsLeft: Math.ceil(o.suddenMs / 1000), suddenDeath: false }
+   const left = o.suddenMs - (o.now - o.playingSince)
+   if (left < 0) return { secondsLeft: 0, suddenDeath: true }
+   return { secondsLeft: Math.ceil(left / 1000), suddenDeath: false }
+ }
+ 
++/** 依階段取計時：結算階段凍結在最後一次 playing 的值（沒有紀錄才顯示完整時長），其餘階段照算 */
++export function phaseTimer(o: {
++  phase: string
++  now: number
++  playingSince: number
++  suddenMs: number
++  last: GameHud['timer'] | null
++}): GameHud['timer'] {
++  if (o.phase === 'result' && o.last) return { ...o.last }
++  return suddenDeathSeconds({ now: o.now, playingSince: o.phase === 'playing' ? o.playingSince : 0, suddenMs: o.suddenMs })
++}
++
+ export function buildBomberHud(i: HudInput): GameHud {
+   const players: GameHudPlayer[] = i.entities.map((e) => {
+     const s = i.stat(e.id)
++    const alive = i.alive(e.id)
+     return {
+       id: e.id,
+       name: e.name,
+       colorIndex: e.colorIndex,
+       isSelf: e.id === i.selfId,
+       isAI: e.isAI,
+-      alive: i.alive(e.id),
++      alive,
+       wins: i.wins(e.id),
+       bombs: s.bombs,
+       fire: s.fire,
+       speed: s.speed,
+       kick: s.kick,
+       throw: s.throw,
+-      invincibleMs: quantizeInvincible(s.invincibleUntil - i.now),
++      invincibleMs: alive ? quantizeInvincible(s.invincibleUntil - i.now) : 0,
+     }
+   })
+   return {
+     timer: { ...i.timer },
+     aliveCount: players.filter((p) => p.alive).length,
+     totalCount: players.length,
+     players,
+   }
+ }
+diff --git a/src/babylon/games/bomberFx/perfLog.test.ts b/src/babylon/games/bomberFx/perfLog.test.ts
+new file mode 100644
+index 0000000..2f600c8
+--- /dev/null
++++ b/src/babylon/games/bomberFx/perfLog.test.ts
+@@ -0,0 +1,15 @@
++import { describe, expect, it } from 'vitest'
++import { perfLogLine } from '@/babylon/games/bomberFx/perfLog'
++
++describe('perfLogLine（AC8 量測行）', () => {
++  it('正常取樣：四捨五入 fps', () => {
++    expect(perfLogLine(42, 59.6)).toBe('[bomber] drawCalls=42 fps=60')
++  })
++
++  it('還沒渲染過（drawCalls=0 或 fps 非有限值）回 null，不印雜訊', () => {
++    expect(perfLogLine(0, Infinity)).toBeNull()
++    expect(perfLogLine(0, 60)).toBeNull()
++    expect(perfLogLine(30, Infinity)).toBeNull()
++    expect(perfLogLine(30, NaN)).toBeNull()
++  })
++})
+diff --git a/src/babylon/games/bomberFx/perfLog.ts b/src/babylon/games/bomberFx/perfLog.ts
+new file mode 100644
+index 0000000..adb3c1f
+--- /dev/null
++++ b/src/babylon/games/bomberFx/perfLog.ts
+@@ -0,0 +1,8 @@
++/**
++ * AC8 量測行（純函式）：還沒渲染過的取樣（drawCalls=0、fps 非有限值）回 null，
++ * 開局第一行不會印出 `drawCalls=0 fps=Infinity` 的雜訊。
++ */
++export function perfLogLine(drawCalls: number, fps: number): string | null {
++  if (drawCalls <= 0 || !Number.isFinite(fps)) return null
++  return `[bomber] drawCalls=${drawCalls} fps=${Math.round(fps)}`
++}
+diff --git a/src/index.css b/src/index.css
+index 0a1757b..7405799 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1240,22 +1240,23 @@ html {
+   @apply bg-white/50;
+ }
+ 
+ /* 兩側玩家卡欄：左 P1／P3、右 P2／P4；卡縮 0.75、兩張都疊在上半部貼頂（透視下棋盤上緣較窄），下方兩角留給最外欄 */
+ .bomber-col {
+   @apply absolute top-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top))] flex flex-col gap-[14px] [scale:calc(var(--bomber-scale)_*_0.75)];
+ }
+ .bomber-col-left {
+   @apply left-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-left))] origin-top-left;
+ }
++/* 右欄頂部至少讓出 Battle 的浮動全螢幕鈕（top max(0.5rem, safe-top)、size-9＝2.25rem）再加 6px，避免壓到 P2 卡編號 */
+ .bomber-col-right {
+-  @apply right-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-right))] origin-top-right;
++  @apply top-[max(calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top)),calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px))] right-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-right))] origin-top-right;
+ }
+ 
+ .bomber-card {
+   @apply relative flex h-[206px] w-[118px] flex-col overflow-hidden rounded-2xl border-[2.5px] border-(--bomber-ink) bg-[#fff6e3] text-(--bomber-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] transition-[filter,opacity] duration-300;
+ }
+ .bomber-card-dead {
+   @apply opacity-60 grayscale;
+ }
+ .bomber-card-head {
+   @apply flex h-[34px] shrink-0 items-center justify-between gap-1 border-b-[2.5px] border-(--bomber-ink) bg-linear-to-b from-(--bc-light) to-(--bc-base) px-2;
+@@ -1373,13 +1374,13 @@ html {
+   .bomber-timer-sep {
+     @apply h-4;
+   }
+   .bomber-timer-alive {
+     @apply text-[12px];
+   }
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .bomber-timer-urgent {
+-    animation: none;
++    @apply animate-none;
+   }
+ }
+

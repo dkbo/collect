@@ -1,0 +1,1086 @@
+# 炸彈超人美術優化（A Toy Box） — wave 2 since 277be00 — 2026-09-25T15:58
+# files changed: 10 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/babylonCore.ts                 |  13 ++
+ src/babylon/games/bomber.ts                |  24 +++-
+ src/babylon/games/bomberFx/board.ts        |  39 ++++++
+ src/babylon/games/bomberFx/look.ts         | 208 +++++++++++++++++++++++++++++
+ src/babylon/games/bomberFx/quality.test.ts | 100 ++++++++++++++
+ src/babylon/games/bomberFx/quality.ts      | 111 +++++++++++++++
+ src/babylon/games/bomberFx/thin.test.ts    |  59 ++++++++
+ src/babylon/games/bomberFx/thin.ts         |   6 +-
+ src/babylon/games/bomberFx/toon.ts         |  62 +++++++++
+ vite.config.ts                             |   5 +-
+ 10 files changed, 620 insertions(+), 7 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/babylonCore.ts b/src/babylon/babylonCore.ts
+index 8498371..dc9f4c2 100644
+--- a/src/babylon/babylonCore.ts
++++ b/src/babylon/babylonCore.ts
+@@ -1,34 +1,47 @@
+ /**
+  * Babylon.js 集中匯入點：一律走深層路徑，不從 `@babylonjs/core` 整包匯入。
+  * 整包匯入會把整個引擎（約 6.4 MB）打進 vendor-babylon；深層匯入只帶實際用到的模組。
+  * 不用 `*.pure` 版本：非 pure 模組會順便註冊副作用（scene 元件、engine extension 等）；
+  * 非 pure 入口也不會帶的（scene.pick 的 Ray、ParticleSystem 的 scene 元件、edges renderer）在下方明確補上。
+  */
+ import '@babylonjs/core/Culling/ray' // scene.pick：指標／觸控移動時 InputManager 會呼叫，缺了會報「Ray needs to be imported」
+ import '@babylonjs/core/Particles/particleSystemComponent' // ParticleSystem 的 scene 元件與 createEffectForParticles
+ import '@babylonjs/core/Rendering/edgesRenderer' // mesh.enableEdgesRendering()
+ import '@babylonjs/core/Meshes/thinInstanceMesh' // mesh.thinInstanceSetBuffer()／thinInstanceCount（bomber 的牆、箱、炸彈、火焰、道具）
++import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent' // ShadowGenerator 的 scene 元件（bomber 陰影）
++import '@babylonjs/core/Layers/effectLayerSceneComponent' // GlowLayer 的 scene 元件（bomber 發光白名單）
++import '@babylonjs/core/Rendering/outlineRenderer' // mesh.renderOutline（bomber 卡通描邊）
++import '@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent' // DefaultRenderingPipeline 掛到 scene
+ 
+ import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder'
+ import { CreateCylinder, CreateCylinderVertexData } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
+ import { CreateDisc } from '@babylonjs/core/Meshes/Builders/discBuilder'
+ import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder'
+ import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder'
+ import { CreateSphere, CreateSphereVertexData } from '@babylonjs/core/Meshes/Builders/sphereBuilder'
+ import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder'
+ 
+ export { Engine } from '@babylonjs/core/Engines/engine'
+ export { Scene } from '@babylonjs/core/scene'
+ export { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera'
+ export type { Camera } from '@babylonjs/core/Cameras/camera'
+ export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'
++export { DirectionalLight } from '@babylonjs/core/Lights/directionalLight'
++export { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
++export { GlowLayer } from '@babylonjs/core/Layers/glowLayer'
++export { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline'
++export { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration'
++export { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase'
++export type { MaterialDefines } from '@babylonjs/core/Materials/materialDefines'
++export type { Material } from '@babylonjs/core/Materials/material'
++export { ShaderLanguage } from '@babylonjs/core/Materials/shaderLanguage'
+ export { Color3, Color4 } from '@babylonjs/core/Maths/math.color'
+ export { Vector3 } from '@babylonjs/core/Maths/math.vector'
+ export { Mesh } from '@babylonjs/core/Meshes/mesh'
+ export { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
+ export { Texture } from '@babylonjs/core/Materials/Textures/texture'
+ export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture'
+ export { ParticleSystem } from '@babylonjs/core/Particles/particleSystem'
+ export { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData'
+ export { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation'
+ 
+diff --git a/src/babylon/games/bomber.ts b/src/babylon/games/bomber.ts
+index 2e8a42b..ffb432e 100644
+--- a/src/babylon/games/bomber.ts
++++ b/src/babylon/games/bomber.ts
+@@ -1,14 +1,13 @@
+ import {
+   ArcRotateCamera,
+   Color4,
+-  HemisphericLight,
+   ParticleSystem,
+   SceneInstrumentation,
+   Texture,
+   Vector3,
+   type Mesh,
+ } from '@/babylon/babylonCore'
+ import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+@@ -53,22 +52,23 @@ import {
+   type BotEntry,
+   type BotsPayload,
+   type CloseWallPayload,
+   type Drop,
+   type ItemKind,
+   type PickupPayload,
+ } from './bomberNet'
+ import { AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
+ import { ToyBoard } from '@/babylon/games/bomberFx/board'
+ import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
+-import { colorIndexOf, invincibleBlinkOn, type ColorIndex } from '@/babylon/games/bomberFx/palette'
++import { colorIndexOf, invincibleBlinkOn, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
+ import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
++import { ToyLook } from '@/babylon/games/bomberFx/look'
+ 
+ /**
+  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
+  *
+  * 同步模型：Host Authority 事件制——
+  * - 位置：各自模擬自己的人（ownership 20Hz 廣播 {x,z}，他人插值）
+  * - 地圖：host 播種 seed（reliable + channel open 補送），各端決定性生成
+  * - 炸彈：guest 廣播 bombReq → host 驗證 → 廣播 bomb（放置）/ boom（爆炸格、毀箱、擊殺）
+  * - 勝負：host 裁決最後生存者 → flow.endGame
+  */
+@@ -232,20 +232,21 @@ class BomberScene implements GameModule {
+   private botAvatars = new Map<string, Avatar>()
+   private botState = new Map<string, { x: number; z: number }>() // host 模擬位置
+   private botTarget = new Map<string, { x: number; z: number }>() // guest 插值目標
+   private botBombInput = new Map<string, number>() // 每隻 bot 放彈冷卻
+   private lastBotBroadcast = 0
+   private camera!: ArcRotateCamera
+   private hud!: TextPanel
+   private banner!: TextPanel
+   private board!: ToyBoard
+   private avatarKit!: AvatarKit
++  private look!: ToyLook
+   private instr: SceneInstrumentation | null = null
+   private lastPerfLog = 0
+   private explosionPs: ParticleSystem | null = null
+   private debrisPs: ParticleSystem | null = null
+   private puffPs: ParticleSystem | null = null
+   private sparklePs: ParticleSystem | null = null
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const key = e.key.toLowerCase()
+     this.keys.add(key)
+@@ -310,20 +311,24 @@ class BomberScene implements GameModule {
+     if (this.isBot(pid)) return this.botState.get(pid) ?? this.botTarget.get(pid) ?? null
+     return this.own.latestRemote(pid)
+   }
+ 
+   /** 建立 Q 版角色（程式建模，單一 mesh），可走路擺動、面向移動方向 */
+   private makePlayer(id: string): Avatar {
+     const toy = buildAvatar(this.ctx.scene, this.avatarKit, id, this.colorIndex(id), {
+       isAI: this.isBot(id),
+       isSelf: id === this.ctx.selfId,
+     })
++    // 光影登記：投影＋描邊；AI 天線球進 Glow 白名單
++    this.look.caster(toy.body)
++    this.look.outline(toy.body)
++    if (toy.antenna) this.look.glowMesh(toy.antenna, TOY.aiAntenna)
+     const av: Avatar = { root: toy.root, toy, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
+     this.faceCamera(av)
+     return av
+   }
+ 
+   /** 開局面向鏡頭（−Z），與 variant-A 稿一致；之後依移動方向更新 */
+   private faceCamera(av: Avatar): void {
+     av.yaw = Math.PI
+     av.toy.body.rotation.y = Math.PI
+   }
+@@ -1118,30 +1123,38 @@ class BomberScene implements GameModule {
+   }
+ 
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+     // 固定俯視相機（不開放操作）
+     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 30, Vector3.Zero(), scene)
+-    new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
++    // 光影與後製（AC4／AC7）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位
++    const halfDiag = Math.hypot(GRID_W * CELL, GRID_H * CELL) / 2
++    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + CELL })
+ 
+     // 場景物件（A「Toy Box」）：地面單 mesh＋程式棋盤，柱牆／外框／木箱／落牆／炸彈／火焰／道具走 thin instance
+     this.board = new ToyBoard(scene, {
+       gridW: GRID_W,
+       gridH: GRID_H,
+       cell: CELL,
+       toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
+     })
+     this.avatarKit = new AvatarKit(scene)
++    const fx = this.board.fxTargets()
++    this.look.toon(...fx.toon, this.avatarKit.bodyMat)
++    this.look.receiver(...fx.receivers)
++    this.look.caster(...fx.casters)
++    this.look.outline(...fx.outlined)
++    for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
+     // AC8：draw calls 量測（每 PERF_LOG_MS 印一次）
+     this.instr = new SceneInstrumentation(scene)
+ 
+     this.initParticles()
+ 
+     this.selfAvatar = this.makePlayer(ctx.selfId)
+     this.hud = createTextPanel(scene, this.camera, 'hud', 3.4, 0.56, new Vector3(0, 2.72, 8), 'glass')
+     this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+@@ -1184,21 +1197,21 @@ class BomberScene implements GameModule {
+     const px = new Texture(
+       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+       scene
+     )
+     const makeBurst = (
+       name: string,
+       c1: Color4,
+       c2: Color4,
+       o: { size: [number, number]; life: [number, number]; power: [number, number]; gravity: number }
+     ): ParticleSystem => {
+-      const ps = new ParticleSystem(name, 150, scene)
++      const ps = new ParticleSystem(name, this.look.settings.particleCap, scene)
+       ps.particleTexture = px
+       ps.emitter = Vector3.Zero()
+       ps.minEmitBox = new Vector3(-0.3, 0, -0.3)
+       ps.maxEmitBox = new Vector3(0.3, 0.3, 0.3)
+       ps.color1 = c1
+       ps.color2 = c2
+       ps.colorDead = new Color4(c2.r, c2.g, c2.b, 0)
+       ps.minSize = o.size[0]
+       ps.maxSize = o.size[1]
+       ps.minLifeTime = o.life[0]
+@@ -1406,20 +1419,22 @@ class BomberScene implements GameModule {
+         moveToward(action.cx, action.cy)
+       } else if (action.type === 'bomb') {
+         this.botBombInput.set(bot.id, now)
+         this.validateBomb(bot.id, cx, cy)
+       }
+     }
+   }
+ 
+   update(deltaMs: number): void {
+     const phase = this.flow.state.phase
++    // AC7：連續 60 幀平均過低就自動降一級（描邊 → Glow → 陰影）
++    this.look.update(deltaMs)
+ 
+     // 自己
+     if (this.selfAvatar) {
+       this.selfAvatar.root.position.x = this.state.x
+       this.selfAvatar.root.position.z = this.state.z
+       this.animateAvatar(this.selfAvatar, deltaMs)
+     }
+ 
+     // 遠端：增刪 + 插值
+     const ids = new Set(this.own.remoteIds())
+@@ -1614,20 +1629,21 @@ class BomberScene implements GameModule {
+     this.avatarKit.dispose()
+     this.botState.clear()
+     this.botTarget.clear()
+     this.bots = []
+     this.bombs.clear()
+     this.flames = []
+     this.items.clear()
+     this.board.dispose()
+     this.instr?.dispose()
+     this.instr = null
++    this.look.dispose()
+     this.explosionPs?.dispose()
+     this.debrisPs?.dispose()
+     this.puffPs?.dispose()
+     this.sparklePs?.dispose()
+     this.explosionPs = this.debrisPs = this.puffPs = this.sparklePs = null
+     this.hud.dispose()
+     this.banner.dispose()
+   }
+ }
+ 
+diff --git a/src/babylon/games/bomberFx/board.ts b/src/babylon/games/bomberFx/board.ts
+index 19e9dd0..0f2cf0b 100644
+--- a/src/babylon/games/bomberFx/board.ts
++++ b/src/babylon/games/bomberFx/board.ts
+@@ -17,20 +17,34 @@ import {
+   tokenData,
+   warnQuadData,
+   type CrateVariant,
+ } from '@/babylon/games/bomberFx/models'
+ import { ITEM_COLORS, TOY } from '@/babylon/games/bomberFx/palette'
+ import { ThinGroup } from '@/babylon/games/bomberFx/thin'
+ import { BLOCK_TILE, createBlockAtlas, createGroundTexture, createItemAtlas, ITEM_ORDER } from '@/babylon/games/bomberFx/textures'
+ 
+ export type ItemKindName = (typeof ITEM_ORDER)[number]
+ 
++/** 光影登記用：依用途分好的 mesh 與材質（ToyLook 用） */
++export interface BoardFxTargets {
++  /** 卡通 ramp（發光物與預告格走 emissive，不在內） */
++  toon: StandardMaterial[]
++  /** 接影：地面、牆、箱 */
++  receivers: Mesh[]
++  /** 投影：炸彈、道具 */
++  casters: Mesh[]
++  /** 描邊：炸彈、箱子、道具 */
++  outlined: Mesh[]
++  /** GlowLayer 白名單：火焰外層、將爆炸彈、無敵代幣 */
++  glow: { mesh: Mesh; color: string; strength: number }[]
++}
++
+ export interface BoardConfig {
+   gridW: number
+   gridH: number
+   cell: number
+   toWorld: (cx: number, cy: number) => { x: number; z: number }
+ }
+ 
+ interface FlamePart {
+   group: ThinGroup<number>
+   key: number
+@@ -75,20 +89,21 @@ export class ToyBoard {
+   private closing = new Map<number, ClosingWall>()
+   private bombs!: { normal: ThinGroup<string>; flash: ThinGroup<string> }
+   private flameArms: ThinGroup<number>[] = []
+   private flameCaps: ThinGroup<number>[] = []
+   private flames = new Map<number, FlamePart[]>()
+   private flameSeq = 0
+   private partSeq = 0
+   private items!: Record<ItemKindName, ThinGroup<number>>
+   private itemRecs = new Map<number, ItemRec>()
+   private groups: ThinGroup<number | string>[] = []
++  private toonMats: StandardMaterial[] = []
+ 
+   constructor(scene: Scene, cfg: BoardConfig) {
+     this.scene = scene
+     this.cfg = cfg
+     this.build()
+   }
+ 
+   private mat(name: string, setup: (m: StandardMaterial) => void): StandardMaterial {
+     const m = new StandardMaterial(name, this.scene)
+     m.specularColor = Color3.Black()
+@@ -111,26 +126,28 @@ export class ToyBoard {
+     const gw = gridW * cell
+     const gh = gridH * cell
+ 
+     // 地面：1 個 mesh + 程式棋盤貼圖（取代逐格 143 塊 Box）
+     const groundTex = createGroundTexture(scene, gridW, gridH)
+     this.textures.push(groundTex)
+     this.ground = MeshBuilder.CreateGround('bomber-ground', { width: gw, height: gh }, scene)
+     this.ground.material = this.mat('bomber-ground-mat', (m) => {
+       m.diffuseTexture = groundTex
+     })
++    this.toonMats.push(this.ground.material as StandardMaterial)
+ 
+     const atlas = createBlockAtlas(scene)
+     this.textures.push(atlas)
+     const blockMat = this.mat('bomber-block-mat', (m) => {
+       m.diffuseTexture = atlas
+     })
++    this.toonMats.push(blockMat)
+ 
+     // 柱牆：固定在（奇, 奇）格
+     this.pillars = this.group('bomber-pillars', toMesh('p', pillarData(cell), scene), blockMat, 32)
+     for (let cy = 1; cy < gridH; cy += 2) {
+       for (let cx = 1; cx < gridW; cx += 2) {
+         const { x, z } = this.cfg.toWorld(cx, cy)
+         this.pillars.put(cy * gridW + cx, { x, y: 0, z })
+       }
+     }
+ 
+@@ -170,20 +187,21 @@ export class ToyBoard {
+     this.warn.material = this.warnMat
+     this.warn.isVisible = false
+     this.warn.isPickable = false
+ 
+     // 炸彈：一般與將爆各一組（將爆組之後進 GlowLayer 白名單）
+     const bombMat = this.mat('bomber-bomb-mat', (m) => {
+       m.diffuseColor = Color3.White()
+       m.specularColor = new Color3(0.55, 0.55, 0.6)
+       m.specularPower = 48
+     })
++    this.toonMats.push(bombMat)
+     this.bombs = {
+       normal: this.group('bomber-bombs', toMesh('bn', bombData(false), scene), bombMat, 24),
+       flash: this.group('bomber-bombs-flash', toMesh('bf', bombData(true), scene), bombMat, 24),
+     }
+ 
+     // 火焰：外／中／芯三層，各有臂與帽兩種形狀
+     FLAME_LAYERS.forEach((_, i) => {
+       const m = this.mat(`bomber-flame-mat-${i}`, (mm) => {
+         mm.emissiveColor = Color3.FromHexString(TOY.flame[i])
+         mm.disableLighting = true
+@@ -193,28 +211,48 @@ export class ToyBoard {
+     })
+ 
+     // 道具代幣：6 種各一組，共用圖集材質（外殼頂點色 × 圖集白格；正面 quad 取圖示格）
+     const itemAtlas = createItemAtlas(scene)
+     this.textures.push(itemAtlas)
+     const itemMat = this.mat('bomber-item-mat', (m) => {
+       m.diffuseTexture = itemAtlas
+       m.specularColor = new Color3(0.45, 0.45, 0.45)
+       m.specularPower = 40
+     })
++    this.toonMats.push(itemMat)
+     const items = {} as Record<ItemKindName, ThinGroup<number>>
+     ITEM_ORDER.forEach((kind, i) => {
+       items[kind] = this.group(`bomber-item-${kind}`, toMesh('it', tokenData(cell, i, ITEM_COLORS[kind]), scene), itemMat, 16)
+     })
+     this.items = items
+     this.syncAll()
+   }
+ 
++  fxTargets(): BoardFxTargets {
++    const crates = Object.values(this.crates).map((g) => g.mesh)
++    const bombs = [this.bombs.normal.mesh, this.bombs.flash.mesh]
++    const items = Object.values(this.items).map((g) => g.mesh)
++    return {
++      toon: [...this.toonMats],
++      receivers: [this.ground, this.pillars.mesh, this.border.mesh, this.sudden.mesh, ...crates],
++      casters: [...bombs, ...items],
++      outlined: [...crates, ...bombs, ...items],
++      glow: [
++        { mesh: this.flameArms[0].mesh, color: TOY.flame[0], strength: 1 },
++        { mesh: this.flameCaps[0].mesh, color: TOY.flame[0], strength: 1 },
++        { mesh: this.bombs.flash.mesh, color: TOY.bombFlash, strength: 1 },
++        // 代幣本身不發光、又疊 bloom，全強度會糊成一團白；壓到一半只留金色光暈
++        { mesh: this.items.invincible.mesh, color: TOY.invincible, strength: 0.5 },
++      ],
++    }
++  }
++
+   // ---- 木箱 ----
+ 
+   /** 設定某格木箱外觀；null 代表清掉（炸毀時只更新 matrix buffer，不 dispose mesh） */
+   setCrate(ci: number, cx: number, cy: number, v: CrateVariant | null): void {
+     const cur = this.crateOf.get(ci)
+     if (cur) this.crates[cur].remove(ci)
+     this.crateOf.delete(ci)
+     if (!v) return
+     const { x, z } = this.cfg.toWorld(cx, cy)
+     this.crates[v].put(ci, { x, y: 0, z })
+@@ -369,17 +407,18 @@ export class ToyBoard {
+   }
+ 
+   dispose(): void {
+     for (const g of this.groups) g.dispose()
+     this.groups = []
+     this.ground.dispose()
+     this.warn.dispose()
+     for (const m of this.mats) m.dispose()
+     for (const t of this.textures) t.dispose()
+     this.mats = []
++    this.toonMats = []
+     this.textures = []
+     this.flames.clear()
+     this.itemRecs.clear()
+     this.closing.clear()
+     this.crateOf.clear()
+   }
+ }
+diff --git a/src/babylon/games/bomberFx/look.ts b/src/babylon/games/bomberFx/look.ts
+new file mode 100644
+index 0000000..2eb590b
+--- /dev/null
++++ b/src/babylon/games/bomberFx/look.ts
+@@ -0,0 +1,208 @@
++/**
++ * 炸彈超人光影與後製（spec §6／§7／§10，AC4／AC7）：雙光、陰影、GlowLayer 白名單、卡通描邊、
++ * DefaultRenderingPipeline、解析度與檔位；遊戲中 fps 過低時依序關掉 描邊 → Glow → 陰影。
++ * 只管「怎麼畫」，哪些 mesh 投影／發光／描邊由呼叫端登記。
++ */
++import {
++  Color3,
++  DefaultRenderingPipeline,
++  DirectionalLight,
++  GlowLayer,
++  HemisphericLight,
++  ImageProcessingConfiguration,
++  ShadowGenerator,
++  Vector3,
++  type Camera,
++  type Material,
++  type Mesh,
++  type Scene,
++} from '@/babylon/babylonCore'
++import { TOY } from '@/babylon/games/bomberFx/palette'
++import {
++  FpsWatch,
++  nextDegrade,
++  noDegradeFlag,
++  pickTier,
++  tierSettings,
++  type BomberTier,
++  type DegradeStep,
++  type TierSettings,
++} from '@/babylon/games/bomberFx/quality'
++import { applyToon } from '@/babylon/games/bomberFx/toon'
++
++const OUTLINE_WIDTH = 0.02
++const SUN_DIR = new Vector3(-0.4, -1, 0.3)
++
++export interface LookOptions {
++  /** 陰影正交投影要涵蓋的半徑（場地半對角線加餘裕） */
++  shadowRadius: number
++}
++
++/** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
++function detectTier(): { tier: BomberTier; noDegrade: boolean } {
++  if (typeof window === 'undefined') return { tier: 'desktop', noDegrade: true }
++  const search = window.location.search
++  const touch = 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0
++  const cores = navigator.hardwareConcurrency || undefined
++  return { tier: pickTier({ search, touch, cores }), noDegrade: noDegradeFlag(search) }
++}
++
++export class ToyLook {
++  readonly tier: BomberTier
++  readonly settings: TierSettings
++  private readonly scene: Scene
++  private readonly hemi: HemisphericLight
++  private readonly sun: DirectionalLight
++  private readonly shadow: ShadowGenerator
++  private glow: GlowLayer | null = null
++  private readonly pipeline: DefaultRenderingPipeline
++  private readonly glowColors = new Map<number, Color3>()
++  private readonly outlined = new Set<Mesh>()
++  private readonly outlineColor = Color3.FromHexString(TOY.outline)
++  private readonly active: Record<DegradeStep, boolean>
++  private watch: FpsWatch | null
++  private readonly prevScaling: number
++
++  constructor(scene: Scene, camera: Camera, opts: LookOptions) {
++    this.scene = scene
++    const { tier, noDegrade } = detectTier()
++    this.tier = tier
++    this.settings = tierSettings(tier, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1)
++    const s = this.settings
++    console.info(`[bomber] tier ${tier}`)
++
++    const engine = scene.getEngine()
++    this.prevScaling = engine.getHardwareScalingLevel()
++    engine.setHardwareScalingLevel(s.hardwareScaling)
++
++    // 暖主光＋冷環境光（spec §7）
++    this.hemi = new HemisphericLight('bomber-hemi', new Vector3(0.2, 1, 0.1), scene)
++    this.hemi.intensity = 0.55
++    this.hemi.groundColor = Color3.FromHexString('#3A3F5C')
++    this.sun = new DirectionalLight('bomber-sun', SUN_DIR, scene)
++    this.sun.intensity = 0.9
++    this.sun.diffuse = Color3.FromHexString('#FFF4E0')
++    this.sun.specular = Color3.FromHexString('#FFF4E0')
++    // 固定正交範圍涵蓋整個場地：thin instance 的 bounding 只在原點，自動範圍會漏掉場上的炸彈與道具
++    const r = opts.shadowRadius
++    this.sun.position = SUN_DIR.normalizeToNew().scale(-40)
++    this.sun.autoUpdateExtends = false
++    this.sun.autoCalcShadowZBounds = false
++    this.sun.orthoLeft = -r
++    this.sun.orthoRight = r
++    this.sun.orthoBottom = -r
++    this.sun.orthoTop = r
++    this.sun.shadowMinZ = 1
++    this.sun.shadowMaxZ = 80
++
++    this.shadow = new ShadowGenerator(s.shadowSize, this.sun)
++    this.shadow.usePercentageCloserFiltering = true
++    this.shadow.filteringQuality = ShadowGenerator.QUALITY_MEDIUM
++    this.shadow.setDarkness(0.35)
++    this.shadow.bias = 0.002
++
++    if (s.glow) this.glow = this.makeGlow()
++
++    this.pipeline = new DefaultRenderingPipeline('bomber-pipeline', true, scene, [camera])
++    this.pipeline.samples = 1
++    this.pipeline.fxaaEnabled = true
++    this.pipeline.bloomEnabled = s.bloom
++    if (s.bloom) {
++      this.pipeline.bloomThreshold = 0.85
++      this.pipeline.bloomWeight = 0.3
++      this.pipeline.bloomKernel = 48
++    }
++    this.pipeline.imageProcessingEnabled = true
++    const ip = this.pipeline.imageProcessing
++    ip.toneMappingEnabled = true
++    ip.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES
++    ip.exposure = 1.05
++    ip.contrast = 1.08
++
++    this.active = { outline: s.outline, glow: s.glow, shadow: true }
++    this.watch = noDegrade ? null : new FpsWatch()
++  }
++
++  private makeGlow(): GlowLayer {
++    const glow = new GlowLayer('bomber-glow', this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5 })
++    glow.intensity = 0.7
++    // 白名單內每個 mesh 用登記的發光色（炸彈、道具材質本身沒有 emissive）
++    glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
++      const c = this.glowColors.get(mesh.uniqueId)
++      if (c) result.set(c.r, c.g, c.b, 1)
++      else result.set(0, 0, 0, 0)
++    }
++    return glow
++  }
++
++  // ---- 登記 ----
++
++  /** 卡通兩階 ramp（一般物件；發光物走 emissive，不必掛） */
++  toon(...materials: Material[]): void {
++    for (const m of materials) applyToon(m)
++  }
++
++  /** 投影（只登記玩家、炸彈、道具） */
++  caster(...meshes: Mesh[]): void {
++    for (const m of meshes) this.shadow.addShadowCaster(m, false)
++  }
++
++  receiver(...meshes: Mesh[]): void {
++    for (const m of meshes) m.receiveShadows = true
++  }
++
++  /** 卡通描邊（玩家、炸彈、箱子、道具） */
++  outline(...meshes: Mesh[]): void {
++    for (const m of meshes) {
++      this.outlined.add(m)
++      m.outlineColor = this.outlineColor
++      m.outlineWidth = OUTLINE_WIDTH
++      m.renderOutline = this.active.outline
++      m.onDisposeObservable.addOnce(() => this.outlined.delete(m))
++    }
++  }
++
++  /** GlowLayer 白名單（火焰外層、將爆炸彈、無敵代幣、AI 天線）；strength 縮放發光色 */
++  glowMesh(mesh: Mesh, hex: string, strength = 1): void {
++    this.glowColors.set(mesh.uniqueId, Color3.FromHexString(hex).scale(strength))
++    mesh.onDisposeObservable.addOnce(() => this.glowColors.delete(mesh.uniqueId))
++    this.glow?.addIncludedOnlyMesh(mesh)
++  }
++
++  // ---- 每幀 ----
++
++  /** 餵幀時間；連續 60 幀平均低於 45fps 就降一級 */
++  update(deltaMs: number): void {
++    if (!this.watch || !this.watch.push(deltaMs)) return
++    const step = nextDegrade(this.active)
++    if (!step) {
++      this.watch = null
++      return
++    }
++    this.degrade(step)
++    // 關掉一項後重新暖機（材質重編譯的那幾幀不算）
++    this.watch = nextDegrade(this.active) ? new FpsWatch() : null
++  }
++
++  private degrade(step: DegradeStep): void {
++    this.active[step] = false
++    if (step === 'outline') for (const m of this.outlined) m.renderOutline = false
++    else if (step === 'glow') {
++      this.glow?.dispose()
++      this.glow = null
++    } else this.sun.shadowEnabled = false
++    console.info(`[bomber] degrade ${step}`)
++  }
++
++  dispose(): void {
++    this.pipeline.dispose()
++    this.glow?.dispose()
++    this.glow = null
++    this.shadow.dispose()
++    this.sun.dispose()
++    this.hemi.dispose()
++    this.glowColors.clear()
++    this.outlined.clear()
++    this.scene.getEngine().setHardwareScalingLevel(this.prevScaling)
++  }
++}
+diff --git a/src/babylon/games/bomberFx/quality.test.ts b/src/babylon/games/bomberFx/quality.test.ts
+new file mode 100644
+index 0000000..c46bdc9
+--- /dev/null
++++ b/src/babylon/games/bomberFx/quality.test.ts
+@@ -0,0 +1,100 @@
++import { describe, expect, it } from 'vitest'
++import { FpsWatch, nextDegrade, noDegradeFlag, pickTier, tierSettings } from '@/babylon/games/bomberFx/quality'
++
++describe('pickTier', () => {
++  it('桌機：非觸控且核心數 > 4', () => {
++    expect(pickTier({ search: '', touch: false, cores: 8 })).toBe('desktop')
++  })
++
++  it('觸控或核心數 <= 4 走 mobile', () => {
++    expect(pickTier({ search: '', touch: true, cores: 16 })).toBe('mobile')
++    expect(pickTier({ search: '', touch: false, cores: 4 })).toBe('mobile')
++  })
++
++  it('取不到核心數時不因此降級', () => {
++    expect(pickTier({ search: '', touch: false, cores: undefined })).toBe('desktop')
++  })
++
++  it('?bomberTier= 強制檔位，無效值忽略', () => {
++    expect(pickTier({ search: '?bomberTier=desktop', touch: true, cores: 2 })).toBe('desktop')
++    expect(pickTier({ search: '?x=1&bomberTier=mobile', touch: false, cores: 16 })).toBe('mobile')
++    expect(pickTier({ search: '?bomberTier=ultra', touch: false, cores: 16 })).toBe('desktop')
++  })
++})
++
++describe('noDegradeFlag', () => {
++  it('只有 bomberNoDegrade=1 才關自動降級', () => {
++    expect(noDegradeFlag('?bomberNoDegrade=1')).toBe(true)
++    expect(noDegradeFlag('?bomberTier=desktop&bomberNoDegrade=1')).toBe(true)
++    expect(noDegradeFlag('?bomberNoDegrade=0')).toBe(false)
++    expect(noDegradeFlag('')).toBe(false)
++  })
++})
++
++describe('tierSettings', () => {
++  it('桌機：全開，解析度 1/min(dpr,2)', () => {
++    const s = tierSettings('desktop', 3)
++    expect(s).toMatchObject({ outline: true, glow: true, bloom: true, shadowSize: 1024, particleCap: 150 })
++    expect(s.hardwareScaling).toBeCloseTo(0.5)
++    expect(tierSettings('desktop', 1.5).hardwareScaling).toBeCloseTo(1 / 1.5)
++    expect(tierSettings('desktop', 1).hardwareScaling).toBe(1)
++  })
++
++  it('手機：關描邊／Glow／bloom，陰影 512，粒子 60，解析度固定 1.5', () => {
++    expect(tierSettings('mobile', 3)).toEqual({
++      outline: false,
++      glow: false,
++      bloom: false,
++      shadowSize: 512,
++      particleCap: 60,
++      hardwareScaling: 1.5,
++    })
++  })
++})
++
++describe('nextDegrade', () => {
++  it('依序 描邊 → Glow → 陰影，已關的跳過', () => {
++    expect(nextDegrade({ outline: true, glow: true, shadow: true })).toBe('outline')
++    expect(nextDegrade({ outline: false, glow: true, shadow: true })).toBe('glow')
++    expect(nextDegrade({ outline: false, glow: false, shadow: true })).toBe('shadow')
++    expect(nextDegrade({ outline: false, glow: false, shadow: false })).toBeNull()
++  })
++})
++
++describe('FpsWatch', () => {
++  const feed = (w: FpsWatch, ms: number, n: number): boolean[] => Array.from({ length: n }, () => w.push(ms))
++
++  it('連續 60 幀平均低於 45fps 才觸發一次', () => {
++    const w = new FpsWatch({ warmup: 0 })
++    const r = feed(w, 1000 / 40, 60)
++    expect(r.slice(0, 59).some(Boolean)).toBe(false)
++    expect(r[59]).toBe(true)
++  })
++
++  it('平均不低於 45fps 不觸發', () => {
++    const w = new FpsWatch({ warmup: 0 })
++    expect(feed(w, 1000 / 50, 180).some(Boolean)).toBe(false)
++  })
++
++  it('觸發後重新累積下一個 60 幀視窗', () => {
++    const w = new FpsWatch({ warmup: 0 })
++    feed(w, 1000 / 30, 60)
++    const r = feed(w, 1000 / 30, 60)
++    expect(r.filter(Boolean)).toHaveLength(1)
++    expect(r[59]).toBe(true)
++  })
++
++  it('暖機幀不計入', () => {
++    const w = new FpsWatch({ warmup: 30 })
++    const r = feed(w, 1000 / 20, 89)
++    expect(r.some(Boolean)).toBe(false)
++    expect(w.push(1000 / 20)).toBe(true)
++  })
++
++  it('單幀超過 maxGapMs（切分頁／卡頓）視為暫停，清空視窗重來', () => {
++    const w = new FpsWatch({ warmup: 0, maxGapMs: 500 })
++    feed(w, 1000 / 60, 59)
++    expect(w.push(3000)).toBe(false)
++    expect(feed(w, 1000 / 60, 60).some(Boolean)).toBe(false)
++  })
++})
+diff --git a/src/babylon/games/bomberFx/quality.ts b/src/babylon/games/bomberFx/quality.ts
+new file mode 100644
+index 0000000..ac5ad3e
+--- /dev/null
++++ b/src/babylon/games/bomberFx/quality.ts
+@@ -0,0 +1,111 @@
++/**
++ * 畫質檔位與自動降級（AC7，純邏輯）：開局依裝置選 desktop／mobile，網址參數可強制；
++ * 遊戲中連續 60 幀平均低於 45fps 就依序關掉 描邊 → Glow → 陰影。
++ */
++
++export type BomberTier = 'desktop' | 'mobile'
++export type DegradeStep = 'outline' | 'glow' | 'shadow'
++
++export const DEGRADE_ORDER: readonly DegradeStep[] = ['outline', 'glow', 'shadow']
++
++export interface TierEnv {
++  /** location.search */
++  search: string
++  /** 觸控裝置 */
++  touch: boolean
++  /** navigator.hardwareConcurrency（取不到為 undefined） */
++  cores: number | undefined
++}
++
++export interface TierSettings {
++  outline: boolean
++  glow: boolean
++  bloom: boolean
++  /** 陰影貼圖邊長 */
++  shadowSize: number
++  /** 每組粒子上限 */
++  particleCap: number
++  /** engine.setHardwareScalingLevel 的值 */
++  hardwareScaling: number
++}
++
++const param = (search: string, key: string): string | null => new URLSearchParams(search).get(key)
++
++export function pickTier(env: TierEnv): BomberTier {
++  const forced = param(env.search, 'bomberTier')
++  if (forced === 'desktop' || forced === 'mobile') return forced
++  if (env.touch) return 'mobile'
++  if (env.cores !== undefined && env.cores <= 4) return 'mobile'
++  return 'desktop'
++}
++
++export function noDegradeFlag(search: string): boolean {
++  return param(search, 'bomberNoDegrade') === '1'
++}
++
++export function tierSettings(tier: BomberTier, devicePixelRatio: number): TierSettings {
++  if (tier === 'mobile') {
++    return { outline: false, glow: false, bloom: false, shadowSize: 512, particleCap: 60, hardwareScaling: 1.5 }
++  }
++  return {
++    outline: true,
++    glow: true,
++    bloom: true,
++    shadowSize: 1024,
++    particleCap: 150,
++    hardwareScaling: 1 / Math.min(Math.max(devicePixelRatio, 1), 2),
++  }
++}
++
++/** 下一個可降的項目（已關的跳過）；全關回 null */
++export function nextDegrade(active: Record<DegradeStep, boolean>): DegradeStep | null {
++  return DEGRADE_ORDER.find((s) => active[s]) ?? null
++}
++
++export interface FpsWatchOptions {
++  /** 視窗幀數 */
++  window?: number
++  /** 平均低於此 fps 觸發 */
++  minFps?: number
++  /** 開頭略過的幀數（shader 編譯、貼圖上傳的卡頓） */
++  warmup?: number
++  /** 單幀超過此毫秒視為暫停（切分頁、GC），清空視窗重來 */
++  maxGapMs?: number
++}
++
++/** 連續 N 幀的平均 fps 監看；每湊滿一個視窗判一次，觸發後重新累積 */
++export class FpsWatch {
++  private readonly size: number
++  private readonly minFps: number
++  private readonly maxGapMs: number
++  private skip: number
++  private frames = 0
++  private sumMs = 0
++
++  constructor(opts: FpsWatchOptions = {}) {
++    this.size = opts.window ?? 60
++    this.minFps = opts.minFps ?? 45
++    this.skip = opts.warmup ?? 30
++    this.maxGapMs = opts.maxGapMs ?? 500
++  }
++
++  /** 餵一幀的毫秒；回傳 true 代表這個視窗平均低於門檻 */
++  push(deltaMs: number): boolean {
++    if (this.skip > 0) {
++      this.skip--
++      return false
++    }
++    if (!(deltaMs > 0) || deltaMs > this.maxGapMs) {
++      this.frames = 0
++      this.sumMs = 0
++      return false
++    }
++    this.frames++
++    this.sumMs += deltaMs
++    if (this.frames < this.size) return false
++    const fps = (this.frames * 1000) / this.sumMs
++    this.frames = 0
++    this.sumMs = 0
++    return fps < this.minFps
++  }
++}
+diff --git a/src/babylon/games/bomberFx/thin.test.ts b/src/babylon/games/bomberFx/thin.test.ts
+new file mode 100644
+index 0000000..8c526a0
+--- /dev/null
++++ b/src/babylon/games/bomberFx/thin.test.ts
+@@ -0,0 +1,59 @@
++import { describe, expect, it } from 'vitest'
++import type { Mesh } from '@/babylon/babylonCore'
++import { ThinGroup } from '@/babylon/games/bomberFx/thin'
++
++/**
++ * 假 mesh：照 Babylon thinInstanceMesh 的行為模擬 GPU 端——
++ * thinInstanceBufferUpdated 只上傳「當下 thinInstanceCount 筆」矩陣（thinInstanceMesh.pure.js:308），
++ * thinInstanceSetBuffer 整份上傳並把 count 設成 buffer 容量。
++ */
++function fakeMesh() {
++  const gpu: number[] = []
++  let data: Float32Array = new Float32Array(0)
++  const m = {
++    alwaysSelectAsActiveMesh: false,
++    isVisible: true,
++    thinInstanceCount: 0,
++    thinInstanceSetBuffer(_kind: string, buf: Float32Array) {
++      data = buf
++      gpu.length = 0
++      gpu.push(...buf)
++      m.thinInstanceCount = buf.length / 16
++    },
++    thinInstanceBufferUpdated() {
++      for (let i = 0; i < m.thinInstanceCount * 16; i++) gpu[i] = data[i]
++    },
++    dispose() {},
++  }
++  /** GPU 上第 i 個實例的平移 x（矩陣第 12 個元素） */
++  const gpuX = (i: number) => gpu[i * 16 + 12]
++  return { mesh: m as unknown as Mesh, gpuX }
++}
++
++describe('ThinGroup.sync', () => {
++  it('新增實例（count 變大）後，新 slot 的矩陣要上傳到 GPU', () => {
++    const { mesh, gpuX } = fakeMesh()
++    const g = new ThinGroup<number>(mesh, 8)
++    g.put(1, { x: 3, y: 0, z: 0 })
++    g.sync()
++    g.put(2, { x: 7, y: 0, z: 0 })
++    g.sync()
++    expect(mesh.thinInstanceCount).toBe(2)
++    expect(gpuX(0)).toBe(3)
++    expect(gpuX(1)).toBe(7)
++  })
++
++  it('移除後補上新實例，沿用的 slot 要是新矩陣，不是前任的', () => {
++    const { mesh, gpuX } = fakeMesh()
++    const g = new ThinGroup<number>(mesh, 8)
++    g.put(1, { x: 1, y: 0, z: 0 })
++    g.put(2, { x: 2, y: 0, z: 0 })
++    g.sync()
++    g.remove(2)
++    g.sync()
++    g.put(3, { x: 9, y: 0, z: 0 })
++    g.sync()
++    expect(mesh.thinInstanceCount).toBe(2)
++    expect(gpuX(1)).toBe(9)
++  })
++})
+diff --git a/src/babylon/games/bomberFx/thin.ts b/src/babylon/games/bomberFx/thin.ts
+index b1ee444..56290d7 100644
+--- a/src/babylon/games/bomberFx/thin.ts
++++ b/src/babylon/games/bomberFx/thin.ts
+@@ -45,24 +45,28 @@ export class ThinGroup<K> {
+   }
+ 
+   clear(): void {
+     this.slots.clear()
+   }
+ 
+   /** 每幀呼叫一次：有變動才上傳；buffer 擴充過就重新綁定 */
+   sync(): void {
+     if (!this.slots.dirty) return
+     if (this.version !== this.slots.bufferVersion) {
++      // 換新 buffer：整份上傳（Babylon 會把 count 設成容量，下面再改回實際數量）
+       this.mesh.thinInstanceSetBuffer('matrix', this.slots.buffer, 16, false)
+       this.version = this.slots.bufferVersion
++      this.mesh.thinInstanceCount = this.slots.count
+     } else {
++      // 先設 count 再上傳：thinInstanceBufferUpdated 只上傳「當下 count 筆」，
++      // 反過來的話新增的 slot 不會上 GPU，會沿用前任的矩陣（畫到錯格）
++      this.mesh.thinInstanceCount = this.slots.count
+       this.mesh.thinInstanceBufferUpdated('matrix')
+     }
+-    this.mesh.thinInstanceCount = this.slots.count
+     this.mesh.isVisible = this.slots.count > 0
+     this.slots.dirty = false
+   }
+ 
+   dispose(): void {
+     this.mesh.dispose()
+   }
+ }
+diff --git a/src/babylon/games/bomberFx/toon.ts b/src/babylon/games/bomberFx/toon.ts
+new file mode 100644
+index 0000000..46c8f2e
+--- /dev/null
++++ b/src/babylon/games/bomberFx/toon.ts
+@@ -0,0 +1,62 @@
++/**
++ * 卡通兩階 ramp（spec §6，裁定④：不裝 @babylonjs/materials）：掛在 StandardMaterial 上的 material plugin，
++ * 在所有光源（含陰影）累加完之後，把 diffuseBase 的亮度壓成亮 1.0／暗 0.62 兩階，交界柔化 0.05。
++ * 沿用 StandardMaterial 的 thin instance、頂點色、貼圖與陰影取樣，不另寫整套光照 shader。
++ */
++import { MaterialPluginBase, ShaderLanguage, type Material, type MaterialDefines } from '@/babylon/babylonCore'
++
++/** 亮暗兩階與交界（對應 spec §6：亮 1.0／暗 0.62，柔化 0.05） */
++export const TOON_RAMP = { lit: 1.0, dark: 0.62, soft: 0.05 } as const
++/**
++ * 亮暗分界（diffuseBase 亮度）。雙光下：頂面受光約 1.3、頂面落影約 0.75、側面約 0.6–0.9，
++ * 取 0.95 讓頂面與朝光的臉走亮階、落影與背光側走暗階。
++ */
++export const TOON_THRESHOLD = 0.95
++/** 暗階保留多少光源色相（1 = 完全保留冷色環境光，0 = 純灰） */
++const HUE_KEEP = 0.35
++
++const f = (n: number): string => n.toFixed(3)
++
++const RAMP_GLSL = `
++#ifdef BOMBER_TOON
++{
++  float toonL = dot(diffuseBase, vec3(0.299, 0.587, 0.114));
++  vec3 toonHue = mix(vec3(1.0), diffuseBase / max(toonL, 1e-4), ${f(HUE_KEEP)});
++  float toonK = mix(${f(TOON_RAMP.dark)}, ${f(TOON_RAMP.lit)}, smoothstep(${f(TOON_THRESHOLD - TOON_RAMP.soft / 2)}, ${f(TOON_THRESHOLD + TOON_RAMP.soft / 2)}, toonL));
++  diffuseBase = toonHue * toonK;
++#ifdef SPECULARTERM
++  specularBase = vec3(smoothstep(0.42, 0.48, dot(specularBase, vec3(0.333))));
++#endif
++}
++#endif
++`
++
++class BomberToonPlugin extends MaterialPluginBase {
++  constructor(material: Material) {
++    super(material, 'BomberToon', 200, { BOMBER_TOON: false }, true, true)
++  }
++
++  override getClassName(): string {
++    return 'BomberToonPlugin'
++  }
++
++  override isCompatible(shaderLanguage: ShaderLanguage): boolean {
++    return shaderLanguage === ShaderLanguage.GLSL
++  }
++
++  override prepareDefines(defines: MaterialDefines): void {
++    defines.BOMBER_TOON = true
++  }
++
++  override getCustomCode(shaderType: string): { [pointName: string]: string } | null {
++    if (shaderType !== 'fragment') return null
++    // 所有光源與陰影累加完的那一行之後（default.fragment 的 lightFragment 迴圈結尾）
++    return { '!aggShadow=aggShadow\\/numLights;': `$0${RAMP_GLSL}` }
++  }
++}
++
++/** 替材質掛上卡通 ramp；同一個材質重複呼叫只掛一次 */
++export function applyToon(material: Material): void {
++  if (material.pluginManager?.getPlugin('BomberToon')) return
++  new BomberToonPlugin(material)
++}
+diff --git a/vite.config.ts b/vite.config.ts
+index 83497d2..20b5fca 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -51,23 +51,24 @@ function vendorChunk(id: string) {
+ 
+ // https://vite.dev/config/
+ export default defineConfig({
+   base: '/collect/',
+   // 5173 被占用時直接報錯，不要悄悄跳 5174（驗證腳本會打錯位址）；
+   // git worktree 內要另起 dev server 就用 PORT=5174 pnpm dev，並把同一個 port 餵給 shot.mjs 的 --url。
+   server: { strictPort: true, port: Number(process.env.PORT) || 5173 },
+   build: {
+     outDir: 'docs',
+     emptyOutDir: true,
+-    // 為 vendor-babylon 而設：深層匯入後實測約 1,741 kB（Babylon 核心 Engine／Scene／材質／shader 無法再切小），上限取 +10%；
++    // 為 vendor-babylon 而設：深層匯入後實測約 1,741 kB（Babylon 核心 Engine／Scene／材質／shader 無法再切小）；
++    // bomber 美術加上陰影、GlowLayer、描邊、DefaultRenderingPipeline 後實測約 2,001 kB（gzip 451 kB），上限取 +10%；
+     // 注意此值全域生效，其他 chunk 也一併放寬到這個門檻
+-    chunkSizeWarningLimit: 1915,
++    chunkSizeWarningLimit: 2200,
+     rollupOptions: {
+       output: {
+         codeSplitting: {
+           groups: [
+             // vite 的 __vitePreload helper 要比 vendor 分組先認領：分組預設會遞迴收進依賴，
+             // Babylon 內部的動態 import（shader 等）依賴它，同優先度下會被併進 vendor-babylon，
+             // 導致 entry 為了這個 helper 在每一頁都 modulepreload 整包 Babylon
+             { name: 'preload-helper', test: /vite\/preload-helper/, priority: 1 },
+             { name: vendorChunk }
+           ]
+
