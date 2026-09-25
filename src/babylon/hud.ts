@@ -19,6 +19,59 @@ export interface TextPanel {
   dispose(): void
 }
 
+/** 倒數面板一種狀態的配色（數字／GO!） */
+export interface CountdownStyle {
+  /** 膠囊外發光（canvas shadowColor） */
+  glow: string
+  fill: string
+  border: string
+  /** 文字描邊 */
+  stroke: string
+  text: string
+}
+
+/** 倒數面板配色（可選；不傳就是預設外觀，其他遊戲不受影響） */
+export interface CountdownTheme {
+  /** CSS font-family，例如 `Fredoka, sans-serif` */
+  fontFamily: string
+  count: CountdownStyle
+  go: CountdownStyle
+  /** 一般文字（非倒數） */
+  plain: { stroke: string; text: string }
+  /** 膠囊陰影往下的位移（× 字級）；0 = 四周發光 */
+  shadowOffset: number
+  /** 膠囊陰影模糊（× 字級） */
+  shadowBlur: number
+}
+
+/** createCountdownPanel 的可選設定（都不給 = 原本的外觀與行為） */
+export interface CountdownOptions {
+  theme?: CountdownTheme
+  /** 面板的 layerMask（搭配只看這層的 UI 相機，讓面板不經過主相機的後製） */
+  layerMask?: number
+}
+
+const DEFAULT_COUNTDOWN_THEME: CountdownTheme = {
+  fontFamily: 'sans-serif',
+  count: {
+    glow: 'rgba(251,191,36,0.5)',
+    fill: 'rgba(30,41,59,0.78)',
+    border: 'rgba(251,191,36,0.55)',
+    stroke: 'rgba(251,191,36,0.85)',
+    text: '#fef3c7',
+  },
+  go: {
+    glow: 'rgba(74,222,128,0.6)',
+    fill: 'rgba(20,83,45,0.82)',
+    border: 'rgba(74,222,128,0.7)',
+    stroke: 'rgba(74,222,128,0.9)',
+    text: '#bbf7d0',
+  },
+  plain: { stroke: 'rgba(15,23,42,0.7)', text: '#f1f5f9' },
+  shadowOffset: 0,
+  shadowBlur: 0.6,
+}
+
 /** 倒數面板：圓角膠囊背景 + 描邊發光文字 + 脈衝動畫 */
 export const createCountdownPanel = (
   scene: Scene,
@@ -26,8 +79,10 @@ export const createCountdownPanel = (
   name: string,
   w: number,
   h: number,
-  pos: Vector3
+  pos: Vector3,
+  opts: CountdownOptions = {}
 ): TextPanel => {
+  const theme = opts.theme ?? DEFAULT_COUNTDOWN_THEME
   const plane = MeshBuilder.CreatePlane(
     name,
     { width: w, height: h, sideOrientation: Mesh.DOUBLESIDE },
@@ -43,6 +98,7 @@ export const createCountdownPanel = (
   mat.disableLighting = true
   mat.useAlphaFromDiffuseTexture = true
   plane.material = mat
+  if (opts.layerMask !== undefined) plane.layerMask = opts.layerMask
 
   let last = ''
   let pulsePhase = 0
@@ -79,7 +135,7 @@ export const createCountdownPanel = (
 
       // 自動縮放字級
       const maxLineW = width * 0.88
-      ctx2d.font = `bold ${fontPx}px sans-serif`
+      ctx2d.font = `bold ${fontPx}px ${theme.fontFamily}`
       let widest = 0
       for (const line of lines) {
         const lw = ctx2d.measureText(line).width
@@ -98,23 +154,23 @@ export const createCountdownPanel = (
         const cy = height / 2
         const r = finalPx * 0.45
 
+        const st = isGo ? theme.go : theme.count
+
         // 外發光
-        ctx2d.shadowColor = isGo ? 'rgba(74,222,128,0.6)' : 'rgba(251,191,36,0.5)'
-        ctx2d.shadowBlur = finalPx * 0.6
+        ctx2d.shadowColor = st.glow
+        ctx2d.shadowBlur = finalPx * theme.shadowBlur
+        ctx2d.shadowOffsetY = finalPx * theme.shadowOffset
 
         // 膠囊形狀
         ctx2d.beginPath()
         ctx2d.roundRect(cx - rx, cy - ry, bgW, bgH, r)
-        ctx2d.fillStyle = isGo
-          ? 'rgba(20,83,45,0.82)'
-          : 'rgba(30,41,59,0.78)'
+        ctx2d.fillStyle = st.fill
         ctx2d.fill()
         ctx2d.shadowBlur = 0
+        ctx2d.shadowOffsetY = 0
 
         // 邊框
-        ctx2d.strokeStyle = isGo
-          ? 'rgba(74,222,128,0.7)'
-          : 'rgba(251,191,36,0.55)'
+        ctx2d.strokeStyle = st.border
         ctx2d.lineWidth = Math.max(2, finalPx * 0.06)
         ctx2d.stroke()
       }
@@ -122,7 +178,7 @@ export const createCountdownPanel = (
       // 文字
       ctx2d.textAlign = 'center'
       ctx2d.textBaseline = 'middle'
-      ctx2d.font = `bold ${finalPx}px sans-serif`
+      ctx2d.font = `bold ${finalPx}px ${theme.fontFamily}`
 
       const lineH = finalPx * 1.3
       const y0 = height / 2 - ((lines.length - 1) * lineH) / 2
@@ -132,20 +188,20 @@ export const createCountdownPanel = (
 
         // 文字描邊
         ctx2d.strokeStyle = isGo
-          ? 'rgba(74,222,128,0.9)'
+          ? theme.go.stroke
           : isCountdown
-            ? 'rgba(251,191,36,0.85)'
-            : 'rgba(15,23,42,0.7)'
+            ? theme.count.stroke
+            : theme.plain.stroke
         ctx2d.lineWidth = Math.max(3, finalPx * 0.08)
         ctx2d.lineJoin = 'round'
         ctx2d.strokeText(line, width / 2, y)
 
         // 文字填色
         ctx2d.fillStyle = isGo
-          ? '#bbf7d0'
+          ? theme.go.text
           : isCountdown
-            ? '#fef3c7'
-            : '#f1f5f9'
+            ? theme.count.text
+            : theme.plain.text
         ctx2d.fillText(line, width / 2, y)
       })
 

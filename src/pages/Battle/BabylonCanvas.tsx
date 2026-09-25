@@ -3,10 +3,12 @@ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
 import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { NetTransport } from '@/core/webrtc'
-import type { GameOverlay, GamePlayer } from '@/babylon/types'
+import type { GameHud, GameOverlay, GamePlayer } from '@/babylon/types'
 import { getGameFactory } from '@/babylon/games'
 import type { GameType } from '@/core/room'
 import { TouchControls, type TouchAction } from './TouchControls'
+import { BomberHud } from '@/pages/Battle/BomberHud'
+import { sameHud } from '@/pages/Battle/bomberHud'
 
 interface BabylonCanvasProps {
   gameType: GameType
@@ -40,6 +42,7 @@ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
 export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
+  const [hud, setHudState] = useState<GameHud | null>(null)
   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
   const isTouch = useMemo(() => window.matchMedia?.('(pointer: coarse)')?.matches ?? false, [])
   // 觸控裝置強制橫向：直向時以提示蓋住遊戲，並嘗試原生鎖定方向
@@ -82,7 +85,9 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
     const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true })
     const scene = new Scene(engine)
     const game = getGameFactory(gameType)()
-    game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay })
+    // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪
+    const setHud = (next: GameHud | null) => setHudState((prev) => (sameHud(prev, next) ? prev : next))
+    game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
 
     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
 
@@ -140,6 +145,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
       scene.dispose()
       engine.dispose()
       setOverlay(null)
+      setHudState(null)
       ;(window as unknown as Record<string, unknown>).__BATTLE_READY = false
     }
   }, [gameType, net, selfId, role, hostId])
@@ -152,6 +158,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
         className="block size-full bg-slate-950 outline-none touch-none"
         tabIndex={0}
       />
+      {hud && <BomberHud hud={hud} />}
       {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
       {isTouch && portrait && (
         <div

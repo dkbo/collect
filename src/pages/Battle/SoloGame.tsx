@@ -67,7 +67,11 @@ export function SoloGame({ game, onExit }: SoloGameProps) {
           variant="outline"
           size="icon"
           className="absolute z-10 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))]"
-          onClick={toggleFullscreen}
+          onClick={(e) => {
+            // 點完就交還焦點：否則空白鍵（放炸彈）會再次觸發這顆按鈕而退出全螢幕
+            e.currentTarget.blur()
+            toggleFullscreen()
+          }}
           aria-label="切換全螢幕"
           data-testid="battle-fullscreen-btn"
         >

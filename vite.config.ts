@@ -58,9 +58,10 @@ export default defineConfig({
   build: {
     outDir: 'docs',
     emptyOutDir: true,
-    // 為 vendor-babylon 而設：深層匯入後實測約 1,741 kB（Babylon 核心 Engine／Scene／材質／shader 無法再切小），上限取 +10%；
+    // 為 vendor-babylon 而設：深層匯入後實測約 1,741 kB（Babylon 核心 Engine／Scene／材質／shader 無法再切小）；
+    // bomber 美術加上陰影、GlowLayer、描邊、DefaultRenderingPipeline 後實測約 2,001 kB（gzip 451 kB），上限取 +10%；
     // 注意此值全域生效，其他 chunk 也一併放寬到這個門檻
-    chunkSizeWarningLimit: 1915,
+    chunkSizeWarningLimit: 2200,
     rollupOptions: {
       output: {
         codeSplitting: {

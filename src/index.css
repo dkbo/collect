@@ -1194,3 +1194,193 @@ html {
     animation: none;
   }
 }
+
+/* ===== 炸彈超人 HUD（A · Toy Box，spec §9）：以 960×540 設計尺寸排版，--bomber-scale 由 JS 依容器等比縮放 ===== */
+.bomber-hud {
+  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden [--bomber-ink:#2b2440];
+}
+
+.bomber-num {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold leading-none;
+}
+
+/* 計時器膠囊：頂部中央 */
+.bomber-timer {
+  @apply absolute left-1/2 top-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top))] flex h-[44px] min-w-[200px] -translate-x-1/2 origin-top items-center justify-center gap-2.5 whitespace-nowrap rounded-full border-[2.5px] border-(--bomber-ink) bg-[#fff6e3] px-4 text-(--bomber-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--bomber-scale)];
+}
+.bomber-timer-icon {
+  @apply size-5 shrink-0 text-[#ff6a3d];
+}
+.bomber-timer-text {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[28px] leading-none tabular-nums;
+}
+.bomber-timer-sudden-text {
+  @apply text-[17px] font-black leading-none;
+}
+.bomber-timer-sep {
+  @apply h-6 w-[2px] rounded-full bg-[#e4d6bc];
+}
+.bomber-timer-alive {
+  @apply text-[14px] font-extrabold text-[#8a7a66];
+}
+.bomber-timer-urgent {
+  @apply animate-[bomber-pulse_0.5s_ease-in-out_infinite] text-[#ff3b4e];
+}
+.bomber-timer-urgent .bomber-timer-icon {
+  @apply text-[#ff3b4e];
+}
+.bomber-timer-sudden {
+  @apply bg-[#ff3b4e] text-white;
+}
+.bomber-timer-sudden .bomber-timer-icon,
+.bomber-timer-sudden .bomber-timer-alive {
+  @apply text-white;
+}
+.bomber-timer-sudden .bomber-timer-sep {
+  @apply bg-white/50;
+}
+
+/* 兩側玩家卡欄：左 P1／P3、右 P2／P4；卡縮 0.75、兩張都疊在上半部貼頂（透視下棋盤上緣較窄），下方兩角留給最外欄 */
+.bomber-col {
+  @apply absolute top-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top))] flex flex-col gap-[14px] [scale:calc(var(--bomber-scale)_*_0.75)];
+}
+.bomber-col-left {
+  @apply left-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-left))] origin-top-left;
+}
+/* 右欄頂部至少讓出 Battle 的浮動全螢幕鈕（top max(0.5rem, safe-top)、size-9＝2.25rem）再加 6px，避免壓到 P2 卡編號 */
+.bomber-col-right {
+  @apply top-[max(calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top)),calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px))] right-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-right))] origin-top-right;
+}
+
+.bomber-card {
+  @apply relative flex h-[206px] w-[118px] flex-col overflow-hidden rounded-2xl border-[2.5px] border-(--bomber-ink) bg-[#fff6e3] text-(--bomber-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] transition-[filter,opacity] duration-300;
+}
+.bomber-card-dead {
+  @apply opacity-60 grayscale;
+}
+.bomber-card-head {
+  @apply flex h-[34px] shrink-0 items-center justify-between gap-1 border-b-[2.5px] border-(--bomber-ink) bg-linear-to-b from-(--bc-light) to-(--bc-base) px-2;
+}
+.bomber-card-name {
+  @apply min-w-0 truncate text-[15px] font-black text-white [text-shadow:0_1.5px_0_var(--bomber-ink)];
+}
+.bomber-card-no {
+  @apply shrink-0 font-['Fredoka',_var(--font-sans)] font-bold text-[16px] leading-none text-white [text-shadow:0_1.5px_0_var(--bomber-ink)];
+}
+.bomber-card-skull {
+  @apply absolute right-1 top-[38px] text-[18px] leading-none;
+}
+.bomber-card-avatar {
+  @apply flex h-[78px] shrink-0 items-center justify-center bg-[radial-gradient(circle_at_60%_62%,#efe3cc_0,#efe3cc_32px,transparent_33px)];
+}
+.bomber-card-avatar-svg {
+  @apply -mb-1 size-[88px] shrink-0;
+}
+.bomber-card-stars {
+  @apply flex h-[24px] shrink-0 items-center justify-center gap-0.5;
+}
+.bomber-star {
+  @apply size-[20px] fill-[#e4d6bc] stroke-(--bomber-ink) stroke-[1.8];
+}
+.bomber-star-won {
+  @apply fill-[#ffcf3f];
+}
+.bomber-ai-tag {
+  @apply mr-0.5 rounded-[4px] bg-[#39e6ff] px-1 font-['Fredoka',_var(--font-sans)] font-bold text-[10px] leading-[14px] text-(--bomber-ink);
+}
+.bomber-card-stats {
+  @apply grid h-[46px] shrink-0 grid-cols-3 gap-1 px-1.5;
+}
+.bomber-stat {
+  @apply flex flex-col items-center justify-center gap-1 rounded-lg bg-[#f3e6cc] text-[17px];
+}
+.bomber-stat-icon {
+  @apply size-[15px] stroke-[2.5];
+}
+.bomber-stat-bomb {
+  @apply text-[#2f86ff];
+}
+.bomber-stat-fire {
+  @apply text-[#ff6a3d];
+}
+.bomber-stat-speed {
+  @apply text-[#f5a800];
+}
+.bomber-card-badges {
+  @apply flex h-[20px] shrink-0 items-center justify-center gap-1 pt-1;
+}
+.bomber-badge {
+  @apply flex h-[16px] items-center gap-0.5 rounded-full bg-(--bomber-ink) px-1.5 text-[10px] text-white;
+}
+.bomber-badge-inv {
+  @apply bg-[#ffcf3f] text-(--bomber-ink);
+}
+.bomber-badge-icon {
+  @apply size-[10px] stroke-[2.5];
+}
+
+/* 矮畫面用的頂部頭像膠囊（預設隱藏） */
+.bomber-pills {
+  @apply absolute left-1/2 top-[max(6px,env(safe-area-inset-top))] hidden -translate-x-1/2 gap-1.5;
+}
+.bomber-pill {
+  @apply relative flex h-[30px] items-center gap-1.5 rounded-full border-2 border-(--bomber-ink) bg-[#fff6e3] pr-2 text-(--bomber-ink) shadow-[0_3px_0_rgba(0,0,0,.4),inset_0_0_0_2px_var(--bc-base)];
+}
+.bomber-pill-avatar {
+  @apply -my-1 size-[34px] shrink-0;
+}
+.bomber-pill-stat {
+  @apply flex items-center gap-px font-['Fredoka',_var(--font-sans)] font-bold text-[12px] leading-none;
+}
+.bomber-pill-icon {
+  @apply size-[10px] stroke-[2.5];
+}
+.bomber-pill-skull {
+  @apply absolute -right-1 -top-1 text-[13px] leading-none;
+}
+/* 無敵：金色外圈＋左上小盾牌 */
+.bomber-pill-inv {
+  @apply outline-2 outline-offset-1 outline-[#ffcf3f];
+}
+.bomber-pill-inv-icon {
+  @apply absolute -left-1 -top-1 z-10 size-[14px] rounded-full bg-[#ffcf3f] p-0.5 stroke-[2.5] text-(--bomber-ink);
+}
+
+@keyframes bomber-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* 矮畫面（手機橫向）：玩家卡改成頂部 4 顆頭像膠囊，計時器移到下方中央 */
+@media (max-height: 500px) {
+  .bomber-col {
+    @apply hidden;
+  }
+  .bomber-pills {
+    @apply flex;
+  }
+  .bomber-timer {
+    @apply top-auto bottom-[max(8px,env(safe-area-inset-bottom))] h-[34px] min-w-0 origin-bottom gap-2 px-3 [scale:1];
+  }
+  .bomber-timer-text {
+    @apply text-[20px];
+  }
+  .bomber-timer-sudden-text {
+    @apply text-[14px];
+  }
+  .bomber-timer-icon {
+    @apply size-4;
+  }
+  .bomber-timer-sep {
+    @apply h-4;
+  }
+  .bomber-timer-alive {
+    @apply text-[12px];
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bomber-timer-urgent {
+    @apply animate-none;
+  }
+}

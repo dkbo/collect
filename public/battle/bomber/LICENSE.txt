@@ -1,0 +1,12 @@
+bomber 素材授權（2026-09-25，assets 角色）
+
+以下檔案皆為本專案原創：以手寫 SVG 自繪（依 spec 的 Toy Box 方向），
+用 Chromium headless 透明底光柵化後以 cwebp 轉 WebP。未使用任何第三方素材。
+授權：CC0 1.0 Universal（公眾領域貢獻）https://creativecommons.org/publicdomain/zero/1.0/
+
+fx_circle.webp   128x128  軟邊白色圓形粒子（可 tint）          原創 / CC0
+fx_star.webp     128x128  白色四芒星芒粒子                      原創 / CC0
+fx_smoke.webp    128x128  白色柔邊煙團粒子                      原創 / CC0
+fx_spark.webp    128x128  白色十字火花粒子                      原創 / CC0
+items_atlas.webp 768x128  道具圖示 6 格橫排（每格 128x128）      原創 / CC0
+                 順序：bomb(白) fire(白) speed(#3A2A00) kick(白) throw(白) invincible(#3A2A00)
