@@ -60,3 +60,4 @@
 2026-09-25T11:15 gate3 waiting: report.md 已寫，等使用者拍板 dk-task-close
 2026-09-25T13:46 ruling: 關卡③ 使用者回 ok — 合併 dk/babylonslim — 人明確拍板 — 若錯：revert merge
 2026-09-25T13:46 pane-close babylonslim-reviewer-a
+2026-09-25T13:46 task-close merged 9d3c976
