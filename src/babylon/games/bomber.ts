@@ -1,14 +1,12 @@
 import {
   ArcRotateCamera,
-  Color3,
   Color4,
   HemisphericLight,
-  Mesh,
-  MeshBuilder,
   ParticleSystem,
-  StandardMaterial,
+  SceneInstrumentation,
   Texture,
   Vector3,
+  type Mesh,
 } from '@/babylon/babylonCore'
 import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
 import type { GameNetMessage } from '@/core/webrtc'
@@ -59,6 +57,11 @@ import {
   type ItemKind,
   type PickupPayload,
 } from './bomberNet'
+import { AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
+import { ToyBoard } from '@/babylon/games/bomberFx/board'
+import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
+import { colorIndexOf, invincibleBlinkOn, type ColorIndex } from '@/babylon/games/bomberFx/palette'
+import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
 
 /**
  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
@@ -93,12 +96,14 @@ interface BombInfo {
   cy: number
   owner: string
   explodeAt: number // host 引爆依據；各端亦用於將爆閃紅提示
-  mesh: Mesh
+  x: number // 畫面位置（移動動畫中與邏輯格不同）
+  y: number
+  z: number
   motion?: BombMotion // 進行中的移動動畫；結束後清除
 }
 
 interface FlameInfo {
-  mesh: Mesh
+  fx: number // ToyBoard 的火焰 id
   until: number
   bornAt: number
   cx: number
@@ -122,7 +127,6 @@ interface RoundResult {
 
 interface ItemInfo {
   kind: ItemKind
-  mesh: Mesh
 }
 
 /** 玩家能力值（每輪重置；吃道具成長） */
@@ -135,13 +139,10 @@ interface PlayerStat {
   invincibleUntil: number // 無敵到期時間戳（performance.now()，0 表示無）
 }
 
-/** 人形角色：root 為位移錨點，四肢相對 root 擺動 */
+/** 人形角色：root 為位移錨點（不旋轉），toy.body 轉面向、四肢由頂點擺動 */
 interface Avatar {
   root: Mesh
-  legL: Mesh
-  legR: Mesh
-  armL: Mesh
-  armR: Mesh
+  toy: ToyAvatar
   walkPhase: number
   amp: number // 走路擺幅（0~1），停步時平滑歸零
   yaw: number // 面向角度
@@ -161,6 +162,8 @@ const FLAME_GROW_MS = 90 // 火焰冒出的生長時間
 const FLAME_FADE_MS = 180 // 火焰消退的收縮時間
 const BOMB_INPUT_COOLDOWN_MS = 250
 const SHAKE_MS = 220 // 爆炸相機震動時長
+const CLOSE_WARN_MS = 400 // 突然死亡落牆前的紅色預告格時長（純視覺）
+const PERF_LOG_MS = 2000 // draw calls / fps 量測輸出間隔
 
 // 道具：初始一顆彈、火力 1，吃道具才成長
 const INIT_BOMBS = 1
@@ -197,7 +200,6 @@ class BomberScene implements GameModule {
   private offOpen: (() => void) | null = null
 
   private map: Uint8Array = new Uint8Array(GRID_W * GRID_H)
-  private crates = new Map<number, Mesh>()
   private bombs = new Map<string, BombInfo>()
   private flames: FlameInfo[] = []
   private items = new Map<number, ItemInfo>() // 場上道具，keyed by cellIndex
@@ -213,7 +215,8 @@ class BomberScene implements GameModule {
   private closeIndex = 0
   private lastClose = 0
   private wasPlaying = false // 偵測 phase 轉入 playing
-  private closingWalls: Mesh[] = []
+  private lastCloseApplied = 0 // 本端最近一次套用落牆的時刻（預告格計時，host/guest 共用）
+  private closePreviewFrom = 0 // 預告格從螺旋序的這個 index 起找
   private lastBombInput = 0
   private lastKickInput = 0
   private bombSeq = 0
@@ -234,23 +237,10 @@ class BomberScene implements GameModule {
   private camera!: ArcRotateCamera
   private hud!: TextPanel
   private banner!: TextPanel
-  private crateMat!: StandardMaterial
-  private wallMat!: StandardMaterial // 固定柱牆材質，突然死亡落牆重用
-  // 木箱皮膚調色盤（共用材質，依 cell hash 挑選，避免每箱新建）
-  private crateSkinMats: StandardMaterial[] = []
-  private crateHardMat!: StandardMaterial
-  private crateHardTrimMat!: StandardMaterial
-  private crateDamagedMat!: StandardMaterial
-  private flameMat!: StandardMaterial
-  private flameCoreMat!: StandardMaterial
-  private bombMat!: StandardMaterial
-  private bombFlashMat!: StandardMaterial
-  private itemBombMat!: StandardMaterial
-  private itemFireMat!: StandardMaterial
-  private itemSpeedMat!: StandardMaterial
-  // 道具美化用調色盤（組合 mesh 共用，避免每顆道具建大量材質）
-  private itemMats: Record<string, StandardMaterial> = {}
-  private decorations: Mesh[] = []
+  private board!: ToyBoard
+  private avatarKit!: AvatarKit
+  private instr: SceneInstrumentation | null = null
+  private lastPerfLog = 0
   private explosionPs: ParticleSystem | null = null
   private debrisPs: ParticleSystem | null = null
   private puffPs: ParticleSystem | null = null
@@ -265,10 +255,9 @@ class BomberScene implements GameModule {
   }
   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
 
-  private colorFor(id: string): Color3 {
-    let h = 0
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
-    return Color3.FromHSV(h % 360, 0.7, 0.9)
+  /** 固定 4 色：依實體序（= 出生角 SPAWN_CORNERS 順序）取色，各端一致 */
+  private colorIndex(id: string): ColorIndex {
+    return colorIndexOf(id, this.entities().map((e) => e.id))
   }
 
   private nameFor(id: string): string {
@@ -322,90 +311,35 @@ class BomberScene implements GameModule {
     return this.own.latestRemote(pid)
   }
 
-  /** 建立人形角色（頭/身/雙臂/雙腿），可走路擺動、面向移動方向 */
+  /** 建立 Q 版角色（程式建模，單一 mesh），可走路擺動、面向移動方向 */
   private makePlayer(id: string): Avatar {
-    const scene = this.ctx.scene
-    const color = this.colorFor(id)
+    const toy = buildAvatar(this.ctx.scene, this.avatarKit, id, this.colorIndex(id), {
+      isAI: this.isBot(id),
+      isSelf: id === this.ctx.selfId,
+    })
+    const av: Avatar = { root: toy.root, toy, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
+    this.faceCamera(av)
+    return av
+  }
 
-    const bodyMat = new StandardMaterial(`pl-mat-${id}`, scene)
-    bodyMat.diffuseColor = color
-    const limbMat = new StandardMaterial(`pl-limb-${id}`, scene)
-    limbMat.diffuseColor = color.scale(0.55) // 四肢用較深的同色
-    const faceMat = new StandardMaterial(`pl-face-${id}`, scene)
-    faceMat.diffuseColor = new Color3(0.12, 0.13, 0.18)
+  /** 開局面向鏡頭（−Z），與 variant-A 稿一致；之後依移動方向更新 */
+  private faceCamera(av: Avatar): void {
+    av.yaw = Math.PI
+    av.toy.body.rotation.y = Math.PI
+  }
 
-    const root = new Mesh(`pl-${id}`, scene)
-    root.position.y = 0
-
-    const body = MeshBuilder.CreateBox(`pl-body-${id}`, { width: 0.6, height: 0.55, depth: 0.45 }, scene)
-    body.material = bodyMat
-    body.parent = root
-    body.position.set(0, 0.78, 0)
-
-    const head = MeshBuilder.CreateSphere(`pl-head-${id}`, { diameter: 0.74 }, scene)
-    head.material = bodyMat
-    head.parent = root
-    head.position.set(0, 1.32, 0)
-
-    // 面罩（朝預設正面 +Z），讓面向方向看得出來
-    const face = MeshBuilder.CreateBox(`pl-face-${id}`, { width: 0.5, height: 0.22, depth: 0.1 }, scene)
-    face.material = faceMat
-    face.parent = root
-    face.position.set(0, 1.3, 0.33)
-
-    // 經典炸彈人頭盔：淺色半罩 + 天線 + 天線球
-    const helmMat = new StandardMaterial(`pl-helm-${id}`, scene)
-    helmMat.diffuseColor = Color3.Lerp(color, Color3.White(), 0.35)
-    const helm = MeshBuilder.CreateSphere(`pl-helm-${id}`, { diameter: 0.8, slice: 0.5 }, scene)
-    helm.material = helmMat
-    helm.parent = root
-    helm.position.set(0, 1.38, 0)
-    const antenna = MeshBuilder.CreateCylinder(`pl-ant-${id}`, { height: 0.22, diameter: 0.05 }, scene)
-    antenna.material = faceMat
-    antenna.parent = root
-    antenna.position.set(0, 1.78, 0)
-    const antBall = MeshBuilder.CreateSphere(`pl-antball-${id}`, { diameter: 0.16 }, scene)
-    antBall.material = helmMat
-    antBall.parent = root
-    antBall.position.set(0, 1.92, 0)
-
-    // 電腦玩家細微標記：頭頂小齒輪狀環，與真人區分
-    if (id.startsWith('bot-')) {
-      const botMat = new StandardMaterial(`pl-bot-${id}`, scene)
-      botMat.diffuseColor = new Color3(0.85, 0.85, 0.9)
-      botMat.emissiveColor = new Color3(0.4, 0.42, 0.5)
-      const ring = MeshBuilder.CreateTorus(`pl-botring-${id}`, { diameter: 0.5, thickness: 0.07, tessellation: 8 }, scene)
-      ring.material = botMat
-      ring.parent = root
-      ring.position.set(0, 2.08, 0)
-      ring.rotation.x = Math.PI / 2
-    }
-
-    // 雙腿：樞紐設在髖部（腿頂），繞 X 軸前後擺動
-    const mkLeg = (sx: number): Mesh => {
-      const leg = MeshBuilder.CreateBox(`pl-leg-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.26, height: 0.5, depth: 0.3 }, scene)
-      leg.material = limbMat
-      leg.parent = root
-      leg.position.set(sx * 0.16, 0.25, 0)
-      leg.setPivotPoint(new Vector3(0, 0.25, 0))
-      return leg
-    }
-    const legL = mkLeg(-1)
-    const legR = mkLeg(1)
-
-    // 雙臂：樞紐設在肩部（臂頂），與對側腿同相擺動
-    const mkArm = (sx: number): Mesh => {
-      const arm = MeshBuilder.CreateBox(`pl-arm-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.18, height: 0.46, depth: 0.2 }, scene)
-      arm.material = limbMat
-      arm.parent = root
-      arm.position.set(sx * 0.42, 0.78, 0)
-      arm.setPivotPoint(new Vector3(0, 0.23, 0))
-      return arm
-    }
-    const armL = mkArm(-1)
-    const armR = mkArm(1)
-
-    return { root, legL, legR, armL, armR, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
+  /** 名冊變動（seed 帶來 bot、玩家序改變）後顏色不對的化身就重建 */
+  private recolor(av: Avatar | undefined, id: string): Avatar | undefined {
+    if (!av || av.toy.colorIndex === this.colorIndex(id)) return av
+    const enabled = av.root.isEnabled()
+    const next = this.makePlayer(id)
+    next.root.position.copyFrom(av.root.position)
+    next.yaw = av.yaw
+    next.prevX = av.prevX
+    next.prevZ = av.prevZ
+    next.root.setEnabled(enabled)
+    disposeAvatar(av.toy)
+    return next
   }
 
   /** 取得任一實體的化身（自己 / 遠端 / bot） */
@@ -420,33 +354,22 @@ class BomberScene implements GameModule {
     const dz = av.root.position.z - av.prevZ
     av.prevX = av.root.position.x
     av.prevZ = av.root.position.z
+    // 一幀跨超過一格＝出生／重生瞬移，不當成走路（否則會轉去面向瞬移方向）
+    if (Math.hypot(dx, dz) > CELL) return
 
     const moving = Math.hypot(dx, dz) > dtMs * 0.0005
     if (moving) av.yaw = Math.atan2(dx, dz)
-    av.root.rotation.y = av.yaw
+    av.toy.body.rotation.y = av.yaw
 
     // 擺幅平滑進出，避免起步/停步跳動
     const ease = Math.min(1, dtMs * 0.012)
     av.amp += ((moving ? 1 : 0) - av.amp) * ease
     if (av.amp > 0.01) av.walkPhase += dtMs * 0.013
 
-    const swing = Math.sin(av.walkPhase) * 0.7 * av.amp
-    av.legL.rotation.x = swing
-    av.legR.rotation.x = -swing
-    av.armL.rotation.x = -swing
-    av.armR.rotation.x = swing
+    poseAvatar(av.toy, Math.sin(av.walkPhase) * 0.7 * av.amp)
   }
 
   // ---- 地圖 ----
-
-  /** 依 (cx,cy,seed) 的決定性 hash（各端一致，不可用 Math.random） */
-  private cellHash(cx: number, cy: number): number {
-    let h = (this.currentSeed ^ 0x9e3779b1) >>> 0
-    h = Math.imul(h ^ cx, 0x85ebca6b) >>> 0
-    h = Math.imul(h ^ cy, 0xc2b2ae35) >>> 0
-    h ^= h >>> 13
-    return h >>> 0
-  }
 
   /** 突然死亡用：由外圈往內、順時針的螺旋格序列（涵蓋整個 GRID_W×GRID_H）。
    *  各端決定性一致（純由 GRID 推導，無隨機），快取避免每幀重算。 */
@@ -472,87 +395,33 @@ class BomberScene implements GameModule {
   }
   private spiralCache: [number, number][] | null = null
 
+  /** 某格在螺旋序中的 index（找不到回 -1） */
+  private spiralIndexOf(cx: number, cy: number): number {
+    return this.spiralCells().findIndex(([x, y]) => x === cx && y === cy)
+  }
+
   /** host：所有實體勝場歸零（新比賽開始時呼叫；單局重置不動 scores） */
   private resetMatchScores(): void {
     for (const e of this.entities()) this.scores.set(e.id, 0)
   }
 
-  /** 木箱工廠：軟箱依 hash 挑形狀/皮膚變體；硬箱套用高辨識度「強化」外觀（要炸兩次）。
-   *  共用調色盤材質，不每箱新建材質。 */
-  private makeCrate(cx: number, cy: number, hard: boolean): Mesh {
-    const scene = this.ctx.scene
-    const h = this.cellHash(cx, cy)
-    const sz = CELL * 0.9
-    const wx = cellToWorld(cx, GRID_W)
-    const wz = cellToWorld(cy, GRID_H)
-
-    if (hard) {
-      // 強化箱：金屬/石材方體 + 四角鉚釘 + 中央箍帶，較亮 edges
-      const root = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: sz }, scene)
-      root.position = new Vector3(wx, CELL * 0.45, wz)
-      root.material = this.crateHardMat
-      root.enableEdgesRendering()
-      root.edgesWidth = 3.5
-      root.edgesColor = new Color4(0.85, 0.8, 0.5, 1)
-      // 水平箍帶
-      const band = MeshBuilder.CreateBox(`crate-band-${cx}-${cy}`, { width: sz * 1.02, height: sz * 0.16, depth: sz * 1.02 }, scene)
-      band.parent = root
-      band.material = this.crateHardTrimMat
-      // 四角鉚釘
-      const d = sz * 0.42
-      for (const sx of [-1, 1]) {
-        for (const sz2 of [-1, 1]) {
-          const rivet = MeshBuilder.CreateSphere(`crate-rivet-${cx}-${cy}-${sx}-${sz2}`, { diameter: sz * 0.16 }, scene)
-          rivet.parent = root
-          rivet.position.set(sx * d, sz * 0.35, sz2 * d)
-          rivet.material = this.crateHardTrimMat
-        }
-      }
-      return root
-    }
-
-    // 軟箱：形狀在 方塊 / 圓角體 / 圓柱(木桶) / 略球感 間變化
-    const shape = h % 4
-    const matIdx = (h >>> 3) % this.crateSkinMats.length
-    let m: Mesh
-    if (shape === 0) {
-      m = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: sz }, scene)
-    } else if (shape === 1) {
-      // 圓角體（多段、近似圓角箱）
-      m = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: sz * 0.92 }, scene)
-      m.scaling.set(1, 0.94, 1)
-    } else if (shape === 2) {
-      // 木桶
-      m = MeshBuilder.CreateCylinder(`crate-${cx}-${cy}`, { height: sz, diameterTop: sz * 0.78, diameterBottom: sz * 0.92, tessellation: 12 }, scene)
-    } else {
-      // 略球感（壓扁球）
-      m = MeshBuilder.CreateSphere(`crate-${cx}-${cy}`, { diameter: sz * 0.98, segments: 8 }, scene)
-      m.scaling.set(1, 0.86, 1)
-    }
-    m.position = new Vector3(wx, CELL * 0.45, wz)
-    m.material = this.crateSkinMats[matIdx]
-    m.enableEdgesRendering()
-    m.edgesWidth = 2
-    m.edgesColor = new Color4(0.32, 0.2, 0.08, 1)
-    return m
-  }
-
   /** 依 seed 重建一輪：地圖/木箱/炸彈/火焰/存活/出生位置全部重置 */
   private applySeed(seed: number): void {
-    this.currentSeed = seed // makeCrate 的 cellHash 依此
+    this.currentSeed = seed
     this.map = generateMap(seed)
 
-    for (const m of this.crates.values()) m.dispose()
-    this.crates.clear()
-    for (const b of this.bombs.values()) b.mesh.dispose()
+    this.board.clearCrates()
+    this.board.clearBombs()
     this.bombs.clear()
-    for (const f of this.flames) f.mesh.dispose()
+    this.board.clearFlames()
     this.flames = []
-    for (const it of this.items.values()) it.mesh.dispose()
+    this.board.clearItems()
     this.items.clear()
     // 突然死亡：場地復原——清掉已落下的牆、重置螺旋進度與計時（scores 不在此清，跨回合保留）
-    for (const w of this.closingWalls) w.dispose()
-    this.closingWalls = []
+    this.board.clearClosingWalls()
+    this.board.setWarning(null, 0)
+    this.lastCloseApplied = 0
+    this.closePreviewFrom = 0
     this.closeIndex = 0
     this.lastClose = 0
     this.playingSince = 0
@@ -572,7 +441,7 @@ class BomberScene implements GameModule {
       for (let cx = 0; cx < GRID_W; cx++) {
         const tile = this.map[cellIndex(cx, cy)]
         if (tile !== TILE_CRATE && tile !== TILE_CRATE_HARD) continue
-        this.crates.set(cellIndex(cx, cy), this.makeCrate(cx, cy, tile === TILE_CRATE_HARD))
+        this.board.setCrate(cellIndex(cx, cy), cx, cy, tile === TILE_CRATE_HARD ? 'hard' : 'soft')
       }
     }
 
@@ -583,15 +452,22 @@ class BomberScene implements GameModule {
       return { x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }
     }
 
-    // 自己回出生角
+    // 自己回出生角；名冊（bot 補位）可能改變實體序 → 顏色不對的化身重建
     this.state = spawnOf(this.ctx.selfId)
+    this.selfAvatar = this.recolor(this.selfAvatar, this.ctx.selfId)
+    if (this.selfAvatar) this.faceCamera(this.selfAvatar)
     this.selfAvatar?.root.setEnabled(true)
-    for (const a of this.peerAvatars.values()) a.root.setEnabled(true)
+    for (const [id, a] of this.peerAvatars) {
+      const next = this.recolor(a, id) as Avatar
+      this.faceCamera(next)
+      this.peerAvatars.set(id, next)
+      next.root.setEnabled(true)
+    }
 
     // bot 化身與位置：依名冊重建（不走 own.remoteIds）
     for (const [id, a] of this.botAvatars) {
       if (this.bots.some((b) => b.id === id)) continue
-      a.root.dispose(false, true)
+      disposeAvatar(a.toy)
       this.botAvatars.delete(id)
     }
     this.botState.clear()
@@ -600,14 +476,13 @@ class BomberScene implements GameModule {
       const sp = spawnOf(b.id)
       this.botState.set(b.id, { ...sp })
       this.botTarget.set(b.id, { ...sp })
-      let a = this.botAvatars.get(b.id)
-      if (!a) {
-        a = this.makePlayer(b.id)
-        this.botAvatars.set(b.id, a)
-      }
+      let a = this.recolor(this.botAvatars.get(b.id), b.id)
+      if (!a) a = this.makePlayer(b.id)
+      this.botAvatars.set(b.id, a)
       a.root.position.set(sp.x, 0, sp.z)
       a.prevX = sp.x
       a.prevZ = sp.z
+      this.faceCamera(a)
       a.root.setEnabled(true)
     }
   }
@@ -836,23 +711,18 @@ class BomberScene implements GameModule {
 
   private applyBomb(p: BombPayload): void {
     playSfx('bomb_place')
-    const scene = this.ctx.scene
-    const mesh = MeshBuilder.CreateSphere(`bomb-${p.id}`, { diameter: 1.1 }, scene)
-    mesh.position = new Vector3(cellToWorld(p.cx, GRID_W), 0.55, cellToWorld(p.cy, GRID_H))
-    mesh.material = this.bombMat
-    // 頂部引信（子節點，隨炸彈脈動/釋放）
-    const fuse = MeshBuilder.CreateCylinder(`bomb-fuse-${p.id}`, { height: 0.35, diameter: 0.1 }, scene)
-    fuse.parent = mesh
-    fuse.position.set(0.05, 0.62, 0)
-    fuse.rotation.z = 0.35
-    fuse.material = this.itemFireMat // 橘紅 emissive，像點燃的引信
+    const x = cellToWorld(p.cx, GRID_W)
+    const z = cellToWorld(p.cy, GRID_H)
+    this.board.setBomb(p.id, x, 0.55, z, 1, false)
     this.bombs.set(p.id, {
       id: p.id,
       cx: p.cx,
       cy: p.cy,
       owner: p.owner,
       explodeAt: performance.now() + BOMB_FUSE_MS,
-      mesh,
+      x,
+      y: 0.55,
+      z,
     })
     this.ownerBombCount.set(p.owner, (this.ownerBombCount.get(p.owner) ?? 0) + 1)
   }
@@ -938,8 +808,8 @@ class BomberScene implements GameModule {
     playSfx(p.arc > 0 ? 'bomb_place' : 'pickup')
     const now = performance.now()
     b.motion = {
-      fromX: b.mesh.position.x,
-      fromZ: b.mesh.position.z,
+      fromX: b.x,
+      fromZ: b.z,
       toX: cellToWorld(p.toCx, GRID_W),
       toZ: cellToWorld(p.toCy, GRID_H),
       startAt: now,
@@ -1004,7 +874,7 @@ class BomberScene implements GameModule {
     this.shakeUntil = performance.now() + SHAKE_MS
     const bomb = this.bombs.get(p.id)
     if (bomb) {
-      bomb.mesh.dispose()
+      this.board.removeBomb(p.id)
       this.bombs.delete(p.id)
       const n = (this.ownerBombCount.get(bomb.owner) ?? 1) - 1
       this.ownerBombCount.set(bomb.owner, Math.max(0, n))
@@ -1014,40 +884,32 @@ class BomberScene implements GameModule {
     this.burst(this.explosionPs, new Vector3(cellToWorld(ccx, GRID_W), 0.8, cellToWorld(ccy, GRID_H)), 40)
     for (const [cx, cy] of p.destroyed) {
       this.map[cellIndex(cx, cy)] = 0
-      this.crates.get(cellIndex(cx, cy))?.dispose()
-      this.crates.delete(cellIndex(cx, cy))
+      this.board.setCrate(cellIndex(cx, cy), cx, cy, null)
       // 木箱碎片
       this.burst(this.debrisPs, new Vector3(cellToWorld(cx, GRID_W), 1, cellToWorld(cy, GRID_H)), 14)
     }
-    // 硬箱降級：map 由硬箱降為軟箱，mesh 換成受損外觀（重建為軟箱）+ 一小撮碎片
+    // 硬箱降級：map 由硬箱降為軟箱，外觀換成受損硬磚（鐵箍斷開＋裂痕）+ 一小撮碎片
     for (const [cx, cy] of p.damaged ?? []) {
       const ci = cellIndex(cx, cy)
       if (this.map[ci] !== TILE_CRATE_HARD) continue
       this.map[ci] = TILE_CRATE
-      this.crates.get(ci)?.dispose()
-      const dmg = this.makeCrate(cx, cy, false)
-      dmg.material = this.crateDamagedMat
-      this.crates.set(ci, dmg)
+      this.board.setCrate(ci, cx, cy, 'damaged')
       this.burst(this.debrisPs, new Vector3(cellToWorld(cx, GRID_W), 1, cellToWorld(cy, GRID_H)), 6)
     }
     // 燒毀既有道具
     for (const [cx, cy] of p.itemKills ?? []) {
       const ci = cellIndex(cx, cy)
-      this.items.get(ci)?.mesh.dispose()
+      this.board.removeItem(ci)
       this.items.delete(ci)
     }
     // 掉落新道具
     for (const d of p.drops ?? []) this.spawnItem(d.cx, d.cy, d.kind)
-    // 火焰格：中心亮黃、延伸橘紅；生長/收縮動畫於 update 驅動
+    // 火焰格：爆心圓帽、臂圓角條、端頭半格＋圓帽（外／中／芯三層）；生長/收縮動畫於 update 驅動
     const born = performance.now()
     const until = born + FLAME_MS
-    p.cells.forEach(([cx, cy], i) => {
-      const f = MeshBuilder.CreateBox(`flame-${cx}-${cy}-${p.id}`, { width: CELL * 0.9, height: 0.6, depth: CELL * 0.9 }, this.ctx.scene)
-      f.position = new Vector3(cellToWorld(cx, GRID_W), 0.3, cellToWorld(cy, GRID_H))
-      f.material = i === 0 ? this.flameCoreMat : this.flameMat
-      f.scaling.setAll(0.01) // 從極小生長，避免首幀閃現
-      this.flames.push({ mesh: f, until, bornAt: born, cx, cy })
-    })
+    for (const c of classifyFlameCells(p.cells)) {
+      this.flames.push({ fx: this.board.addFlame(c), until, bornAt: born, cx: c.cx, cy: c.cy })
+    }
     this.killPlayers(p.kills)
   }
 
@@ -1088,32 +950,26 @@ class BomberScene implements GameModule {
     this.map[ci] = TILE_WALL
 
     // 清該格既有木箱
-    this.crates.get(ci)?.dispose()
-    this.crates.delete(ci)
+    this.board.setCrate(ci, p.cx, p.cy, null)
     // 清該格既有道具
-    this.items.get(ci)?.mesh.dispose()
+    this.board.removeItem(ci)
     this.items.delete(ci)
     // 清該格既有炸彈（直接 dispose、不引爆；修正 ownerBombCount）
     for (const [bid, b] of [...this.bombs]) {
       if (b.cx === p.cx && b.cy === p.cy) {
-        b.mesh.dispose()
+        this.board.removeBomb(bid)
         this.bombs.delete(bid)
         const n = (this.ownerBombCount.get(b.owner) ?? 1) - 1
         this.ownerBombCount.set(b.owner, Math.max(0, n))
       }
     }
 
-    // 落下的牆 mesh（重用 wallMat、尺寸同固定柱牆）；由上落下 + 著地縮放動畫
-    const scene = this.ctx.scene
+    // 落牆：柱牆模型＋紅色警示頂，由高處落下（board.update 驅動）；預告格往下一格推進
     const wx = cellToWorld(p.cx, GRID_W)
     const wz = cellToWorld(p.cy, GRID_H)
-    const w = MeshBuilder.CreateBox(`close-${p.cx}-${p.cy}`, { size: CELL * 0.96 }, scene)
-    w.material = this.wallMat
-    w.enableEdgesRendering()
-    w.edgesWidth = 1.5
-    w.edgesColor = new Color4(0.25, 0.27, 0.32, 1)
-    w.position = new Vector3(wx, CELL * 0.48 + 6, wz) // 從高處落下
-    this.closingWalls.push(w)
+    this.board.addClosingWall(ci, p.cx, p.cy)
+    this.lastCloseApplied = performance.now()
+    this.closePreviewFrom = this.spiralIndexOf(p.cx, p.cy) + 1
 
     // 打擊感：碎片 + 相機震動
     this.burst(this.debrisPs, new Vector3(wx, CELL * 0.5, wz), 12)
@@ -1145,95 +1001,11 @@ class BomberScene implements GameModule {
     ps.manualEmitCount = Math.max(0, ps.manualEmitCount) + count
   }
 
-  /** 道具落地：建立旋轉小物件，存入 items（同格已有則先清除） */
+  /** 道具落地：代幣（board 的 thin instance），存入 items（同格已有則先清除） */
   private spawnItem(cx: number, cy: number, kind: ItemKind): void {
     const ci = cellIndex(cx, cy)
-    this.items.get(ci)?.mesh.dispose() // 同格舊道具連同子節點一併清除
-    const scene = this.ctx.scene
-    const M = this.itemMats
-
-    // root 為位移/旋轉/浮動錨點（自身無幾何）；子節點組成造型，dispose(root) 連帶清除
-    const root = new Mesh(`item-${ci}`, scene)
-    root.position = new Vector3(cellToWorld(cx, GRID_W), 0.55, cellToWorld(cy, GRID_H))
-
-    const child = (m: Mesh, matKey: string): Mesh => {
-      m.parent = root
-      m.material = M[matKey]
-      return m
-    }
-    // 共用底座光環：torus 圈 + 中心微亮，無敵另加金色強化
-    const ring = MeshBuilder.CreateTorus(`item-ring-${ci}`, { diameter: 0.85, thickness: 0.09, tessellation: 20 }, scene)
-    ring.rotation.x = Math.PI / 2
-    ring.position.y = -0.35
-    child(ring, kind === 'invincible' ? 'gold' : 'ring')
-
-    if (kind === 'bomb') {
-      // 小炸彈造型：黑球 + 點燃引信
-      const ball = MeshBuilder.CreateSphere(`item-b-${ci}`, { diameter: 0.62 }, scene)
-      child(ball, 'dark')
-      const fuse = MeshBuilder.CreateCylinder(`item-bf-${ci}`, { height: 0.28, diameter: 0.07 }, scene)
-      fuse.position.set(0.06, 0.4, 0)
-      fuse.rotation.z = 0.4
-      child(fuse, 'cyan')
-      const spark = MeshBuilder.CreateSphere(`item-bs-${ci}`, { diameter: 0.16 }, scene)
-      spark.position.set(0.12, 0.55, 0)
-      child(spark, 'fireHot')
-    } else if (kind === 'fire') {
-      // 火焰/星形：橘紅水滴 + 內層亮黃 + 上揚尖端
-      const flame = MeshBuilder.CreateSphere(`item-f-${ci}`, { diameter: 0.62, slice: 0.85 }, scene)
-      flame.scaling.set(1, 1.25, 1)
-      child(flame, 'fire')
-      const core = MeshBuilder.CreateSphere(`item-fc-${ci}`, { diameter: 0.34 }, scene)
-      core.position.y = 0.05
-      child(core, 'fireHot')
-      const tip = MeshBuilder.CreateCylinder(`item-ft-${ci}`, { height: 0.4, diameterTop: 0, diameterBottom: 0.32 }, scene)
-      tip.position.y = 0.42
-      child(tip, 'fire')
-    } else if (kind === 'speed') {
-      // 翅膀/箭頭：黃色箭頭主體 + 兩側白翼
-      const arrow = MeshBuilder.CreateCylinder(`item-s-${ci}`, { height: 0.6, diameterTop: 0, diameterBottom: 0.46, tessellation: 4 }, scene)
-      child(arrow, 'yellow')
-      for (const sx of [-1, 1]) {
-        const wing = MeshBuilder.CreateBox(`item-sw${sx}-${ci}`, { width: 0.38, height: 0.06, depth: 0.22 }, scene)
-        wing.position.set(sx * 0.28, 0.02, -0.05)
-        wing.rotation.z = sx * 0.5
-        child(wing, 'wing')
-      }
-    } else if (kind === 'kick') {
-      // 踢：靴子（鞋身 + 鞋頭）+ 方向箭環
-      const boot = MeshBuilder.CreateBox(`item-k-${ci}`, { width: 0.34, height: 0.4, depth: 0.3 }, scene)
-      boot.position.y = 0.05
-      child(boot, 'boot')
-      const toe = MeshBuilder.CreateBox(`item-kt-${ci}`, { width: 0.34, height: 0.18, depth: 0.34 }, scene)
-      toe.position.set(0, -0.12, 0.28)
-      child(toe, 'boot')
-      const arrow = MeshBuilder.CreateCylinder(`item-ka-${ci}`, { height: 0.3, diameterTop: 0, diameterBottom: 0.26, tessellation: 4 }, scene)
-      arrow.rotation.x = Math.PI / 2
-      arrow.position.set(0, 0.05, 0.5)
-      child(arrow, 'wing')
-    } else if (kind === 'throw') {
-      // 丟：手套（掌 + 拇指）+ 上方拋出的小球（拋物提示）
-      const palm = MeshBuilder.CreateBox(`item-t-${ci}`, { width: 0.4, height: 0.34, depth: 0.22 }, scene)
-      child(palm, 'glove')
-      const thumb = MeshBuilder.CreateBox(`item-tt-${ci}`, { width: 0.12, height: 0.22, depth: 0.18 }, scene)
-      thumb.position.set(-0.24, 0.06, 0)
-      thumb.rotation.z = 0.5
-      child(thumb, 'glove')
-      const proj = MeshBuilder.CreateSphere(`item-tp-${ci}`, { diameter: 0.24 }, scene)
-      proj.position.set(0.1, 0.42, 0)
-      child(proj, 'dark')
-    } else {
-      // 無敵：金色星核 + 護盾光環（更醒目）
-      const star = MeshBuilder.CreateSphere(`item-i-${ci}`, { diameter: 0.52 }, scene)
-      child(star, 'gold')
-      const shield = MeshBuilder.CreateTorus(`item-is-${ci}`, { diameter: 0.78, thickness: 0.1, tessellation: 24 }, scene)
-      child(shield, 'shield')
-      const shield2 = MeshBuilder.CreateTorus(`item-is2-${ci}`, { diameter: 0.78, thickness: 0.1, tessellation: 24 }, scene)
-      shield2.rotation.z = Math.PI / 2
-      child(shield2, 'shield')
-    }
-
-    this.items.set(ci, { kind, mesh: root })
+    this.board.addItem(ci, kind, cx, cy)
+    this.items.set(ci, { kind })
   }
 
   /** host：偵測站到道具上的存活玩家，發放並廣播 pickup */
@@ -1253,8 +1025,9 @@ class BomberScene implements GameModule {
     const it = this.items.get(p.ci)
     if (!it) return
     playSfx('pickup')
-    this.burst(this.sparklePs, it.mesh.position.clone(), 14)
-    it.mesh.dispose()
+    const ip = this.board.itemPos(p.ci)
+    if (ip) this.burst(this.sparklePs, new Vector3(ip.x, ip.y, ip.z), 14)
+    this.board.removeItem(p.ci)
     this.items.delete(p.ci)
     const s = this.statOf(p.who)
     if (it.kind === 'bomb') s.bombs = Math.min(MAX_BOMBS, s.bombs + 1)
@@ -1354,130 +1127,16 @@ class BomberScene implements GameModule {
     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 30, Vector3.Zero(), scene)
     new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
 
-    // 共用材質
-    this.crateMat = new StandardMaterial('crate-mat', scene)
-    this.crateMat.diffuseColor = new Color3(0.62, 0.45, 0.22)
-    // 木箱皮膚調色盤（數種木質/苔綠/舊木色，共用少量材質）
-    const skin = (name: string, c: Color3): StandardMaterial => {
-      const m = new StandardMaterial(name, scene)
-      m.diffuseColor = c
-      return m
-    }
-    this.crateSkinMats = [
-      skin('crate-skin-0', new Color3(0.62, 0.45, 0.22)), // 木質
-      skin('crate-skin-1', new Color3(0.72, 0.52, 0.28)), // 淺木
-      skin('crate-skin-2', new Color3(0.5, 0.36, 0.18)), // 深木
-      skin('crate-skin-3', new Color3(0.42, 0.5, 0.28)), // 苔綠
-      skin('crate-skin-4', new Color3(0.58, 0.48, 0.36)), // 舊木
-    ]
-    // 硬箱：灰金屬／石材主體 + 較亮鉚釘箍帶
-    this.crateHardMat = new StandardMaterial('crate-hard-mat', scene)
-    this.crateHardMat.diffuseColor = new Color3(0.46, 0.49, 0.55)
-    this.crateHardMat.specularColor = new Color3(0.6, 0.62, 0.68)
-    this.crateHardTrimMat = new StandardMaterial('crate-hard-trim-mat', scene)
-    this.crateHardTrimMat.diffuseColor = new Color3(0.78, 0.72, 0.4)
-    this.crateHardTrimMat.emissiveColor = new Color3(0.22, 0.2, 0.1)
-    // 硬箱降級後的受損外觀（裂痕色）
-    this.crateDamagedMat = new StandardMaterial('crate-damaged-mat', scene)
-    this.crateDamagedMat.diffuseColor = new Color3(0.5, 0.38, 0.2)
-    this.bombMat = new StandardMaterial('bomb-mat', scene)
-    this.bombMat.diffuseColor = new Color3(0.12, 0.12, 0.15)
-    this.bombFlashMat = new StandardMaterial('bomb-flash-mat', scene)
-    this.bombFlashMat.diffuseColor = new Color3(0.9, 0.15, 0.1)
-    this.bombFlashMat.emissiveColor = new Color3(0.7, 0.1, 0.05)
-    this.flameMat = new StandardMaterial('flame-mat', scene)
-    this.flameMat.emissiveColor = new Color3(1, 0.45, 0.1)
-    this.flameMat.disableLighting = true
-    this.flameCoreMat = new StandardMaterial('flame-core-mat', scene)
-    this.flameCoreMat.emissiveColor = new Color3(1, 0.85, 0.3)
-    this.flameCoreMat.disableLighting = true
-    // 道具材質：炸彈 up 青色、火力 up 橘紅、速度 up 亮黃，emissive 讓它在地圖上醒目
-    this.itemBombMat = new StandardMaterial('item-bomb-mat', scene)
-    this.itemBombMat.diffuseColor = new Color3(0.1, 0.6, 0.9)
-    this.itemBombMat.emissiveColor = new Color3(0.1, 0.5, 0.85)
-    this.itemFireMat = new StandardMaterial('item-fire-mat', scene)
-    this.itemFireMat.diffuseColor = new Color3(0.95, 0.35, 0.1)
-    this.itemFireMat.emissiveColor = new Color3(0.85, 0.3, 0.05)
-    this.itemSpeedMat = new StandardMaterial('item-speed-mat', scene)
-    this.itemSpeedMat.diffuseColor = new Color3(0.95, 0.85, 0.15)
-    this.itemSpeedMat.emissiveColor = new Color3(0.85, 0.75, 0.1)
-
-    // 道具美化調色盤：組合 mesh 用的發光材質（底座/主體/圖示），各道具共用同一組
-    const mat = (name: string, diff: Color3, emis: Color3): StandardMaterial => {
-      const m = new StandardMaterial(name, scene)
-      m.diffuseColor = diff
-      m.emissiveColor = emis
-      return m
-    }
-    this.itemMats = {
-      base: mat('it-base', new Color3(0.1, 0.12, 0.18), new Color3(0.05, 0.06, 0.1)), // 深色底座
-      ring: mat('it-ring', new Color3(0.85, 0.9, 1), new Color3(0.4, 0.55, 0.85)), // 光環
-      dark: mat('it-dark', new Color3(0.1, 0.1, 0.13), new Color3(0.02, 0.02, 0.03)), // 炸彈黑
-      cyan: mat('it-cyan', new Color3(0.15, 0.7, 0.95), new Color3(0.1, 0.55, 0.85)),
-      fire: mat('it-fire', new Color3(1, 0.45, 0.12), new Color3(0.9, 0.32, 0.06)),
-      fireHot: mat('it-firehot', new Color3(1, 0.85, 0.3), new Color3(1, 0.7, 0.2)),
-      wing: mat('it-wing', new Color3(0.95, 0.97, 1), new Color3(0.65, 0.72, 0.85)),
-      yellow: mat('it-yellow', new Color3(1, 0.9, 0.2), new Color3(0.9, 0.78, 0.12)),
-      boot: mat('it-boot', new Color3(0.7, 0.25, 0.2), new Color3(0.4, 0.12, 0.08)),
-      glove: mat('it-glove', new Color3(0.95, 0.55, 0.15), new Color3(0.6, 0.32, 0.08)),
-      gold: mat('it-gold', new Color3(1, 0.82, 0.2), new Color3(0.95, 0.7, 0.12)),
-      shield: mat('it-shield', new Color3(0.4, 0.85, 1), new Color3(0.3, 0.7, 0.95)),
-    }
-
-    // 地板 + 固定柱牆（柱牆不隨 seed 變動，建一次即可）
-    const ground = MeshBuilder.CreateGround('ground', { width: GRID_W * CELL + 2, height: GRID_H * CELL + 2 }, scene)
-    const gmat = new StandardMaterial('gmat', scene)
-    gmat.diffuseColor = new Color3(0.16, 0.34, 0.2)
-    ground.material = gmat
-
-    // 棋盤格草地（雙色交錯，經典炸彈人場地感）
-    const tileA = new StandardMaterial('tile-a', scene)
-    tileA.diffuseColor = new Color3(0.24, 0.48, 0.28)
-    const tileB = new StandardMaterial('tile-b', scene)
-    tileB.diffuseColor = new Color3(0.2, 0.42, 0.24)
-    for (let cy = 0; cy < GRID_H; cy++) {
-      for (let cx = 0; cx < GRID_W; cx++) {
-        const tile = MeshBuilder.CreateBox(`tile-${cx}-${cy}`, { width: CELL * 0.98, height: 0.02, depth: CELL * 0.98 }, scene)
-        tile.position = new Vector3(cellToWorld(cx, GRID_W), 0.01, cellToWorld(cy, GRID_H))
-        tile.material = (cx + cy) % 2 === 0 ? tileA : tileB
-        this.decorations.push(tile)
-      }
-    }
-
-    // 外圍邊框牆：包住場地
-    const borderMat = new StandardMaterial('border-mat', scene)
-    borderMat.diffuseColor = new Color3(0.36, 0.4, 0.46)
-    const gw = GRID_W * CELL
-    const gh = GRID_H * CELL
-    const borders = [
-      { w: gw + 4, d: 1, x: 0, z: -(gh / 2 + 0.5) },
-      { w: gw + 4, d: 1, x: 0, z: gh / 2 + 0.5 },
-      { w: 1, d: gh + 2, x: -(gw / 2 + 0.5), z: 0 },
-      { w: 1, d: gh + 2, x: gw / 2 + 0.5, z: 0 },
-    ]
-    for (let i = 0; i < borders.length; i++) {
-      const b = borders[i]
-      const wall = MeshBuilder.CreateBox(`border-${i}`, { width: b.w, height: 1.3, depth: b.d }, scene)
-      wall.position.set(b.x, 0.65, b.z)
-      wall.material = borderMat
-      wall.enableEdgesRendering()
-      wall.edgesWidth = 1.5
-      wall.edgesColor = new Color4(0.2, 0.22, 0.27, 1)
-      this.decorations.push(wall)
-    }
-
-    this.wallMat = new StandardMaterial('wall-mat', scene)
-    this.wallMat.diffuseColor = new Color3(0.42, 0.45, 0.5)
-    for (let cy = 1; cy < GRID_H; cy += 2) {
-      for (let cx = 1; cx < GRID_W; cx += 2) {
-        const w = MeshBuilder.CreateBox(`wall-${cx}-${cy}`, { size: CELL * 0.96 }, scene)
-        w.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.48, cellToWorld(cy, GRID_H))
-        w.material = this.wallMat
-        w.enableEdgesRendering()
-        w.edgesWidth = 1.5
-        w.edgesColor = new Color4(0.25, 0.27, 0.32, 1)
-      }
-    }
+    // 場景物件（A「Toy Box」）：地面單 mesh＋程式棋盤，柱牆／外框／木箱／落牆／炸彈／火焰／道具走 thin instance
+    this.board = new ToyBoard(scene, {
+      gridW: GRID_W,
+      gridH: GRID_H,
+      cell: CELL,
+      toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
+    })
+    this.avatarKit = new AvatarKit(scene)
+    // AC8：draw calls 量測（每 PERF_LOG_MS 印一次）
+    this.instr = new SceneInstrumentation(scene)
 
     this.initParticles()
 
@@ -1579,6 +1238,8 @@ class BomberScene implements GameModule {
       this.playingSince = performance.now()
       this.lastClose = 0
       this.closeIndex = 0
+      this.lastCloseApplied = 0
+      this.closePreviewFrom = 0
     } else if (!playing && this.wasPlaying) {
       this.playingSince = 0
     }
@@ -1764,7 +1425,7 @@ class BomberScene implements GameModule {
     const ids = new Set(this.own.remoteIds())
     for (const [id, a] of this.peerAvatars) {
       if (ids.has(id)) continue
-      a.root.dispose(false, true)
+      disposeAvatar(a.toy)
       this.peerAvatars.delete(id)
     }
     for (const id of ids) {
@@ -1802,13 +1463,11 @@ class BomberScene implements GameModule {
       this.animateAvatar(a, deltaMs)
     }
 
-    // 無敵視覺：閃爍半透明（無敵結束自動恢復為實心）
+    // 無敵視覺：身體外圈金色光殼閃爍（8Hz，最後 1.5 秒 16Hz）
     const nowVis = performance.now()
     const applyInvis = (av: Avatar | undefined, id: string) => {
       if (!av || !av.root.isEnabled()) return
-      const inv = this.statOf(id).invincibleUntil
-      const vis = inv > nowVis ? 0.35 + 0.35 * (Math.sin(nowVis * 0.02) * 0.5 + 0.5) : 1
-      for (const child of av.root.getChildMeshes()) child.visibility = vis
+      av.toy.halo.isVisible = invincibleBlinkOn(nowVis, this.statOf(id).invincibleUntil)
     }
     applyInvis(this.selfAvatar, this.ctx.selfId)
     for (const [id, a] of this.peerAvatars) applyInvis(a, id)
@@ -1818,44 +1477,53 @@ class BomberScene implements GameModule {
     const now = performance.now()
     this.flames = this.flames.filter((f) => {
       if (f.until <= now) {
-        f.mesh.dispose()
+        this.board.removeFlame(f.fx)
         return false
       }
       const grow = Math.min(1, (now - f.bornAt) / FLAME_GROW_MS)
       const fade = Math.min(1, (f.until - now) / FLAME_FADE_MS)
       const s = grow * (0.4 + 0.6 * fade)
-      f.mesh.scaling.set(s, s * (1 + 0.3 * Math.sin(now * 0.02 + f.cx + f.cy)), s)
+      this.board.poseFlame(f.fx, grow, s, 1 + 0.3 * Math.sin(now * 0.02 + f.cx + f.cy))
       return true
     })
 
-    // 炸彈脈動；將爆前轉紅快閃；踢滑行/丟拋物的位置插值
-    for (const b of this.bombs.values()) {
+    // 炸彈脈動；將爆前閃紅並放大脈動（1.0↔1.12）；踢滑行/丟拋物的位置插值
+    for (const [id, b] of this.bombs) {
       const left = b.explodeAt - now
-      const pulse = 1 + 0.07 * Math.sin(now * (left < BOMB_FLASH_MS ? 0.035 : 0.012))
-      b.mesh.scaling.set(pulse, pulse, pulse)
-      b.mesh.material = left < BOMB_FLASH_MS && Math.sin(now * 0.04) > 0 ? this.bombFlashMat : this.bombMat
-      // 移動動畫：依時間插值 mesh 位置；拋物加上弧高；結束後吸附終點並清除 motion
+      const flashing = left < BOMB_FLASH_MS
+      const pulse = flashing ? 1.06 + 0.06 * Math.sin(now * 0.035) : 1 + 0.04 * Math.sin(now * 0.012)
+      // 移動動畫：依時間插值位置；拋物加上弧高；結束後吸附終點並清除 motion
       const m = b.motion
       if (m) {
         const t = Math.min(1, (now - m.startAt) / (m.endAt - m.startAt))
-        b.mesh.position.x = m.fromX + (m.toX - m.fromX) * t
-        b.mesh.position.z = m.fromZ + (m.toZ - m.fromZ) * t
-        b.mesh.position.y = 0.55 + m.arc * Math.sin(Math.PI * t)
+        b.x = m.fromX + (m.toX - m.fromX) * t
+        b.z = m.fromZ + (m.toZ - m.fromZ) * t
+        b.y = 0.55 + m.arc * Math.sin(Math.PI * t)
         if (t >= 1) {
-          b.mesh.position.set(m.toX, 0.55, m.toZ)
+          b.x = m.toX
+          b.y = 0.55
+          b.z = m.toZ
           b.motion = undefined
         }
       }
+      this.board.setBomb(id, b.x, b.y, b.z, pulse, flashing && Math.sin(now * 0.04) > 0)
     }
 
-    // 突然死亡落牆：由高處快速落到定位（著地後維持）
-    const groundY = CELL * 0.48
-    for (const w of this.closingWalls) {
-      if (w.position.y > groundY) {
-        w.position.y += (groundY - w.position.y) * Math.min(1, deltaMs * 0.02)
-        if (w.position.y - groundY < 0.02) w.position.y = groundY
-      }
-    }
+    // 突然死亡預告格：下一面牆落下前 CLOSE_WARN_MS 在該格畫紅色脈動格（純視覺，時刻對齊 host 的落牆節奏）
+    const warnOn =
+      phase === 'playing' &&
+      closeWarningActive({
+        now,
+        playingSince: this.playingSince,
+        lastClose: this.lastCloseApplied,
+        suddenMs: SUDDEN_DEATH_MS,
+        intervalMs: CLOSE_INTERVAL_MS,
+        leadMs: CLOSE_WARN_MS,
+      })
+    const warnCell = warnOn
+      ? nextCloseCell(this.spiralCells(), (cx, cy) => this.map[cellIndex(cx, cy)] === TILE_WALL, this.closePreviewFrom)
+      : null
+    this.board.setWarning(warnCell, 0.5 + 0.5 * Math.sin(now * 0.025))
 
     // 爆炸相機震動（衰減的隨機偏移）
     const shakeLeft = this.shakeUntil - now
@@ -1866,10 +1534,15 @@ class BomberScene implements GameModule {
       this.camera.target.set(0, 0, 0)
     }
 
-    // 道具旋轉浮動，提示可拾取
-    for (const it of this.items.values()) {
-      it.mesh.rotation.y += deltaMs * 0.004
-      it.mesh.position.y = 0.55 + Math.sin(now * 0.004 + it.mesh.position.x) * 0.12
+    // 道具浮動擺盪、落牆下落、所有 thin instance 上傳（每幀一次）
+    this.board.update(now, deltaMs)
+
+    // AC8：每 2 秒印 draw calls 與 fps（讀的是上一幀的完整計數）
+    if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
+      this.lastPerfLog = now
+      const calls = this.instr.drawCallsCounter.current
+      const fps = Math.round(this.ctx.scene.getEngine().getFps())
+      console.info(`[bomber] drawCalls=${calls} fps=${fps}`)
     }
 
     // HUD / 橫幅：精簡單行——存活數 + 能力值（能力旗標/無敵僅在持有時顯示）；
@@ -1932,26 +1605,22 @@ class BomberScene implements GameModule {
     this.own.stop()
     this.flow.dispose()
     this.offOpen?.()
-    this.selfAvatar?.root.dispose(false, true)
-    for (const a of this.peerAvatars.values()) a.root.dispose(false, true)
+    if (this.selfAvatar) disposeAvatar(this.selfAvatar.toy)
+    this.selfAvatar = undefined
+    for (const a of this.peerAvatars.values()) disposeAvatar(a.toy)
     this.peerAvatars.clear()
-    for (const a of this.botAvatars.values()) a.root.dispose(false, true)
+    for (const a of this.botAvatars.values()) disposeAvatar(a.toy)
     this.botAvatars.clear()
+    this.avatarKit.dispose()
     this.botState.clear()
     this.botTarget.clear()
     this.bots = []
-    for (const m of this.crates.values()) m.dispose()
-    this.crates.clear()
-    for (const b of this.bombs.values()) b.mesh.dispose()
     this.bombs.clear()
-    for (const f of this.flames) f.mesh.dispose()
     this.flames = []
-    for (const it of this.items.values()) it.mesh.dispose()
     this.items.clear()
-    for (const w of this.closingWalls) w.dispose()
-    this.closingWalls = []
-    for (const m of this.decorations) m.dispose()
-    this.decorations = []
+    this.board.dispose()
+    this.instr?.dispose()
+    this.instr = null
     this.explosionPs?.dispose()
     this.debrisPs?.dispose()
     this.puffPs?.dispose()

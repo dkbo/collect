@@ -22,6 +22,36 @@ export interface GameOverlay {
   actions: OverlayAction[]
 }
 
+/** HUD 玩家卡資料；P 編號 = colorIndex + 1（固定 4 色依出生角） */
+export interface GameHudPlayer {
+  id: string
+  name: string
+  colorIndex: 0 | 1 | 2 | 3
+  isSelf: boolean
+  isAI: boolean
+  alive: boolean
+  wins: number
+  bombs: number
+  fire: number
+  speed: number
+  kick: boolean
+  throw: boolean
+  /** 無敵剩餘毫秒，0 表示沒有無敵 */
+  invincibleMs: number
+}
+
+/**
+ * 遊戲自畫面的 React HUD 資料（目前只有 bomber 使用，由 BabylonCanvas 渲染玩家卡與計時器）。
+ * 共用契約：欄位只增不改；其他遊戲不呼叫 setHud 即不受影響。
+ */
+export interface GameHud {
+  /** 距突然死亡倒數；suddenDeath 為 true 時 secondsLeft 無意義 */
+  timer: { secondsLeft: number; suddenDeath: boolean }
+  aliveCount: number
+  totalCount: number
+  players: GameHudPlayer[]
+}
+
 /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
 export interface GameContext {
   scene: Scene
@@ -33,6 +63,8 @@ export interface GameContext {
   players: GamePlayer[]
   /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
   setOverlay?: (overlay: GameOverlay | null) => void
+  /** 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件） */
+  setHud?: (hud: GameHud | null) => void
 }
 
 /**
