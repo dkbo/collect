@@ -326,23 +326,126 @@ function paintIcon(g: Ctx, kind: (typeof ITEM_ORDER)[number], x: number, y: numb
   }
 }
 
-export function createItemAtlas(scene: Scene): DynamicTexture {
+/** public/battle/bomber/ 下的素材網址（AC1；vite base 為 /collect/） */
+export const bomberAssetUrl = (file: string): string => `${import.meta.env.BASE_URL}battle/bomber/${file}`
+
+/** 道具圖集：底色＋C 式高光由程式畫，圖示取自 items_atlas.webp（6 格橫排、每格 128，順序同 ITEM_ORDER）。
+ *  圖檔載入前只有底色；載入失敗時退回程式畫的圖示。 */
+export function createItemAtlas(scene: Scene, iconUrl: string = bomberAssetUrl('items_atlas.webp')): DynamicTexture {
   const tex = new DynamicTexture('bomber-item-atlas', { width: ITEM_CELLS * TILE, height: TILE }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
   const g = ctxOf(tex)
-  ITEM_ORDER.forEach((kind, i) => {
-    const x = i * TILE
-    g.fillStyle = ITEM_COLORS[kind]
-    g.fillRect(x, 0, TILE, TILE)
-    // C 式鏡面高光（左上白色硬點）
-    g.fillStyle = 'rgba(255,255,255,0.55)'
-    g.beginPath()
-    g.ellipse(x + 30, 22, 16, 8, -0.4, 0, Math.PI * 2)
-    g.fill()
-    paintIcon(g, kind, x, 0)
-  })
-  g.fillStyle = '#FFFFFF'
-  g.fillRect(ITEM_WHITE_CELL * TILE, 0, TILE, TILE)
+  const paint = (icons: HTMLImageElement | 'fallback' | null): void => {
+    g.clearRect(0, 0, ITEM_CELLS * TILE, TILE)
+    ITEM_ORDER.forEach((kind, i) => {
+      const x = i * TILE
+      g.fillStyle = ITEM_COLORS[kind]
+      g.fillRect(x, 0, TILE, TILE)
+      // C 式鏡面高光（左上白色硬點）
+      g.fillStyle = 'rgba(255,255,255,0.55)'
+      g.beginPath()
+      g.ellipse(x + 30, 22, 16, 8, -0.4, 0, Math.PI * 2)
+      g.fill()
+      if (icons === 'fallback') paintIcon(g, kind, x, 0)
+      else if (icons) g.drawImage(icons, i * TILE, 0, TILE, TILE, x + 8, 8, TILE - 16, TILE - 16)
+    })
+    g.fillStyle = '#FFFFFF'
+    g.fillRect(ITEM_WHITE_CELL * TILE, 0, TILE, TILE)
+    tex.update()
+  }
+  paint(null)
+  if (typeof Image === 'undefined') {
+    paint('fallback')
+    return tex
+  }
+  let alive = true
+  tex.onDisposeObservable.addOnce(() => (alive = false))
+  const img = new Image()
+  img.onload = () => alive && paint(img)
+  img.onerror = () => alive && paint('fallback')
+  img.src = iconUrl
+  return tex
+}
+
+/** 地面 ring（放炸彈、落牆灰塵環）：透明底白色圓環，顏色由材質 tint */
+export function createRingTexture(scene: Scene): DynamicTexture {
+  const S = 128
+  const tex = new DynamicTexture('bomber-ring-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+  tex.hasAlpha = true
+  const g = ctxOf(tex)
+  g.clearRect(0, 0, S, S)
+  const gr = g.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.48)
+  gr.addColorStop(0, 'rgba(255,255,255,0)')
+  gr.addColorStop(0.45, 'rgba(255,255,255,1)')
+  gr.addColorStop(0.7, 'rgba(255,255,255,0.85)')
+  gr.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = gr
+  g.fillRect(0, 0, S, S)
   tex.update()
+  return tex
+}
+
+/** 焦痕 decal：深紫褐色不規則斑塊，邊緣柔化 */
+export function createScorchTexture(scene: Scene): DynamicTexture {
+  const S = 128
+  const tex = new DynamicTexture('bomber-scorch-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+  tex.hasAlpha = true
+  const g = ctxOf(tex)
+  g.clearRect(0, 0, S, S)
+  const rnd = rand(0x5c0)
+  const blot = (x: number, y: number, r: number, a: number) => {
+    const gr = g.createRadialGradient(x, y, 0, x, y, r)
+    gr.addColorStop(0, `rgba(40,28,36,${a})`)
+    gr.addColorStop(0.6, `rgba(52,36,40,${a * 0.7})`)
+    gr.addColorStop(1, 'rgba(60,40,40,0)')
+    g.fillStyle = gr
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fill()
+  }
+  blot(S / 2, S / 2, S * 0.44, 0.6)
+  for (let i = 0; i < 4; i++) {
+    const a = rnd() * Math.PI * 2
+    const d = S * (0.16 + rnd() * 0.12)
+    blot(S / 2 + Math.cos(a) * d, S / 2 + Math.sin(a) * d, S * (0.14 + rnd() * 0.06), 0.4)
+  }
+  tex.update()
+  return tex
+}
+
+/** 字型載好再重畫一次（Fredoka 由 index.css 的 @font-face 宣告，第一次用到才下載） */
+export function whenFontReady(font: string, tex: DynamicTexture, draw: () => void): void {
+  draw()
+  const fonts = typeof document === 'undefined' ? undefined : document.fonts
+  if (!fonts) return
+  let alive = true
+  tex.onDisposeObservable.addOnce(() => (alive = false))
+  fonts.load(font).then(
+    () => alive && draw(),
+    () => undefined
+  )
+}
+
+/** 拾取飄字「+1」：金色字、深紫描邊、透明底 */
+export function createPlusOneTexture(scene: Scene): DynamicTexture {
+  const W = 128
+  const H = 96
+  const font = 'bold 72px Fredoka, sans-serif'
+  const tex = new DynamicTexture('bomber-plus1-tex', { width: W, height: H }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+  tex.hasAlpha = true
+  const g = ctxOf(tex)
+  whenFontReady(font, tex, () => {
+    g.clearRect(0, 0, W, H)
+    g.font = font
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.lineJoin = 'round'
+    g.lineWidth = 12
+    g.strokeStyle = TOY.outline
+    g.strokeText('+1', W / 2, H / 2 + 4)
+    g.fillStyle = TOY.invincible
+    g.fillText('+1', W / 2, H / 2 + 4)
+    tex.update()
+  })
   return tex
 }
 

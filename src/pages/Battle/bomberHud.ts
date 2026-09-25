@@ -1,12 +1,8 @@
+import { PLAYER_PALETTE } from '@/babylon/games/bomberFx/palette'
 import type { GameHud, GameHudPlayer } from '@/babylon/types'
 
-/** 固定 4 色（spec §4），索引 = colorIndex，P 編號 = colorIndex + 1 */
-export const BOMBER_COLORS = [
-  { light: '#FF8A94', base: '#FF3B4E', dark: '#B3122A' },
-  { light: '#8CC4FF', base: '#2F86FF', dark: '#1446B8' },
-  { light: '#93F0A8', base: '#2FCF5E', dark: '#138A3A' },
-  { light: '#FFF0A0', base: '#FFC21A', dark: '#C27D00' },
-] as const
+/** 固定 4 色（spec §4），與 3D 角色同源；索引 = colorIndex，P 編號 = colorIndex + 1 */
+export const BOMBER_COLORS = PLAYER_PALETTE
 
 /** 勝場星數（bomber MATCH_TARGET） */
 const STAR_COUNT = 3

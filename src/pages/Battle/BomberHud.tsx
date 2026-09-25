@@ -117,13 +117,18 @@ function PlayerCard({ p }: { p: GameHudPlayer }) {
 
 /** 矮畫面（max-height 500px）改用的頭像膠囊：頭像加炸彈／火力／速度三個小數字 */
 function PlayerPill({ p }: { p: GameHudPlayer }) {
+  const inv = p.alive && invincibleSeconds(p.invincibleMs) > 0
+  const cls = ['bomber-pill', !p.alive && 'bomber-card-dead', inv && 'bomber-pill-inv'].filter(Boolean).join(' ')
   return (
     <div
-      className={p.alive ? 'bomber-pill' : 'bomber-pill bomber-card-dead'}
+      className={cls}
       style={colorVars(p.colorIndex)}
       data-bomber-pill={p.colorIndex}
+      data-alive={p.alive}
+      data-invincible={inv}
       title={`${playerLabel(p.colorIndex)} ${p.name}`}
     >
+      {inv && <Shield className="bomber-pill-inv-icon" aria-label="無敵" />}
       <BomberAvatar colorIndex={p.colorIndex} isAI={p.isAI} className="bomber-pill-avatar" />
       <span className="bomber-pill-stat">
         <Bomb className="bomber-pill-icon" />

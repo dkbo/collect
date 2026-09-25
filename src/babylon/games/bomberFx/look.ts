@@ -11,6 +11,7 @@ import {
   HemisphericLight,
   ImageProcessingConfiguration,
   ShadowGenerator,
+  TargetCamera,
   Vector3,
   type Camera,
   type Material,
@@ -23,6 +24,7 @@ import {
   nextDegrade,
   noDegradeFlag,
   pickTier,
+  tierQuery,
   tierSettings,
   type BomberTier,
   type DegradeStep,
@@ -32,6 +34,8 @@ import { applyToon } from '@/babylon/games/bomberFx/toon'
 
 const OUTLINE_WIDTH = 0.02
 const SUN_DIR = new Vector3(-0.4, -1, 0.3)
+/** 只給 UI 相機看的圖層（主相機預設 0x0FFFFFFF 看不到） */
+export const UI_LAYER = 0x10000000
 
 export interface LookOptions {
   /** 陰影正交投影要涵蓋的半徑（場地半對角線加餘裕） */
@@ -41,7 +45,7 @@ export interface LookOptions {
 /** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
 function detectTier(): { tier: BomberTier; noDegrade: boolean } {
   if (typeof window === 'undefined') return { tier: 'desktop', noDegrade: true }
-  const search = window.location.search
+  const search = tierQuery(window.location.search, window.location.hash)
   const touch = 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0
   const cores = navigator.hardwareConcurrency || undefined
   return { tier: pickTier({ search, touch, cores }), noDegrade: noDegradeFlag(search) }
@@ -62,9 +66,14 @@ export class ToyLook {
   private readonly active: Record<DegradeStep, boolean>
   private watch: FpsWatch | null
   private readonly prevScaling: number
+  /** 畫 3D UI（開局倒數）的第二台相機：只看 UI_LAYER、不掛後製，顏色不被 ACES／bloom 改掉 */
+  readonly uiCamera: TargetCamera
+
+  private readonly mainCamera: Camera
 
   constructor(scene: Scene, camera: Camera, opts: LookOptions) {
     this.scene = scene
+    this.mainCamera = camera
     const { tier, noDegrade } = detectTier()
     this.tier = tier
     this.settings = tierSettings(tier, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1)
@@ -79,7 +88,7 @@ export class ToyLook {
     this.hemi = new HemisphericLight('bomber-hemi', new Vector3(0.2, 1, 0.1), scene)
     this.hemi.intensity = 0.55
     this.hemi.groundColor = Color3.FromHexString('#3A3F5C')
-    this.sun = new DirectionalLight('bomber-sun', SUN_DIR, scene)
+    this.sun = new DirectionalLight('bomber-sun', SUN_DIR.clone(), scene)
     this.sun.intensity = 0.9
     this.sun.diffuse = Color3.FromHexString('#FFF4E0')
     this.sun.specular = Color3.FromHexString('#FFF4E0')
@@ -119,12 +128,20 @@ export class ToyLook {
     ip.exposure = 1.05
     ip.contrast = 1.08
 
+    // UI 相機：與主相機同 fov、位在原點看 +Z，面板以相機座標擺放（與掛在主相機下相同）
+    this.uiCamera = new TargetCamera('bomber-ui-cam', Vector3.Zero(), scene)
+    this.uiCamera.setTarget(new Vector3(0, 0, 1))
+    this.uiCamera.fov = camera.fov
+    this.uiCamera.layerMask = UI_LAYER
+    scene.activeCameras = [camera, this.uiCamera]
+    scene.cameraToUseForPointers = camera
+
     this.active = { outline: s.outline, glow: s.glow, shadow: true }
     this.watch = noDegrade ? null : new FpsWatch()
   }
 
   private makeGlow(): GlowLayer {
-    const glow = new GlowLayer('bomber-glow', this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5 })
+    const glow = new GlowLayer('bomber-glow', this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5, camera: this.mainCamera })
     glow.intensity = 0.7
     // 白名單內每個 mesh 用登記的發光色（炸彈、道具材質本身沒有 emissive）
     glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
@@ -203,6 +220,10 @@ export class ToyLook {
     this.hemi.dispose()
     this.glowColors.clear()
     this.outlined.clear()
+    this.scene.activeCameras = []
+    this.scene.activeCamera = this.mainCamera
+    this.scene.cameraToUseForPointers = null
+    this.uiCamera.dispose()
     this.scene.getEngine().setHardwareScalingLevel(this.prevScaling)
   }
 }

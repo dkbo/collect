@@ -20,7 +20,7 @@ interface LimbRange {
 }
 
 export interface ToyAvatar {
-  /** 位移錨點（不旋轉）；標記掛這裡才不會跟著面向轉 */
+  /** 位移錨點（不轉面向，只有 bomber 的俯角透視補償會微傾它）；標記掛這裡才不會跟著面向轉 */
   root: Mesh
   /** 合併後的身體，rotation.y = 面向 */
   body: Mesh

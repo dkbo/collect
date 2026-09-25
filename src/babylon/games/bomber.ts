@@ -1,16 +1,8 @@
-import {
-  ArcRotateCamera,
-  Color4,
-  ParticleSystem,
-  SceneInstrumentation,
-  Texture,
-  Vector3,
-  type Mesh,
-} from '@/babylon/babylonCore'
+import { ArcRotateCamera, Quaternion, SceneInstrumentation, Vector3, type Mesh } from '@/babylon/babylonCore'
 import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
 import type { GameNetMessage } from '@/core/webrtc'
 import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
-import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+import { createCountdownPanel, type CountdownTheme, type TextPanel } from '@/babylon/hud'
 import {
   canAdvanceMidRound,
   createFixedTicker,
@@ -56,12 +48,16 @@ import {
   type ItemKind,
   type PickupPayload,
 } from './bomberNet'
-import { AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
+import { AVATAR_SCALE, AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
 import { ToyBoard } from '@/babylon/games/bomberFx/board'
+import { ToyFx } from '@/babylon/games/bomberFx/effects'
 import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
-import { colorIndexOf, invincibleBlinkOn, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
+import { armDelayMs, deathPose, flameEmissive, placeScale } from '@/babylon/games/bomberFx/fxCurves'
+import { buildBomberHud, suddenDeathSeconds } from '@/babylon/games/bomberFx/hudModel'
+import { colorIndexOf, invincibleBlinkOn, PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
-import { ToyLook } from '@/babylon/games/bomberFx/look'
+import { ToyLook, UI_LAYER } from '@/babylon/games/bomberFx/look'
+import { uprightAxis } from '@/babylon/games/bomberFx/upright'
 
 /**
  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
@@ -106,6 +102,7 @@ interface FlameInfo {
   fx: number // ToyBoard 的火焰 id
   until: number
   bornAt: number
+  showAt: number // 純視覺：臂從爆心往外依序生長（bornAt + 每格 25ms），until 與判定不變
   cx: number
   cy: number
 }
@@ -164,6 +161,23 @@ const BOMB_INPUT_COOLDOWN_MS = 250
 const SHAKE_MS = 220 // 爆炸相機震動時長
 const CLOSE_WARN_MS = 400 // 突然死亡落牆前的紅色預告格時長（純視覺）
 const PERF_LOG_MS = 2000 // draw calls / fps 量測輸出間隔
+// 特效時長（spec §8，純視覺）
+const PLACE_POP_MS = 180 // 放炸彈彈跳＋地面 ring
+const DEATH_MS = 700 // 陣亡跳起旋轉縮小
+const FUSE_TIP = { x: 0.3, y: 0.84 } // 引信末端（炸彈模型座標，見 models.bombData）
+const HEAD_Y = 2.4 // 拾取代幣飛向的頭頂高度
+const UPRIGHT_BACK_TILT = 0.35 // 角色往後仰（遠離相機）的弧度：高俯角下頭才不會整個蓋住身體（對照 variant-A-sheet 的正面）
+const PLUS_ONE_Y = 3.7 // 「+1」起飄高度：在「你」標記（約 3.3）之上，不被頭與標記擋住
+
+/** 開局倒數 A 配色（spec §9：奶油底、深紫描邊、Fredoka）；面板走 UI 相機，不經 ACES／bloom，填的就是畫面色 */
+const COUNTDOWN_THEME: CountdownTheme = {
+  fontFamily: 'Fredoka, sans-serif',
+  count: { glow: 'rgba(0,0,0,0.4)', fill: '#FFF6E3', border: TOY.outline, stroke: TOY.outline, text: '#FF7A1A' },
+  go: { glow: 'rgba(0,0,0,0.4)', fill: '#2FCF5E', border: TOY.outline, stroke: TOY.outline, text: '#FFFFFF' },
+  plain: { stroke: TOY.outline, text: '#FFF6E3' },
+  shadowOffset: 0.12,
+  shadowBlur: 0,
+}
 
 // 道具：初始一顆彈、火力 1，吃道具才成長
 const INIT_BOMBS = 1
@@ -224,6 +238,9 @@ class BomberScene implements GameModule {
   private stats = new Map<string, PlayerStat>()
   private resultElapsed = 0
   private lastOverlayKey = '' // 僅在內容變動時才更新 React 覆蓋層
+  private dying = new Map<string, number>() // 陣亡動畫起點（純視覺；邏輯上已死）
+  private shownScores = new Map<string, number>() // HUD 勝場：取自最近一次結算（host／guest 一致）
+  private shownMatchOver = false
 
   private selfAvatar?: Avatar
   private peerAvatars = new Map<string, Avatar>()
@@ -235,17 +252,13 @@ class BomberScene implements GameModule {
   private botBombInput = new Map<string, number>() // 每隻 bot 放彈冷卻
   private lastBotBroadcast = 0
   private camera!: ArcRotateCamera
-  private hud!: TextPanel
   private banner!: TextPanel
   private board!: ToyBoard
   private avatarKit!: AvatarKit
   private look!: ToyLook
   private instr: SceneInstrumentation | null = null
   private lastPerfLog = 0
-  private explosionPs: ParticleSystem | null = null
-  private debrisPs: ParticleSystem | null = null
-  private puffPs: ParticleSystem | null = null
-  private sparklePs: ParticleSystem | null = null
+  private fx!: ToyFx
 
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase()
@@ -425,6 +438,13 @@ class BomberScene implements GameModule {
     // 突然死亡：場地復原——清掉已落下的牆、重置螺旋進度與計時（scores 不在此清，跨回合保留）
     this.board.clearClosingWalls()
     this.board.setWarning(null, 0)
+    this.fx.clearRound()
+    this.dying.clear()
+    // 上一場已奪冠 → 新比賽，HUD 勝場歸零（host 的 scores 已在 resetMatchScores 清掉）
+    if (this.shownMatchOver) {
+      this.shownScores.clear()
+      this.shownMatchOver = false
+    }
     this.lastCloseApplied = 0
     this.closePreviewFrom = 0
     this.closeIndex = 0
@@ -490,6 +510,8 @@ class BomberScene implements GameModule {
       this.faceCamera(a)
       a.root.setEnabled(true)
     }
+    // 陣亡動畫改過的身體姿勢復原
+    for (const av of [this.selfAvatar, ...this.peerAvatars.values(), ...this.botAvatars.values()]) if (av) this.resetPose(av)
   }
 
   /** 玩家目前圓身覆蓋的格（站在炸彈上時允許走出） */
@@ -718,7 +740,8 @@ class BomberScene implements GameModule {
     playSfx('bomb_place')
     const x = cellToWorld(p.cx, GRID_W)
     const z = cellToWorld(p.cy, GRID_H)
-    this.board.setBomb(p.id, x, 0.55, z, 1, false)
+    this.board.setBomb(p.id, x, 0.55, z, placeScale(0), false)
+    this.fx.bombPlaced(x, z, PLACE_POP_MS)
     this.bombs.set(p.id, {
       id: p.id,
       cx: p.cx,
@@ -884,22 +907,25 @@ class BomberScene implements GameModule {
       const n = (this.ownerBombCount.get(bomb.owner) ?? 1) - 1
       this.ownerBombCount.set(bomb.owner, Math.max(0, n))
     }
-    // 爆心火花
+    // 爆心星芒＋火花；每個火焰格留焦痕 1.5 秒
     const [ccx, ccy] = p.cells[0]
-    this.burst(this.explosionPs, new Vector3(cellToWorld(ccx, GRID_W), 0.8, cellToWorld(ccy, GRID_H)), 40)
+    const born = performance.now()
+    this.fx.explosion(cellToWorld(ccx, GRID_W), cellToWorld(ccy, GRID_H))
+    for (const [cx, cy] of p.cells) this.fx.scorchAt(cellIndex(cx, cy), cellToWorld(cx, GRID_W), cellToWorld(cy, GRID_H), born)
     for (const [cx, cy] of p.destroyed) {
       this.map[cellIndex(cx, cy)] = 0
       this.board.setCrate(cellIndex(cx, cy), cx, cy, null)
-      // 木箱碎片
-      this.burst(this.debrisPs, new Vector3(cellToWorld(cx, GRID_W), 1, cellToWorld(cy, GRID_H)), 14)
+      // 木片拋射＋奶白煙
+      this.fx.crateBurst(cellToWorld(cx, GRID_W), cellToWorld(cy, GRID_H))
     }
-    // 硬箱降級：map 由硬箱降為軟箱，外觀換成受損硬磚（鐵箍斷開＋裂痕）+ 一小撮碎片
+    // 硬箱降級：map 由硬箱降為軟箱，外觀換成受損硬磚（鐵箍斷開＋裂痕）＋閃白＋金屬火花
     for (const [cx, cy] of p.damaged ?? []) {
       const ci = cellIndex(cx, cy)
       if (this.map[ci] !== TILE_CRATE_HARD) continue
       this.map[ci] = TILE_CRATE
       this.board.setCrate(ci, cx, cy, 'damaged')
-      this.burst(this.debrisPs, new Vector3(cellToWorld(cx, GRID_W), 1, cellToWorld(cy, GRID_H)), 6)
+      this.board.flashCrate(ci, cx, cy, born)
+      this.fx.metalSparks(cellToWorld(cx, GRID_W), cellToWorld(cy, GRID_H))
     }
     // 燒毀既有道具
     for (const [cx, cy] of p.itemKills ?? []) {
@@ -909,11 +935,12 @@ class BomberScene implements GameModule {
     }
     // 掉落新道具
     for (const d of p.drops ?? []) this.spawnItem(d.cx, d.cy, d.kind)
-    // 火焰格：爆心圓帽、臂圓角條、端頭半格＋圓帽（外／中／芯三層）；生長/收縮動畫於 update 驅動
-    const born = performance.now()
+    // 火焰格：爆心圓帽、臂圓角條、端頭半格＋圓帽（外／中／芯三層）；生長/收縮動畫於 update 驅動，
+    // 臂從爆心往外每格晚 25ms 冒出（純視覺；until 與燒傷判定照舊）
     const until = born + FLAME_MS
     for (const c of classifyFlameCells(p.cells)) {
-      this.flames.push({ fx: this.board.addFlame(c), until, bornAt: born, cx: c.cx, cy: c.cy })
+      const showAt = born + armDelayMs(c.cx, c.cy, ccx, ccy)
+      this.flames.push({ fx: this.board.addFlame(c), until, bornAt: born, showAt, cx: c.cx, cy: c.cy })
     }
     this.killPlayers(p.kills)
   }
@@ -969,22 +996,16 @@ class BomberScene implements GameModule {
       }
     }
 
-    // 落牆：柱牆模型＋紅色警示頂，由高處落下（board.update 驅動）；預告格往下一格推進
-    const wx = cellToWorld(p.cx, GRID_W)
-    const wz = cellToWorld(p.cy, GRID_H)
+    // 落牆：柱牆模型＋紅色警示頂，由高處落下（board.update 驅動）；預告格往下一格推進。
+    // 落地那一幀才有灰塵環、音效與震動（見 update 的 landed）
     this.board.addClosingWall(ci, p.cx, p.cy)
     this.lastCloseApplied = performance.now()
     this.closePreviewFrom = this.spiralIndexOf(p.cx, p.cy) + 1
 
-    // 打擊感：碎片 + 相機震動
-    this.burst(this.debrisPs, new Vector3(wx, CELL * 0.5, wz), 12)
-    playSfx('explosion')
-    this.shakeUntil = performance.now() + SHAKE_MS
-
     this.killPlayers(p.kills)
   }
 
-  /** 套用陣亡（boom 與 burn 共用）：音效 + 白煙 + 隱藏角色 */
+  /** 套用陣亡（boom 與 burn 共用）：音效 + 白煙與頭盔色星星 + 陣亡動畫（播完才隱藏角色） */
   private killPlayers(kills: string[]): void {
     for (const pid of kills) {
       if (!this.isAlive(pid)) continue
@@ -992,24 +1013,74 @@ class BomberScene implements GameModule {
       this.deathOrder.push(pid)
       playSfx(pid === this.ctx.selfId ? 'death' : 'kill')
       const av = this.avatarOf(pid)
-      if (av) {
-        this.burst(this.puffPs, av.root.position.add(new Vector3(0, 1, 0)), 24)
-        av.root.setEnabled(false)
+      if (av && av.root.isEnabled()) {
+        const { x, z } = av.root.position
+        this.fx.death(x, 1, z, PLAYER_PALETTE[av.toy.colorIndex].base)
+        this.dying.set(pid, performance.now())
+        // 頭上的「你」與 AI 小章不跟著縮，陣亡當下先收起
+        if (av.toy.marker) av.toy.marker.isVisible = false
+        if (av.toy.tag) av.toy.tag.isVisible = false
       }
     }
   }
 
-  /** 對指定粒子系統在某位置噴一波（fire-and-forget 爆發） */
-  private burst(ps: ParticleSystem | null, pos: Vector3, count: number): void {
-    if (!ps) return
-    ps.emitter = pos.clone()
-    ps.manualEmitCount = Math.max(0, ps.manualEmitCount) + count
+  /** 陣亡動畫：往上跳、旋轉、縮小；播完隱藏角色並復原姿勢 */
+  private applyDeath(av: Avatar, id: string, now: number): void {
+    const start = this.dying.get(id)
+    if (start === undefined) return
+    const t = (now - start) / DEATH_MS
+    if (t >= 1 || this.isAlive(id)) {
+      this.dying.delete(id)
+      this.resetPose(av)
+      av.root.setEnabled(this.isAlive(id))
+      return
+    }
+    const p = deathPose(t)
+    av.toy.body.position.y = p.lift
+    av.toy.body.rotation.y = av.yaw + p.spin
+    av.toy.body.scaling.setAll(AVATAR_SCALE * Math.max(0.001, p.scale))
+    av.toy.halo.isVisible = false
+  }
+
+  /** 抵銷俯角透視：依角色所在位置微傾 root，讓身體在畫面上直立（近側出生角不再像橫躺；相機不動）。
+   *  「你」與 AI 小章是 billboard，Babylon 不會把父節點的旋轉套到它們的位置上，這裡手動轉。 */
+  private leanUpright(av: Avatar, cam: Vector3, camUp: Vector3): void {
+    const p = av.root.position
+    const [x, y, z] = uprightAxis([p.x, 0, p.z], [cam.x, cam.y, cam.z], [camUp.x, camUp.y, camUp.z], {
+      backTilt: UPRIGHT_BACK_TILT,
+    })
+    const q = (av.root.rotationQuaternion ??= new Quaternion())
+    Quaternion.FromUnitVectorsToRef(Vector3.UpReadOnly, new Vector3(x, y, z), q)
+    for (const m of [av.toy.marker, av.toy.tag]) {
+      if (!m) continue
+      let base = this.billboardBase.get(m)
+      if (!base) {
+        base = m.position.clone()
+        this.billboardBase.set(m, base)
+      }
+      base.rotateByQuaternionToRef(q, m.position)
+    }
+  }
+  private billboardBase = new WeakMap<Mesh, Vector3>()
+
+  private resetPose(av: Avatar): void {
+    av.toy.body.position.y = 0
+    av.toy.body.scaling.setAll(AVATAR_SCALE)
+    av.toy.body.rotation.y = av.yaw
+    if (av.toy.marker) av.toy.marker.isVisible = true
+    if (av.toy.tag) av.toy.tag.isVisible = true
+  }
+
+  /** 某實體頭頂（拾取代幣飛向這裡；化身不在就回 null） */
+  private headOf(id: string): { x: number; y: number; z: number } | null {
+    const av = this.avatarOf(id)
+    return av ? { x: av.root.position.x, y: HEAD_Y, z: av.root.position.z } : null
   }
 
   /** 道具落地：代幣（board 的 thin instance），存入 items（同格已有則先清除） */
   private spawnItem(cx: number, cy: number, kind: ItemKind): void {
     const ci = cellIndex(cx, cy)
-    this.board.addItem(ci, kind, cx, cy)
+    this.board.addItem(ci, kind, cx, cy, performance.now())
     this.items.set(ci, { kind })
   }
 
@@ -1030,8 +1101,16 @@ class BomberScene implements GameModule {
     const it = this.items.get(p.ci)
     if (!it) return
     playSfx('pickup')
+    // 代幣縮小飛向頭頂，到了飄「+1」（純視覺；邏輯上道具立即移除）
     const ip = this.board.itemPos(p.ci)
-    if (ip) this.burst(this.sparklePs, new Vector3(ip.x, ip.y, ip.z), 14)
+    if (ip) {
+      this.fx.itemSparkle(ip.x, ip.y, ip.z)
+      const target = () => this.headOf(p.who) ?? ip
+      this.board.collectItem(p.ci, target, performance.now(), () => {
+        const h = target()
+        this.fx.plusOne(h.x + 0.5, PLUS_ONE_Y, h.z)
+      })
+    }
     this.board.removeItem(p.ci)
     this.items.delete(p.ci)
     const s = this.statOf(p.who)
@@ -1148,14 +1227,19 @@ class BomberScene implements GameModule {
     this.look.caster(...fx.casters)
     this.look.outline(...fx.outlined)
     for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
+    // AC5：特效（粒子上限依檔位）
+    this.fx = new ToyFx(scene, { cell: CELL, cap: this.look.settings.particleCap })
+    this.look.toon(...this.fx.toonMaterials())
     // AC8：draw calls 量測（每 PERF_LOG_MS 印一次）
     this.instr = new SceneInstrumentation(scene)
 
-    this.initParticles()
-
     this.selfAvatar = this.makePlayer(ctx.selfId)
-    this.hud = createTextPanel(scene, this.camera, 'hud', 3.4, 0.56, new Vector3(0, 2.72, 8), 'glass')
-    this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+    // 狀態列改由 React HUD（ctx.setHud）顯示；開局倒數用 A 配色，掛在不經後製的 UI 相機
+    if (typeof document !== 'undefined') void document.fonts?.load('bold 64px Fredoka').catch(() => undefined)
+    this.banner = createCountdownPanel(scene, this.look.uiCamera, 'banner', 7, 4, new Vector3(0, 0.3, 8), {
+      theme: COUNTDOWN_THEME,
+      layerMask: UI_LAYER,
+    })
 
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
@@ -1190,57 +1274,6 @@ class BomberScene implements GameModule {
   }
 
   private currentSeed = 1
-
-  /** 四組爆發型粒子系統（爆炸火花/木箱碎片/陣亡白煙/拾取閃光），以 manualEmitCount 觸發 */
-  private initParticles(): void {
-    const scene = this.ctx.scene
-    const px = new Texture(
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-      scene
-    )
-    const makeBurst = (
-      name: string,
-      c1: Color4,
-      c2: Color4,
-      o: { size: [number, number]; life: [number, number]; power: [number, number]; gravity: number }
-    ): ParticleSystem => {
-      const ps = new ParticleSystem(name, this.look.settings.particleCap, scene)
-      ps.particleTexture = px
-      ps.emitter = Vector3.Zero()
-      ps.minEmitBox = new Vector3(-0.3, 0, -0.3)
-      ps.maxEmitBox = new Vector3(0.3, 0.3, 0.3)
-      ps.color1 = c1
-      ps.color2 = c2
-      ps.colorDead = new Color4(c2.r, c2.g, c2.b, 0)
-      ps.minSize = o.size[0]
-      ps.maxSize = o.size[1]
-      ps.minLifeTime = o.life[0]
-      ps.maxLifeTime = o.life[1]
-      ps.emitRate = 0
-      ps.manualEmitCount = 0
-      ps.direction1 = new Vector3(-1, 1, -1)
-      ps.direction2 = new Vector3(1, 2.5, 1)
-      ps.minEmitPower = o.power[0]
-      ps.maxEmitPower = o.power[1]
-      ps.updateSpeed = 0.012
-      ps.gravity = new Vector3(0, o.gravity, 0)
-      ps.blendMode = ParticleSystem.BLENDMODE_STANDARD
-      ps.start()
-      return ps
-    }
-    this.explosionPs = makeBurst('explosion-ps', new Color4(1, 0.85, 0.3, 1), new Color4(1, 0.4, 0.05, 1), {
-      size: [0.25, 0.5], life: [0.25, 0.5], power: [3, 7], gravity: -4,
-    })
-    this.debrisPs = makeBurst('debris-ps', new Color4(0.62, 0.45, 0.22, 1), new Color4(0.4, 0.28, 0.12, 1), {
-      size: [0.15, 0.3], life: [0.4, 0.7], power: [2, 5], gravity: -9,
-    })
-    this.puffPs = makeBurst('puff-ps', new Color4(0.95, 0.95, 1, 1), new Color4(0.7, 0.7, 0.8, 1), {
-      size: [0.2, 0.45], life: [0.5, 0.9], power: [1, 2.5], gravity: 1.5,
-    })
-    this.sparklePs = makeBurst('sparkle-ps', new Color4(0.4, 1, 0.9, 1), new Color4(1, 0.95, 0.3, 1), {
-      size: [0.12, 0.25], life: [0.3, 0.5], power: [1.5, 3], gravity: -1,
-    })
-  }
 
   /** 固定步長：移動 +（host）引信與勝負裁決 */
   private simulate(dt: number): void {
@@ -1429,11 +1462,14 @@ class BomberScene implements GameModule {
     // AC7：連續 60 幀平均過低就自動降一級（描邊 → Glow → 陰影）
     this.look.update(deltaMs)
 
+    const now = performance.now()
+
     // 自己
     if (this.selfAvatar) {
       this.selfAvatar.root.position.x = this.state.x
       this.selfAvatar.root.position.z = this.state.z
       this.animateAvatar(this.selfAvatar, deltaMs)
+      this.applyDeath(this.selfAvatar, this.ctx.selfId, now)
     }
 
     // 遠端：增刪 + 插值
@@ -1456,6 +1492,7 @@ class BomberScene implements GameModule {
         a.root.position.z = s.a.z + (s.b.z - s.a.z) * s.alpha
       }
       this.animateAvatar(a, deltaMs)
+      this.applyDeath(a, id, now)
     }
 
     // bot 化身：host 直接用模擬位置；guest 平滑 lerp 到 host 廣播的目標
@@ -1474,35 +1511,48 @@ class BomberScene implements GameModule {
           a.root.position.z += (t.z - a.root.position.z) * k
         }
       }
-      a.root.setEnabled(this.isAlive(id))
+      a.root.setEnabled(this.isAlive(id) || this.dying.has(id))
       this.animateAvatar(a, deltaMs)
+      this.applyDeath(a, id, now)
+    }
+
+    // 俯角透視補償：每隻角色依位置微傾（用本幀相機位置；震動的偏移很小，一併吃進去）
+    const camPos = this.camera.position
+    const camUp = this.camera.getDirection(Vector3.Up())
+    for (const av of [this.selfAvatar, ...this.peerAvatars.values(), ...this.botAvatars.values()]) {
+      if (av?.root.isEnabled()) this.leanUpright(av, camPos, camUp)
     }
 
     // 無敵視覺：身體外圈金色光殼閃爍（8Hz，最後 1.5 秒 16Hz）
-    const nowVis = performance.now()
     const applyInvis = (av: Avatar | undefined, id: string) => {
-      if (!av || !av.root.isEnabled()) return
-      av.toy.halo.isVisible = invincibleBlinkOn(nowVis, this.statOf(id).invincibleUntil)
+      if (!av || !av.root.isEnabled() || this.dying.has(id)) return
+      av.toy.halo.isVisible = invincibleBlinkOn(now, this.statOf(id).invincibleUntil)
     }
     applyInvis(this.selfAvatar, this.ctx.selfId)
     for (const [id, a] of this.peerAvatars) applyInvis(a, id)
     for (const [id, a] of this.botAvatars) applyInvis(a, id)
 
-    // 火焰：到期清除 + 生長/收縮動畫
-    const now = performance.now()
+    // 火焰：到期清除 + 生長/收縮動畫（臂依 showAt 由爆心往外依序冒出）；emissive 隨最新一波爆炸 1.0 → 0.4
+    let youngest = -Infinity
     this.flames = this.flames.filter((f) => {
       if (f.until <= now) {
         this.board.removeFlame(f.fx)
         return false
       }
-      const grow = Math.min(1, (now - f.bornAt) / FLAME_GROW_MS)
+      youngest = Math.max(youngest, f.bornAt)
+      const grow = Math.min(1, (now - f.showAt) / FLAME_GROW_MS)
+      if (grow <= 0) {
+        this.board.poseFlame(f.fx, 0.01, 0.01, 1)
+        return true
+      }
       const fade = Math.min(1, (f.until - now) / FLAME_FADE_MS)
       const s = grow * (0.4 + 0.6 * fade)
       this.board.poseFlame(f.fx, grow, s, 1 + 0.3 * Math.sin(now * 0.02 + f.cx + f.cy))
       return true
     })
+    if (this.flames.length > 0) this.board.setFlameIntensity(flameEmissive(now - youngest, FLAME_MS))
 
-    // 炸彈脈動；將爆前閃紅並放大脈動（1.0↔1.12）；踢滑行/丟拋物的位置插值
+    // 炸彈：放下時 0.6 → 1.0 彈跳；脈動；將爆前閃紅並放大脈動（1.0↔1.12）、引信火花加倍；踢滑行/丟拋物的位置插值
     for (const [id, b] of this.bombs) {
       const left = b.explodeAt - now
       const flashing = left < BOMB_FLASH_MS
@@ -1521,8 +1571,11 @@ class BomberScene implements GameModule {
           b.motion = undefined
         }
       }
-      this.board.setBomb(id, b.x, b.y, b.z, pulse, flashing && Math.sin(now * 0.04) > 0)
+      const scale = pulse * placeScale((now - (b.explodeAt - BOMB_FUSE_MS)) / PLACE_POP_MS)
+      this.board.setBomb(id, b.x, b.y, b.z, scale, flashing && Math.sin(now * 0.04) > 0)
+      this.fx.fuse(id, b.x + FUSE_TIP.x * scale, b.y + FUSE_TIP.y * scale, b.z, flashing, deltaMs)
     }
+    this.fx.endFuseFrame()
 
     // 突然死亡預告格：下一面牆落下前 CLOSE_WARN_MS 在該格畫紅色脈動格（純視覺，時刻對齊 host 的落牆節奏）
     const warnOn =
@@ -1549,8 +1602,14 @@ class BomberScene implements GameModule {
       this.camera.target.set(0, 0, 0)
     }
 
-    // 道具浮動擺盪、落牆下落、所有 thin instance 上傳（每幀一次）
-    this.board.update(now, deltaMs)
+    // 道具浮動擺盪、拾取飛行、落牆下落、所有 thin instance 上傳（每幀一次）；落牆落地：灰塵環＋音效＋震動
+    const landed = this.board.update(now, deltaMs)
+    for (const w of landed) {
+      this.fx.dust(w.x, w.z)
+      playSfx('explosion')
+      this.shakeUntil = now + SHAKE_MS
+    }
+    this.fx.update(now, deltaMs)
 
     // AC8：每 2 秒印 draw calls 與 fps（讀的是上一幀的完整計數）
     if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
@@ -1560,29 +1619,8 @@ class BomberScene implements GameModule {
       console.info(`[bomber] drawCalls=${calls} fps=${fps}`)
     }
 
-    // HUD / 橫幅：精簡單行——存活數 + 能力值（能力旗標/無敵僅在持有時顯示）；
-    // hud.draw 會在超寬時自動縮字級，常見比例下完整不被切。
-    if (phase === 'playing') {
-      const aliveCount = this.entities().filter((e) => this.isAlive(e.id)).length
-      const me = this.statOf(this.ctx.selfId)
-      const flags: string[] = []
-      if (me.kick) flags.push('👟')
-      if (me.throw) flags.push('🧤')
-      const invLeft = me.invincibleUntil - now
-      if (invLeft > 0) flags.push(`🛡️${Math.ceil(invLeft / 1000)}s`)
-      const flagsNote = flags.length ? `  ${flags.join(' ')}` : ''
-      const stats = `💣${me.bombs} 🔥${me.fire} ⚡${me.speed}`
-      // 比分摘要（精簡）：依勝場高→低取前幾名以 : 串接，如 🏆2:1
-      const scoreVals = this.entities()
-        .map((e) => this.scores.get(e.id) ?? 0)
-        .sort((a, b) => b - a)
-      const scoreNote = scoreVals.some((v) => v > 0) ? `  🏆${scoreVals.join(':')}` : ''
-      // 陣亡觀戰提示換行，避免主資訊行過長被擠壓
-      const deadLine = !this.isAlive(this.ctx.selfId) ? '\n（你已陣亡・觀戰中）' : ''
-      this.hud.draw(`存活 ${aliveCount}/${this.entities().length}   ${stats}${flagsNote}${scoreNote}${deadLine}`, 32)
-    } else {
-      this.hud.draw('', 32)
-    }
+    // HUD：React 玩家卡＋計時器（共用契約 GameHud；每幀傳新物件，量化後內容沒變就不重繪）
+    this.syncHud(phase, now)
 
     // 陣亡/結算的「重新開始」UI 交給 React 覆蓋層
     this.syncOverlay()
@@ -1612,7 +1650,39 @@ class BomberScene implements GameModule {
     }
   }
 
+  /** 組 HUD 資料交給 React（勝場取最近一次結算，host 與 guest 看到的一致） */
+  private syncHud(phase: string, now: number): void {
+    const setHud = this.ctx.setHud
+    if (!setHud) return
+    const result = this.flow.state.result as RoundResult | undefined
+    if (phase === 'result' && result) {
+      for (const sc of result.scores) this.shownScores.set(sc.id, sc.score)
+      this.shownMatchOver = result.matchOver
+    }
+    setHud(
+      buildBomberHud({
+        entities: this.entities().map((e) => ({
+          id: e.id,
+          name: this.nameFor(e.id),
+          isAI: this.isBot(e.id),
+          colorIndex: this.colorIndex(e.id),
+        })),
+        selfId: this.ctx.selfId,
+        now,
+        timer: suddenDeathSeconds({
+          now,
+          playingSince: phase === 'playing' ? this.playingSince : 0,
+          suddenMs: SUDDEN_DEATH_MS,
+        }),
+        alive: (id) => this.isAlive(id),
+        wins: (id) => this.shownScores.get(id) ?? 0,
+        stat: (id) => this.statOf(id),
+      })
+    )
+  }
+
   dispose(): void {
+    this.ctx.setHud?.(null)
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     stopAllAudio()
@@ -1636,13 +1706,9 @@ class BomberScene implements GameModule {
     this.board.dispose()
     this.instr?.dispose()
     this.instr = null
+    this.fx.dispose()
     this.look.dispose()
-    this.explosionPs?.dispose()
-    this.debrisPs?.dispose()
-    this.puffPs?.dispose()
-    this.sparklePs?.dispose()
-    this.explosionPs = this.debrisPs = this.puffPs = this.sparklePs = null
-    this.hud.dispose()
+    this.dying.clear()
     this.banner.dispose()
   }
 }

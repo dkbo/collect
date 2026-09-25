@@ -39,6 +39,15 @@ export function pickTier(env: TierEnv): BomberTier {
   return 'desktop'
 }
 
+/** 合併 location.search 與 hash 路由內的 query（`#/battle?bomberTier=mobile`）；同名參數以 search 為準 */
+export function tierQuery(search: string, hash: string): string {
+  const q = hash.indexOf('?')
+  const merged = new URLSearchParams(q >= 0 ? hash.slice(q + 1) : '')
+  for (const [k, v] of new URLSearchParams(search)) merged.set(k, v)
+  const s = merged.toString()
+  return s ? `?${s}` : ''
+}
+
 export function noDegradeFlag(search: string): boolean {
   return param(search, 'bomberNoDegrade') === '1'
 }

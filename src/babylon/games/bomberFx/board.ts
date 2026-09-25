@@ -4,6 +4,7 @@
  */
 import { Color3, MeshBuilder, StandardMaterial, type DynamicTexture, type Mesh, type Scene } from '@/babylon/babylonCore'
 import type { FlameCell } from '@/babylon/games/bomberFx/flames'
+import { itemHop, pickupFlight } from '@/babylon/games/bomberFx/fxCurves'
 import type { Trs } from '@/babylon/games/bomberFx/geometry'
 import {
   bombData,
@@ -68,10 +69,32 @@ interface ItemRec {
   kind: ItemKindName
   x: number
   z: number
+  /** 出現時刻（彈跳動畫用；-Infinity = 不彈） */
+  born: number
+}
+
+/** 被撿走、正飛向玩家頭頂的代幣（純視覺，邏輯上道具已移除） */
+interface FlyingItem {
+  kind: ItemKindName
+  x: number
+  y: number
+  z: number
+  start: number
+  target: () => { x: number; y: number; z: number }
+  onDone?: () => void
+}
+
+/** 突然死亡落牆落地的位置（給灰塵環與震動） */
+export interface LandedWall {
+  x: number
+  z: number
 }
 
 const FLAME_CENTER_GIRTH = 1.22
 const WALL_DROP_FROM = 6
+const ITEM_HOP_MS = 300
+const PICKUP_MS = 250
+const CRATE_FLASH_MS = 40
 
 export class ToyBoard {
   private readonly scene: Scene
@@ -95,6 +118,12 @@ export class ToyBoard {
   private partSeq = 0
   private items!: Record<ItemKindName, ThinGroup<number>>
   private itemRecs = new Map<number, ItemRec>()
+  private flying = new Map<number, FlyingItem>()
+  private flySeq = 0
+  private crateFlash!: ThinGroup<number>
+  private crateFlashUntil = new Map<number, number>()
+  private flameMats: StandardMaterial[] = []
+  private flameIntensity = 1
   private groups: ThinGroup<number | string>[] = []
   private toonMats: StandardMaterial[] = []
 
@@ -175,6 +204,13 @@ export class ToyBoard {
       hard: this.group('bomber-crates-hard', toMesh('ch', crateData(cell, 'hard'), scene), blockMat, 32),
       damaged: this.group('bomber-crates-damaged', toMesh('cd', crateData(cell, 'damaged'), scene), blockMat, 32),
     }
+    // 硬磚受損的閃白：同箱形稍微放大、純白 emissive，只亮一下
+    const flashMat = this.mat('bomber-crate-flash-mat', (m) => {
+      m.emissiveColor = Color3.White()
+      m.diffuseColor = Color3.Black()
+      m.disableLighting = true
+    })
+    this.crateFlash = this.group('bomber-crate-flash', toMesh('cf', crateData(cell * 1.06, 'hard'), scene), flashMat, 8)
 
     // 突然死亡落牆：柱牆模型換紅色警示頂；落下前 400ms 的紅色預告格
     this.sudden = this.group('bomber-sudden', toMesh('s', pillarData(cell, BLOCK_TILE.suddenTop), scene), blockMat, 64)
@@ -206,6 +242,7 @@ export class ToyBoard {
         mm.emissiveColor = Color3.FromHexString(TOY.flame[i])
         mm.disableLighting = true
       })
+      this.flameMats.push(m)
       this.flameArms.push(this.group(`bomber-flame-arm-${i}`, toMesh('fa', flameArmData(cell, i), scene), m, 64))
       this.flameCaps.push(this.group(`bomber-flame-cap-${i}`, toMesh('fc', flameCapData(cell, i), scene), m, 32))
     })
@@ -262,6 +299,16 @@ export class ToyBoard {
   clearCrates(): void {
     for (const g of Object.values(this.crates)) g.clear()
     this.crateOf.clear()
+    this.crateFlash.clear()
+    this.crateFlashUntil.clear()
+  }
+
+  /** 硬磚受損：鐵箍閃白一下（約 40ms，60fps 下兩幀） */
+  flashCrate(ci: number, cx: number, cy: number, now: number): void {
+    const { x, z } = this.cfg.toWorld(cx, cy)
+    const off = (this.cfg.cell * 0.06 * 0.9) / 2
+    this.crateFlash.put(ci, { x, y: -off, z })
+    this.crateFlashUntil.set(ci, now + CRATE_FLASH_MS)
   }
 
   // ---- 突然死亡 ----
@@ -358,14 +405,31 @@ export class ToyBoard {
   clearFlames(): void {
     for (const g of [...this.flameArms, ...this.flameCaps]) g.clear()
     this.flames.clear()
+    this.setFlameIntensity(1)
+  }
+
+  /** 火焰 emissive 倍率（1.0 → 0.4；三層材質共用，取場上最新一波爆炸的進度） */
+  setFlameIntensity(k: number): void {
+    if (Math.abs(k - this.flameIntensity) < 1e-3) return
+    this.flameIntensity = k
+    this.flameMats.forEach((m, i) => m.emissiveColor.copyFrom(Color3.FromHexString(TOY.flame[i]).scale(k)))
   }
 
   // ---- 道具 ----
 
-  addItem(ci: number, kind: ItemKindName, cx: number, cy: number): void {
+  /** bornAt 給了就播出現動畫（往上彈 0.4 CELL 再落回、轉一圈） */
+  addItem(ci: number, kind: ItemKindName, cx: number, cy: number, bornAt = -Infinity): void {
     this.removeItem(ci)
     const { x, z } = this.cfg.toWorld(cx, cy)
-    this.itemRecs.set(ci, { kind, x, z })
+    this.itemRecs.set(ci, { kind, x, z, born: bornAt })
+  }
+
+  /** 拾取：代幣縮到 0 並飛向 target（每幀重新取，追得上移動中的玩家）；到了呼叫 onDone */
+  collectItem(ci: number, target: () => { x: number; y: number; z: number }, now: number, onDone?: () => void): void {
+    const r = this.itemRecs.get(ci)
+    if (!r) return
+    this.removeItem(ci)
+    this.flying.set(-1 - this.flySeq++, { kind: r.kind, x: r.x, y: 0.6, z: r.z, start: now, target, onDone })
   }
 
   removeItem(ci: number): void {
@@ -382,24 +446,61 @@ export class ToyBoard {
   clearItems(): void {
     for (const g of Object.values(this.items)) g.clear()
     this.itemRecs.clear()
+    this.flying.clear()
   }
 
   // ---- 每幀 ----
 
-  update(now: number, deltaMs: number): void {
-    // 道具：面朝鏡頭傾斜、左右輕擺、上下浮動
+  /** 每幀一次；回傳這一幀剛落地的突然死亡落牆 */
+  update(now: number, deltaMs: number): LandedWall[] {
+    // 道具：面朝鏡頭傾斜、左右輕擺、上下浮動；剛出現的先彈一下、轉一圈
     for (const [ci, r] of this.itemRecs) {
-      const y = 0.55 + Math.sin(now * 0.004 + r.x) * 0.12
-      this.items[r.kind].put(ci, { x: r.x, y, z: r.z, pitch: -0.55, yaw: Math.sin(now * 0.003 + r.x + r.z) * 0.35 })
+      const hop = itemHop((now - r.born) / ITEM_HOP_MS, this.cfg.cell)
+      const y = 0.55 + Math.sin(now * 0.004 + r.x) * 0.12 + hop.lift
+      this.items[r.kind].put(ci, { x: r.x, y, z: r.z, pitch: -0.55, yaw: Math.sin(now * 0.003 + r.x + r.z) * 0.35 + hop.spin })
+    }
+    // 被撿走的代幣：縮小飛向頭頂
+    for (const [key, f] of this.flying) {
+      const t = (now - f.start) / PICKUP_MS
+      if (t >= 1) {
+        this.items[f.kind].remove(key)
+        this.flying.delete(key)
+        f.onDone?.()
+        continue
+      }
+      const p = pickupFlight(t)
+      const to = f.target()
+      const s = Math.max(0.01, p.scale)
+      this.items[f.kind].put(key, {
+        x: f.x + (to.x - f.x) * p.k,
+        y: f.y + (to.y - f.y) * p.k,
+        z: f.z + (to.z - f.z) * p.k,
+        pitch: -0.55,
+        yaw: t * Math.PI * 3,
+        sx: s,
+        sy: s,
+        sz: s,
+      })
+    }
+    // 硬磚閃白到期
+    for (const [ci, until] of this.crateFlashUntil) {
+      if (now < until) continue
+      this.crateFlash.remove(ci)
+      this.crateFlashUntil.delete(ci)
     }
     // 落牆：由高處快速落到定位
+    const landed: LandedWall[] = []
     for (const [ci, w] of this.closing) {
       if (w.y <= 0) continue
       w.y += (0 - w.y) * Math.min(1, deltaMs * 0.02)
-      if (w.y < 0.02) w.y = 0
+      if (w.y < 0.02) {
+        w.y = 0
+        landed.push({ x: w.x, z: w.z })
+      }
       this.sudden.put(ci, { x: w.x, y: w.y, z: w.z })
     }
     this.syncAll()
+    return landed
   }
 
   private syncAll(): void {
@@ -418,7 +519,10 @@ export class ToyBoard {
     this.textures = []
     this.flames.clear()
     this.itemRecs.clear()
+    this.flying.clear()
     this.closing.clear()
     this.crateOf.clear()
+    this.crateFlashUntil.clear()
+    this.flameMats = []
   }
 }

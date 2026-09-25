@@ -1240,9 +1240,9 @@ html {
   @apply bg-white/50;
 }
 
-/* 兩側玩家卡欄：左 P1／P3、右 P2／P4 */
+/* 兩側玩家卡欄：左 P1／P3、右 P2／P4；卡縮 0.75、兩張都疊在上半部貼頂（透視下棋盤上緣較窄），下方兩角留給最外欄 */
 .bomber-col {
-  @apply absolute top-[calc(70px_*_var(--bomber-scale)_+_env(safe-area-inset-top))] flex flex-col gap-[22px] [scale:var(--bomber-scale)];
+  @apply absolute top-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top))] flex flex-col gap-[14px] [scale:calc(var(--bomber-scale)_*_0.75)];
 }
 .bomber-col-left {
   @apply left-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-left))] origin-top-left;
@@ -1335,7 +1335,14 @@ html {
   @apply size-[10px] stroke-[2.5];
 }
 .bomber-pill-skull {
-  @apply absolute -right-1 -top-2 text-[13px] leading-none;
+  @apply absolute -right-1 -top-1 text-[13px] leading-none;
+}
+/* 無敵：金色外圈＋左上小盾牌 */
+.bomber-pill-inv {
+  @apply outline-2 outline-offset-1 outline-[#ffcf3f];
+}
+.bomber-pill-inv-icon {
+  @apply absolute -left-1 -top-1 z-10 size-[14px] rounded-full bg-[#ffcf3f] p-0.5 stroke-[2.5] text-(--bomber-ink);
 }
 
 @keyframes bomber-pulse {
