@@ -1,0 +1,91 @@
+status: done
+wave: 1
+current: 已完成；暫存清理改為每次匯出到新目錄（out2/、raw/ 等），不再用 glob rm
+touched:
+  - godot-candy-src/assets/candy/bg_night.webp
+  - godot-candy-src/assets/candy/bg_night.webp.import
+  - godot-candy-src/assets/candy/board_frame.webp
+  - godot-candy-src/assets/candy/board_frame.webp.import
+  - godot-candy-src/assets/candy/candy_blue.webp
+  - godot-candy-src/assets/candy/candy_blue.webp.import
+  - godot-candy-src/assets/candy/candy_blue_stripe_h.webp
+  - godot-candy-src/assets/candy/candy_blue_stripe_h.webp.import
+  - godot-candy-src/assets/candy/candy_blue_stripe_v.webp
+  - godot-candy-src/assets/candy/candy_blue_stripe_v.webp.import
+  - godot-candy-src/assets/candy/candy_blue_wrapped.webp
+  - godot-candy-src/assets/candy/candy_blue_wrapped.webp.import
+  - godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp
+  - godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp.import
+  - godot-candy-src/assets/candy/candy_bomb.webp
+  - godot-candy-src/assets/candy/candy_bomb.webp.import
+  - godot-candy-src/assets/candy/candy_bomb_sprinkles.webp
+  - godot-candy-src/assets/candy/candy_bomb_sprinkles.webp.import
+  - godot-candy-src/assets/candy/candy_green.webp
+  - godot-candy-src/assets/candy/candy_green.webp.import
+  - godot-candy-src/assets/candy/candy_green_stripe_h.webp
+  - godot-candy-src/assets/candy/candy_green_stripe_h.webp.import
+  - godot-candy-src/assets/candy/candy_green_stripe_v.webp
+  - godot-candy-src/assets/candy/candy_green_stripe_v.webp.import
+  - godot-candy-src/assets/candy/candy_green_wrapped.webp
+  - godot-candy-src/assets/candy/candy_green_wrapped.webp.import
+  - godot-candy-src/assets/candy/candy_green_wrapped_armed.webp
+  - godot-candy-src/assets/candy/candy_green_wrapped_armed.webp.import
+  - godot-candy-src/assets/candy/candy_orange.webp
+  - godot-candy-src/assets/candy/candy_orange.webp.import
+  - godot-candy-src/assets/candy/candy_orange_stripe_h.webp
+  - godot-candy-src/assets/candy/candy_orange_stripe_h.webp.import
+  - godot-candy-src/assets/candy/candy_orange_stripe_v.webp
+  - godot-candy-src/assets/candy/candy_orange_stripe_v.webp.import
+  - godot-candy-src/assets/candy/candy_orange_wrapped.webp
+  - godot-candy-src/assets/candy/candy_orange_wrapped.webp.import
+  - godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp
+  - godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp.import
+  - godot-candy-src/assets/candy/candy_purple.webp
+  - godot-candy-src/assets/candy/candy_purple.webp.import
+  - godot-candy-src/assets/candy/candy_purple_stripe_h.webp
+  - godot-candy-src/assets/candy/candy_purple_stripe_h.webp.import
+  - godot-candy-src/assets/candy/candy_purple_stripe_v.webp
+  - godot-candy-src/assets/candy/candy_purple_stripe_v.webp.import
+  - godot-candy-src/assets/candy/candy_purple_wrapped.webp
+  - godot-candy-src/assets/candy/candy_purple_wrapped.webp.import
+  - godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp
+  - godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp.import
+  - godot-candy-src/assets/candy/candy_red.webp
+  - godot-candy-src/assets/candy/candy_red.webp.import
+  - godot-candy-src/assets/candy/candy_red_stripe_h.webp
+  - godot-candy-src/assets/candy/candy_red_stripe_h.webp.import
+  - godot-candy-src/assets/candy/candy_red_stripe_v.webp
+  - godot-candy-src/assets/candy/candy_red_stripe_v.webp.import
+  - godot-candy-src/assets/candy/candy_red_wrapped.webp
+  - godot-candy-src/assets/candy/candy_red_wrapped.webp.import
+  - godot-candy-src/assets/candy/candy_red_wrapped_armed.webp
+  - godot-candy-src/assets/candy/candy_red_wrapped_armed.webp.import
+  - godot-candy-src/assets/candy/candy_yellow.webp
+  - godot-candy-src/assets/candy/candy_yellow.webp.import
+  - godot-candy-src/assets/candy/candy_yellow_stripe_h.webp
+  - godot-candy-src/assets/candy/candy_yellow_stripe_h.webp.import
+  - godot-candy-src/assets/candy/candy_yellow_stripe_v.webp
+  - godot-candy-src/assets/candy/candy_yellow_stripe_v.webp.import
+  - godot-candy-src/assets/candy/candy_yellow_wrapped.webp
+  - godot-candy-src/assets/candy/candy_yellow_wrapped.webp.import
+  - godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp
+  - godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp.import
+  - godot-candy-src/assets/candy/fx_flash.webp
+  - godot-candy-src/assets/candy/fx_flash.webp.import
+  - godot-candy-src/assets/candy/fx_ring.webp
+  - godot-candy-src/assets/candy/fx_ring.webp.import
+  - godot-candy-src/assets/candy/fx_select_halo.webp
+  - godot-candy-src/assets/candy/fx_select_halo.webp.import
+  - godot-candy-src/assets/candy/fx_stripe_beam.webp
+  - godot-candy-src/assets/candy/fx_stripe_beam.webp.import
+  - godot-candy-src/assets/candy/fx_sugar.webp
+  - godot-candy-src/assets/candy/fx_sugar.webp.import
+  - godot-candy-src/assets/fonts/Fredoka-Bold.ttf
+  - godot-candy-src/assets/fonts/Fredoka-Bold.ttf.import
+  - godot-candy-src/assets/fonts/OFL.txt
+  - public/fonts/Fredoka-Bold.woff2
+  - public/fonts/OFL.txt
+todo: []
+report: state/assets.report.md
+notes: 匯出腳本 /tmp/claude-1000/-home-bal-project-collect--worktrees-candyart/d90c74ac-265c-4d8c-b2a2-f15fea524701/scratchpad/build.js（pencil headless Export）；對照表 /tmp/claude-1000/-home-bal-project-collect--worktrees-candyart/d90c74ac-265c-4d8c-b2a2-f15fea524701/scratchpad/candy-assets-sheet.webp
+  board_frame 九宮格邊距 56px@2x（四邊），大落影放不進邊距，只烘淺落影，見 report 疑慮

@@ -1,0 +1,3179 @@
+# 糖果消消樂全面美化（A 亮面經典） — wave 1 since 22413de — 2026-09-25T00:41
+# files changed: 90 (working tree included)
+
+## commits
+
+## stat
+ godot-candy-src/assets/candy/bg_night.webp         | Bin 0 -> 14280 bytes
+ godot-candy-src/assets/candy/bg_night.webp.import  |  34 +++
+ godot-candy-src/assets/candy/board_frame.webp      | Bin 0 -> 7284 bytes
+ .../assets/candy/board_frame.webp.import           |  34 +++
+ godot-candy-src/assets/candy/candy_blue.webp       | Bin 0 -> 5192 bytes
+ .../assets/candy/candy_blue.webp.import            |  34 +++
+ .../assets/candy/candy_blue_stripe_h.webp          | Bin 0 -> 5412 bytes
+ .../assets/candy/candy_blue_stripe_h.webp.import   |  34 +++
+ .../assets/candy/candy_blue_stripe_v.webp          | Bin 0 -> 5552 bytes
+ .../assets/candy/candy_blue_stripe_v.webp.import   |  34 +++
+ .../assets/candy/candy_blue_wrapped.webp           | Bin 0 -> 6922 bytes
+ .../assets/candy/candy_blue_wrapped.webp.import    |  34 +++
+ .../assets/candy/candy_blue_wrapped_armed.webp     | Bin 0 -> 8014 bytes
+ .../candy/candy_blue_wrapped_armed.webp.import     |  34 +++
+ godot-candy-src/assets/candy/candy_bomb.webp       | Bin 0 -> 6868 bytes
+ .../assets/candy/candy_bomb.webp.import            |  34 +++
+ .../assets/candy/candy_bomb_sprinkles.webp         | Bin 0 -> 3810 bytes
+ .../assets/candy/candy_bomb_sprinkles.webp.import  |  34 +++
+ godot-candy-src/assets/candy/candy_green.webp      | Bin 0 -> 6460 bytes
+ .../assets/candy/candy_green.webp.import           |  34 +++
+ .../assets/candy/candy_green_stripe_h.webp         | Bin 0 -> 6728 bytes
+ .../assets/candy/candy_green_stripe_h.webp.import  |  34 +++
+ .../assets/candy/candy_green_stripe_v.webp         | Bin 0 -> 6732 bytes
+ .../assets/candy/candy_green_stripe_v.webp.import  |  34 +++
+ .../assets/candy/candy_green_wrapped.webp          | Bin 0 -> 7072 bytes
+ .../assets/candy/candy_green_wrapped.webp.import   |  34 +++
+ .../assets/candy/candy_green_wrapped_armed.webp    | Bin 0 -> 7842 bytes
+ .../candy/candy_green_wrapped_armed.webp.import    |  34 +++
+ godot-candy-src/assets/candy/candy_orange.webp     | Bin 0 -> 6750 bytes
+ .../assets/candy/candy_orange.webp.import          |  34 +++
+ .../assets/candy/candy_orange_stripe_h.webp        | Bin 0 -> 6912 bytes
+ .../assets/candy/candy_orange_stripe_h.webp.import |  34 +++
+ .../assets/candy/candy_orange_stripe_v.webp        | Bin 0 -> 6926 bytes
+ .../assets/candy/candy_orange_stripe_v.webp.import |  34 +++
+ .../assets/candy/candy_orange_wrapped.webp         | Bin 0 -> 6916 bytes
+ .../assets/candy/candy_orange_wrapped.webp.import  |  34 +++
+ .../assets/candy/candy_orange_wrapped_armed.webp   | Bin 0 -> 7886 bytes
+ .../candy/candy_orange_wrapped_armed.webp.import   |  34 +++
+ godot-candy-src/assets/candy/candy_purple.webp     | Bin 0 -> 5386 bytes
+ .../assets/candy/candy_purple.webp.import          |  34 +++
+ .../assets/candy/candy_purple_stripe_h.webp        | Bin 0 -> 5582 bytes
+ .../assets/candy/candy_purple_stripe_h.webp.import |  34 +++
+ .../assets/candy/candy_purple_stripe_v.webp        | Bin 0 -> 5594 bytes
+ .../assets/candy/candy_purple_stripe_v.webp.import |  34 +++
+ .../assets/candy/candy_purple_wrapped.webp         | Bin 0 -> 6738 bytes
+ .../assets/candy/candy_purple_wrapped.webp.import  |  34 +++
+ .../assets/candy/candy_purple_wrapped_armed.webp   | Bin 0 -> 7722 bytes
+ .../candy/candy_purple_wrapped_armed.webp.import   |  34 +++
+ godot-candy-src/assets/candy/candy_red.webp        | Bin 0 -> 6212 bytes
+ godot-candy-src/assets/candy/candy_red.webp.import |  34 +++
+ .../assets/candy/candy_red_stripe_h.webp           | Bin 0 -> 6404 bytes
+ .../assets/candy/candy_red_stripe_h.webp.import    |  34 +++
+ .../assets/candy/candy_red_stripe_v.webp           | Bin 0 -> 6434 bytes
+ .../assets/candy/candy_red_stripe_v.webp.import    |  34 +++
+ .../assets/candy/candy_red_wrapped.webp            | Bin 0 -> 7032 bytes
+ .../assets/candy/candy_red_wrapped.webp.import     |  34 +++
+ .../assets/candy/candy_red_wrapped_armed.webp      | Bin 0 -> 7704 bytes
+ .../candy/candy_red_wrapped_armed.webp.import      |  34 +++
+ godot-candy-src/assets/candy/candy_yellow.webp     | Bin 0 -> 5062 bytes
+ .../assets/candy/candy_yellow.webp.import          |  34 +++
+ .../assets/candy/candy_yellow_stripe_h.webp        | Bin 0 -> 5472 bytes
+ .../assets/candy/candy_yellow_stripe_h.webp.import |  34 +++
+ .../assets/candy/candy_yellow_stripe_v.webp        | Bin 0 -> 5522 bytes
+ .../assets/candy/candy_yellow_stripe_v.webp.import |  34 +++
+ .../assets/candy/candy_yellow_wrapped.webp         | Bin 0 -> 6970 bytes
+ .../assets/candy/candy_yellow_wrapped.webp.import  |  34 +++
+ .../assets/candy/candy_yellow_wrapped_armed.webp   | Bin 0 -> 7694 bytes
+ .../candy/candy_yellow_wrapped_armed.webp.import   |  34 +++
+ godot-candy-src/assets/candy/fx_flash.webp         | Bin 0 -> 9842 bytes
+ godot-candy-src/assets/candy/fx_flash.webp.import  |  34 +++
+ godot-candy-src/assets/candy/fx_ring.webp          | Bin 0 -> 18640 bytes
+ godot-candy-src/assets/candy/fx_ring.webp.import   |  34 +++
+ godot-candy-src/assets/candy/fx_select_halo.webp   | Bin 0 -> 5932 bytes
+ .../assets/candy/fx_select_halo.webp.import        |  34 +++
+ godot-candy-src/assets/candy/fx_stripe_beam.webp   | Bin 0 -> 702 bytes
+ .../assets/candy/fx_stripe_beam.webp.import        |  34 +++
+ godot-candy-src/assets/candy/fx_sugar.webp         | Bin 0 -> 256 bytes
+ godot-candy-src/assets/candy/fx_sugar.webp.import  |  34 +++
+ godot-candy-src/assets/fonts/Fredoka-Bold.ttf      | Bin 0 -> 48588 bytes
+ .../assets/fonts/Fredoka-Bold.ttf.import           |  35 +++
+ godot-candy-src/assets/fonts/OFL.txt               |  93 +++++++
+ public/fonts/Fredoka-Bold.woff2                    | Bin 0 -> 15900 bytes
+ public/fonts/OFL.txt                               |  93 +++++++
+ src/index.css                                      | 139 +++++++++-
+ src/pages/CandyCrush/CandyHud.tsx                  | 191 +++++++++++++
+ src/pages/CandyCrush/CandyOverlays.tsx             | 162 +++++++++++
+ src/pages/CandyCrush/CandyStar.tsx                 |  47 ++++
+ src/pages/CandyCrush/candyHud.test.ts              |  86 ++++++
+ src/pages/CandyCrush/candyHud.ts                   |  47 ++++
+ src/pages/CandyCrush/index.tsx                     | 302 ++++-----------------
+ 90 files changed, 2270 insertions(+), 251 deletions(-)
+
+## diff (-U10)
+diff --git a/godot-candy-src/assets/candy/bg_night.webp b/godot-candy-src/assets/candy/bg_night.webp
+new file mode 100644
+index 0000000..d1f57b6
+Binary files /dev/null and b/godot-candy-src/assets/candy/bg_night.webp differ
+diff --git a/godot-candy-src/assets/candy/bg_night.webp.import b/godot-candy-src/assets/candy/bg_night.webp.import
+new file mode 100644
+index 0000000..0a20e17
+--- /dev/null
++++ b/godot-candy-src/assets/candy/bg_night.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://btxn0uvtw82fg"
++path="res://.godot/imported/bg_night.webp-54ae6473506c3041e1a59a993670f899.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/bg_night.webp"
++dest_files=["res://.godot/imported/bg_night.webp-54ae6473506c3041e1a59a993670f899.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/board_frame.webp b/godot-candy-src/assets/candy/board_frame.webp
+new file mode 100644
+index 0000000..1bbf078
+Binary files /dev/null and b/godot-candy-src/assets/candy/board_frame.webp differ
+diff --git a/godot-candy-src/assets/candy/board_frame.webp.import b/godot-candy-src/assets/candy/board_frame.webp.import
+new file mode 100644
+index 0000000..5a863d4
+--- /dev/null
++++ b/godot-candy-src/assets/candy/board_frame.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bt4nhcpd5gcd4"
++path="res://.godot/imported/board_frame.webp-8317b6bd68a9632d026a227ae0c4cbae.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/board_frame.webp"
++dest_files=["res://.godot/imported/board_frame.webp-8317b6bd68a9632d026a227ae0c4cbae.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_blue.webp b/godot-candy-src/assets/candy/candy_blue.webp
+new file mode 100644
+index 0000000..c2cece1
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_blue.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_blue.webp.import b/godot-candy-src/assets/candy/candy_blue.webp.import
+new file mode 100644
+index 0000000..f7a3483
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_blue.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bvamtvgcwcb5j"
++path="res://.godot/imported/candy_blue.webp-73049244bd47add16d1ccdf233353597.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_blue.webp"
++dest_files=["res://.godot/imported/candy_blue.webp-73049244bd47add16d1ccdf233353597.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_blue_stripe_h.webp b/godot-candy-src/assets/candy/candy_blue_stripe_h.webp
+new file mode 100644
+index 0000000..1043f16
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_blue_stripe_h.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_blue_stripe_h.webp.import b/godot-candy-src/assets/candy/candy_blue_stripe_h.webp.import
+new file mode 100644
+index 0000000..946f3dc
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_blue_stripe_h.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://xtla7m84tynx"
++path="res://.godot/imported/candy_blue_stripe_h.webp-ae4a5d52c837d8be88bf5688d7d89bc4.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_blue_stripe_h.webp"
++dest_files=["res://.godot/imported/candy_blue_stripe_h.webp-ae4a5d52c837d8be88bf5688d7d89bc4.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_blue_stripe_v.webp b/godot-candy-src/assets/candy/candy_blue_stripe_v.webp
+new file mode 100644
+index 0000000..92d13c1
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_blue_stripe_v.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_blue_stripe_v.webp.import b/godot-candy-src/assets/candy/candy_blue_stripe_v.webp.import
+new file mode 100644
+index 0000000..c83ad45
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_blue_stripe_v.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://d21knbij8jl7t"
++path="res://.godot/imported/candy_blue_stripe_v.webp-b3f91b314c7e08f45350b56e4e6af161.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_blue_stripe_v.webp"
++dest_files=["res://.godot/imported/candy_blue_stripe_v.webp-b3f91b314c7e08f45350b56e4e6af161.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_blue_wrapped.webp b/godot-candy-src/assets/candy/candy_blue_wrapped.webp
+new file mode 100644
+index 0000000..998fcc4
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_blue_wrapped.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_blue_wrapped.webp.import b/godot-candy-src/assets/candy/candy_blue_wrapped.webp.import
+new file mode 100644
+index 0000000..5ba1605
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_blue_wrapped.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://g5bhatame7ot"
++path="res://.godot/imported/candy_blue_wrapped.webp-b181f7cdb812b52925fdb8a2e38d71b2.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_blue_wrapped.webp"
++dest_files=["res://.godot/imported/candy_blue_wrapped.webp-b181f7cdb812b52925fdb8a2e38d71b2.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp b/godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp
+new file mode 100644
+index 0000000..d9251ac
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp.import b/godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp.import
+new file mode 100644
+index 0000000..0d5d131
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_blue_wrapped_armed.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://dm5rir7svit67"
++path="res://.godot/imported/candy_blue_wrapped_armed.webp-e13da54376f90a1855c3b0ea889aa695.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_blue_wrapped_armed.webp"
++dest_files=["res://.godot/imported/candy_blue_wrapped_armed.webp-e13da54376f90a1855c3b0ea889aa695.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_bomb.webp b/godot-candy-src/assets/candy/candy_bomb.webp
+new file mode 100644
+index 0000000..66da148
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_bomb.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_bomb.webp.import b/godot-candy-src/assets/candy/candy_bomb.webp.import
+new file mode 100644
+index 0000000..199cbc5
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_bomb.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://dhn7mmqskc1g1"
++path="res://.godot/imported/candy_bomb.webp-2f4b695c6bdb2aefccb7a38e212ee072.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_bomb.webp"
++dest_files=["res://.godot/imported/candy_bomb.webp-2f4b695c6bdb2aefccb7a38e212ee072.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_bomb_sprinkles.webp b/godot-candy-src/assets/candy/candy_bomb_sprinkles.webp
+new file mode 100644
+index 0000000..64bd848
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_bomb_sprinkles.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_bomb_sprinkles.webp.import b/godot-candy-src/assets/candy/candy_bomb_sprinkles.webp.import
+new file mode 100644
+index 0000000..eb803c4
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_bomb_sprinkles.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://dlfvjla80iput"
++path="res://.godot/imported/candy_bomb_sprinkles.webp-7651779d2db52d85f1569979ba8cb7ac.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_bomb_sprinkles.webp"
++dest_files=["res://.godot/imported/candy_bomb_sprinkles.webp-7651779d2db52d85f1569979ba8cb7ac.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_green.webp b/godot-candy-src/assets/candy/candy_green.webp
+new file mode 100644
+index 0000000..e133db0
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_green.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_green.webp.import b/godot-candy-src/assets/candy/candy_green.webp.import
+new file mode 100644
+index 0000000..39dcd69
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_green.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bfwmwo8bqcfqd"
++path="res://.godot/imported/candy_green.webp-7a338989e0d22f6d0a47886c816be618.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_green.webp"
++dest_files=["res://.godot/imported/candy_green.webp-7a338989e0d22f6d0a47886c816be618.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_green_stripe_h.webp b/godot-candy-src/assets/candy/candy_green_stripe_h.webp
+new file mode 100644
+index 0000000..2b03095
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_green_stripe_h.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_green_stripe_h.webp.import b/godot-candy-src/assets/candy/candy_green_stripe_h.webp.import
+new file mode 100644
+index 0000000..ffa9ca8
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_green_stripe_h.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://be2srilwel54g"
++path="res://.godot/imported/candy_green_stripe_h.webp-32d9ccbfb80e30caa90f41dee535f679.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_green_stripe_h.webp"
++dest_files=["res://.godot/imported/candy_green_stripe_h.webp-32d9ccbfb80e30caa90f41dee535f679.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_green_stripe_v.webp b/godot-candy-src/assets/candy/candy_green_stripe_v.webp
+new file mode 100644
+index 0000000..60350e3
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_green_stripe_v.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_green_stripe_v.webp.import b/godot-candy-src/assets/candy/candy_green_stripe_v.webp.import
+new file mode 100644
+index 0000000..23e64a7
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_green_stripe_v.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://buph8pc1tcwis"
++path="res://.godot/imported/candy_green_stripe_v.webp-fbb737d0f84bc6db42dcd5f7f7a52913.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_green_stripe_v.webp"
++dest_files=["res://.godot/imported/candy_green_stripe_v.webp-fbb737d0f84bc6db42dcd5f7f7a52913.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_green_wrapped.webp b/godot-candy-src/assets/candy/candy_green_wrapped.webp
+new file mode 100644
+index 0000000..87d5715
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_green_wrapped.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_green_wrapped.webp.import b/godot-candy-src/assets/candy/candy_green_wrapped.webp.import
+new file mode 100644
+index 0000000..91412a3
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_green_wrapped.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://csnhicwqrxhjo"
++path="res://.godot/imported/candy_green_wrapped.webp-34a0ec3f1b96924dce154bc0b7231499.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_green_wrapped.webp"
++dest_files=["res://.godot/imported/candy_green_wrapped.webp-34a0ec3f1b96924dce154bc0b7231499.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_green_wrapped_armed.webp b/godot-candy-src/assets/candy/candy_green_wrapped_armed.webp
+new file mode 100644
+index 0000000..01284ef
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_green_wrapped_armed.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_green_wrapped_armed.webp.import b/godot-candy-src/assets/candy/candy_green_wrapped_armed.webp.import
+new file mode 100644
+index 0000000..5b1920e
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_green_wrapped_armed.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://dq4phgy5or1dx"
++path="res://.godot/imported/candy_green_wrapped_armed.webp-a443590fb4ed82f24460c9fe19526a2d.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_green_wrapped_armed.webp"
++dest_files=["res://.godot/imported/candy_green_wrapped_armed.webp-a443590fb4ed82f24460c9fe19526a2d.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_orange.webp b/godot-candy-src/assets/candy/candy_orange.webp
+new file mode 100644
+index 0000000..e6fde5b
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_orange.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_orange.webp.import b/godot-candy-src/assets/candy/candy_orange.webp.import
+new file mode 100644
+index 0000000..207f94e
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_orange.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://4611sgv6u8ck"
++path="res://.godot/imported/candy_orange.webp-1af8092b7d376a76ef11351289f817c4.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_orange.webp"
++dest_files=["res://.godot/imported/candy_orange.webp-1af8092b7d376a76ef11351289f817c4.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_orange_stripe_h.webp b/godot-candy-src/assets/candy/candy_orange_stripe_h.webp
+new file mode 100644
+index 0000000..cae6147
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_orange_stripe_h.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_orange_stripe_h.webp.import b/godot-candy-src/assets/candy/candy_orange_stripe_h.webp.import
+new file mode 100644
+index 0000000..158a71b
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_orange_stripe_h.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://b7g2ldvx1xhu4"
++path="res://.godot/imported/candy_orange_stripe_h.webp-ba4c4fdceeda97094e241b7ecd50b16a.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_orange_stripe_h.webp"
++dest_files=["res://.godot/imported/candy_orange_stripe_h.webp-ba4c4fdceeda97094e241b7ecd50b16a.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_orange_stripe_v.webp b/godot-candy-src/assets/candy/candy_orange_stripe_v.webp
+new file mode 100644
+index 0000000..4151c2a
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_orange_stripe_v.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_orange_stripe_v.webp.import b/godot-candy-src/assets/candy/candy_orange_stripe_v.webp.import
+new file mode 100644
+index 0000000..6bea0da
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_orange_stripe_v.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://c5p6b8v18e04k"
++path="res://.godot/imported/candy_orange_stripe_v.webp-747508a98927881de24f00ae789fa9a7.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_orange_stripe_v.webp"
++dest_files=["res://.godot/imported/candy_orange_stripe_v.webp-747508a98927881de24f00ae789fa9a7.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_orange_wrapped.webp b/godot-candy-src/assets/candy/candy_orange_wrapped.webp
+new file mode 100644
+index 0000000..be0dbf2
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_orange_wrapped.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_orange_wrapped.webp.import b/godot-candy-src/assets/candy/candy_orange_wrapped.webp.import
+new file mode 100644
+index 0000000..62a640c
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_orange_wrapped.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://vec7yocn2hro"
++path="res://.godot/imported/candy_orange_wrapped.webp-22c8fabab37a6b2763ea8adff1cf65d4.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_orange_wrapped.webp"
++dest_files=["res://.godot/imported/candy_orange_wrapped.webp-22c8fabab37a6b2763ea8adff1cf65d4.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp b/godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp
+new file mode 100644
+index 0000000..b711273
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp.import b/godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp.import
+new file mode 100644
+index 0000000..8840e35
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_orange_wrapped_armed.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://do6qhh61c0ntn"
++path="res://.godot/imported/candy_orange_wrapped_armed.webp-f1e99bf614d100f3f9edb9e6032555cb.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_orange_wrapped_armed.webp"
++dest_files=["res://.godot/imported/candy_orange_wrapped_armed.webp-f1e99bf614d100f3f9edb9e6032555cb.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_purple.webp b/godot-candy-src/assets/candy/candy_purple.webp
+new file mode 100644
+index 0000000..ec4e02c
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_purple.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_purple.webp.import b/godot-candy-src/assets/candy/candy_purple.webp.import
+new file mode 100644
+index 0000000..07cfd1f
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_purple.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bnblbhwy1v0d6"
++path="res://.godot/imported/candy_purple.webp-daee001ee8c6cee9201aec743396b192.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_purple.webp"
++dest_files=["res://.godot/imported/candy_purple.webp-daee001ee8c6cee9201aec743396b192.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_purple_stripe_h.webp b/godot-candy-src/assets/candy/candy_purple_stripe_h.webp
+new file mode 100644
+index 0000000..d2b1feb
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_purple_stripe_h.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_purple_stripe_h.webp.import b/godot-candy-src/assets/candy/candy_purple_stripe_h.webp.import
+new file mode 100644
+index 0000000..5e1060d
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_purple_stripe_h.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://ds050r6cv8ges"
++path="res://.godot/imported/candy_purple_stripe_h.webp-983b91510a54dbfbbc5ccd42807b0458.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_purple_stripe_h.webp"
++dest_files=["res://.godot/imported/candy_purple_stripe_h.webp-983b91510a54dbfbbc5ccd42807b0458.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_purple_stripe_v.webp b/godot-candy-src/assets/candy/candy_purple_stripe_v.webp
+new file mode 100644
+index 0000000..9a84f5f
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_purple_stripe_v.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_purple_stripe_v.webp.import b/godot-candy-src/assets/candy/candy_purple_stripe_v.webp.import
+new file mode 100644
+index 0000000..ec5eb14
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_purple_stripe_v.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://cxywa65pw305n"
++path="res://.godot/imported/candy_purple_stripe_v.webp-cfea4dc71f4e4e72e5ed9e2962875422.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_purple_stripe_v.webp"
++dest_files=["res://.godot/imported/candy_purple_stripe_v.webp-cfea4dc71f4e4e72e5ed9e2962875422.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_purple_wrapped.webp b/godot-candy-src/assets/candy/candy_purple_wrapped.webp
+new file mode 100644
+index 0000000..1c8a4e8
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_purple_wrapped.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_purple_wrapped.webp.import b/godot-candy-src/assets/candy/candy_purple_wrapped.webp.import
+new file mode 100644
+index 0000000..7d12437
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_purple_wrapped.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://b1stcnpkugi3j"
++path="res://.godot/imported/candy_purple_wrapped.webp-644d1ca8d1b3605afdb5ee1eb1f7676f.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_purple_wrapped.webp"
++dest_files=["res://.godot/imported/candy_purple_wrapped.webp-644d1ca8d1b3605afdb5ee1eb1f7676f.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp b/godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp
+new file mode 100644
+index 0000000..3005974
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp.import b/godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp.import
+new file mode 100644
+index 0000000..a8bff2e
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_purple_wrapped_armed.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bmyifbf10eqj5"
++path="res://.godot/imported/candy_purple_wrapped_armed.webp-97403b6f94b7f971868325898330dcf1.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_purple_wrapped_armed.webp"
++dest_files=["res://.godot/imported/candy_purple_wrapped_armed.webp-97403b6f94b7f971868325898330dcf1.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_red.webp b/godot-candy-src/assets/candy/candy_red.webp
+new file mode 100644
+index 0000000..6b81421
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_red.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_red.webp.import b/godot-candy-src/assets/candy/candy_red.webp.import
+new file mode 100644
+index 0000000..406df59
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_red.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://c7fqj8ncxiuob"
++path="res://.godot/imported/candy_red.webp-800ce95c726ca86929573671245d7fcc.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_red.webp"
++dest_files=["res://.godot/imported/candy_red.webp-800ce95c726ca86929573671245d7fcc.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_red_stripe_h.webp b/godot-candy-src/assets/candy/candy_red_stripe_h.webp
+new file mode 100644
+index 0000000..86d258f
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_red_stripe_h.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_red_stripe_h.webp.import b/godot-candy-src/assets/candy/candy_red_stripe_h.webp.import
+new file mode 100644
+index 0000000..cf1d819
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_red_stripe_h.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://b18n3vybm0jc6"
++path="res://.godot/imported/candy_red_stripe_h.webp-25b594baf6442faf39765ba35d92e9b7.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_red_stripe_h.webp"
++dest_files=["res://.godot/imported/candy_red_stripe_h.webp-25b594baf6442faf39765ba35d92e9b7.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_red_stripe_v.webp b/godot-candy-src/assets/candy/candy_red_stripe_v.webp
+new file mode 100644
+index 0000000..f5384a6
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_red_stripe_v.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_red_stripe_v.webp.import b/godot-candy-src/assets/candy/candy_red_stripe_v.webp.import
+new file mode 100644
+index 0000000..6a4b803
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_red_stripe_v.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://c7my4w8l6ic0q"
++path="res://.godot/imported/candy_red_stripe_v.webp-80379e4fac64853fc7e8929a0a8d77ff.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_red_stripe_v.webp"
++dest_files=["res://.godot/imported/candy_red_stripe_v.webp-80379e4fac64853fc7e8929a0a8d77ff.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_red_wrapped.webp b/godot-candy-src/assets/candy/candy_red_wrapped.webp
+new file mode 100644
+index 0000000..74490c0
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_red_wrapped.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_red_wrapped.webp.import b/godot-candy-src/assets/candy/candy_red_wrapped.webp.import
+new file mode 100644
+index 0000000..bcffcfa
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_red_wrapped.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://dwj4hqe6bbyeh"
++path="res://.godot/imported/candy_red_wrapped.webp-dab05941cc1e474233c2e5646c910729.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_red_wrapped.webp"
++dest_files=["res://.godot/imported/candy_red_wrapped.webp-dab05941cc1e474233c2e5646c910729.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_red_wrapped_armed.webp b/godot-candy-src/assets/candy/candy_red_wrapped_armed.webp
+new file mode 100644
+index 0000000..cd9f5a8
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_red_wrapped_armed.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_red_wrapped_armed.webp.import b/godot-candy-src/assets/candy/candy_red_wrapped_armed.webp.import
+new file mode 100644
+index 0000000..c2a7445
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_red_wrapped_armed.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://cyu8276jsrbek"
++path="res://.godot/imported/candy_red_wrapped_armed.webp-f215176734a75d055c44b3ceb907df9b.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_red_wrapped_armed.webp"
++dest_files=["res://.godot/imported/candy_red_wrapped_armed.webp-f215176734a75d055c44b3ceb907df9b.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_yellow.webp b/godot-candy-src/assets/candy/candy_yellow.webp
+new file mode 100644
+index 0000000..224763a
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_yellow.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_yellow.webp.import b/godot-candy-src/assets/candy/candy_yellow.webp.import
+new file mode 100644
+index 0000000..f4a2019
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_yellow.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://cpv50dnkdhedg"
++path="res://.godot/imported/candy_yellow.webp-a99c82f2ce1cce0999acabf759e7833d.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_yellow.webp"
++dest_files=["res://.godot/imported/candy_yellow.webp-a99c82f2ce1cce0999acabf759e7833d.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_yellow_stripe_h.webp b/godot-candy-src/assets/candy/candy_yellow_stripe_h.webp
+new file mode 100644
+index 0000000..f70a6b1
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_yellow_stripe_h.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_yellow_stripe_h.webp.import b/godot-candy-src/assets/candy/candy_yellow_stripe_h.webp.import
+new file mode 100644
+index 0000000..d359f85
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_yellow_stripe_h.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://c47yuw0x6eo4n"
++path="res://.godot/imported/candy_yellow_stripe_h.webp-cc8be111258cbfd2018316ba94338255.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_yellow_stripe_h.webp"
++dest_files=["res://.godot/imported/candy_yellow_stripe_h.webp-cc8be111258cbfd2018316ba94338255.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_yellow_stripe_v.webp b/godot-candy-src/assets/candy/candy_yellow_stripe_v.webp
+new file mode 100644
+index 0000000..a2698c6
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_yellow_stripe_v.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_yellow_stripe_v.webp.import b/godot-candy-src/assets/candy/candy_yellow_stripe_v.webp.import
+new file mode 100644
+index 0000000..81996b7
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_yellow_stripe_v.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://cw57paftfjgfj"
++path="res://.godot/imported/candy_yellow_stripe_v.webp-478938eb09674c693e5f23232a7357d2.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_yellow_stripe_v.webp"
++dest_files=["res://.godot/imported/candy_yellow_stripe_v.webp-478938eb09674c693e5f23232a7357d2.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_yellow_wrapped.webp b/godot-candy-src/assets/candy/candy_yellow_wrapped.webp
+new file mode 100644
+index 0000000..959c76d
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_yellow_wrapped.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_yellow_wrapped.webp.import b/godot-candy-src/assets/candy/candy_yellow_wrapped.webp.import
+new file mode 100644
+index 0000000..9cadeb8
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_yellow_wrapped.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://ccb6gqqsly662"
++path="res://.godot/imported/candy_yellow_wrapped.webp-9532c1dee2e5f8116eb22cc18d92de03.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_yellow_wrapped.webp"
++dest_files=["res://.godot/imported/candy_yellow_wrapped.webp-9532c1dee2e5f8116eb22cc18d92de03.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp b/godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp
+new file mode 100644
+index 0000000..7bf69c0
+Binary files /dev/null and b/godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp differ
+diff --git a/godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp.import b/godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp.import
+new file mode 100644
+index 0000000..25c0979
+--- /dev/null
++++ b/godot-candy-src/assets/candy/candy_yellow_wrapped_armed.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bu7q8tdklgvhf"
++path="res://.godot/imported/candy_yellow_wrapped_armed.webp-7679dcf3be399dc67ac548c8058f7f4b.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/candy_yellow_wrapped_armed.webp"
++dest_files=["res://.godot/imported/candy_yellow_wrapped_armed.webp-7679dcf3be399dc67ac548c8058f7f4b.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/fx_flash.webp b/godot-candy-src/assets/candy/fx_flash.webp
+new file mode 100644
+index 0000000..5832778
+Binary files /dev/null and b/godot-candy-src/assets/candy/fx_flash.webp differ
+diff --git a/godot-candy-src/assets/candy/fx_flash.webp.import b/godot-candy-src/assets/candy/fx_flash.webp.import
+new file mode 100644
+index 0000000..a34ca0a
+--- /dev/null
++++ b/godot-candy-src/assets/candy/fx_flash.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://c440icminv84o"
++path="res://.godot/imported/fx_flash.webp-9075ba8534b3b9dcf2f89e6be55187ec.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/fx_flash.webp"
++dest_files=["res://.godot/imported/fx_flash.webp-9075ba8534b3b9dcf2f89e6be55187ec.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/fx_ring.webp b/godot-candy-src/assets/candy/fx_ring.webp
+new file mode 100644
+index 0000000..87c0363
+Binary files /dev/null and b/godot-candy-src/assets/candy/fx_ring.webp differ
+diff --git a/godot-candy-src/assets/candy/fx_ring.webp.import b/godot-candy-src/assets/candy/fx_ring.webp.import
+new file mode 100644
+index 0000000..9cb604c
+--- /dev/null
++++ b/godot-candy-src/assets/candy/fx_ring.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://b0yc4n54keil4"
++path="res://.godot/imported/fx_ring.webp-b9722853c6c2fb579c5d406813816016.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/fx_ring.webp"
++dest_files=["res://.godot/imported/fx_ring.webp-b9722853c6c2fb579c5d406813816016.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/fx_select_halo.webp b/godot-candy-src/assets/candy/fx_select_halo.webp
+new file mode 100644
+index 0000000..20a899b
+Binary files /dev/null and b/godot-candy-src/assets/candy/fx_select_halo.webp differ
+diff --git a/godot-candy-src/assets/candy/fx_select_halo.webp.import b/godot-candy-src/assets/candy/fx_select_halo.webp.import
+new file mode 100644
+index 0000000..7dc8e84
+--- /dev/null
++++ b/godot-candy-src/assets/candy/fx_select_halo.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://d1kccmc5h3ur5"
++path="res://.godot/imported/fx_select_halo.webp-3bc5b882e5ed0445ac59bb7fefea1022.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/fx_select_halo.webp"
++dest_files=["res://.godot/imported/fx_select_halo.webp-3bc5b882e5ed0445ac59bb7fefea1022.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/fx_stripe_beam.webp b/godot-candy-src/assets/candy/fx_stripe_beam.webp
+new file mode 100644
+index 0000000..2caaef1
+Binary files /dev/null and b/godot-candy-src/assets/candy/fx_stripe_beam.webp differ
+diff --git a/godot-candy-src/assets/candy/fx_stripe_beam.webp.import b/godot-candy-src/assets/candy/fx_stripe_beam.webp.import
+new file mode 100644
+index 0000000..746e97b
+--- /dev/null
++++ b/godot-candy-src/assets/candy/fx_stripe_beam.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bnqv41aai6t58"
++path="res://.godot/imported/fx_stripe_beam.webp-d5912f1c1a4606301354764fa3a9cf6d.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/fx_stripe_beam.webp"
++dest_files=["res://.godot/imported/fx_stripe_beam.webp-d5912f1c1a4606301354764fa3a9cf6d.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/candy/fx_sugar.webp b/godot-candy-src/assets/candy/fx_sugar.webp
+new file mode 100644
+index 0000000..8739d82
+Binary files /dev/null and b/godot-candy-src/assets/candy/fx_sugar.webp differ
+diff --git a/godot-candy-src/assets/candy/fx_sugar.webp.import b/godot-candy-src/assets/candy/fx_sugar.webp.import
+new file mode 100644
+index 0000000..71f5c6b
+--- /dev/null
++++ b/godot-candy-src/assets/candy/fx_sugar.webp.import
+@@ -0,0 +1,34 @@
++[remap]
++
++importer="texture"
++type="CompressedTexture2D"
++uid="uid://bkorcipvqk7mc"
++path="res://.godot/imported/fx_sugar.webp-0440b3effcf6e6ac0f73a355f9a54b4d.ctex"
++metadata={
++"vram_texture": false
++}
++
++[deps]
++
++source_file="res://assets/candy/fx_sugar.webp"
++dest_files=["res://.godot/imported/fx_sugar.webp-0440b3effcf6e6ac0f73a355f9a54b4d.ctex"]
++
++[params]
++
++compress/mode=0
++compress/high_quality=false
++compress/lossy_quality=0.7
++compress/hdr_compression=1
++compress/normal_map=0
++compress/channel_pack=0
++mipmaps/generate=true
++mipmaps/limit=-1
++roughness/mode=0
++roughness/src_normal=""
++process/fix_alpha_border=true
++process/premult_alpha=false
++process/normal_map_invert_y=false
++process/hdr_as_srgb=false
++process/hdr_clamp_exposure=false
++process/size_limit=0
++detect_3d/compress_to=1
+diff --git a/godot-candy-src/assets/fonts/Fredoka-Bold.ttf b/godot-candy-src/assets/fonts/Fredoka-Bold.ttf
+new file mode 100644
+index 0000000..751d864
+Binary files /dev/null and b/godot-candy-src/assets/fonts/Fredoka-Bold.ttf differ
+diff --git a/godot-candy-src/assets/fonts/Fredoka-Bold.ttf.import b/godot-candy-src/assets/fonts/Fredoka-Bold.ttf.import
+new file mode 100644
+index 0000000..90349a5
+--- /dev/null
++++ b/godot-candy-src/assets/fonts/Fredoka-Bold.ttf.import
+@@ -0,0 +1,35 @@
++[remap]
++
++importer="font_data_dynamic"
++type="FontFile"
++uid="uid://xcw7fos7m44f"
++path="res://.godot/imported/Fredoka-Bold.ttf-017e563dac8763748f52aa6bec51fda7.fontdata"
++
++[deps]
++
++source_file="res://assets/fonts/Fredoka-Bold.ttf"
++dest_files=["res://.godot/imported/Fredoka-Bold.ttf-017e563dac8763748f52aa6bec51fda7.fontdata"]
++
++[params]
++
++Rendering=null
++antialiasing=1
++generate_mipmaps=false
++disable_embedded_bitmaps=true
++multichannel_signed_distance_field=false
++msdf_pixel_range=8
++msdf_size=48
++allow_system_fallback=true
++force_autohinter=false
++hinting=1
++subpixel_positioning=4
++keep_rounding_remainders=true
++oversampling=0.0
++Fallbacks=null
++fallbacks=[]
++Compress=null
++compress=true
++preload=[]
++language_support={}
++script_support={}
++opentype_features={}
+diff --git a/godot-candy-src/assets/fonts/OFL.txt b/godot-candy-src/assets/fonts/OFL.txt
+new file mode 100644
+index 0000000..791a98d
+--- /dev/null
++++ b/godot-candy-src/assets/fonts/OFL.txt
+@@ -0,0 +1,93 @@
++Copyright 2016 The Fredoka Project Authors (https://github.com/hafontia/Fredoka-One)
++
++This Font Software is licensed under the SIL Open Font License, Version 1.1.
++This license is copied below, and is also available with a FAQ at:
++http://scripts.sil.org/OFL
++
++
++-----------------------------------------------------------
++SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
++-----------------------------------------------------------
++
++PREAMBLE
++The goals of the Open Font License (OFL) are to stimulate worldwide
++development of collaborative font projects, to support the font creation
++efforts of academic and linguistic communities, and to provide a free and
++open framework in which fonts may be shared and improved in partnership
++with others.
++
++The OFL allows the licensed fonts to be used, studied, modified and
++redistributed freely as long as they are not sold by themselves. The
++fonts, including any derivative works, can be bundled, embedded, 
++redistributed and/or sold with any software provided that any reserved
++names are not used by derivative works. The fonts and derivatives,
++however, cannot be released under any other type of license. The
++requirement for fonts to remain under this license does not apply
++to any document created using the fonts or their derivatives.
++
++DEFINITIONS
++"Font Software" refers to the set of files released by the Copyright
++Holder(s) under this license and clearly marked as such. This may
++include source files, build scripts and documentation.
++
++"Reserved Font Name" refers to any names specified as such after the
++copyright statement(s).
++
++"Original Version" refers to the collection of Font Software components as
++distributed by the Copyright Holder(s).
++
++"Modified Version" refers to any derivative made by adding to, deleting,
++or substituting -- in part or in whole -- any of the components of the
++Original Version, by changing formats or by porting the Font Software to a
++new environment.
++
++"Author" refers to any designer, engineer, programmer, technical
++writer or other person who contributed to the Font Software.
++
++PERMISSION & CONDITIONS
++Permission is hereby granted, free of charge, to any person obtaining
++a copy of the Font Software, to use, study, copy, merge, embed, modify,
++redistribute, and sell modified and unmodified copies of the Font
++Software, subject to the following conditions:
++
++1) Neither the Font Software nor any of its individual components,
++in Original or Modified Versions, may be sold by itself.
++
++2) Original or Modified Versions of the Font Software may be bundled,
++redistributed and/or sold with any software, provided that each copy
++contains the above copyright notice and this license. These can be
++included either as stand-alone text files, human-readable headers or
++in the appropriate machine-readable metadata fields within text or
++binary files as long as those fields can be easily viewed by the user.
++
++3) No Modified Version of the Font Software may use the Reserved Font
++Name(s) unless explicit written permission is granted by the corresponding
++Copyright Holder. This restriction only applies to the primary font name as
++presented to the users.
++
++4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
++Software shall not be used to promote, endorse or advertise any
++Modified Version, except to acknowledge the contribution(s) of the
++Copyright Holder(s) and the Author(s) or with their explicit written
++permission.
++
++5) The Font Software, modified or unmodified, in part or in whole,
++must be distributed entirely under this license, and must not be
++distributed under any other license. The requirement for fonts to
++remain under this license does not apply to any document created
++using the Font Software.
++
++TERMINATION
++This license becomes null and void if any of the above conditions are
++not met.
++
++DISCLAIMER
++THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
++OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
++COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
++DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
++OTHER DEALINGS IN THE FONT SOFTWARE.
+diff --git a/public/fonts/Fredoka-Bold.woff2 b/public/fonts/Fredoka-Bold.woff2
+new file mode 100644
+index 0000000..47139ea
+Binary files /dev/null and b/public/fonts/Fredoka-Bold.woff2 differ
+diff --git a/public/fonts/OFL.txt b/public/fonts/OFL.txt
+new file mode 100644
+index 0000000..791a98d
+--- /dev/null
++++ b/public/fonts/OFL.txt
+@@ -0,0 +1,93 @@
++Copyright 2016 The Fredoka Project Authors (https://github.com/hafontia/Fredoka-One)
++
++This Font Software is licensed under the SIL Open Font License, Version 1.1.
++This license is copied below, and is also available with a FAQ at:
++http://scripts.sil.org/OFL
++
++
++-----------------------------------------------------------
++SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
++-----------------------------------------------------------
++
++PREAMBLE
++The goals of the Open Font License (OFL) are to stimulate worldwide
++development of collaborative font projects, to support the font creation
++efforts of academic and linguistic communities, and to provide a free and
++open framework in which fonts may be shared and improved in partnership
++with others.
++
++The OFL allows the licensed fonts to be used, studied, modified and
++redistributed freely as long as they are not sold by themselves. The
++fonts, including any derivative works, can be bundled, embedded, 
++redistributed and/or sold with any software provided that any reserved
++names are not used by derivative works. The fonts and derivatives,
++however, cannot be released under any other type of license. The
++requirement for fonts to remain under this license does not apply
++to any document created using the fonts or their derivatives.
++
++DEFINITIONS
++"Font Software" refers to the set of files released by the Copyright
++Holder(s) under this license and clearly marked as such. This may
++include source files, build scripts and documentation.
++
++"Reserved Font Name" refers to any names specified as such after the
++copyright statement(s).
++
++"Original Version" refers to the collection of Font Software components as
++distributed by the Copyright Holder(s).
++
++"Modified Version" refers to any derivative made by adding to, deleting,
++or substituting -- in part or in whole -- any of the components of the
++Original Version, by changing formats or by porting the Font Software to a
++new environment.
++
++"Author" refers to any designer, engineer, programmer, technical
++writer or other person who contributed to the Font Software.
++
++PERMISSION & CONDITIONS
++Permission is hereby granted, free of charge, to any person obtaining
++a copy of the Font Software, to use, study, copy, merge, embed, modify,
++redistribute, and sell modified and unmodified copies of the Font
++Software, subject to the following conditions:
++
++1) Neither the Font Software nor any of its individual components,
++in Original or Modified Versions, may be sold by itself.
++
++2) Original or Modified Versions of the Font Software may be bundled,
++redistributed and/or sold with any software, provided that each copy
++contains the above copyright notice and this license. These can be
++included either as stand-alone text files, human-readable headers or
++in the appropriate machine-readable metadata fields within text or
++binary files as long as those fields can be easily viewed by the user.
++
++3) No Modified Version of the Font Software may use the Reserved Font
++Name(s) unless explicit written permission is granted by the corresponding
++Copyright Holder. This restriction only applies to the primary font name as
++presented to the users.
++
++4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
++Software shall not be used to promote, endorse or advertise any
++Modified Version, except to acknowledge the contribution(s) of the
++Copyright Holder(s) and the Author(s) or with their explicit written
++permission.
++
++5) The Font Software, modified or unmodified, in part or in whole,
++must be distributed entirely under this license, and must not be
++distributed under any other license. The requirement for fonts to
++remain under this license does not apply to any document created
++using the Font Software.
++
++TERMINATION
++This license becomes null and void if any of the above conditions are
++not met.
++
++DISCLAIMER
++THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
++OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
++COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
++DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
++OTHER DEALINGS IN THE FONT SOFTWARE.
+diff --git a/src/index.css b/src/index.css
+index 1bb0ed2..fdf73a6 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1017,11 +1017,148 @@ html {
+ /* Shimmer loading effect */
+ .shimmer {
+   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+   background-size: 200% 100%;
+   animation: shimmer 2s infinite;
+ }
+ 
+ /* Section divider gradient */
+ .section-divider {
+   @apply h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent;
+-}
+\ No newline at end of file
++}
++/* ═══════════════════════════════════════════════════════
++   CANDY CRUSH（方向稿 A · Glossy Classic）
++   ═══════════════════════════════════════════════════════ */
++@font-face {
++  font-family: 'Fredoka';
++  src: url('/fonts/Fredoka-Bold.woff2') format('woff2');
++  font-weight: 700;
++  font-style: normal;
++  font-display: swap;
++}
++
++@keyframes candy-star-pop {
++  0% { transform: scale(0); }
++  70% { transform: scale(1.2); }
++  100% { transform: scale(1); }
++}
++
++@keyframes candy-pulse {
++  0%, 100% { transform: scale(1); }
++  50% { transform: scale(1.06); }
++}
++
++/* 拉丁字與數字用 Fredoka，中文落回站內字型 */
++.candy-num {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold;
++}
++
++/* 兩側 HUD 欄：以 960×540 設計尺寸排版，再由 JS 依畫面等比縮放 */
++.candy-hud-col {
++  @apply absolute top-0 z-20 flex w-[196px] flex-col gap-3 pointer-events-auto select-none;
++}
++
++.candy-level {
++  @apply flex flex-col items-center py-2.5 px-4 rounded-[22px] border-[3px] border-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a,inset_0_4px_4px_#ffffff66];
++}
++.candy-level-label {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[14px] tracking-[3px] text-[#ffe4f2];
++}
++.candy-level-num {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[44px] leading-none text-white [text-shadow:0_3px_0_#a3125e];
++}
++
++.candy-card {
++  @apply rounded-[18px] border-2 border-white/20 bg-white/10 px-3.5 py-3;
++}
++.candy-card-label {
++  @apply text-[13px] font-bold text-[#d9ccff];
++}
++.candy-card-value {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[28px] leading-tight text-white;
++}
++
++.candy-moves {
++  @apply size-[132px] rounded-full border-4 border-white flex flex-col items-center justify-center self-center text-white bg-[radial-gradient(at_38%_30%,#a8ecff,#2aa8ff_45%,#0a3a9e)] shadow-[0_6px_0_#0a2a78,inset_0_-6px_10px_#06246eaa];
++}
++.candy-moves-low {
++  @apply bg-[radial-gradient(at_38%_30%,#ffb3b8,#ff2d46_45%,#9e0019)] shadow-[0_6px_0_#6e0012,inset_0_-6px_10px_#5e0010aa] animate-[candy-pulse_1s_ease-in-out_infinite];
++}
++.candy-moves-num {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[54px] leading-none [text-shadow:0_3px_0_#0a2a7888];
++}
++
++.candy-score {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[40px] leading-tight text-[#ffe066] [text-shadow:0_3px_0_#b8520a];
++}
++
++.candy-track {
++  @apply relative h-4 rounded-full border-2 border-white/25 bg-[#120a36];
++}
++.candy-fill {
++  @apply relative h-full overflow-hidden rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ffc21a] transition-[width] duration-500 after:absolute after:inset-x-1 after:top-0.5 after:h-1 after:rounded-full after:bg-white/40 after:content-[''];
++}
++
++.candy-round-btn {
++  @apply size-[38px] rounded-full border-2 border-white/35 bg-white/15 text-white flex items-center justify-center cursor-pointer transition-colors hover:bg-white/25 [&_svg]:size-[18px];
++}
++
++.candy-btn {
++  @apply inline-flex items-center justify-center gap-1.5 rounded-[22px] border-[3px] border-white px-3 sm:px-[22px] py-2.5 sm:py-3 text-sm sm:text-base font-black text-white cursor-pointer bg-gradient-to-b from-[#7cf08a] to-[#23a83a] shadow-[0_5px_0_#136b25] active:translate-y-[3px] active:shadow-[0_2px_0_#136b25];
++}
++.candy-btn-secondary {
++  @apply inline-flex items-center justify-center gap-1.5 rounded-[22px] border-[3px] border-[#f3b6d4] bg-white px-3 sm:px-[22px] py-2.5 sm:py-3 text-sm sm:text-base font-black text-[#c2185b] cursor-pointer shadow-[0_5px_0_#e8a7c8] active:translate-y-[3px] active:shadow-[0_2px_0_#e8a7c8];
++}
++
++.candy-mask {
++  @apply absolute inset-0 z-30 flex flex-col items-center justify-center-safe overflow-y-auto bg-[#12083a]/80 backdrop-blur-[6px] px-4 pb-4 pt-14;
++}
++
++.candy-mask-top {
++  @apply z-40;
++}
++
++.candy-dialog {
++  @apply relative mt-8 shrink-0 w-full max-w-[420px] rounded-[30px] border-4 border-white bg-gradient-to-b from-[#fff8fc] to-[#ffe0ef] px-5 sm:px-8 pt-[50px] sm:pt-[62px] pb-5 sm:pb-7 flex flex-col items-center gap-3.5 text-center shadow-[0_16px_40px_#0008];
++}
++.candy-dialog-lose {
++  @apply from-[#f4f0ff] to-[#e4dcff];
++}
++
++.candy-ribbon {
++  @apply absolute -top-7 sm:-top-8 left-1/2 -translate-x-1/2 w-[calc(100%+16px)] sm:w-[calc(100%+40px)] h-[52px] sm:h-[62px] flex items-center justify-center rounded-[20px] border-[3px] border-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a] text-[22px] sm:text-[28px] font-black text-white whitespace-nowrap;
++}
++.candy-ribbon-lose {
++  @apply from-[#8a7cc8] to-[#43357a] shadow-[0_5px_0_#2a2058];
++}
++
++.candy-star-pop {
++  @apply animate-[candy-star-pop_0.25s_ease-out_both];
++}
++
++.candy-card-light {
++  @apply flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-left shadow-[0_2px_0_#f3b6d4];
++}
++.candy-kbd {
++  @apply rounded-lg bg-[#e01f78] px-2 py-1 text-right text-xs font-bold text-white;
++}
++
++/* 窄畫面（寬高比 < 4:3）退回上方橫條 */
++.candy-topbar {
++  @apply relative z-20 shrink-0 flex flex-col gap-2 px-3 py-2 bg-gradient-to-b from-[#3a1f8c] to-[#241062] border-b-2 border-white/15 select-none;
++}
++.candy-level-sm {
++  @apply flex items-baseline gap-1.5 rounded-2xl border-2 border-white py-0.5 px-3 bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_3px_0_#8c0f4a];
++}
++.candy-moves-sm {
++  @apply size-[38px] rounded-full border-2 border-white flex items-center justify-center text-white bg-[radial-gradient(at_38%_30%,#a8ecff,#2aa8ff_45%,#0a3a9e)] shadow-[0_3px_0_#0a2a78];
++}
++.candy-moves-sm.candy-moves-low {
++  @apply bg-[radial-gradient(at_38%_30%,#ffb3b8,#ff2d46_45%,#9e0019)] shadow-[0_3px_0_#6e0012];
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .candy-star-pop,
++  .candy-moves-low {
++    animation: none;
++  }
++}
+diff --git a/src/pages/CandyCrush/CandyHud.tsx b/src/pages/CandyCrush/CandyHud.tsx
+new file mode 100644
+index 0000000..8b0e0c5
+--- /dev/null
++++ b/src/pages/CandyCrush/CandyHud.tsx
+@@ -0,0 +1,191 @@
++import type { CSSProperties } from 'react'
++import { HelpCircle, Maximize2, Minimize2, Pause, Play, Volume2, VolumeX } from 'lucide-react'
++import { useCandyStore } from '@/store/useCandyStore'
++import { CandyStar } from '@/pages/CandyCrush/CandyStar'
++import { isLowMoves, nextStarScore, progressPercent } from '@/pages/CandyCrush/candyHud'
++
++/** 星級刻度：達標 1★（50%）、1.5 倍 2★（75%）、2 倍 3★（100%），進度條滿格 = 2 倍目標 */
++const STAR_TICKS = [
++  { star: 1, percent: 50 },
++  { star: 2, percent: 75 },
++  { star: 3, percent: 100 },
++]
++
++/** 兩側欄距畫面邊緣（設計尺寸 px，會乘上縮放） */
++const EDGE = 24
++
++function StarTrack({ starSize }: { starSize: number }) {
++  const { score, target, stars } = useCandyStore()
++  return (
++    <div className="candy-track">
++      <div
++        className="candy-fill"
++        style={{ width: `${progressPercent(score, target)}%` }}
++        data-testid="hud-progress"
++      />
++      {STAR_TICKS.map(({ star, percent }) => (
++        <CandyStar
++          key={star}
++          earned={stars >= star}
++          size={starSize}
++          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
++          style={{ left: `${Math.min(percent, 96)}%` }}
++          label={`${star} 星刻度`}
++        />
++      ))}
++    </div>
++  )
++}
++
++function NextStarText() {
++  const { target, stars } = useCandyStore()
++  const next = nextStarScore(stars, target)
++  return (
++    <div className="text-[13px] text-[#d9ccff]">
++      {next === null ? '已達三星！' : `下一顆星 ${next.toLocaleString()}`}
++    </div>
++  )
++}
++
++/** 兩側 HUD（寬高比 ≥ 4:3）：左欄關卡／目標／步數，右欄分數卡；圓鈕另由 HudButtons 疊在最上層 */
++export function SideHud({ scale }: { scale: number }) {
++  const { level, score, moves, target } = useCandyStore()
++  const col = (side: 'left' | 'right', top: number): CSSProperties => ({
++    [side]: `calc(${EDGE * scale}px + env(safe-area-inset-${side}))`,
++    top: `calc(${top * scale}px + env(safe-area-inset-top))`,
++    transform: `scale(${scale})`,
++    transformOrigin: `top ${side}`,
++  })
++
++  return (
++    <div className="absolute inset-0 z-20 pointer-events-none" data-testid="candy-hud">
++      <div className="candy-hud-col" style={col('left', 40)}>
++        <div className="candy-level">
++          <span className="candy-level-label">LEVEL</span>
++          <span className="candy-level-num" data-testid="hud-level">{level}</span>
++        </div>
++        <div className="candy-card text-center">
++          <div className="candy-card-label">目標分數</div>
++          <div className="candy-card-value">{target.toLocaleString()}</div>
++        </div>
++        <div className={`candy-moves mt-2 ${isLowMoves(moves) ? 'candy-moves-low' : ''}`}>
++          <span className="text-[15px] font-bold text-white/90">步數</span>
++          <span className="candy-moves-num" data-testid="hud-moves">{moves}</span>
++        </div>
++      </div>
++
++      {/* 右欄：上方留 38px 給 HudButtons */}
++      <div className="candy-hud-col" style={col('right', EDGE)}>
++        <div className="h-[38px]" aria-hidden="true" />
++        <div className="candy-card mt-9 flex flex-col gap-2.5 text-left">
++          <div className="candy-card-label">分數</div>
++          <div className="candy-score" data-testid="hud-score">{score.toLocaleString()}</div>
++          <StarTrack starSize={26} />
++          <NextStarText />
++        </div>
++      </div>
++    </div>
++  )
++}
++
++/** 上方橫條（寬高比 < 4:3）：第一列關卡／步數（右側留位給 HudButtons），第二列分數＋星級進度 */
++export function TopBar() {
++  const { level, score, moves, target } = useCandyStore()
++  return (
++    <div className="candy-topbar" data-testid="candy-hud">
++      <div className="flex h-[38px] items-center gap-2">
++        <div className="candy-level-sm">
++          <span className="candy-num text-[11px] tracking-[2px] text-[#ffe4f2]">LV</span>
++          <span className="candy-num text-[24px] leading-none text-white" data-testid="hud-level">{level}</span>
++        </div>
++        <div className={`candy-moves-sm ${isLowMoves(moves) ? 'candy-moves-low' : ''}`} title="剩餘步數" aria-label="剩餘步數">
++          <span className="candy-num text-[18px] leading-none" data-testid="hud-moves">{moves}</span>
++        </div>
++      </div>
++      <div className="flex items-center gap-3 pb-1">
++        <span className="candy-num min-w-14 text-[22px] text-[#ffe066] [text-shadow:0_2px_0_#b8520a]" data-testid="hud-score">
++          {score.toLocaleString()}
++        </span>
++        <div className="flex-1">
++          <StarTrack starSize={20} />
++        </div>
++        <span className="text-[11px] text-[#d9ccff] whitespace-nowrap">
++          目標 <span className="candy-num text-white">{target.toLocaleString()}</span>
++        </span>
++      </div>
++    </div>
++  )
++}
++
++/**
++ * 4 顆圓鈕（靜音、暫停、全螢幕、說明）。獨立疊在覆蓋層之上（z-30、DOM 後置），
++ * 暫停與結算時仍可點；兩側模式對齊右欄並同步縮放，橫條模式放在橫條第一列右側。
++ */
++export function HudButtons({
++  mode,
++  scale,
++  isFullscreen,
++  onMute,
++  onPause,
++  onFullscreen,
++  onHelp,
++}: {
++  mode: 'side' | 'top'
++  scale: number
++  isFullscreen: boolean
++  onMute: () => void
++  onPause: () => void
++  onFullscreen: () => void
++  onHelp: () => void
++}) {
++  const { isMuted, isPaused } = useCandyStore()
++  const style: CSSProperties =
++    mode === 'side'
++      ? {
++          right: `calc(${EDGE * scale}px + env(safe-area-inset-right))`,
++          top: `calc(${EDGE * scale}px + env(safe-area-inset-top))`,
++          transform: `scale(${scale})`,
++          transformOrigin: 'top right',
++        }
++      : {
++          right: 'calc(12px + env(safe-area-inset-right))',
++          top: 'calc(8px + env(safe-area-inset-top))',
++        }
++
++  return (
++    <div className="absolute z-30 flex gap-2" style={style}>
++      <button
++        type="button"
++        className="candy-round-btn"
++        onClick={onMute}
++        aria-label={isMuted ? '開啟音效' : '靜音'}
++        data-testid="candy-mute-btn"
++      >
++        {isMuted ? <VolumeX /> : <Volume2 />}
++      </button>
++      <button
++        type="button"
++        className="candy-round-btn"
++        onClick={onPause}
++        aria-label={isPaused ? '恢復遊戲' : '暫停遊戲'}
++        data-testid="candy-pause-btn"
++      >
++        {isPaused ? <Play /> : <Pause />}
++      </button>
++      <button
++        type="button"
++        className="candy-round-btn"
++        onClick={onFullscreen}
++        aria-label="切換全螢幕"
++        data-testid="candy-fullscreen-btn"
++      >
++        {isFullscreen ? <Minimize2 /> : <Maximize2 />}
++      </button>
++      {!isFullscreen && (
++        <button type="button" className="candy-round-btn" onClick={onHelp} aria-label="打開操作說明">
++          <HelpCircle />
++        </button>
++      )}
++    </div>
++  )
++}
+diff --git a/src/pages/CandyCrush/CandyOverlays.tsx b/src/pages/CandyCrush/CandyOverlays.tsx
+new file mode 100644
+index 0000000..89d2ff1
+--- /dev/null
++++ b/src/pages/CandyCrush/CandyOverlays.tsx
+@@ -0,0 +1,162 @@
++import { ArrowRight, RotateCcw, X } from 'lucide-react'
++import { useCandyStore } from '@/store/useCandyStore'
++import { useCountUp } from '@/lib/useCountUp'
++import { CandyStar } from '@/pages/CandyCrush/CandyStar'
++import { resultSubtitle } from '@/pages/CandyCrush/candyHud'
++
++/** 結算星星尺寸：中間那顆較大且高 22px */
++const RESULT_STARS = [
++  { star: 1, size: 64, lift: 0, sizeClass: 'size-12 sm:size-16' },
++  { star: 2, size: 84, lift: 22, sizeClass: 'size-16 sm:size-[84px]' },
++  { star: 3, size: 64, lift: 0, sizeClass: 'size-12 sm:size-16' },
++]
++
++/** 結算（勝／敗）：緞帶、星星依序彈出、分數 0.8s 滾動 */
++export function ResultDialog({
++  maxLevel,
++  onStart,
++}: {
++  maxLevel: number
++  onStart: (level: number) => void
++}) {
++  const { won, endLevel, endScore, endStars, target } = useCandyStore()
++  const { value: shownScore, ref: scoreRef } = useCountUp(endScore, 800)
++  const isLastLevel = won && endLevel >= maxLevel
++
++  return (
++    <div className="candy-mask animate-fade-in" data-testid="candy-result">
++      <div className={`candy-dialog ${won ? '' : 'candy-dialog-lose'}`}>
++        <h2 className={`candy-ribbon ${won ? '' : 'candy-ribbon-lose'}`}>
++          {won ? `第 ${endLevel} 關 通關！` : '步數用完 挑戰失敗'}
++        </h2>
++
++        <div className="flex items-end justify-center gap-4" data-testid="result-stars">
++          {RESULT_STARS.map(({ star, size, lift, sizeClass }, i) => {
++            const earned = won && endStars >= star
++            return (
++              <CandyStar
++                key={star}
++                earned={earned}
++                size={size}
++                className={`${sizeClass} ${earned ? 'candy-star-pop' : ''}`}
++                style={{ marginBottom: lift, animationDelay: earned ? `${i * 0.2}s` : undefined }}
++                label={earned ? `獲得第 ${star} 顆星` : `未獲得第 ${star} 顆星`}
++              />
++            )
++          })}
++        </div>
++
++        <div className="flex flex-col items-center">
++          <span className="text-[15px] font-bold text-[#a0668a]">得分</span>
++          <span
++            ref={scoreRef}
++            className="candy-num text-[40px] sm:text-[52px] leading-tight text-[#7a1d52]"
++            data-testid="result-score"
++          >
++            {shownScore.toLocaleString()}
++          </span>
++        </div>
++
++        <p className="text-[13px] text-[#8a6a9a]">{resultSubtitle(endScore, target, won ? endStars : 0)}</p>
++
++        {isLastLevel && <div className="font-black text-[#f08a00]">恭喜全部通關！</div>}
++
++        <div className="mt-1 flex flex-wrap justify-center gap-2 sm:gap-3">
++          {won ? (
++            <>
++              <button
++                type="button"
++                className="candy-btn-secondary"
++                onClick={() => onStart(endLevel)}
++                data-testid="result-replay"
++              >
++                <RotateCcw className="size-4" aria-hidden="true" />
++                重玩本關
++              </button>
++              {isLastLevel ? (
++                <button type="button" className="candy-btn" onClick={() => onStart(1)} data-testid="result-restart">
++                  從第 1 關再玩
++                </button>
++              ) : (
++                <button
++                  type="button"
++                  className="candy-btn"
++                  onClick={() => onStart(endLevel + 1)}
++                  data-testid="result-next"
++                >
++                  下一關
++                  <ArrowRight className="size-4" aria-hidden="true" />
++                </button>
++              )}
++            </>
++          ) : (
++            <button type="button" className="candy-btn" onClick={() => onStart(endLevel)} data-testid="result-replay">
++              <RotateCcw className="size-4" aria-hidden="true" />
++              重玩本關
++            </button>
++          )}
++        </div>
++      </div>
++    </div>
++  )
++}
++
++/** 暫停：同一層遮罩，中央關卡牌樣式 */
++export function PauseOverlay({ onResume }: { onResume: () => void }) {
++  return (
++    <div className="candy-mask animate-fade-in cursor-pointer gap-3" onClick={onResume} data-testid="candy-pause-overlay">
++      <div className="candy-level">
++        <span className="text-[28px] font-black text-white [text-shadow:0_3px_0_#a3125e]">暫停中</span>
++      </div>
++      <span className="text-[13px] text-white/70">點擊畫面或按 P 鍵恢復</span>
++    </div>
++  )
++}
++
++/** 操作說明：與結算卡同一個元件；快捷鍵內容維持現狀 */
++export function InstructionsDialog({ isTouchDevice, onClose }: { isTouchDevice: boolean; onClose: () => void }) {
++  const rows = isTouchDevice
++    ? [
++        ['交換糖果', '點選兩顆相鄰糖果，或滑動拖曳'],
++        ['暫停遊戲', '畫面右上 ⏸ 按鈕'],
++        ['開啟本選單', '畫面右上 ? 按鈕'],
++      ]
++    : [
++        ['交換糖果', '點選兩顆相鄰糖果，或拖曳'],
++        ['暫停遊戲', 'P 鍵或右上 ⏸ 按鈕'],
++        ['開啟本選單', 'ESC 鍵'],
++      ]
++
++  return (
++    <div className="candy-mask animate-fade-in candy-mask-top" data-testid="candy-instructions">
++      <div className="candy-dialog">
++        <h3 className="candy-ribbon">操作說明</h3>
++        <button
++          type="button"
++          className="absolute top-8 right-2 sm:top-10 sm:right-3 rounded-full p-1.5 text-[#a0668a] hover:bg-white/70 hover:text-[#7a1d52] cursor-pointer"
++          onClick={onClose}
++          aria-label="關閉說明"
++        >
++          <X className="size-5" />
++        </button>
++
++        <div className="w-full space-y-2.5 text-sm leading-relaxed">
++          {rows.map(([label, keys]) => (
++            <div key={label} className="candy-card-light">
++              <span className="shrink-0 font-bold text-[#7a1d52]">{label}</span>
++              <span className="candy-kbd">{keys}</span>
++            </div>
++          ))}
++          <div className="rounded-xl bg-white/70 p-3 text-left text-xs leading-normal text-[#7a1d52]">
++            <span className="mb-1 block font-bold">目標</span>
++            在步數限制內達到目標分數，消除 3 顆以上相同顏色的糖果得分。特殊糖果可觸發更強力的消除！
++          </div>
++        </div>
++
++        <button type="button" className="candy-btn mt-2 w-full" onClick={onClose}>
++          開始遊戲
++        </button>
++      </div>
++    </div>
++  )
++}
+diff --git a/src/pages/CandyCrush/CandyStar.tsx b/src/pages/CandyCrush/CandyStar.tsx
+new file mode 100644
+index 0000000..0937ea5
+--- /dev/null
++++ b/src/pages/CandyCrush/CandyStar.tsx
+@@ -0,0 +1,47 @@
++import { useId, type CSSProperties } from 'react'
++
++/** A 方案星星：已得為金色漸層＋白描邊，未得為深紫 */
++export function CandyStar({
++  earned,
++  size,
++  className,
++  style,
++  label,
++}: {
++  earned: boolean
++  size: number
++  className?: string
++  style?: CSSProperties
++  label?: string
++}) {
++  const gradientId = useId()
++  return (
++    <svg
++      viewBox="0 0 24 24"
++      width={size}
++      height={size}
++      className={className}
++      style={style}
++      role={label ? 'img' : undefined}
++      aria-label={label}
++      aria-hidden={label ? undefined : true}
++    >
++      {earned && (
++        <defs>
++          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
++            <stop offset="0%" stopColor="#fff3a0" />
++            <stop offset="55%" stopColor="#ffc21a" />
++            <stop offset="100%" stopColor="#f08a00" />
++          </linearGradient>
++        </defs>
++      )}
++      <path
++        d="M12 2.2l2.95 6.2 6.8.85-5 4.7 1.28 6.75L12 17.4l-6.03 3.3 1.28-6.75-5-4.7 6.8-.85z"
++        fill={earned ? `url(#${gradientId})` : '#3a2b7a'}
++        stroke={earned ? '#ffffff' : '#5a4aa8'}
++        strokeWidth={1.6}
++        strokeLinejoin="round"
++      />
++    </svg>
++  )
++}
+diff --git a/src/pages/CandyCrush/candyHud.test.ts b/src/pages/CandyCrush/candyHud.test.ts
+new file mode 100644
+index 0000000..5cdf33c
+--- /dev/null
++++ b/src/pages/CandyCrush/candyHud.test.ts
+@@ -0,0 +1,86 @@
++import { describe, expect, it } from 'vitest'
++import {
++  hudLayout,
++  isLowMoves,
++  nextStarScore,
++  progressPercent,
++  resultSubtitle,
++} from '@/pages/CandyCrush/candyHud'
++
++describe('hudLayout', () => {
++  it('16:9 設計尺寸：兩側、縮放 1', () => {
++    expect(hudLayout(960, 540)).toEqual({ mode: 'side', scale: 1 })
++  })
++
++  it('剛好 4:3 仍在兩側，縮放受側欄空間限制', () => {
++    const { mode, scale } = hudLayout(1024, 768)
++    expect(mode).toBe('side')
++    // 側欄空間 = (1024 - 480 * 768 / 540) / 2 ≈ 170.7，設計寬 240
++    expect(scale).toBeCloseTo(170.67 / 240, 2)
++  })
++
++  it('1920×1080 放大 2 倍', () => {
++    expect(hudLayout(1920, 1080)).toEqual({ mode: 'side', scale: 2 })
++  })
++
++  it('寬高比 < 4:3 退回上方橫條', () => {
++    expect(hudLayout(1000, 800).mode).toBe('top')
++    expect(hudLayout(320, 450).mode).toBe('top')
++  })
++
++  it('尺寸未知（0）時退回上方橫條', () => {
++    expect(hudLayout(0, 0).mode).toBe('top')
++  })
++})
++
++describe('progressPercent', () => {
++  it('滿格 = 2 倍目標，封頂 100', () => {
++    expect(progressPercent(2000, 4000)).toBe(25)
++    expect(progressPercent(9000, 4000)).toBe(100)
++  })
++
++  it('目標為 0 時為 0', () => {
++    expect(progressPercent(100, 0)).toBe(0)
++  })
++})
++
++describe('nextStarScore', () => {
++  it('依已得星數回傳下一顆星門檻（1× / 1.5× / 2× 目標）', () => {
++    expect(nextStarScore(0, 4000)).toBe(4000)
++    expect(nextStarScore(1, 4000)).toBe(6000)
++    expect(nextStarScore(2, 4000)).toBe(8000)
++  })
++
++  it('1.5 倍非整數時無條件進位', () => {
++    expect(nextStarScore(1, 1001)).toBe(1502)
++  })
++
++  it('三星時沒有下一顆', () => {
++    expect(nextStarScore(3, 4000)).toBeNull()
++  })
++})
++
++describe('isLowMoves', () => {
++  it('步數 ≤ 5 為警示', () => {
++    expect(isLowMoves(5)).toBe(true)
++    expect(isLowMoves(6)).toBe(false)
++  })
++})
++
++describe('resultSubtitle', () => {
++  it('二星：目標與距第三顆星的差距', () => {
++    expect(resultSubtitle(6420, 4000, 2)).toBe('目標 4,000 · 再 1,580 分拿第三顆星')
++  })
++
++  it('一星：距第二顆星', () => {
++    expect(resultSubtitle(4500, 4000, 1)).toBe('目標 4,000 · 再 1,500 分拿第二顆星')
++  })
++
++  it('三星：完美通關', () => {
++    expect(resultSubtitle(8000, 4000, 3)).toBe('完美通關！')
++  })
++
++  it('零星（失敗）：距目標', () => {
++    expect(resultSubtitle(3000, 4000, 0)).toBe('目標 4,000 · 還差 1,000 分過關')
++  })
++})
+diff --git a/src/pages/CandyCrush/candyHud.ts b/src/pages/CandyCrush/candyHud.ts
+new file mode 100644
+index 0000000..5d80f82
+--- /dev/null
++++ b/src/pages/CandyCrush/candyHud.ts
+@@ -0,0 +1,47 @@
++/** HUD 版面與結算文案的純函式（元件只負責呼叫與渲染） */
++
++/** 設計稿基準：960×540 畫面、盤面寬 480、單側欄可用寬 240 */
++const DESIGN_HEIGHT = 540
++const DESIGN_BOARD = 480
++const DESIGN_SIDE = 240
++
++export type HudLayout = { mode: 'side' | 'top'; scale: number }
++
++/**
++ * 以 `.rpg-screen` 容器寬高比決定 HUD 位置：≥ 4:3 放兩側，否則退回上方橫條。
++ * 兩側模式的縮放取「隨高度等比」與「塞進盤面旁的空間」兩者較小值
++ * （Godot 盤面以 min(寬, 高) / 540 等比縮放，寬螢幕時即為高度）。
++ */
++export function hudLayout(width: number, height: number): HudLayout {
++  if (width <= 0 || height <= 0 || width * 3 < height * 4) return { mode: 'top', scale: 1 }
++  const byHeight = height / DESIGN_HEIGHT
++  const side = (width - DESIGN_BOARD * byHeight) / 2
++  return { mode: 'side', scale: Math.min(byHeight, side / DESIGN_SIDE) }
++}
++
++/** 星級進度條百分比：滿格 = 2 倍目標 */
++export function progressPercent(score: number, target: number): number {
++  return target > 0 ? Math.min((score / (2 * target)) * 100, 100) : 0
++}
++
++/** 下一顆星的門檻分數：1★ 目標、2★ 1.5 倍、3★ 2 倍；已三星回傳 null */
++export function nextStarScore(stars: number, target: number): number | null {
++  const thresholds = [target, Math.ceil(target * 1.5), target * 2]
++  return stars >= thresholds.length ? null : thresholds[Math.max(stars, 0)]
++}
++
++/** 步數警示門檻 */
++export function isLowMoves(moves: number): boolean {
++  return moves <= 5
++}
++
++const STAR_NAMES = ['第一', '第二', '第三']
++
++/** 結算卡副標：「目標 X · 再 Y 分拿第 K 顆星」；零星（失敗）為距目標，三星改為「完美通關！」 */
++export function resultSubtitle(score: number, target: number, stars: number): string {
++  const next = nextStarScore(stars, target)
++  if (next === null) return '完美通關！'
++  const gap = Math.max(next - score, 0)
++  if (stars <= 0) return `目標 ${target.toLocaleString()} · 還差 ${gap.toLocaleString()} 分過關`
++  return `目標 ${target.toLocaleString()} · 再 ${gap.toLocaleString()} 分拿${STAR_NAMES[stars]}顆星`
++}
+diff --git a/src/pages/CandyCrush/index.tsx b/src/pages/CandyCrush/index.tsx
+index 3f08a49..222f394 100644
+--- a/src/pages/CandyCrush/index.tsx
++++ b/src/pages/CandyCrush/index.tsx
+@@ -1,36 +1,32 @@
+ import { useEffect, useRef, useState } from 'react'
+ import { Button } from '@/components/ui/button'
+-import { Candy, Footprints, HelpCircle, Maximize2, Minimize2, Pause, Play, RotateCcw, Star, Trophy, Volume2, VolumeX, X } from 'lucide-react'
++import { Candy, HelpCircle } from 'lucide-react'
+ import { useCandyStore } from '@/store/useCandyStore'
+ import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
+ import { useFullscreen } from '@/lib/useFullscreen'
++import { HudButtons, SideHud, TopBar } from '@/pages/CandyCrush/CandyHud'
++import { InstructionsDialog, PauseOverlay, ResultDialog } from '@/pages/CandyCrush/CandyOverlays'
++import { hudLayout, type HudLayout } from '@/pages/CandyCrush/candyHud'
+ 
+ /** 關卡總數（與 godot-candy-src/data/candy_levels.json 同步） */
+ const MAX_LEVEL = 5
+ 
+-/** 星級刻度：達標 1★（50%）、1.5 倍 2★（75%）、2 倍 3★（100%），進度條滿格 = 2 倍目標 */
+-const STAR_TICKS = [
+-  { star: 1, percent: 50 },
+-  { star: 2, percent: 75 },
+-  { star: 3, percent: 100 },
+-]
+-
+ export function CandyCrush() {
+   const {
+     isReady, isPaused, setPaused, isMuted, setMuted, handleCandyMessage, resetCandy,
+-    level, score, moves, target, stars,
+-    isLevelEnd, won, endLevel, endScore, endStars, startLevel,
++    isLevelEnd, startLevel,
+   } = useCandyStore()
+   const iframeRef = useRef<HTMLIFrameElement>(null)
+   const screenRef = useRef<HTMLDivElement>(null)
+   const [showInstructions, setShowInstructions] = useState(false)
++  const [layout, setLayout] = useState<HudLayout>({ mode: 'side', scale: 1 })
+   const [isTouchDevice, setIsTouchDevice] = useState(
+     () => window.matchMedia('(pointer: coarse)').matches
+   )
+ 
+   const focusGame = () => {
+     requestAnimationFrame(() => {
+       const frame = iframeRef.current
+       if (!frame) return
+       frame.contentWindow?.focus()
+       frame.contentDocument?.querySelector('canvas')?.focus()
+@@ -78,20 +74,34 @@ export function CandyCrush() {
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [])
+ 
+   useEffect(() => {
+     const mq = window.matchMedia('(pointer: coarse)')
+     const onChange = (e: MediaQueryListEvent) => setIsTouchDevice(e.matches)
+     mq.addEventListener('change', onChange)
+     return () => mq.removeEventListener('change', onChange)
+   }, [])
+ 
++  // HUD 版面以 .rpg-screen 容器寬高比為準（含全螢幕），尺寸變化即重算
++  useEffect(() => {
++    const el = screenRef.current
++    if (!el) return
++    const update = () => {
++      const next = hudLayout(el.clientWidth, el.clientHeight)
++      setLayout((prev) => (prev.mode === next.mode && prev.scale === next.scale ? prev : next))
++    }
++    update()
++    const observer = new ResizeObserver(update)
++    observer.observe(el)
++    return () => observer.disconnect()
++  }, [])
++
+   // 全螢幕：原生 API 不可用（iPhone Safari）時自動 fallback 成 CSS 偽全螢幕
+   const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef, focusGame)
+ 
+   const handleFrameLoad = () => {
+     const frame = iframeRef.current
+     if (!frame) return
+     registerCandyWindow(frame.contentWindow)
+     frame.focus()
+   }
+ 
+@@ -111,283 +121,75 @@ export function CandyCrush() {
+           size="sm"
+           variant="outline"
+           onClick={() => toggleInstructions(true)}
+           className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
+         >
+           <HelpCircle className="size-3.5" aria-hidden="true" />
+           遊戲說明
+         </Button>
+       </div>
+ 
+-      {/* HUD：關卡 / 分數進度（星級刻度）/ 剩餘步數 */}
+-      <div
+-        className="mb-4 bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-3 flex items-center gap-4 select-none shadow-lg"
+-        data-testid="candy-hud"
+-      >
+-        <div className="flex flex-col items-center min-w-14">
+-          <span className="text-[10px] text-slate-400 font-semibold tracking-widest">關卡</span>
+-          <span className="text-2xl font-extrabold text-pink-400 leading-none" data-testid="hud-level">
+-            {level}
+-          </span>
+-        </div>
+-
+-        <div className="flex-1 pt-2">
+-          <div className="flex justify-between items-baseline text-[11px] text-slate-400 mb-1.5">
+-            <span className="font-mono font-bold text-base text-slate-100" data-testid="hud-score">
+-              {score.toLocaleString()}
+-            </span>
+-            <span>
+-              目標 <span className="font-mono text-slate-200">{target.toLocaleString()}</span>
+-            </span>
+-          </div>
+-          <div className="relative h-3 bg-slate-800 rounded-full">
+-            <div
+-              className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-[width] duration-500"
+-              style={{ width: `${target > 0 ? Math.min((score / (2 * target)) * 100, 100) : 0}%` }}
+-              data-testid="hud-progress"
+-            />
+-            {STAR_TICKS.map(({ star, percent }) => (
+-              <Star
+-                key={star}
+-                className={`absolute -top-2 size-4 -translate-x-1/2 transition-colors ${
+-                  stars >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-600 fill-slate-800'
+-                }`}
+-                style={{ left: `${percent}%` }}
+-                aria-label={`${star} 星刻度`}
+-              />
+-            ))}
+-          </div>
+-        </div>
+-
+-        <div className="flex flex-col items-center min-w-14">
+-          <span className="text-[10px] text-slate-400 font-semibold tracking-widest flex items-center gap-0.5">
+-            <Footprints className="size-3" aria-hidden="true" />
+-            步數
+-          </span>
+-          <span
+-            className={`text-2xl font-extrabold leading-none ${moves <= 5 ? 'text-rose-400' : 'text-slate-100'}`}
+-            data-testid="hud-moves"
+-          >
+-            {moves}
+-          </span>
+-        </div>
+-      </div>
+-
+       <div className="rpg-cabinet">
+         <div
+           ref={screenRef}
+           className={
+             isFullscreen
+               ? 'fixed inset-0 w-screen h-dvh bg-black z-50 border-0 rounded-none select-none'
+               : 'rpg-screen'
+           }
+         >
+-          <iframe
+-            ref={iframeRef}
+-            src={import.meta.env.BASE_URL + 'candy/index.html'}
+-            title="糖果消消樂遊戲"
+-            className="absolute inset-0 size-full border-0 bg-slate-950"
+-            tabIndex={0}
+-            onLoad={handleFrameLoad}
+-            allow="fullscreen"
+-            style={{ touchAction: 'none' }}
+-            data-testid="candy-iframe"
+-          />
++          <div className="absolute inset-0 flex flex-col">
++            {layout.mode === 'top' && <TopBar />}
++            {/* iframe 的 DOM 位置固定，切換版面不會重載遊戲 */}
++            <div className="relative min-h-0 flex-1">
++              <iframe
++                ref={iframeRef}
++                src={import.meta.env.BASE_URL + 'candy/index.html'}
++                title="糖果消消樂遊戲"
++                className="absolute inset-0 size-full border-0 bg-slate-950"
++                tabIndex={0}
++                onLoad={handleFrameLoad}
++                allow="fullscreen"
++                style={{ touchAction: 'none' }}
++                data-testid="candy-iframe"
++              />
++            </div>
++          </div>
++
++          {layout.mode === 'side' && <SideHud scale={layout.scale} />}
+ 
+           {!isReady && (
+             <div className="absolute inset-0 bg-black flex flex-col justify-center items-center z-50 animate-fade-in">
+               <Candy className="size-12 text-pink-500 animate-bounce mb-4" />
+               <div className="text-white text-base tracking-widest animate-pulse font-mono font-bold select-none">
+                 糖果消消樂載入中...
+               </div>
+             </div>
+           )}
+ 
+-          {isPaused && !showInstructions && (
+-            <div
+-              className="absolute inset-0 bg-slate-950/60 z-30 flex flex-col justify-center items-center gap-3 cursor-pointer animate-fade-in"
+-              onClick={togglePause}
+-              data-testid="candy-pause-overlay"
+-            >
+-              <span className="text-2xl font-extrabold text-pink-400 select-none">遊戲暫停中</span>
+-              <span className="text-sm text-slate-300 select-none">點擊畫面或按 P 鍵恢復</span>
+-            </div>
+-          )}
++          {isPaused && !showInstructions && <PauseOverlay onResume={togglePause} />}
+ 
+           {isLevelEnd && !showInstructions && (
+-            <div
+-              className="absolute inset-0 bg-slate-950/85 z-30 flex flex-col justify-center items-center gap-4 animate-fade-in p-6"
+-              data-testid="candy-result"
+-            >
+-              <h2 className="text-3xl font-extrabold flex items-center gap-2">
+-                {won ? (
+-                  <>
+-                    <Trophy className="size-8 text-amber-400" aria-hidden="true" />
+-                    <span className="text-pink-400">第 {endLevel} 關通關！</span>
+-                  </>
+-                ) : (
+-                  <span className="text-slate-300">步數用完，挑戰失敗</span>
+-                )}
+-              </h2>
+-
+-              <div className="flex gap-2" data-testid="result-stars">
+-                {[1, 2, 3].map((s) => (
+-                  <Star
+-                    key={s}
+-                    className={`size-10 ${
+-                      endStars >= s ? 'text-amber-400 fill-amber-400' : 'text-slate-700 fill-slate-800'
+-                    }`}
+-                  />
+-                ))}
+-              </div>
+-
+-              <div className="text-slate-200 text-lg">
+-                得分 <span className="font-mono font-bold text-2xl text-white">{endScore.toLocaleString()}</span>
+-              </div>
+-
+-              {won && endLevel >= MAX_LEVEL && (
+-                <div className="text-amber-300 font-bold">恭喜全部通關！</div>
+-              )}
+-
+-              <div className="flex gap-3 mt-2">
+-                <Button
+-                  variant="outline"
+-                  className="border-slate-600 text-slate-200 bg-slate-900/80 hover:bg-slate-800 hover:text-white font-bold rounded-xl cursor-pointer"
+-                  onClick={() => { startLevel(endLevel); focusGame() }}
+-                  data-testid="result-replay"
+-                >
+-                  <RotateCcw className="size-4" aria-hidden="true" />
+-                  重玩本關
+-                </Button>
+-                {won && endLevel < MAX_LEVEL && (
+-                  <Button
+-                    className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold rounded-xl cursor-pointer"
+-                    onClick={() => { startLevel(endLevel + 1); focusGame() }}
+-                    data-testid="result-next"
+-                  >
+-                    下一關 →
+-                  </Button>
+-                )}
+-                {won && endLevel >= MAX_LEVEL && (
+-                  <Button
+-                    className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold rounded-xl cursor-pointer"
+-                    onClick={() => { startLevel(1); focusGame() }}
+-                    data-testid="result-restart"
+-                  >
+-                    從第 1 關再玩
+-                  </Button>
+-                )}
+-              </div>
+-            </div>
++            <ResultDialog maxLevel={MAX_LEVEL} onStart={(lv) => { startLevel(lv); focusGame() }} />
+           )}
+ 
+           {showInstructions && (
+-            <div className="absolute inset-0 bg-slate-950/90 z-40 flex flex-col justify-center items-center p-6 text-slate-100 animate-fade-in">
+-              <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl relative shadow-2xl">
+-                <Button
+-                  variant="ghost"
+-                  size="icon"
+-                  className="absolute top-3 right-3 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+-                  onClick={() => toggleInstructions(false)}
+-                  aria-label="關閉說明"
+-                >
+-                  <X className="size-5" />
+-                </Button>
+-
+-                <h3 className="text-xl font-bold text-center border-b border-slate-800 pb-3 mb-4 flex items-center justify-center gap-2">
+-                  <Candy className="size-6 text-pink-500" />
+-                  操作說明
+-                </h3>
+-
+-                <div className="space-y-4 text-sm leading-relaxed">
+-                  {(isTouchDevice
+-                    ? [
+-                        ['交換糖果', '點選兩顆相鄰糖果，或滑動拖曳'],
+-                        ['暫停遊戲', '畫面右上 ⏸ 按鈕'],
+-                        ['開啟本選單', '畫面右上 ? 按鈕'],
+-                      ]
+-                    : [
+-                        ['交換糖果', '點選兩顆相鄰糖果，或拖曳'],
+-                        ['暫停遊戲', 'P 鍵或右上 ⏸ 按鈕'],
+-                        ['開啟本選單', 'ESC 鍵'],
+-                      ]
+-                  ).map(([label, keys]) => (
+-                    <div
+-                      key={label}
+-                      className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50"
+-                    >
+-                      <span className="font-semibold text-slate-300">{label}</span>
+-                      <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-pink-400 font-mono">
+-                        {keys}
+-                      </span>
+-                    </div>
+-                  ))}
+-                  <div className="bg-pink-950/30 text-pink-200 p-3 rounded-lg border border-pink-900/30 text-xs mt-4 leading-normal">
+-                    <span className="font-bold block mb-1">目標</span>
+-                    在步數限制內達到目標分數，消除 3 顆以上相同顏色的糖果得分。特殊糖果可觸發更強力的消除！
+-                  </div>
+-                </div>
+-
+-                <Button
+-                  className="w-full mt-6 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold rounded-xl cursor-pointer"
+-                  onClick={() => toggleInstructions(false)}
+-                >
+-                  開始遊戲
+-                </Button>
+-              </div>
+-            </div>
++            <InstructionsDialog isTouchDevice={isTouchDevice} onClose={() => toggleInstructions(false)} />
+           )}
+ 
+-          {/* 浮動按鈕列（safe-area 感知，避開瀏海/圓角） */}
+-          <div className="absolute z-30 flex gap-2 top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))]">
+-            <Button
+-              variant="outline"
+-              size="icon"
+-              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
+-              onClick={() => { setMuted(!isMuted); focusGame() }}
+-              aria-label={isMuted ? '開啟音效' : '靜音'}
+-              data-testid="candy-mute-btn"
+-            >
+-              {isMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+-            </Button>
+-
+-            <Button
+-              variant="outline"
+-              size="icon"
+-              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
+-              onClick={togglePause}
+-              aria-label={isPaused ? '恢復遊戲' : '暫停遊戲'}
+-              data-testid="candy-pause-btn"
+-            >
+-              {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
+-            </Button>
+-
+-            <Button
+-              variant="outline"
+-              size="icon"
+-              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
+-              onClick={toggleFullscreen}
+-              aria-label="切換全螢幕"
+-              data-testid="candy-fullscreen-btn"
+-            >
+-              {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+-            </Button>
+-
+-            {!isFullscreen && (
+-              <Button
+-                variant="outline"
+-                size="icon"
+-                className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
+-                onClick={() => toggleInstructions(true)}
+-                aria-label="打開操作說明"
+-              >
+-                <HelpCircle className="size-4" />
+-              </Button>
+-            )}
+-          </div>
++          {/* 圓鈕疊在暫停／結算遮罩之上（safe-area 感知，避開瀏海/圓角） */}
++          <HudButtons
++            mode={layout.mode}
++            scale={layout.scale}
++            isFullscreen={isFullscreen}
++            onMute={() => { setMuted(!isMuted); focusGame() }}
++            onPause={togglePause}
++            onFullscreen={toggleFullscreen}
++            onHelp={() => toggleInstructions(true)}
++          />
+         </div>
+       </div>
+     </div>
+   )
+ }
+ 
+ export default CandyCrush
+

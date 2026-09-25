@@ -1,0 +1,1265 @@
+# 糖果消消樂全面美化（A 亮面經典） — wave 2 since d96c9d5 — 2026-09-25T01:22
+# files changed: 12 (working tree included)
+
+## commits
+
+## stat
+ godot-candy-src/scripts/board_view.gd              | 161 ++++++++++++++++++---
+ godot-candy-src/scripts/candy_piece.gd             |  97 +++++++++++--
+ godot-candy-src/shaders/banner_gradient.gdshader   |  22 +++
+ .../shaders/banner_gradient.gdshader.uid           |   1 +
+ public/candy/index.html                            |   2 +-
+ public/candy/index.pck                             | Bin 66624 -> 1471552 bytes
+ src/index.css                                      |  38 ++++-
+ src/pages/CandyCrush/CandyHud.tsx                  |  55 +++++--
+ src/pages/CandyCrush/CandyOverlays.tsx             |  55 ++++++-
+ src/pages/CandyCrush/candyHud.test.ts              |  38 ++++-
+ src/pages/CandyCrush/candyHud.ts                   |  29 +++-
+ src/pages/CandyCrush/index.tsx                     |  41 +++---
+ 12 files changed, 459 insertions(+), 80 deletions(-)
+
+## diff (-U10)
+diff --git a/godot-candy-src/scripts/board_view.gd b/godot-candy-src/scripts/board_view.gd
+index 2ea5356..6492232 100644
+--- a/godot-candy-src/scripts/board_view.gd
++++ b/godot-candy-src/scripts/board_view.gd
+@@ -1,57 +1,160 @@
+ class_name BoardView
+ extends Node2D
+ 
+-## 盤面渲染與操作：依 CandyBoard 狀態生成 CandyPiece、棋盤格背景與裝飾邊框；
++## 盤面渲染與操作：依 CandyBoard 狀態生成 CandyPiece、bg_night 背景、board_frame 九宮格框與程式畫的格子；
+ ## 處理點選交換與拖曳 swipe。56px 格、448×448 盤面以節點原點為中心，
+ ## _layout() 依 viewport 尺寸動態置中縮放（手機直式也能滿版）。
+ ## 狀態機 IDLE → SWAP →（Step 4 接 RESOLVE → FALL → CHECK），動畫中鎖輸入。
+ 
+ const CELL := 56.0
+ const BOARD_PX := CELL * CandyBoard.SIZE
+ const ORIGIN := Vector2(-BOARD_PX / 2.0, -BOARD_PX / 2.0)
+ const DESIGN_MIN := 540.0  # 設計基準：min(viewport 邊長) = 540 時 scale = 1
+ const SWAP_TIME := 0.15
+ const REMOVE_TIME := 0.2
+ const FALL_PER_CELL := 0.08
+ const SWIPE_THRESHOLD := 24.0  # 拖曳判定距離（px）
+ 
+ const CandyPieceScript := preload("res://scripts/candy_piece.gd")
+ 
++# ---- A 亮面經典盤面（spec §4.1、§5） ----
++const BG_PATH := "res://assets/candy/bg_night.webp"
++const FRAME_PATH := "res://assets/candy/board_frame.webp"
++const FONT_PATH := "res://assets/fonts/Fredoka-Bold.ttf"
++const GRADIENT_SHADER_PATH := "res://shaders/banner_gradient.gdshader"
++const FRAME_PAD := 14.0  # 框到格子的邊距（邏輯）
++const FRAME_MARGIN := 56  # 九宮格邊距（@2x 貼圖像素）
++const FRAME_RADIUS := 26
++const GRID_CELL := 53.0
++const GRID_RADIUS := 9.0
++const GRID_COLORS: Array[Color] = [Color("#3a2c8c"), Color("#30237a")]
++const Z_BOARD := -2  # 框與格子在糖果光暈（-1）之下
++
++## Godot 內 banner 樣式（spec §6.5）：[字級, 外框, 外框色, 落影色, 落影 y]
++const BANNER_STYLES := {
++	"Level": [48, 8, "#e01f78", "#8c0f4a", 5],
++	"Sweet!": [44, 6, "#ff4fa3", "#8c0f4a", 4],
++	"Tasty!": [48, 6, "#ff8a1f", "#b04500", 4],
++	"Divine!": [52, 6, "#b04dff", "#56128f", 4],
++	"Sweet Crush!": [64, 8, "#e01f78", "#8c0f4a", 5],
++	"No more moves!": [36, 6, "#1f8cff", "#0a3a9e", 4],
++}
++
+ enum State { IDLE, ANIM }
+ 
+ const NO_CELL := Vector2i(-1, -1)
+ 
+ var board: CandyBoard
+ var level_mgr := LevelManager.new()
+ var pieces := {}  # Vector2i -> CandyPiece
+ var _state := State.IDLE
+ var _paused := false
+ var _level_over := false
+ var _selected := NO_CELL
+ var _press_cell := NO_CELL  # 按下時的格子（swipe 起點）
+ var _press_pos := Vector2.ZERO
+ var _swiped := false  # 本次按壓已觸發 swipe，release 不再當點選
++var _bg: Sprite2D
+ 
+ 
+ func _ready() -> void:
++	_build_board_layers()
+ 	CandyBridge.command_received.connect(_on_command)
+ 	get_viewport().size_changed.connect(_layout)
+ 	_layout()
+ 	_start_level(1)
+ 
+ 
+-## 依 viewport 尺寸置中並等比縮放（stretch=expand 下直式螢幕 viewport 會拉長）。
++## 依 viewport 尺寸置中並等比縮放（stretch=expand 下直式螢幕 viewport 會拉長）；
++## 背景另在 CanvasLayer 以 cover 縮放鋪滿整個 viewport。
+ func _layout() -> void:
+ 	var vp := get_viewport_rect().size
+ 	position = vp / 2.0
+ 	scale = Vector2.ONE * (minf(vp.x, vp.y) / DESIGN_MIN)
++	if _bg and _bg.texture:
++		_bg.position = vp / 2.0
++		_bg.scale = Vector2.ONE * bg_cover_scale(vp, _bg.texture.get_size())
++
++
++## 背景貼圖 cover 縮放：取寬高比例較大者，寬螢幕與直式都不露底。
++static func bg_cover_scale(vp: Vector2, tex_size: Vector2) -> float:
++	return maxf(vp.x / tex_size.x, vp.y / tex_size.y)
++
++
++## 背景（CanvasLayer −1）→ 框落影 → board_frame 九宮格 → 格子，糖果之後才加入。
++func _build_board_layers() -> void:
++	var bg_layer := CanvasLayer.new()
++	bg_layer.name = "BgLayer"
++	bg_layer.layer = -1
++	add_child(bg_layer)
++	_bg = Sprite2D.new()
++	_bg.name = "Bg"
++	_bg.texture = load(BG_PATH) if ResourceLoader.exists(BG_PATH) else null
++	_bg.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
++	bg_layer.add_child(_bg)
++
++	var frame_rect := Rect2(ORIGIN - Vector2.ONE * FRAME_PAD,
++		Vector2.ONE * (BOARD_PX + FRAME_PAD * 2))
++	# 稿上的大落影（y+12 blur 28）放不進九宮格邊距，另以 StyleBoxFlat shadow 補畫
++	var shadow := Panel.new()
++	shadow.name = "FrameShadow"
++	var sb := StyleBoxFlat.new()
++	sb.draw_center = false
++	sb.set_corner_radius_all(FRAME_RADIUS)
++	sb.shadow_color = Color(0.039, 0.016, 0.125, 0.6)
++	sb.shadow_size = 20
++	sb.shadow_offset = Vector2(0, 12)
++	shadow.add_theme_stylebox_override("panel", sb)
++	shadow.position = frame_rect.position
++	shadow.size = frame_rect.size
++	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	shadow.z_index = Z_BOARD
++	add_child(shadow)
++
++	var frame := NinePatchRect.new()
++	frame.name = "Frame"
++	frame.texture = load(FRAME_PATH) if ResourceLoader.exists(FRAME_PATH) else null
++	frame.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
++	frame.patch_margin_left = FRAME_MARGIN
++	frame.patch_margin_top = FRAME_MARGIN
++	frame.patch_margin_right = FRAME_MARGIN
++	frame.patch_margin_bottom = FRAME_MARGIN
++	# @2x 貼圖：以 2 倍大小鋪、再縮 0.5，角落就是 28 邏輯單位
++	frame.position = frame_rect.position
++	frame.size = frame_rect.size * 2.0
++	frame.scale = Vector2.ONE * 0.5
++	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
++	frame.z_index = Z_BOARD
++	add_child(frame)
++
++	var grid := Node2D.new()
++	grid.name = "Grid"
++	grid.z_index = Z_BOARD
++	grid.draw.connect(_draw_grid.bind(grid))
++	add_child(grid)
++
++
++## 格子：53×53、圓角 9，#3A2C8C／#30237A 交替，置中於 56 格。
++func _draw_grid(grid: Node2D) -> void:
++	var boxes: Array[StyleBoxFlat] = []
++	for col in GRID_COLORS:
++		var sb := StyleBoxFlat.new()
++		sb.bg_color = col
++		sb.set_corner_radius_all(int(GRID_RADIUS))
++		boxes.append(sb)
++	var inset := (CELL - GRID_CELL) / 2.0
++	for y in CandyBoard.SIZE:
++		for x in CandyBoard.SIZE:
++			var r := Rect2(ORIGIN + Vector2(x, y) * CELL + Vector2.ONE * inset,
++				Vector2.ONE * GRID_CELL)
++			grid.draw_style_box(boxes[(x + y) % 2], r)
+ 
+ 
+ func _start_level(n: int) -> void:
+ 	level_mgr.start(n)
+ 	board = CandyBoard.new(level_mgr.colors)
+ 	_level_over = false
+ 	_refresh_pieces()
+ 	_post_state()
+ 	_show_banner("Level %d" % level_mgr.level)
+ 
+@@ -252,21 +355,21 @@ var _swap_b := NO_CELL
+ ## 計分：群組 n 顆 = 60 + 20(n-3)，連鎖第 k 層 ×(1 + 0.5k)；特殊糖觸發每顆 +40。
+ func _resolve(pending := {}, pending_triggers := 0) -> void:
+ 	var cascade := 0
+ 	while true:
+ 		var groups := board.find_match_groups()
+ 		var armed := _armed_wrapped_cells()
+ 		if groups.is_empty() and pending.is_empty() and armed.is_empty():
+ 			break
+ 		var mult := 1.0 + 0.5 * cascade
+ 		if cascade >= 1 and not groups.is_empty():  # 連鎖喝采文字
+-			_show_banner(["Sweet!", "Tasty!", "Divine!"][mini(cascade - 1, 2)], 34)
++			_show_banner(["Sweet!", "Tasty!", "Divine!"][mini(cascade - 1, 2)])
+ 		var removed := pending
+ 		pending = {}
+ 		var spawns := {}  # cell -> {color, special}
+ 		for g in groups:
+ 			level_mgr.score += int((60 + 20 * (g["cells"].size() - 3)) * mult)
+ 			for c in g["cells"]:
+ 				removed[c] = true
+ 			if g["kind"] != "normal":
+ 				var s := _spawn_from_group(g, cascade == 0)
+ 				if not spawns.has(s["cell"]):
+@@ -484,29 +587,60 @@ func _tween_fall(tween: Tween, piece: CandyPiece, to: Vector2i) -> void:
+ func _shuffle_board() -> void:
+ 	_show_banner("No more moves!")
+ 	CandySfx.play("swap", 0.7)
+ 	await get_tree().create_timer(0.9).timeout
+ 	board.shuffle()
+ 	for c in pieces:
+ 		pieces[c].color_id = board.get_cell(c)
+ 		pieces[c].special = board.get_special(c)
+ 
+ 
++static func _banner_style(text: String) -> Array:
++	if text.begins_with("Level"):
++		return BANNER_STYLES["Level"]
++	return BANNER_STYLES.get(text, BANNER_STYLES["Sweet!"])
++
++
++static func banner_uses_gradient(text: String) -> bool:
++	return text == "Sweet Crush!"
++
++
++## banner 的 LabelSettings：Fredoka、白色填色、外框、與外框同寬的硬落影（spec §6.5）。
++static func banner_settings(text: String) -> LabelSettings:
++	var st := _banner_style(text)
++	var ls := LabelSettings.new()
++	if ResourceLoader.exists(FONT_PATH):
++		ls.font = load(FONT_PATH)
++	ls.font_size = st[0]
++	ls.font_color = Color.WHITE
++	ls.outline_size = st[1]
++	ls.outline_color = Color(st[2])
++	ls.shadow_color = Color(st[3])
++	ls.shadow_size = st[1]
++	ls.shadow_offset = Vector2(0, st[4])
++	return ls
++
++
+ ## 盤面中央橫幅文字（漸大淡出）。
+-func _show_banner(text: String, font_size := 40) -> void:
++func _show_banner(text: String) -> void:
+ 	var label := Label.new()
+ 	label.text = text
+-	label.add_theme_font_size_override("font_size", font_size)
+-	label.add_theme_color_override("font_color", Color("#fbcfe8"))
+-	label.add_theme_color_override("font_outline_color", Color("#831843"))
+-	label.add_theme_constant_override("outline_size", 8)
++	label.label_settings = banner_settings(text)
+ 	label.z_index = 10
++	if banner_uses_gradient(text) and ResourceLoader.exists(GRADIENT_SHADER_PATH):
++		var mat := ShaderMaterial.new()
++		mat.shader = load(GRADIENT_SHADER_PATH)
++		var fs := label.label_settings.font_size
++		var ascent := label.label_settings.font.get_ascent(fs) if label.label_settings.font else fs * 0.9
++		mat.set_shader_parameter("y_top", ascent - fs * 0.72)  # 約字母頂端
++		mat.set_shader_parameter("y_bottom", ascent)  # 基線
++		label.material = mat
+ 	add_child(label)
+ 	await get_tree().process_frame  # 等 label 取得尺寸再置中
+ 	label.position = -label.size / 2  # 節點原點即盤面中心
+ 	label.pivot_offset = label.size / 2
+ 	label.scale = Vector2.ONE * 0.5
+ 	var tween := create_tween()
+ 	tween.tween_property(label, "scale", Vector2.ONE * 1.2, 0.4) \
+ 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+ 	tween.tween_interval(0.3)
+ 	tween.tween_property(label, "modulate:a", 0.0, 0.3)
+@@ -574,21 +708,10 @@ func _refresh_pieces() -> void:
+ func _animate_swap(a: Vector2i, b: Vector2i) -> void:
+ 	var pa: CandyPiece = pieces[a]
+ 	var pb: CandyPiece = pieces[b]
+ 	var tween := create_tween().set_parallel()
+ 	tween.tween_property(pa, "position", pb.position, SWAP_TIME) \
+ 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+ 	tween.tween_property(pb, "position", pa.position, SWAP_TIME) \
+ 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+ 	await tween.finished
+ 
+-
+-func _draw() -> void:
+-	# 裝飾外框（雙層圓角）
+-	var outer := Rect2(ORIGIN - Vector2(14, 14), Vector2(BOARD_PX + 28, BOARD_PX + 28))
+-	draw_rect(outer, Color("#3b2a52"))
+-	draw_rect(outer.grow(-4), Color("#160f24"))
+-	# 棋盤格底
+-	for y in CandyBoard.SIZE:
+-		for x in CandyBoard.SIZE:
+-			var col := Color("#1e293b") if (x + y) % 2 == 0 else Color("#243349")
+-			draw_rect(Rect2(ORIGIN + Vector2(x, y) * CELL, Vector2(CELL, CELL)), col)
+diff --git a/godot-candy-src/scripts/candy_piece.gd b/godot-candy-src/scripts/candy_piece.gd
+index ad1a955..f54b8a9 100644
+--- a/godot-candy-src/scripts/candy_piece.gd
++++ b/godot-candy-src/scripts/candy_piece.gd
+@@ -1,56 +1,133 @@
+ class_name CandyPiece
+ extends Node2D
+ 
+-## 單顆糖果：依色碼程式自繪幾何造型（圓/方/三角/菱/六角/環 + 高光），
+-## 不依賴外部素材。選中時播放縮放呼吸動畫。
++## 單顆糖果：以 A 亮面經典的 WebP 貼圖（Sprite2D、@2x 128px 以 0.5 倍呈現成 64 邏輯單位）
++## 依色碼／特殊糖顯示 31 種造型；貼圖缺檔時退回程式自繪幾何造型（圓/方/三角/菱/六角/環）。
++## 選中時播放縮放呼吸動畫，底下的 fx_select_halo 光暈同步脈動。
+ 
+ const RADIUS := 22.0
++const TEX_SCALE := 0.5  # @2x 貼圖 → 邏輯尺寸
++const HALO_TINT := Color("#fff4b3")
++const HALO_PATH := "res://assets/candy/fx_select_halo.webp"
+ 
++## 本色（spec §4.3），粒子上色也用這組
+ const COLORS: Array[Color] = [
+-	Color("#ef4444"),  # 0 紅·圓
+-	Color("#facc15"),  # 1 黃·圓角方
+-	Color("#22c55e"),  # 2 綠·三角
+-	Color("#3b82f6"),  # 3 藍·菱形
+-	Color("#a855f7"),  # 4 紫·六角
+-	Color("#fb923c"),  # 5 橙·甜甜圈
++	Color("#ff2d46"),  # 0 紅·圓球
++	Color("#ffc61a"),  # 1 黃·圓角方
++	Color("#38d64a"),  # 2 綠·圓頂軟糖
++	Color("#1f8cff"),  # 3 藍·菱形
++	Color("#b04dff"),  # 4 紫·六角
++	Color("#ff8a1f"),  # 5 橙·甜甜圈
+ ]
++const COLOR_NAMES: Array[String] = ["red", "yellow", "green", "blue", "purple", "orange"]
++const SPECIAL_SUFFIX := {
++	CandyBoard.Special.NONE: "",
++	CandyBoard.Special.STRIPED_H: "_stripe_h",
++	CandyBoard.Special.STRIPED_V: "_stripe_v",
++	CandyBoard.Special.WRAPPED: "_wrapped",
++	CandyBoard.Special.WRAPPED_ARMED: "_wrapped_armed",
++}
++
++static var _tex_cache := {}  # path -> Texture2D（缺檔存 null）
+ 
+ var color_id := 0:
+ 	set(v):
+ 		color_id = v
+-		queue_redraw()
++		_refresh()
+ 
+ ## CandyBoard.Special 值（0=無、1/2=條紋橫/直、3/4=包裝/已引爆、5=炸彈）
+ var special := 0:
+ 	set(v):
+ 		special = v
+-		queue_redraw()
++		_refresh()
++
++## 貼圖目錄（測試可改成不存在的路徑驗證退回 _draw()）
++var texture_root := "res://assets/candy/":
++	set(v):
++		texture_root = v
++		_refresh()
+ 
+ var _select_tween: Tween
++var _sprite: Sprite2D
++var _halo: Sprite2D
++
++
++func _init() -> void:
++	_halo = _make_sprite("Halo")
++	_halo.texture = _load_tex(HALO_PATH)
++	_halo.modulate = HALO_TINT
++	_halo.z_index = -1  # 畫在所有糖果之下、盤面格子之上
++	_halo.visible = false
++	_sprite = _make_sprite("Sprite")
++	_refresh()
++
++
++func _make_sprite(node_name: String) -> Sprite2D:
++	var s := Sprite2D.new()
++	s.name = node_name
++	s.scale = Vector2.ONE * TEX_SCALE
++	s.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
++	add_child(s)
++	return s
++
++
++## 依 color_id／special 對應貼圖路徑（spec §5 檔名）。
++static func texture_path(color: int, sp: int, root := "res://assets/candy/") -> String:
++	if sp == CandyBoard.Special.BOMB:
++		return root + "candy_bomb.webp"
++	return root + "candy_%s%s.webp" % [
++		COLOR_NAMES[posmod(color, COLOR_NAMES.size())], SPECIAL_SUFFIX.get(sp, "")]
++
++
++static func _load_tex(path: String) -> Texture2D:
++	if not _tex_cache.has(path):
++		_tex_cache[path] = load(path) as Texture2D if ResourceLoader.exists(path) else null
++	return _tex_cache[path]
++
++
++## 貼圖缺檔、改用 _draw() 幾何造型。
++func uses_fallback() -> bool:
++	return _sprite == null or _sprite.texture == null
++
++
++func _refresh() -> void:
++	if _sprite == null:
++		return
++	_sprite.texture = _load_tex(texture_path(color_id, special, texture_root))
++	_sprite.visible = _sprite.texture != null
++	queue_redraw()
+ 
+ 
+ func set_selected(selected: bool) -> void:
+ 	if _select_tween:
+ 		_select_tween.kill()
+ 		_select_tween = null
++	_halo.visible = selected and _halo.texture != null
+ 	if selected:
++		_halo.modulate.a = 0.6
+ 		_select_tween = create_tween().set_loops()
+ 		_select_tween.tween_property(self, "scale", Vector2.ONE * 1.14, 0.35) \
+ 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
++		_select_tween.parallel().tween_property(_halo, "modulate:a", 1.0, 0.35) \
++			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+ 		_select_tween.tween_property(self, "scale", Vector2.ONE * 0.98, 0.35) \
+ 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
++		_select_tween.parallel().tween_property(_halo, "modulate:a", 0.6, 0.35) \
++			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+ 	else:
+ 		scale = Vector2.ONE
+ 
+ 
+ func _draw() -> void:
++	if not uses_fallback():
++		return
+ 	if special == CandyBoard.Special.BOMB:
+ 		_draw_bomb()
+ 		return
+ 	var c := COLORS[posmod(color_id, COLORS.size())]
+ 	var dark := c.darkened(0.35)
+ 	match color_id % COLORS.size():
+ 		0:  # 圓
+ 			draw_circle(Vector2.ZERO, RADIUS, dark)
+ 			draw_circle(Vector2.ZERO, RADIUS - 3.0, c)
+ 		1:  # 圓角方
+diff --git a/godot-candy-src/shaders/banner_gradient.gdshader b/godot-candy-src/shaders/banner_gradient.gdshader
+new file mode 100644
+index 0000000..c5b9660
+--- /dev/null
++++ b/godot-candy-src/shaders/banner_gradient.gdshader
+@@ -0,0 +1,22 @@
++shader_type canvas_item;
++
++// 橫幅文字填色的由上到下漸層（Sweet Crush!）：只換白色填色像素，外框與落影保持原色。
++// y_top／y_bottom 是 Label 本地座標的字身範圍，由 board_view.gd 依字級設定。
++
++uniform vec4 top_color : source_color = vec4(1.0, 0.953, 0.627, 1.0);
++uniform vec4 bottom_color : source_color = vec4(1.0, 0.761, 0.102, 1.0);
++uniform float y_top = 0.0;
++uniform float y_bottom = 64.0;
++
++varying float local_y;
++
++void vertex() {
++	local_y = VERTEX.y;
++}
++
++void fragment() {
++	if (COLOR.r > 0.9 && COLOR.g > 0.9 && COLOR.b > 0.9) {
++		float t = clamp((local_y - y_top) / max(y_bottom - y_top, 1.0), 0.0, 1.0);
++		COLOR.rgb = mix(top_color.rgb, bottom_color.rgb, t);
++	}
++}
+diff --git a/godot-candy-src/shaders/banner_gradient.gdshader.uid b/godot-candy-src/shaders/banner_gradient.gdshader.uid
+new file mode 100644
+index 0000000..cf8e9ad
+--- /dev/null
++++ b/godot-candy-src/shaders/banner_gradient.gdshader.uid
+@@ -0,0 +1 @@
++uid://cju2qpohs6g5n
+diff --git a/public/candy/index.html b/public/candy/index.html
+index dfd15c8..337b9f2 100644
+--- a/public/candy/index.html
++++ b/public/candy/index.html
+@@ -104,21 +104,21 @@ body {
+ 		</noscript>
+ 
+ 		<div id="status">
+ 			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.webp" alt="">
+ 			<progress id="status-progress"></progress>
+ 			<div id="status-notice"></div>
+ 		</div>
+ 
+ 		<script src="index.js"></script>
+ 		<script>
+-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":66624,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
++const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1471552,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+ const GODOT_THREADS_ENABLED = false;
+ const engine = new Engine(GODOT_CONFIG);
+ 
+ (function () {
+ 	const statusOverlay = document.getElementById('status');
+ 	const statusProgress = document.getElementById('status-progress');
+ 	const statusNotice = document.getElementById('status-notice');
+ 
+ 	let initializing = true;
+ 	let statusMode = '';
+diff --git a/public/candy/index.pck b/public/candy/index.pck
+index 89dbb35..44af6c8 100644
+Binary files a/public/candy/index.pck and b/public/candy/index.pck differ
+diff --git a/src/index.css b/src/index.css
+index fdf73a6..5ed066e 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1102,30 +1102,34 @@ html {
+   @apply size-[38px] rounded-full border-2 border-white/35 bg-white/15 text-white flex items-center justify-center cursor-pointer transition-colors hover:bg-white/25 [&_svg]:size-[18px];
+ }
+ 
+ .candy-btn {
+   @apply inline-flex items-center justify-center gap-1.5 rounded-[22px] border-[3px] border-white px-3 sm:px-[22px] py-2.5 sm:py-3 text-sm sm:text-base font-black text-white cursor-pointer bg-gradient-to-b from-[#7cf08a] to-[#23a83a] shadow-[0_5px_0_#136b25] active:translate-y-[3px] active:shadow-[0_2px_0_#136b25];
+ }
+ .candy-btn-secondary {
+   @apply inline-flex items-center justify-center gap-1.5 rounded-[22px] border-[3px] border-[#f3b6d4] bg-white px-3 sm:px-[22px] py-2.5 sm:py-3 text-sm sm:text-base font-black text-[#c2185b] cursor-pointer shadow-[0_5px_0_#e8a7c8] active:translate-y-[3px] active:shadow-[0_2px_0_#e8a7c8];
+ }
+ 
++/* 上內距 56px 讓出橫條模式的圓鈕；兩側模式圓鈕在右緣不會壓到卡片，只留 16px */
+ .candy-mask {
+-  @apply absolute inset-0 z-30 flex flex-col items-center justify-center-safe overflow-y-auto bg-[#12083a]/80 backdrop-blur-[6px] px-4 pb-4 pt-14;
++  @apply absolute inset-0 z-30 flex flex-col items-center justify-center-safe overflow-y-auto bg-[#12083a]/80 backdrop-blur-[6px] px-4 pb-4 pt-14 [[data-hud=side]_&]:pt-4;
+ }
+ 
+ .candy-mask-top {
+   @apply z-40;
+ }
+ 
++.candy-dialog-fit {
++  @apply mt-8 shrink-0 w-full max-w-[420px];
++}
+ .candy-dialog {
+-  @apply relative mt-8 shrink-0 w-full max-w-[420px] rounded-[30px] border-4 border-white bg-gradient-to-b from-[#fff8fc] to-[#ffe0ef] px-5 sm:px-8 pt-[50px] sm:pt-[62px] pb-5 sm:pb-7 flex flex-col items-center gap-3.5 text-center shadow-[0_16px_40px_#0008];
++  @apply relative w-full origin-top rounded-[30px] border-4 border-white bg-gradient-to-b from-[#fff8fc] to-[#ffe0ef] px-5 sm:px-8 pt-[50px] sm:pt-[62px] pb-5 sm:pb-7 flex flex-col items-center gap-3.5 text-center shadow-[0_16px_40px_#0008];
+ }
+ .candy-dialog-lose {
+   @apply from-[#f4f0ff] to-[#e4dcff];
+ }
+ 
+ .candy-ribbon {
+   @apply absolute -top-7 sm:-top-8 left-1/2 -translate-x-1/2 w-[calc(100%+16px)] sm:w-[calc(100%+40px)] h-[52px] sm:h-[62px] flex items-center justify-center rounded-[20px] border-[3px] border-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a] text-[22px] sm:text-[28px] font-black text-white whitespace-nowrap;
+ }
+ .candy-ribbon-lose {
+   @apply from-[#8a7cc8] to-[#43357a] shadow-[0_5px_0_#2a2058];
+@@ -1135,30 +1139,58 @@ html {
+   @apply animate-[candy-star-pop_0.25s_ease-out_both];
+ }
+ 
+ .candy-card-light {
+   @apply flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-left shadow-[0_2px_0_#f3b6d4];
+ }
+ .candy-kbd {
+   @apply rounded-lg bg-[#e01f78] px-2 py-1 text-right text-xs font-bold text-white;
+ }
+ 
++/* 頁首／工具列／載入畫面（A 亮面經典配色） */
++.candy-title {
++  @apply text-3xl md:text-5xl font-black leading-tight bg-gradient-to-b from-[#ff7cc0] via-[#ff4fa3] to-[#e01f78] bg-clip-text text-transparent drop-shadow-[0_3px_0_#8c0f4a55];
++}
++.candy-subtitle {
++  @apply mt-3 text-sm md:text-base text-[#7a1d52] dark:text-[#d9ccff] max-w-2xl mx-auto leading-relaxed;
++}
++.candy-tool-btn {
++  @apply inline-flex h-8 items-center gap-1 rounded-full border-2 border-[#f3b6d4] bg-white px-3 text-xs font-bold text-[#c2185b] cursor-pointer shadow-[0_3px_0_#e8a7c8] transition-transform hover:bg-[#fff0f7] active:translate-y-[2px] active:shadow-[0_1px_0_#e8a7c8];
++}
++.candy-loading {
++  @apply absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[radial-gradient(at_50%_40%,#3a1f8c,#12083a_70%)] select-none;
++}
++.candy-loading-icon {
++  @apply flex size-20 items-center justify-center rounded-full border-4 border-white text-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a,inset_0_4px_4px_#ffffff66] animate-bounce;
++}
++.candy-loading-text {
++  @apply text-base font-bold tracking-widest text-[#ffe4f2] animate-pulse;
++}
++
+ /* 窄畫面（寬高比 < 4:3）退回上方橫條 */
+ .candy-topbar {
+   @apply relative z-20 shrink-0 flex flex-col gap-2 px-3 py-2 bg-gradient-to-b from-[#3a1f8c] to-[#241062] border-b-2 border-white/15 select-none;
+ }
++.candy-topbar-btns {
++  @apply h-[38px] items-center gap-1.5;
++}
++.candy-topbar-btns-sm {
++  @apply gap-1 [&_.candy-round-btn]:size-8 [&_svg]:size-4;
++}
+ .candy-level-sm {
+   @apply flex items-baseline gap-1.5 rounded-2xl border-2 border-white py-0.5 px-3 bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_3px_0_#8c0f4a];
+ }
+ .candy-moves-sm {
+   @apply size-[38px] rounded-full border-2 border-white flex items-center justify-center text-white bg-[radial-gradient(at_38%_30%,#a8ecff,#2aa8ff_45%,#0a3a9e)] shadow-[0_3px_0_#0a2a78];
+ }
+ .candy-moves-sm.candy-moves-low {
+   @apply bg-[radial-gradient(at_38%_30%,#ffb3b8,#ff2d46_45%,#9e0019)] shadow-[0_3px_0_#6e0012];
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .candy-star-pop,
+-  .candy-moves-low {
++  .candy-moves-low,
++  .candy-loading-icon,
++  .candy-loading-text {
+     animation: none;
+   }
+ }
+diff --git a/src/pages/CandyCrush/CandyHud.tsx b/src/pages/CandyCrush/CandyHud.tsx
+index 8b0e0c5..113de45 100644
+--- a/src/pages/CandyCrush/CandyHud.tsx
++++ b/src/pages/CandyCrush/CandyHud.tsx
+@@ -22,21 +22,21 @@ function StarTrack({ starSize }: { starSize: number }) {
+         className="candy-fill"
+         style={{ width: `${progressPercent(score, target)}%` }}
+         data-testid="hud-progress"
+       />
+       {STAR_TICKS.map(({ star, percent }) => (
+         <CandyStar
+           key={star}
+           earned={stars >= star}
+           size={starSize}
+           className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+-          style={{ left: `${Math.min(percent, 96)}%` }}
++          style={{ left: `${percent}%` }}
+           label={`${star} 星刻度`}
+         />
+       ))}
+     </div>
+   )
+ }
+ 
+ function NextStarText() {
+   const { target, stars } = useCandyStore()
+   const next = nextStarScore(stars, target)
+@@ -81,86 +81,113 @@ export function SideHud({ scale }: { scale: number }) {
+           <div className="candy-card-label">分數</div>
+           <div className="candy-score" data-testid="hud-score">{score.toLocaleString()}</div>
+           <StarTrack starSize={26} />
+           <NextStarText />
+         </div>
+       </div>
+     </div>
+   )
+ }
+ 
+-/** 上方橫條（寬高比 < 4:3）：第一列關卡／步數（右側留位給 HudButtons），第二列分數＋星級進度 */
+-export function TopBar() {
++/**
++ * 上方橫條（寬高比 < 4:3）：第一列關卡／步數（右側留位給 HudButtons），第二列分數＋星級進度；
++ * compact（窄橫條）時步數球移到第二列開頭（免得與圓鈕重疊）、星級條獨立成第三列（免得被擠到刻度星重疊）
++ */
++export function TopBar({ compact }: { compact: boolean }) {
+   const { level, score, moves, target } = useCandyStore()
++  const movesBall = (
++    <div className={`candy-moves-sm ${isLowMoves(moves) ? 'candy-moves-low' : ''}`} title="剩餘步數" aria-label="剩餘步數">
++      <span className="candy-num text-[18px] leading-none" data-testid="hud-moves">{moves}</span>
++    </div>
++  )
+   return (
+-    <div className="candy-topbar" data-testid="candy-hud">
++    <div
++      className="candy-topbar"
++      style={{
++        paddingTop: 'calc(8px + env(safe-area-inset-top))',
++        paddingLeft: 'calc(12px + env(safe-area-inset-left))',
++        paddingRight: 'calc(12px + env(safe-area-inset-right))',
++      }}
++      data-testid="candy-hud"
++    >
+       <div className="flex h-[38px] items-center gap-2">
+         <div className="candy-level-sm">
+           <span className="candy-num text-[11px] tracking-[2px] text-[#ffe4f2]">LV</span>
+           <span className="candy-num text-[24px] leading-none text-white" data-testid="hud-level">{level}</span>
+         </div>
+-        <div className={`candy-moves-sm ${isLowMoves(moves) ? 'candy-moves-low' : ''}`} title="剩餘步數" aria-label="剩餘步數">
+-          <span className="candy-num text-[18px] leading-none" data-testid="hud-moves">{moves}</span>
+-        </div>
++        {!compact && movesBall}
+       </div>
+-      <div className="flex items-center gap-3 pb-1">
+-        <span className="candy-num min-w-14 text-[22px] text-[#ffe066] [text-shadow:0_2px_0_#b8520a]" data-testid="hud-score">
++      <div className={`flex items-center pb-1 ${compact ? 'gap-2' : 'gap-3'}`}>
++        {compact && movesBall}
++        <span className="candy-num min-w-10 text-[22px] text-[#ffe066] [text-shadow:0_2px_0_#b8520a]" data-testid="hud-score">
+           {score.toLocaleString()}
+         </span>
+-        <div className="flex-1">
+-          <StarTrack starSize={20} />
+-        </div>
++        {compact ? (
++          <div className="flex-1" />
++        ) : (
++          <div className="flex-1">
++            <StarTrack starSize={20} />
++          </div>
++        )}
+         <span className="text-[11px] text-[#d9ccff] whitespace-nowrap">
+           目標 <span className="candy-num text-white">{target.toLocaleString()}</span>
+         </span>
+       </div>
++      {compact && (
++        <div className="px-2.5 pb-1.5">
++          <StarTrack starSize={20} />
++        </div>
++      )}
+     </div>
+   )
+ }
+ 
+ /**
+  * 4 顆圓鈕（靜音、暫停、全螢幕、說明）。獨立疊在覆蓋層之上（z-30、DOM 後置），
+- * 暫停與結算時仍可點；兩側模式對齊右欄並同步縮放，橫條模式放在橫條第一列右側。
++ * 暫停與結算時仍可點；兩側模式對齊右欄並同步縮放，橫條模式放在橫條第一列右側（窄橫條縮成 32px）。
+  */
+ export function HudButtons({
+   mode,
+   scale,
++  compact,
+   isFullscreen,
+   onMute,
+   onPause,
+   onFullscreen,
+   onHelp,
+ }: {
+   mode: 'side' | 'top'
+   scale: number
++  compact: boolean
+   isFullscreen: boolean
+   onMute: () => void
+   onPause: () => void
+   onFullscreen: () => void
+   onHelp: () => void
+ }) {
+   const { isMuted, isPaused } = useCandyStore()
+   const style: CSSProperties =
+     mode === 'side'
+       ? {
+           right: `calc(${EDGE * scale}px + env(safe-area-inset-right))`,
+           top: `calc(${EDGE * scale}px + env(safe-area-inset-top))`,
+           transform: `scale(${scale})`,
+           transformOrigin: 'top right',
+         }
+       : {
+           right: 'calc(12px + env(safe-area-inset-right))',
+           top: 'calc(8px + env(safe-area-inset-top))',
+         }
++  const layoutClass = mode === 'side' ? 'gap-2' : compact ? 'candy-topbar-btns candy-topbar-btns-sm' : 'candy-topbar-btns'
+ 
+   return (
+-    <div className="absolute z-30 flex gap-2" style={style}>
++    <div className={`absolute z-30 flex ${layoutClass}`} style={style}>
+       <button
+         type="button"
+         className="candy-round-btn"
+         onClick={onMute}
+         aria-label={isMuted ? '開啟音效' : '靜音'}
+         data-testid="candy-mute-btn"
+       >
+         {isMuted ? <VolumeX /> : <Volume2 />}
+       </button>
+       <button
+diff --git a/src/pages/CandyCrush/CandyOverlays.tsx b/src/pages/CandyCrush/CandyOverlays.tsx
+index 89d2ff1..e171a04 100644
+--- a/src/pages/CandyCrush/CandyOverlays.tsx
++++ b/src/pages/CandyCrush/CandyOverlays.tsx
+@@ -1,38 +1,83 @@
++import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+ import { ArrowRight, RotateCcw, X } from 'lucide-react'
+ import { useCandyStore } from '@/store/useCandyStore'
+ import { useCountUp } from '@/lib/useCountUp'
+ import { CandyStar } from '@/pages/CandyCrush/CandyStar'
+-import { resultSubtitle } from '@/pages/CandyCrush/candyHud'
++import { dialogFitScale, resultSubtitle } from '@/pages/CandyCrush/candyHud'
+ 
+ /** 結算星星尺寸：中間那顆較大且高 22px */
+ const RESULT_STARS = [
+   { star: 1, size: 64, lift: 0, sizeClass: 'size-12 sm:size-16' },
+   { star: 2, size: 84, lift: 22, sizeClass: 'size-16 sm:size-[84px]' },
+   { star: 3, size: 64, lift: 0, sizeClass: 'size-12 sm:size-16' },
+ ]
+ 
++/** 緞帶壓在卡片上緣的外凸高度（外框 mt-8） */
++const RIBBON_OVERHANG = 32
++
++/**
++ * 卡片外框：遮罩可用高度放不下卡片時等比縮小（scale 不影響量到的 offsetHeight，不會循環），
++ * 外框高度同步縮成縮放後的高度，讓遮罩置中與捲動以縮放後尺寸計算
++ */
++function FitDialog({ className = '', children }: { className?: string; children: ReactNode }) {
++  const wrapRef = useRef<HTMLDivElement>(null)
++  const dialogRef = useRef<HTMLDivElement>(null)
++  const [fit, setFit] = useState<{ scale: number; height?: number }>({ scale: 1 })
++
++  useLayoutEffect(() => {
++    const dialog = dialogRef.current
++    const mask = wrapRef.current?.parentElement
++    if (!dialog || !mask) return
++    const update = () => {
++      const cs = getComputedStyle(mask)
++      const available =
++        mask.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - RIBBON_OVERHANG
++      const natural = dialog.offsetHeight
++      const scale = dialogFitScale(available, natural)
++      setFit((prev) => (prev.scale === scale && prev.height === natural * scale ? prev : { scale, height: natural * scale }))
++    }
++    update()
++    const observer = new ResizeObserver(update)
++    observer.observe(mask)
++    observer.observe(dialog)
++    return () => observer.disconnect()
++  }, [])
++
++  return (
++    <div ref={wrapRef} className="candy-dialog-fit" style={{ height: fit.height }}>
++      <div
++        ref={dialogRef}
++        className={`candy-dialog ${className}`}
++        style={fit.scale < 1 ? { transform: `scale(${fit.scale})` } : undefined}
++      >
++        {children}
++      </div>
++    </div>
++  )
++}
++
+ /** 結算（勝／敗）：緞帶、星星依序彈出、分數 0.8s 滾動 */
+ export function ResultDialog({
+   maxLevel,
+   onStart,
+ }: {
+   maxLevel: number
+   onStart: (level: number) => void
+ }) {
+   const { won, endLevel, endScore, endStars, target } = useCandyStore()
+   const { value: shownScore, ref: scoreRef } = useCountUp(endScore, 800)
+   const isLastLevel = won && endLevel >= maxLevel
+ 
+   return (
+     <div className="candy-mask animate-fade-in" data-testid="candy-result">
+-      <div className={`candy-dialog ${won ? '' : 'candy-dialog-lose'}`}>
++      <FitDialog className={won ? '' : 'candy-dialog-lose'}>
+         <h2 className={`candy-ribbon ${won ? '' : 'candy-ribbon-lose'}`}>
+           {won ? `第 ${endLevel} 關 通關！` : '步數用完 挑戰失敗'}
+         </h2>
+ 
+         <div className="flex items-end justify-center gap-4" data-testid="result-stars">
+           {RESULT_STARS.map(({ star, size, lift, sizeClass }, i) => {
+             const earned = won && endStars >= star
+             return (
+               <CandyStar
+                 key={star}
+@@ -89,21 +134,21 @@ export function ResultDialog({
+                 </button>
+               )}
+             </>
+           ) : (
+             <button type="button" className="candy-btn" onClick={() => onStart(endLevel)} data-testid="result-replay">
+               <RotateCcw className="size-4" aria-hidden="true" />
+               重玩本關
+             </button>
+           )}
+         </div>
+-      </div>
++      </FitDialog>
+     </div>
+   )
+ }
+ 
+ /** 暫停：同一層遮罩，中央關卡牌樣式 */
+ export function PauseOverlay({ onResume }: { onResume: () => void }) {
+   return (
+     <div className="candy-mask animate-fade-in cursor-pointer gap-3" onClick={onResume} data-testid="candy-pause-overlay">
+       <div className="candy-level">
+         <span className="text-[28px] font-black text-white [text-shadow:0_3px_0_#a3125e]">暫停中</span>
+@@ -122,21 +167,21 @@ export function InstructionsDialog({ isTouchDevice, onClose }: { isTouchDevice:
+         ['開啟本選單', '畫面右上 ? 按鈕'],
+       ]
+     : [
+         ['交換糖果', '點選兩顆相鄰糖果，或拖曳'],
+         ['暫停遊戲', 'P 鍵或右上 ⏸ 按鈕'],
+         ['開啟本選單', 'ESC 鍵'],
+       ]
+ 
+   return (
+     <div className="candy-mask animate-fade-in candy-mask-top" data-testid="candy-instructions">
+-      <div className="candy-dialog">
++      <FitDialog>
+         <h3 className="candy-ribbon">操作說明</h3>
+         <button
+           type="button"
+           className="absolute top-8 right-2 sm:top-10 sm:right-3 rounded-full p-1.5 text-[#a0668a] hover:bg-white/70 hover:text-[#7a1d52] cursor-pointer"
+           onClick={onClose}
+           aria-label="關閉說明"
+         >
+           <X className="size-5" />
+         </button>
+ 
+@@ -149,14 +194,14 @@ export function InstructionsDialog({ isTouchDevice, onClose }: { isTouchDevice:
+           ))}
+           <div className="rounded-xl bg-white/70 p-3 text-left text-xs leading-normal text-[#7a1d52]">
+             <span className="mb-1 block font-bold">目標</span>
+             在步數限制內達到目標分數，消除 3 顆以上相同顏色的糖果得分。特殊糖果可觸發更強力的消除！
+           </div>
+         </div>
+ 
+         <button type="button" className="candy-btn mt-2 w-full" onClick={onClose}>
+           開始遊戲
+         </button>
+-      </div>
++      </FitDialog>
+     </div>
+   )
+ }
+diff --git a/src/pages/CandyCrush/candyHud.test.ts b/src/pages/CandyCrush/candyHud.test.ts
+index 5cdf33c..889c189 100644
+--- a/src/pages/CandyCrush/candyHud.test.ts
++++ b/src/pages/CandyCrush/candyHud.test.ts
+@@ -1,13 +1,15 @@
+ import { describe, expect, it } from 'vitest'
+ import {
++  dialogFitScale,
+   hudLayout,
++  isCompactTopBar,
+   isLowMoves,
+   nextStarScore,
+   progressPercent,
+   resultSubtitle,
+ } from '@/pages/CandyCrush/candyHud'
+ 
+ describe('hudLayout', () => {
+   it('16:9 設計尺寸：兩側、縮放 1', () => {
+     expect(hudLayout(960, 540)).toEqual({ mode: 'side', scale: 1 })
+   })
+@@ -21,45 +23,77 @@ describe('hudLayout', () => {
+ 
+   it('1920×1080 放大 2 倍', () => {
+     expect(hudLayout(1920, 1080)).toEqual({ mode: 'side', scale: 2 })
+   })
+ 
+   it('寬高比 < 4:3 退回上方橫條', () => {
+     expect(hudLayout(1000, 800).mode).toBe('top')
+     expect(hudLayout(320, 450).mode).toBe('top')
+   })
+ 
++  it('兩側縮放低於 0.6（字太小）時也退回上方橫條', () => {
++    // md 斷點附近 .rpg-screen ≈ 740×550（剛過 4:3）：k = (740 - 489) / 2 / 240 ≈ 0.52
++    expect(hudLayout(740, 550)).toEqual({ mode: 'top', scale: 1 })
++    // 縮放剛好 0.6 仍在兩側
++    expect(hudLayout(576, 324).mode).toBe('side')
++  })
++
+   it('尺寸未知（0）時退回上方橫條', () => {
+     expect(hudLayout(0, 0).mode).toBe('top')
+   })
+ })
+ 
++describe('isCompactTopBar', () => {
++  it('橫條寬度放不下「LV＋步數球＋4 顆圓鈕」時改精簡排法（步數球移到第二列）', () => {
++    // 320px 手機：.rpg-screen ≈ 248px
++    expect(isCompactTopBar(248)).toBe(true)
++    // 390px 手機：.rpg-screen ≈ 318px
++    expect(isCompactTopBar(318)).toBe(false)
++  })
++})
++
++describe('dialogFitScale', () => {
++  it('放得下就不縮', () => {
++    expect(dialogFitScale(486, 436)).toBe(1)
++  })
++
++  it('放不下時等比縮到剛好塞進可用高度', () => {
++    // 390×844 最後一關：可用 346、卡片 390
++    expect(dialogFitScale(346, 390)).toBeCloseTo(346 / 390, 5)
++  })
++
++  it('尺寸未知（0）時不縮', () => {
++    expect(dialogFitScale(0, 0)).toBe(1)
++    expect(dialogFitScale(300, 0)).toBe(1)
++  })
++})
++
+ describe('progressPercent', () => {
+   it('滿格 = 2 倍目標，封頂 100', () => {
+     expect(progressPercent(2000, 4000)).toBe(25)
+     expect(progressPercent(9000, 4000)).toBe(100)
+   })
+ 
+   it('目標為 0 時為 0', () => {
+     expect(progressPercent(100, 0)).toBe(0)
+   })
+ })
+ 
+ describe('nextStarScore', () => {
+   it('依已得星數回傳下一顆星門檻（1× / 1.5× / 2× 目標）', () => {
+     expect(nextStarScore(0, 4000)).toBe(4000)
+     expect(nextStarScore(1, 4000)).toBe(6000)
+     expect(nextStarScore(2, 4000)).toBe(8000)
+   })
+ 
+-  it('1.5 倍非整數時無條件進位', () => {
+-    expect(nextStarScore(1, 1001)).toBe(1502)
++  it('1.5 倍非整數時無條件捨去（與 Godot level_manager int(1.5*target) 一致）', () => {
++    expect(nextStarScore(1, 1001)).toBe(1501)
+   })
+ 
+   it('三星時沒有下一顆', () => {
+     expect(nextStarScore(3, 4000)).toBeNull()
+   })
+ })
+ 
+ describe('isLowMoves', () => {
+   it('步數 ≤ 5 為警示', () => {
+     expect(isLowMoves(5)).toBe(true)
+diff --git a/src/pages/CandyCrush/candyHud.ts b/src/pages/CandyCrush/candyHud.ts
+index 5d80f82..d249db1 100644
+--- a/src/pages/CandyCrush/candyHud.ts
++++ b/src/pages/CandyCrush/candyHud.ts
+@@ -1,39 +1,60 @@
+ /** HUD 版面與結算文案的純函式（元件只負責呼叫與渲染） */
+ 
+ /** 設計稿基準：960×540 畫面、盤面寬 480、單側欄可用寬 240 */
+ const DESIGN_HEIGHT = 540
+ const DESIGN_BOARD = 480
+ const DESIGN_SIDE = 240
++/** 兩側縮放下限：再小字就看不清（13px 標籤 < 8px），改退回上方橫條 */
++const MIN_SIDE_SCALE = 0.6
+ 
+ export type HudLayout = { mode: 'side' | 'top'; scale: number }
+ 
+ /**
+- * 以 `.rpg-screen` 容器寬高比決定 HUD 位置：≥ 4:3 放兩側，否則退回上方橫條。
++ * 以 `.rpg-screen` 容器寬高比決定 HUD 位置：≥ 4:3 放兩側，否則退回上方橫條；
++ * 兩側縮放低於 MIN_SIDE_SCALE 時同樣退回橫條。
+  * 兩側模式的縮放取「隨高度等比」與「塞進盤面旁的空間」兩者較小值
+  * （Godot 盤面以 min(寬, 高) / 540 等比縮放，寬螢幕時即為高度）。
+  */
+ export function hudLayout(width: number, height: number): HudLayout {
+   if (width <= 0 || height <= 0 || width * 3 < height * 4) return { mode: 'top', scale: 1 }
+   const byHeight = height / DESIGN_HEIGHT
+   const side = (width - DESIGN_BOARD * byHeight) / 2
+-  return { mode: 'side', scale: Math.min(byHeight, side / DESIGN_SIDE) }
++  const scale = Math.min(byHeight, side / DESIGN_SIDE)
++  return scale < MIN_SIDE_SCALE ? { mode: 'top', scale: 1 } : { mode: 'side', scale }
++}
++
++/**
++ * 橫條第一列需要的寬度：左右內距 12×2 ＋ LV 牌 ≈62 ＋ 間距 8 ＋ 步數球 38 ＋ 間距 8
++ * ＋ 4 顆圓鈕 38×4＋6×3 = 310
++ */
++const TOPBAR_FULL_WIDTH = 310
++
++/** 橫條寬度不足時改精簡排法：步數球移到第二列、圓鈕縮成 32px，第一列只剩 LV 牌與圓鈕（窄到 234px 仍放得下） */
++export function isCompactTopBar(width: number): boolean {
++  return width < TOPBAR_FULL_WIDTH
++}
++
++/** 覆蓋層卡片縮放：可用高度放不下卡片原始高度時等比縮小，放得下（或尺寸未知）維持 1 */
++export function dialogFitScale(available: number, natural: number): number {
++  if (available <= 0 || natural <= 0) return 1
++  return Math.min(1, available / natural)
+ }
+ 
+ /** 星級進度條百分比：滿格 = 2 倍目標 */
+ export function progressPercent(score: number, target: number): number {
+   return target > 0 ? Math.min((score / (2 * target)) * 100, 100) : 0
+ }
+ 
+-/** 下一顆星的門檻分數：1★ 目標、2★ 1.5 倍、3★ 2 倍；已三星回傳 null */
++/** 下一顆星的門檻分數：1★ 目標、2★ 1.5 倍（捨去，同 Godot level_manager.gd）、3★ 2 倍；已三星回傳 null */
+ export function nextStarScore(stars: number, target: number): number | null {
+-  const thresholds = [target, Math.ceil(target * 1.5), target * 2]
++  const thresholds = [target, Math.floor(target * 1.5), target * 2]
+   return stars >= thresholds.length ? null : thresholds[Math.max(stars, 0)]
+ }
+ 
+ /** 步數警示門檻 */
+ export function isLowMoves(moves: number): boolean {
+   return moves <= 5
+ }
+ 
+ const STAR_NAMES = ['第一', '第二', '第三']
+ 
+diff --git a/src/pages/CandyCrush/index.tsx b/src/pages/CandyCrush/index.tsx
+index 222f394..afe3ea3 100644
+--- a/src/pages/CandyCrush/index.tsx
++++ b/src/pages/CandyCrush/index.tsx
+@@ -1,32 +1,32 @@
+-import { useEffect, useRef, useState } from 'react'
+-import { Button } from '@/components/ui/button'
++import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+ import { Candy, HelpCircle } from 'lucide-react'
+ import { useCandyStore } from '@/store/useCandyStore'
+ import { onCandyMessage, registerCandyWindow } from '@/lib/candyBridge'
+ import { useFullscreen } from '@/lib/useFullscreen'
+ import { HudButtons, SideHud, TopBar } from '@/pages/CandyCrush/CandyHud'
+ import { InstructionsDialog, PauseOverlay, ResultDialog } from '@/pages/CandyCrush/CandyOverlays'
+-import { hudLayout, type HudLayout } from '@/pages/CandyCrush/candyHud'
++import { hudLayout, isCompactTopBar, type HudLayout } from '@/pages/CandyCrush/candyHud'
+ 
+ /** 關卡總數（與 godot-candy-src/data/candy_levels.json 同步） */
+ const MAX_LEVEL = 5
+ 
+ export function CandyCrush() {
+   const {
+     isReady, isPaused, setPaused, isMuted, setMuted, handleCandyMessage, resetCandy,
+     isLevelEnd, startLevel,
+   } = useCandyStore()
+   const iframeRef = useRef<HTMLIFrameElement>(null)
+   const screenRef = useRef<HTMLDivElement>(null)
+   const [showInstructions, setShowInstructions] = useState(false)
+   const [layout, setLayout] = useState<HudLayout>({ mode: 'side', scale: 1 })
++  const [compactBar, setCompactBar] = useState(false)
+   const [isTouchDevice, setIsTouchDevice] = useState(
+     () => window.matchMedia('(pointer: coarse)').matches
+   )
+ 
+   const focusGame = () => {
+     requestAnimationFrame(() => {
+       const frame = iframeRef.current
+       if (!frame) return
+       frame.contentWindow?.focus()
+       frame.contentDocument?.querySelector('canvas')?.focus()
+@@ -74,119 +74,116 @@ export function CandyCrush() {
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [])
+ 
+   useEffect(() => {
+     const mq = window.matchMedia('(pointer: coarse)')
+     const onChange = (e: MediaQueryListEvent) => setIsTouchDevice(e.matches)
+     mq.addEventListener('change', onChange)
+     return () => mq.removeEventListener('change', onChange)
+   }, [])
+ 
+-  // HUD 版面以 .rpg-screen 容器寬高比為準（含全螢幕），尺寸變化即重算
+-  useEffect(() => {
++  // HUD 版面以 .rpg-screen 容器寬高比為準（含全螢幕），尺寸變化即重算；
++  // 用 layout effect 在首次繪製前量好，避免手機首幀閃一次兩側 HUD
++  useLayoutEffect(() => {
+     const el = screenRef.current
+     if (!el) return
+     const update = () => {
+       const next = hudLayout(el.clientWidth, el.clientHeight)
+       setLayout((prev) => (prev.mode === next.mode && prev.scale === next.scale ? prev : next))
++      setCompactBar(isCompactTopBar(el.clientWidth))
+     }
+     update()
+     const observer = new ResizeObserver(update)
+     observer.observe(el)
+     return () => observer.disconnect()
+   }, [])
+ 
+   // 全螢幕：原生 API 不可用（iPhone Safari）時自動 fallback 成 CSS 偽全螢幕
+   const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef, focusGame)
+ 
+   const handleFrameLoad = () => {
+     const frame = iframeRef.current
+     if (!frame) return
+     registerCandyWindow(frame.contentWindow)
+     frame.focus()
+   }
+ 
+   return (
+     <div className="max-w-5xl mx-auto pb-12" data-testid="page-candy-crush">
+       <header className="text-center mb-8">
+-        <h1 className="text-3xl md:text-5xl font-extrabold bg-gradient-to-r from-pink-500 via-rose-400 to-orange-400 bg-clip-text text-transparent leading-tight">
+-          糖果消消樂
+-        </h1>
+-        <p className="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
+-          以 Godot 4 打造的 match-3 三消遊戲。引擎於 iframe 內運行，與 React 透過 postMessage 雙向通訊。
++        <h1 className="candy-title">糖果消消樂</h1>
++        <p className="candy-subtitle">
++          以 <span className="candy-num">Godot 4</span> 打造的 <span className="candy-num">match-3</span> 三消遊戲。引擎於 <span className="candy-num">iframe</span> 內運行，與 <span className="candy-num">React</span> 透過 <span className="candy-num">postMessage</span> 雙向通訊。
+         </p>
+       </header>
+ 
+       <div className="flex flex-wrap items-center gap-2 mb-4 justify-between select-none">
+-        <Button
+-          size="sm"
+-          variant="outline"
+-          onClick={() => toggleInstructions(true)}
+-          className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
+-        >
++        <button type="button" onClick={() => toggleInstructions(true)} className="candy-tool-btn">
+           <HelpCircle className="size-3.5" aria-hidden="true" />
+           遊戲說明
+-        </Button>
++        </button>
+       </div>
+ 
+       <div className="rpg-cabinet">
+         <div
+           ref={screenRef}
++          data-hud={layout.mode}
+           className={
+             isFullscreen
+               ? 'fixed inset-0 w-screen h-dvh bg-black z-50 border-0 rounded-none select-none'
+               : 'rpg-screen'
+           }
+         >
+           <div className="absolute inset-0 flex flex-col">
+-            {layout.mode === 'top' && <TopBar />}
++            {layout.mode === 'top' && <TopBar compact={compactBar} />}
+             {/* iframe 的 DOM 位置固定，切換版面不會重載遊戲 */}
+             <div className="relative min-h-0 flex-1">
+               <iframe
+                 ref={iframeRef}
+                 src={import.meta.env.BASE_URL + 'candy/index.html'}
+                 title="糖果消消樂遊戲"
+                 className="absolute inset-0 size-full border-0 bg-slate-950"
+                 tabIndex={0}
+                 onLoad={handleFrameLoad}
+                 allow="fullscreen"
+                 style={{ touchAction: 'none' }}
+                 data-testid="candy-iframe"
+               />
+             </div>
+           </div>
+ 
+           {layout.mode === 'side' && <SideHud scale={layout.scale} />}
+ 
+           {!isReady && (
+-            <div className="absolute inset-0 bg-black flex flex-col justify-center items-center z-50 animate-fade-in">
+-              <Candy className="size-12 text-pink-500 animate-bounce mb-4" />
+-              <div className="text-white text-base tracking-widest animate-pulse font-mono font-bold select-none">
+-                糖果消消樂載入中...
++            <div className="candy-loading" data-testid="candy-loading">
++              <div className="candy-loading-icon">
++                <Candy className="size-10" aria-hidden="true" />
+               </div>
++              <div className="candy-loading-text">糖果消消樂載入中...</div>
+             </div>
+           )}
+ 
+           {isPaused && !showInstructions && <PauseOverlay onResume={togglePause} />}
+ 
+           {isLevelEnd && !showInstructions && (
+             <ResultDialog maxLevel={MAX_LEVEL} onStart={(lv) => { startLevel(lv); focusGame() }} />
+           )}
+ 
+           {showInstructions && (
+             <InstructionsDialog isTouchDevice={isTouchDevice} onClose={() => toggleInstructions(false)} />
+           )}
+ 
+           {/* 圓鈕疊在暫停／結算遮罩之上（safe-area 感知，避開瀏海/圓角） */}
+           <HudButtons
+             mode={layout.mode}
+             scale={layout.scale}
++            compact={compactBar}
+             isFullscreen={isFullscreen}
+             onMute={() => { setMuted(!isMuted); focusGame() }}
+             onPause={togglePause}
+             onFullscreen={toggleFullscreen}
+             onHelp={() => toggleInstructions(true)}
+           />
+         </div>
+       </div>
+     </div>
+   )
+
