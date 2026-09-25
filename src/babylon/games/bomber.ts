@@ -1,5 +1,5 @@
 import { ArcRotateCamera, Quaternion, SceneInstrumentation, Vector3, type Mesh } from '@/babylon/babylonCore'
-import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
+import type { GameContext, GameHud, GameModule, GameOverlay } from '@/babylon/types'
 import type { GameNetMessage } from '@/core/webrtc'
 import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
 import { createCountdownPanel, type CountdownTheme, type TextPanel } from '@/babylon/hud'
@@ -53,7 +53,8 @@ import { ToyBoard } from '@/babylon/games/bomberFx/board'
 import { ToyFx } from '@/babylon/games/bomberFx/effects'
 import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
 import { armDelayMs, deathPose, flameEmissive, placeScale } from '@/babylon/games/bomberFx/fxCurves'
-import { buildBomberHud, suddenDeathSeconds } from '@/babylon/games/bomberFx/hudModel'
+import { buildBomberHud, phaseTimer } from '@/babylon/games/bomberFx/hudModel'
+import { perfLogLine } from '@/babylon/games/bomberFx/perfLog'
 import { colorIndexOf, invincibleBlinkOn, PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
 import { ToyLook, UI_LAYER } from '@/babylon/games/bomberFx/look'
@@ -241,6 +242,7 @@ class BomberScene implements GameModule {
   private dying = new Map<string, number>() // 陣亡動畫起點（純視覺；邏輯上已死）
   private shownScores = new Map<string, number>() // HUD 勝場：取自最近一次結算（host／guest 一致）
   private shownMatchOver = false
+  private lastPlayingTimer: GameHud['timer'] | null = null // 結算階段凍結的計時（最後一次 playing 的值）
 
   private selfAvatar?: Avatar
   private peerAvatars = new Map<string, Avatar>()
@@ -440,6 +442,7 @@ class BomberScene implements GameModule {
     this.board.setWarning(null, 0)
     this.fx.clearRound()
     this.dying.clear()
+    this.lastPlayingTimer = null
     // 上一場已奪冠 → 新比賽，HUD 勝場歸零（host 的 scores 已在 resetMatchScores 清掉）
     if (this.shownMatchOver) {
       this.shownScores.clear()
@@ -1611,12 +1614,11 @@ class BomberScene implements GameModule {
     }
     this.fx.update(now, deltaMs)
 
-    // AC8：每 2 秒印 draw calls 與 fps（讀的是上一幀的完整計數）
+    // AC8：每 2 秒印 draw calls 與 fps（讀的是上一幀的完整計數；還沒渲染過的首次取樣不印）
     if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
       this.lastPerfLog = now
-      const calls = this.instr.drawCallsCounter.current
-      const fps = Math.round(this.ctx.scene.getEngine().getFps())
-      console.info(`[bomber] drawCalls=${calls} fps=${fps}`)
+      const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps())
+      if (line) console.info(line)
     }
 
     // HUD：React 玩家卡＋計時器（共用契約 GameHud；每幀傳新物件，量化後內容沒變就不重繪）
@@ -1659,6 +1661,9 @@ class BomberScene implements GameModule {
       for (const sc of result.scores) this.shownScores.set(sc.id, sc.score)
       this.shownMatchOver = result.matchOver
     }
+    // 結算階段凍結在最後一次 playing 的值，不跳回完整時長
+    const timer = phaseTimer({ phase, now, playingSince: this.playingSince, suddenMs: SUDDEN_DEATH_MS, last: this.lastPlayingTimer })
+    if (phase === 'playing') this.lastPlayingTimer = timer
     setHud(
       buildBomberHud({
         entities: this.entities().map((e) => ({
@@ -1669,11 +1674,7 @@ class BomberScene implements GameModule {
         })),
         selfId: this.ctx.selfId,
         now,
-        timer: suddenDeathSeconds({
-          now,
-          playingSince: phase === 'playing' ? this.playingSince : 0,
-          suddenMs: SUDDEN_DEATH_MS,
-        }),
+        timer,
         alive: (id) => this.isAlive(id),
         wins: (id) => this.shownScores.get(id) ?? 0,
         stat: (id) => this.statOf(id),

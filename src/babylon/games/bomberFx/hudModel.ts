@@ -44,23 +44,36 @@ export function suddenDeathSeconds(o: { now: number; playingSince: number; sudde
   return { secondsLeft: Math.ceil(left / 1000), suddenDeath: false }
 }
 
+/** 依階段取計時：結算階段凍結在最後一次 playing 的值（沒有紀錄才顯示完整時長），其餘階段照算 */
+export function phaseTimer(o: {
+  phase: string
+  now: number
+  playingSince: number
+  suddenMs: number
+  last: GameHud['timer'] | null
+}): GameHud['timer'] {
+  if (o.phase === 'result' && o.last) return { ...o.last }
+  return suddenDeathSeconds({ now: o.now, playingSince: o.phase === 'playing' ? o.playingSince : 0, suddenMs: o.suddenMs })
+}
+
 export function buildBomberHud(i: HudInput): GameHud {
   const players: GameHudPlayer[] = i.entities.map((e) => {
     const s = i.stat(e.id)
+    const alive = i.alive(e.id)
     return {
       id: e.id,
       name: e.name,
       colorIndex: e.colorIndex,
       isSelf: e.id === i.selfId,
       isAI: e.isAI,
-      alive: i.alive(e.id),
+      alive,
       wins: i.wins(e.id),
       bombs: s.bombs,
       fire: s.fire,
       speed: s.speed,
       kick: s.kick,
       throw: s.throw,
-      invincibleMs: quantizeInvincible(s.invincibleUntil - i.now),
+      invincibleMs: alive ? quantizeInvincible(s.invincibleUntil - i.now) : 0,
     }
   })
   return {

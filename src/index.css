@@ -1247,8 +1247,9 @@ html {
 .bomber-col-left {
   @apply left-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-left))] origin-top-left;
 }
+/* 右欄頂部至少讓出 Battle 的浮動全螢幕鈕（top max(0.5rem, safe-top)、size-9＝2.25rem）再加 6px，避免壓到 P2 卡編號 */
 .bomber-col-right {
-  @apply right-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-right))] origin-top-right;
+  @apply top-[max(calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-top)),calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px))] right-[calc(18px_*_var(--bomber-scale)_+_env(safe-area-inset-right))] origin-top-right;
 }
 
 .bomber-card {
@@ -1380,6 +1381,6 @@ html {
 
 @media (prefers-reduced-motion: reduce) {
   .bomber-timer-urgent {
-    animation: none;
+    @apply animate-none;
   }
 }
