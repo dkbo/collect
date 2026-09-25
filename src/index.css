@@ -1025,3 +1025,172 @@ html {
 .section-divider {
   @apply h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent;
 }
+/* ═══════════════════════════════════════════════════════
+   CANDY CRUSH（方向稿 A · Glossy Classic）
+   ═══════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'Fredoka';
+  src: url('/fonts/Fredoka-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@keyframes candy-star-pop {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes candy-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+/* 拉丁字與數字用 Fredoka，中文落回站內字型 */
+.candy-num {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold;
+}
+
+/* 兩側 HUD 欄：以 960×540 設計尺寸排版，再由 JS 依畫面等比縮放 */
+.candy-hud-col {
+  @apply absolute top-0 z-20 flex w-[196px] flex-col gap-3 pointer-events-auto select-none;
+}
+
+.candy-level {
+  @apply flex flex-col items-center py-2.5 px-4 rounded-[22px] border-[3px] border-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a,inset_0_4px_4px_#ffffff66];
+}
+.candy-level-label {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[14px] tracking-[3px] text-[#ffe4f2];
+}
+.candy-level-num {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[44px] leading-none text-white [text-shadow:0_3px_0_#a3125e];
+}
+
+.candy-card {
+  @apply rounded-[18px] border-2 border-white/20 bg-white/10 px-3.5 py-3;
+}
+.candy-card-label {
+  @apply text-[13px] font-bold text-[#d9ccff];
+}
+.candy-card-value {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[28px] leading-tight text-white;
+}
+
+.candy-moves {
+  @apply size-[132px] rounded-full border-4 border-white flex flex-col items-center justify-center self-center text-white bg-[radial-gradient(at_38%_30%,#a8ecff,#2aa8ff_45%,#0a3a9e)] shadow-[0_6px_0_#0a2a78,inset_0_-6px_10px_#06246eaa];
+}
+.candy-moves-low {
+  @apply bg-[radial-gradient(at_38%_30%,#ffb3b8,#ff2d46_45%,#9e0019)] shadow-[0_6px_0_#6e0012,inset_0_-6px_10px_#5e0010aa] animate-[candy-pulse_1s_ease-in-out_infinite];
+}
+.candy-moves-num {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[54px] leading-none [text-shadow:0_3px_0_#0a2a7888];
+}
+
+.candy-score {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[40px] leading-tight text-[#ffe066] [text-shadow:0_3px_0_#b8520a];
+}
+
+.candy-track {
+  @apply relative h-4 rounded-full border-2 border-white/25 bg-[#120a36];
+}
+.candy-fill {
+  @apply relative h-full overflow-hidden rounded-full bg-gradient-to-r from-[#ff4fa3] to-[#ffc21a] transition-[width] duration-500 after:absolute after:inset-x-1 after:top-0.5 after:h-1 after:rounded-full after:bg-white/40 after:content-[''];
+}
+
+.candy-round-btn {
+  @apply size-[38px] rounded-full border-2 border-white/35 bg-white/15 text-white flex items-center justify-center cursor-pointer transition-colors hover:bg-white/25 [&_svg]:size-[18px];
+}
+
+.candy-btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-[22px] border-[3px] border-white px-3 sm:px-[22px] py-2.5 sm:py-3 text-sm sm:text-base font-black text-white cursor-pointer bg-gradient-to-b from-[#7cf08a] to-[#23a83a] shadow-[0_5px_0_#136b25] active:translate-y-[3px] active:shadow-[0_2px_0_#136b25];
+}
+.candy-btn-secondary {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-[22px] border-[3px] border-[#f3b6d4] bg-white px-3 sm:px-[22px] py-2.5 sm:py-3 text-sm sm:text-base font-black text-[#c2185b] cursor-pointer shadow-[0_5px_0_#e8a7c8] active:translate-y-[3px] active:shadow-[0_2px_0_#e8a7c8];
+}
+
+/* 上內距 56px 讓出橫條模式的圓鈕；兩側模式圓鈕在右緣不會壓到卡片，只留 16px */
+.candy-mask {
+  @apply absolute inset-0 z-30 flex flex-col items-center justify-center-safe overflow-y-auto bg-[#12083a]/80 backdrop-blur-[6px] px-4 pb-4 pt-14 [[data-hud=side]_&]:pt-4;
+}
+
+.candy-mask-top {
+  @apply z-40;
+}
+
+.candy-dialog-fit {
+  @apply mt-8 shrink-0 w-full max-w-[420px];
+}
+.candy-dialog {
+  @apply relative w-full origin-top rounded-[30px] border-4 border-white bg-gradient-to-b from-[#fff8fc] to-[#ffe0ef] px-5 sm:px-8 pt-[50px] sm:pt-[62px] pb-5 sm:pb-7 flex flex-col items-center gap-3.5 text-center shadow-[0_16px_40px_#0008];
+}
+.candy-dialog-lose {
+  @apply from-[#f4f0ff] to-[#e4dcff];
+}
+
+.candy-ribbon {
+  @apply absolute -top-7 sm:-top-8 left-1/2 -translate-x-1/2 w-[calc(100%+16px)] sm:w-[calc(100%+40px)] h-[52px] sm:h-[62px] flex items-center justify-center rounded-[20px] border-[3px] border-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a] text-[22px] sm:text-[28px] font-black text-white whitespace-nowrap;
+}
+.candy-ribbon-lose {
+  @apply from-[#8a7cc8] to-[#43357a] shadow-[0_5px_0_#2a2058];
+}
+
+.candy-star-pop {
+  @apply animate-[candy-star-pop_0.25s_ease-out_both];
+}
+
+.candy-card-light {
+  @apply flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 text-left shadow-[0_2px_0_#f3b6d4];
+}
+.candy-kbd {
+  @apply rounded-lg bg-[#e01f78] px-2 py-1 text-right text-xs font-bold text-white;
+}
+
+/* 頁首／工具列／載入畫面（A 亮面經典配色） */
+.candy-title {
+  @apply text-3xl md:text-5xl font-black leading-tight bg-gradient-to-b from-[#ff7cc0] via-[#ff4fa3] to-[#e01f78] bg-clip-text text-transparent drop-shadow-[0_3px_0_#8c0f4a55];
+}
+.candy-subtitle {
+  @apply mt-3 text-sm md:text-base text-[#7a1d52] dark:text-[#d9ccff] max-w-2xl mx-auto leading-relaxed;
+}
+.candy-tool-btn {
+  @apply inline-flex h-8 items-center gap-1 rounded-full border-2 border-[#f3b6d4] bg-white px-3 text-xs font-bold text-[#c2185b] cursor-pointer shadow-[0_3px_0_#e8a7c8] transition-transform hover:bg-[#fff0f7] active:translate-y-[2px] active:shadow-[0_1px_0_#e8a7c8];
+}
+.candy-loading {
+  @apply absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[radial-gradient(at_50%_40%,#3a1f8c,#12083a_70%)] select-none;
+}
+.candy-loading-icon {
+  @apply flex size-20 items-center justify-center rounded-full border-4 border-white text-white bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_5px_0_#8c0f4a,inset_0_4px_4px_#ffffff66] animate-bounce;
+}
+.candy-loading-text {
+  @apply text-base font-bold tracking-widest text-[#ffe4f2] animate-pulse;
+}
+
+/* 窄畫面（寬高比 < 4:3）退回上方橫條 */
+.candy-topbar {
+  @apply relative z-20 shrink-0 flex flex-col gap-2 px-3 py-2 bg-gradient-to-b from-[#3a1f8c] to-[#241062] border-b-2 border-white/15 select-none;
+}
+.candy-topbar-btns {
+  @apply h-[38px] items-center gap-1.5;
+}
+.candy-topbar-btns-sm {
+  @apply gap-1 [&_.candy-round-btn]:size-8 [&_svg]:size-4;
+}
+.candy-level-sm {
+  @apply flex items-baseline gap-1.5 rounded-2xl border-2 border-white py-0.5 px-3 bg-gradient-to-b from-[#ff7cc0] to-[#e01f78] shadow-[0_3px_0_#8c0f4a];
+}
+.candy-moves-sm {
+  @apply size-[38px] rounded-full border-2 border-white flex items-center justify-center text-white bg-[radial-gradient(at_38%_30%,#a8ecff,#2aa8ff_45%,#0a3a9e)] shadow-[0_3px_0_#0a2a78];
+}
+.candy-moves-sm.candy-moves-low {
+  @apply bg-[radial-gradient(at_38%_30%,#ffb3b8,#ff2d46_45%,#9e0019)] shadow-[0_3px_0_#6e0012];
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .candy-star-pop,
+  .candy-moves-low,
+  .candy-loading-icon,
+  .candy-loading-text {
+    animation: none;
+  }
+}
