@@ -1,0 +1,345 @@
+# Babylon 深層匯入瘦身 — wave 1 since b5e2b3c — 2026-09-25T10:06
+# files changed: 11 (working tree included)
+
+## commits
+
+## stat
+ eslint.config.js                      | 10 +++++++++
+ src/babylon/babylonCore.ts            | 40 +++++++++++++++++++++++++++++++++++
+ src/babylon/games/bomber.ts           |  2 +-
+ src/babylon/games/overcooked.ts       |  2 +-
+ src/babylon/games/placeholderScene.ts |  2 +-
+ src/babylon/games/race.ts             |  2 +-
+ src/babylon/games/tank.ts             |  2 +-
+ src/babylon/hud.ts                    |  2 +-
+ src/babylon/types.ts                  |  2 +-
+ src/pages/Battle/BabylonCanvas.tsx    |  2 +-
+ vite.config.ts                        | 11 ++++++----
+ 11 files changed, 65 insertions(+), 12 deletions(-)
+
+## diff (-U10)
+diff --git a/eslint.config.js b/eslint.config.js
+index 29cfc6f..d138cf6 100644
+--- a/eslint.config.js
++++ b/eslint.config.js
+@@ -11,12 +11,22 @@ export default defineConfig([
+     files: ['**/*.{ts,tsx}'],
+     extends: [
+       js.configs.recommended,
+       tseslint.configs.recommended,
+       reactHooks.configs.flat.recommended,
+       reactRefresh.configs.vite,
+     ],
+     languageOptions: {
+       globals: globals.browser,
+     },
++    rules: {
++      // 整包匯入 @babylonjs/core 會把整個引擎（約 6.4 MB）打進 vendor-babylon；一律走深層路徑（經 @/babylon/babylonCore）
++      'no-restricted-imports': ['error', {
++        paths: [{ name: '@babylonjs/core', message: '請改用深層路徑匯入（見 @/babylon/babylonCore），整包匯入會把整個 Babylon 引擎打進 bundle。' }],
++      }],
++      'no-restricted-syntax': ['error', {
++        selector: "ImportExpression[source.value='@babylonjs/core']",
++        message: '請改用深層路徑匯入（見 @/babylon/babylonCore），整包匯入會把整個 Babylon 引擎打進 bundle。',
++      }],
++    },
+   },
+ ])
+diff --git a/src/babylon/babylonCore.ts b/src/babylon/babylonCore.ts
+new file mode 100644
+index 0000000..c681dc3
+--- /dev/null
++++ b/src/babylon/babylonCore.ts
+@@ -0,0 +1,40 @@
++/**
++ * Babylon.js 集中匯入點：一律走深層路徑，不從 `@babylonjs/core` 整包匯入。
++ * 整包匯入會把整個引擎（約 6.4 MB）打進 vendor-babylon；深層匯入只帶實際用到的模組。
++ * 不用 `*.pure` 版本：非 pure 模組會順便註冊副作用（Mesh.CreateX、scene 元件等）。
++ */
++import '@babylonjs/core/Culling/ray' // scene.pick：指標／觸控移動時 InputManager 會呼叫，缺了會報「Ray needs to be imported」
++import '@babylonjs/core/Particles/particleSystemComponent' // ParticleSystem 的 scene 元件與 createEffectForParticles
++import '@babylonjs/core/Rendering/edgesRenderer' // mesh.enableEdgesRendering()
++
++import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder'
++import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
++import { CreateDisc } from '@babylonjs/core/Meshes/Builders/discBuilder'
++import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder'
++import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder'
++import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder'
++import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder'
++
++export { Engine } from '@babylonjs/core/Engines/engine'
++export { Scene } from '@babylonjs/core/scene'
++export { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera'
++export type { Camera } from '@babylonjs/core/Cameras/camera'
++export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'
++export { Color3, Color4 } from '@babylonjs/core/Maths/math.color'
++export { Vector3 } from '@babylonjs/core/Maths/math.vector'
++export { Mesh } from '@babylonjs/core/Meshes/mesh'
++export { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
++export { Texture } from '@babylonjs/core/Materials/Textures/texture'
++export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture'
++export { ParticleSystem } from '@babylonjs/core/Particles/particleSystem'
++
++/** 只收專案用到的 builder；官方 MeshBuilder 會把所有形狀一起帶進來 */
++export const MeshBuilder = {
++  CreateBox,
++  CreateCylinder,
++  CreateDisc,
++  CreateGround,
++  CreatePlane,
++  CreateSphere,
++  CreateTorus,
++}
+diff --git a/src/babylon/games/bomber.ts b/src/babylon/games/bomber.ts
+index 6377dd2..67d4335 100644
+--- a/src/babylon/games/bomber.ts
++++ b/src/babylon/games/bomber.ts
+@@ -2,21 +2,21 @@ import {
+   ArcRotateCamera,
+   Color3,
+   Color4,
+   HemisphericLight,
+   Mesh,
+   MeshBuilder,
+   ParticleSystem,
+   StandardMaterial,
+   Texture,
+   Vector3,
+-} from '@babylonjs/core'
++} from '@/babylon/babylonCore'
+ import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+ import {
+   canAdvanceMidRound,
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   type FixedTicker,
+diff --git a/src/babylon/games/overcooked.ts b/src/babylon/games/overcooked.ts
+index 05912e2..da40840 100644
+--- a/src/babylon/games/overcooked.ts
++++ b/src/babylon/games/overcooked.ts
+@@ -3,21 +3,21 @@ import {
+   Color3,
+   Color4,
+   DynamicTexture,
+   HemisphericLight,
+   Mesh,
+   MeshBuilder,
+   ParticleSystem,
+   StandardMaterial,
+   Texture,
+   Vector3,
+-} from '@babylonjs/core'
++} from '@/babylon/babylonCore'
+ import type { GameContext, GameModule } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+ import {
+   createFixedTicker,
+   createGameFlow,
+   createHostSnapshot,
+   createOwnershipSync,
+   createSnapshotReceiver,
+diff --git a/src/babylon/games/placeholderScene.ts b/src/babylon/games/placeholderScene.ts
+index 2196eeb..d9a38ad 100644
+--- a/src/babylon/games/placeholderScene.ts
++++ b/src/babylon/games/placeholderScene.ts
+@@ -1,19 +1,19 @@
+ import {
+   ArcRotateCamera,
+   Color3,
+   HemisphericLight,
+   MeshBuilder,
+   StandardMaterial,
+   Vector3,
+   type Mesh,
+-} from '@babylonjs/core'
++} from '@/babylon/babylonCore'
+ import type { GameContext, GameModule } from '@/babylon/types'
+ import { lerpAngle } from '@/babylon/math'
+ import {
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
+ } from '@/babylon/net'
+diff --git a/src/babylon/games/race.ts b/src/babylon/games/race.ts
+index 6a88a4f..71924be 100644
+--- a/src/babylon/games/race.ts
++++ b/src/babylon/games/race.ts
+@@ -1,19 +1,19 @@
+ import {
+   ArcRotateCamera,
+   Color3,
+   HemisphericLight,
+   Mesh,
+   MeshBuilder,
+   StandardMaterial,
+   Vector3,
+-} from '@babylonjs/core'
++} from '@/babylon/babylonCore'
+ import type { GameContext, GameModule, GameOverlay, GamePlayer } from '@/babylon/types'
+ import { lerpAngle, quadrantOf, stepQuarters } from '@/babylon/math'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+ import { attachFlowAudio, engineStart, engineSet, engineStop, playSfx, stopAllAudio } from '@/babylon/audio'
+ import {
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   type FixedTicker,
+   type GameFlow,
+diff --git a/src/babylon/games/tank.ts b/src/babylon/games/tank.ts
+index 3772f37..888fd12 100644
+--- a/src/babylon/games/tank.ts
++++ b/src/babylon/games/tank.ts
+@@ -1,19 +1,19 @@
+ import {
+   ArcRotateCamera,
+   Color3,
+   HemisphericLight,
+   Mesh,
+   MeshBuilder,
+   StandardMaterial,
+   Vector3,
+-} from '@babylonjs/core'
++} from '@/babylon/babylonCore'
+ import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+ import {
+   canAdvanceMidRound,
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   isIntIn,
+diff --git a/src/babylon/hud.ts b/src/babylon/hud.ts
+index 40428dd..0817d4a 100644
+--- a/src/babylon/hud.ts
++++ b/src/babylon/hud.ts
+@@ -4,21 +4,21 @@
+  */
+ import {
+   Color3,
+   DynamicTexture,
+   Mesh,
+   MeshBuilder,
+   StandardMaterial,
+   Vector3,
+   type Camera,
+   type Scene,
+-} from '@babylonjs/core'
++} from '@/babylon/babylonCore'
+ 
+ export interface TextPanel {
+   /** 重繪（多行以 \n 分隔；空字串隱藏；內容沒變就跳過） */
+   draw(text: string, px?: number): void
+   dispose(): void
+ }
+ 
+ /** 倒數面板：圓角膠囊背景 + 描邊發光文字 + 脈衝動畫 */
+ export const createCountdownPanel = (
+   scene: Scene,
+diff --git a/src/babylon/types.ts b/src/babylon/types.ts
+index 9b2b01d..a351774 100644
+--- a/src/babylon/types.ts
++++ b/src/babylon/types.ts
+@@ -1,11 +1,11 @@
+-import type { Scene } from '@babylonjs/core'
++import type { Scene } from '@/babylon/babylonCore'
+ import type { GameNetMessage, NetTransport } from '@/core/webrtc'
+ 
+ /** 對戰中的玩家精簡資訊（由房間玩家列表帶入） */
+ export interface GamePlayer {
+   id: string
+   name: string
+ }
+ 
+ /** 覆蓋層按鈕（如「重新開始」） */
+ export interface OverlayAction {
+diff --git a/src/pages/Battle/BabylonCanvas.tsx b/src/pages/Battle/BabylonCanvas.tsx
+index 890f9d3..7590f0a 100644
+--- a/src/pages/Battle/BabylonCanvas.tsx
++++ b/src/pages/Battle/BabylonCanvas.tsx
+@@ -1,12 +1,12 @@
+ import { useEffect, useMemo, useRef, useState } from 'react'
+-import { ArcRotateCamera, Engine, Scene } from '@babylonjs/core'
++import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
+ import { RotateCw } from 'lucide-react'
+ import { Button } from '@/components/ui/button'
+ import type { NetTransport } from '@/core/webrtc'
+ import type { GameOverlay, GamePlayer } from '@/babylon/types'
+ import { getGameFactory } from '@/babylon/games'
+ import type { GameType } from '@/core/room'
+ import { TouchControls, type TouchAction } from './TouchControls'
+ 
+ interface BabylonCanvasProps {
+   gameType: GameType
+diff --git a/vite.config.ts b/vite.config.ts
+index b10ba54..045f6b3 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -6,23 +6,30 @@ import path from 'path'
+ 
+ // https://vite.dev/config/
+ export default defineConfig({
+   base: '/collect/',
+   // 5173 被占用時直接報錯，不要悄悄跳 5174（驗證腳本會打錯位址）；
+   // git worktree 內要另起 dev server 就用 PORT=5174 pnpm dev，並把同一個 port 餵給 shot.mjs 的 --url。
+   server: { strictPort: true, port: Number(process.env.PORT) || 5173 },
+   build: {
+     outDir: 'docs',
+     emptyOutDir: true,
++    // 只為 vendor-babylon：深層匯入後實測約 1,741 kB（Babylon 核心 Engine／Scene／材質／shader 無法再切小），上限取 +10%
++    chunkSizeWarningLimit: 1915,
+     rollupOptions: {
+       output: {
+         manualChunks(id) {
++          // Babylon.js 體積大且僅 /battle（lazy）使用，獨立成 chunk；
++          // 必須最先判斷：深層路徑如 Shaders/default.vertex.js 會命中下方 'fault'／'format' 而被誤歸 vendor-syntax
++          if (id.includes('@babylonjs')) {
++            return 'vendor-babylon'
++          }
+           if (
+             id.includes('react-syntax-highlighter') ||
+             id.includes('prismjs') ||
+             id.includes('highlight.js') ||
+             id.includes('refractor') ||
+             id.includes('lowlight') ||
+             id.includes('character-entities') ||
+             id.includes('hast-util') ||
+             id.includes('parse5') ||
+             id.includes('unist-util') ||
+@@ -33,24 +40,20 @@ export default defineConfig({
+             return 'vendor-syntax'
+           }
+ 
+           if (id.includes('lucide-react') || id.includes('lucide')) {
+             return 'vendor-lucide'
+           }
+           // firebase 體積大且僅 /battle（lazy）使用，獨立成 chunk 以免進初始載入
+           if (id.includes('/firebase/') || id.includes('@firebase')) {
+             return 'vendor-firebase'
+           }
+-          // Babylon.js 體積大且僅 /battle（lazy）使用，獨立成 chunk
+-          if (id.includes('@babylonjs')) {
+-            return 'vendor-babylon'
+-          }
+           if (
+             id.includes('react') ||
+             id.includes('scheduler') ||
+             id.includes('react-dom') ||
+             id.includes('react-router') ||
+             id.includes('@remix-run')
+           ) {
+             return 'vendor-react'
+           }
+           if (id.includes('node_modules') || id.includes('.pnpm')) {
+
