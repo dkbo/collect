@@ -111,3 +111,4 @@
 2026-09-25T02:05 ruling: [自主] 整枝評議新 Minor 3 條不修 — pck 1.49MB 為實測、對 43MB wasm 佔比小；炸彈 shader 手機掉幀為推測（qa 只測 WSLg 軟體渲染 1920 最低 fps 24），列 report 遺留交人判；reduced-motion 寫法與檔內既有一致 — 若錯：手機實機炸彈多時掉幀，需改 shader 取樣次數
 2026-09-25T08:16 gate3 approved: 使用者回「合併」
 2026-09-25T08:16 pane-close candyart-reviewer-a
+2026-09-25T08:16 task-close merged 9c10795
