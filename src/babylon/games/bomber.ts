@@ -9,7 +9,7 @@ import {
   StandardMaterial,
   Texture,
   Vector3,
-} from '@babylonjs/core'
+} from '@/babylon/babylonCore'
 import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
 import type { GameNetMessage } from '@/core/webrtc'
 import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'

@@ -18,5 +18,15 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // 整包匯入 @babylonjs/core 會把整個引擎（約 6.4 MB）打進 vendor-babylon；一律走深層路徑（經 @/babylon/babylonCore）
+      'no-restricted-imports': ['error', {
+        paths: [{ name: '@babylonjs/core', message: '請改用深層路徑匯入（見 @/babylon/babylonCore），整包匯入會把整個 Babylon 引擎打進 bundle。' }],
+      }],
+      'no-restricted-syntax': ['error', {
+        selector: "ImportExpression[source.value='@babylonjs/core']",
+        message: '請改用深層路徑匯入（見 @/babylon/babylonCore），整包匯入會把整個 Babylon 引擎打進 bundle。',
+      }],
+    },
   },
 ])

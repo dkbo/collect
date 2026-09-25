@@ -6,7 +6,7 @@ import {
   MeshBuilder,
   StandardMaterial,
   Vector3,
-} from '@babylonjs/core'
+} from '@/babylon/babylonCore'
 import type { GameContext, GameModule, GameOverlay, GamePlayer } from '@/babylon/types'
 import { lerpAngle, quadrantOf, stepQuarters } from '@/babylon/math'
 import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'

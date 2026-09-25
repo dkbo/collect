@@ -6,7 +6,7 @@ import {
   StandardMaterial,
   Vector3,
   type Mesh,
-} from '@babylonjs/core'
+} from '@/babylon/babylonCore'
 import type { GameContext, GameModule } from '@/babylon/types'
 import { lerpAngle } from '@/babylon/math'
 import {
