@@ -31,6 +31,7 @@ import {
   createKitchenGroundTexture,
   createWallTexture,
   createWindowTexture,
+  createYardTexture,
   WALL_WHITE_UV,
 } from '@/babylon/games/kitchenFx/textures'
 
@@ -55,6 +56,7 @@ interface PotParts {
   discMat: StandardMaterial
   burner: Mesh
   alarm: Mesh
+  alarmMat: StandardMaterial
   embers: Mesh
 }
 
@@ -73,8 +75,19 @@ const DISC_EMPTY = '#2F3350'
 const PLATE_CELL = { cx: 6, cy: 0 } as const
 /** 盤架疊起來的高度（plateStackData 3 盤＋盤緣約 0.3）：放在這格的物品要墊在盤子上，不然會穿模 */
 const PLATE_STACK_H = 0.3
+/** 場外延伸地面（kitchen 以外一大片深青色；相機不動，照裁決⑩補畫面四周的空白） */
+const YARD_SIZE = 160
+const ALARM_HEX = '#FF3B4E'
 
 type ItemSet = Record<ItemKey, ThinGroup<string>>
+
+/** hex → Color3 快取（每幀換色不再 new） */
+const colorCache = new Map<string, Color3>()
+const colorOf = (hex: string): Color3 => {
+  let c = colorCache.get(hex)
+  if (!c) colorCache.set(hex, (c = Color3.FromHexString(hex)))
+  return c
+}
 
 export class KitchenBoard {
   private readonly scene: Scene
@@ -93,6 +106,7 @@ export class KitchenBoard {
   private itemAt = new Map<string, { set: ItemSet; key: ItemKey }>()
   private pots = new Map<string, PotParts>()
   private boards!: ThinGroup<string>
+  private boardAt = new Map<string, { x: number; z: number }>()
   private bell!: Mesh
   private readonly top: number
   private plateId: string | null = null
@@ -142,6 +156,21 @@ export class KitchenBoard {
     })
     this.meshes.push(ground)
     this.receivers.push(ground)
+    const yardTex = createYardTexture(scene)
+    this.textures.push(yardTex)
+    const yard = MeshBuilder.CreateGround('kitchen-yard', { width: YARD_SIZE, height: YARD_SIZE }, scene)
+    yard.position.y = -0.04
+    yard.isPickable = false
+    yard.material = this.mat(
+      'kitchen-yard-mat',
+      (m) => {
+        m.emissiveTexture = yardTex
+        m.diffuseColor = Color3.Black()
+        m.disableLighting = true
+      },
+      false
+    )
+    this.meshes.push(yard)
 
     // 牆：背牆（cy=0 那一側，磁磚貼圖）＋兩側與前方的紫色矮牆，合併成 1 個 mesh
     const backSign = Math.sign(toWorld(0, 0).z) || 1
@@ -227,7 +256,10 @@ export class KitchenBoard {
       const { x, z } = toWorld(s.cx, s.cy)
       if (s.kind !== 'pot') counters.put(s.id, { x, y: 0, z })
       if (s.kind === 'crate') statics.push(at(crateData(s.ing ?? 'v'), { x, y: top, z }))
-      else if (s.kind === 'board') this.boards.put(s.id, { x, y: top, z })
+      else if (s.kind === 'board') {
+        this.boards.put(s.id, { x, y: top, z })
+        this.boardAt.set(s.id, { x, z })
+      }
       else if (s.kind === 'serve') statics.push(at(serveData(), { x, y: top, z }))
       else if (s.kind === 'pot') {
         statics.push(at(stoveData(), { x, y: top, z }), at(counterBase(cell), { x, y: 0, z }))
@@ -244,7 +276,7 @@ export class KitchenBoard {
       this.bell = this.mesh('kitchen-bell', bellData(), vcMat)
       this.bell.position.set(x + 0.5, top + 0.3, z + 0.1)
       this.outlined.push(this.bell)
-      this.glow.push({ mesh: this.bell, color: '#FFD23F', strength: 0 })
+      // 鈴只在出餐閃光時才進 Glow 白名單（effects 用 ToyLook.setGlow），平常不遮出餐窗的光暈
     }
 
     // 物品：8 種 × 站點／手上
@@ -301,14 +333,15 @@ export class KitchenBoard {
     burner.position.set(x, top, z)
     burner.isVisible = false
     this.glow.push({ mesh: burner, color: KITCHEN.burnerOn, strength: 0.6 })
-    const alarm = this.mesh(`kitchen-alarm-${id}`, potAlarmRimData(), emissive(`kitchen-alarm-mat-${id}`, '#FF3B4E'))
+    const alarmMat = emissive(`kitchen-alarm-mat-${id}`, ALARM_HEX)
+    const alarm = this.mesh(`kitchen-alarm-${id}`, potAlarmRimData(), alarmMat)
     alarm.position.set(x, top, z)
     alarm.isVisible = false
-    this.glow.push({ mesh: alarm, color: '#FF3B4E', strength: 1 })
+    this.glow.push({ mesh: alarm, color: ALARM_HEX, strength: 1 })
     const embers = this.mesh(`kitchen-embers-${id}`, emberDotsData(), emissive(`kitchen-ember-mat-${id}`, KITCHEN.crack))
     embers.position.set(x, top + SOUP_Y + 0.02, z)
     embers.isVisible = false
-    this.pots.set(id, { disc, discMat, burner, alarm, embers })
+    this.pots.set(id, { disc, discMat, burner, alarm, alarmMat, embers })
   }
 
   private putItem(set: ItemSet, id: string, item: Item | null, t: Trs): void {
@@ -326,26 +359,44 @@ export class KitchenBoard {
   // ---- 每幀 ----
 
   /** 站點存放格：檯面／砧板放物品實例；鍋改湯面顏色、開火爐圈、焦了的 ember */
-  setSlot(st: StationDef, item: Item | null): void {
-    const { x, z } = this.cfg.toWorld(st.cx, st.cy)
+  setSlot(st: StationDef, item: Item | null, pose?: Trs): void {
     if (st.kind === 'pot') {
       const p = this.pots.get(st.id)
       if (!p) return
       const hex = !item ? DISC_EMPTY : item.kind === 'burnt' ? KITCHEN.burnt : item.ing === 'v' ? KITCHEN.soupV : KITCHEN.soupM
-      p.discMat.diffuseColor.copyFrom(Color3.FromHexString(hex))
+      p.discMat.diffuseColor.copyFrom(colorOf(hex))
       p.burner.isVisible = item?.kind === 'chop' || item?.kind === 'soup'
       p.embers.isVisible = item?.kind === 'burnt'
       return
     }
-    const y = this.top + (st.kind === 'board' ? BOARD_TOP : st.id === this.plateId ? PLATE_STACK_H : 0)
-    const dx = st.kind === 'board' ? -0.12 : 0
-    this.putItem(this.stationItems, `slot:${st.id}`, item, { x: x + dx, y, z })
+    this.putItem(this.stationItems, `slot:${st.id}`, item, pose ?? this.slotPoint(st))
   }
 
-  /** 快焦鍋緣（波 3 脈動；這裡只切顯示） */
-  setPotAlarm(stationId: string, on: boolean): void {
+  /** 站點上物品的落點（拾取／放下弧線的端點）；鍋是湯面 */
+  slotPoint(st: StationDef): { x: number; y: number; z: number } {
+    const { x, z } = this.cfg.toWorld(st.cx, st.cy)
+    if (st.kind === 'pot') return { x, y: this.top + SOUP_Y, z }
+    if (st.kind === 'crate' || st.kind === 'serve') return { x, y: this.top + 0.4, z }
+    const y = this.top + (st.kind === 'board' ? BOARD_TOP : st.id === this.plateId ? PLATE_STACK_H : 0)
+    return { x: x + (st.kind === 'board' ? -0.12 : 0), y, z }
+  }
+
+  /** 快焦鍋緣：level 0..1 調發光強度（脈動由 effects 算） */
+  setPotAlarm(stationId: string, on: boolean, level = 1): void {
     const p = this.pots.get(stationId)
-    if (p) p.alarm.isVisible = on
+    if (!p) return
+    p.alarm.isVisible = on
+    if (on) colorOf(ALARM_HEX).scaleToRef(0.4 + 0.6 * level, p.alarmMat.emissiveColor)
+  }
+
+  potAlarmMesh(stationId: string): Mesh | undefined {
+    return this.pots.get(stationId)?.alarm
+  }
+
+  /** 砧板回彈：sy 是垂直縮放（切一下壓到 0.95 再彈回） */
+  squashBoard(stationId: string, sy: number): void {
+    const b = this.boardAt.get(stationId)
+    if (b) this.boards.put(stationId, { x: b.x, y: this.top, z: b.z, sy })
   }
 
   /** 手上物品（t 由呼叫端依角色胸前位置算好） */

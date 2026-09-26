@@ -62,4 +62,7 @@ export const KITCHEN = {
   face: '#FFF1E0',
   eye: '#2B2440',
   pants: '#3A3556',
+  // 場外（variant-A-gameplay 的深青底，中央 → 外圈）與清除色
+  yard: ['#21434B', '#0F2A31'],
+  clear: '#0F2A31',
 } as const

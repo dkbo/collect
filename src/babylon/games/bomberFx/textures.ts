@@ -5,7 +5,9 @@
 import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
 import { ITEM_COLORS, ITEM_ICON_DARK, TOY } from '@/babylon/games/bomberFx/palette'
 import type { FaceUV } from '@/babylon/fx/geometry'
-import { ctxOf, roundRect, type Ctx } from '@/babylon/fx/textures'
+import { ctxOf, roundRect, whenFontReady, type Ctx } from '@/babylon/fx/textures'
+
+export { createRingTexture, whenFontReady } from '@/babylon/fx/textures'
 
 /** 決定性小亂數（貼圖點綴用，各端一致） */
 const rand = (seed: number): (() => number) => {
@@ -353,24 +355,6 @@ export function createItemAtlas(scene: Scene, iconUrl: string = bomberAssetUrl('
   return tex
 }
 
-/** 地面 ring（放炸彈、落牆灰塵環）：透明底白色圓環，顏色由材質 tint */
-export function createRingTexture(scene: Scene): DynamicTexture {
-  const S = 128
-  const tex = new DynamicTexture('bomber-ring-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
-  tex.hasAlpha = true
-  const g = ctxOf(tex)
-  g.clearRect(0, 0, S, S)
-  const gr = g.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.48)
-  gr.addColorStop(0, 'rgba(255,255,255,0)')
-  gr.addColorStop(0.45, 'rgba(255,255,255,1)')
-  gr.addColorStop(0.7, 'rgba(255,255,255,0.85)')
-  gr.addColorStop(1, 'rgba(255,255,255,0)')
-  g.fillStyle = gr
-  g.fillRect(0, 0, S, S)
-  tex.update()
-  return tex
-}
-
 /** 焦痕 decal：深紫褐色不規則斑塊，邊緣柔化 */
 export function createScorchTexture(scene: Scene): DynamicTexture {
   const S = 128
@@ -397,19 +381,6 @@ export function createScorchTexture(scene: Scene): DynamicTexture {
   }
   tex.update()
   return tex
-}
-
-/** 字型載好再重畫一次（Fredoka 由 index.css 的 @font-face 宣告，第一次用到才下載） */
-export function whenFontReady(font: string, tex: DynamicTexture, draw: () => void): void {
-  draw()
-  const fonts = typeof document === 'undefined' ? undefined : document.fonts
-  if (!fonts) return
-  let alive = true
-  tex.onDisposeObservable.addOnce(() => (alive = false))
-  fonts.load(font).then(
-    () => alive && draw(),
-    () => undefined
-  )
 }
 
 /** 拾取飄字「+1」：金色字、深紫描邊、透明底 */

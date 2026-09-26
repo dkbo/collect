@@ -90,10 +90,10 @@ export const serveData = (): MeshData => {
   const [l, b, d] = tri(KITCHEN.serve)
   const parts = [at(radial(rbox(1.8, 0.3, 1.6, 0.1), l, b, d), { x: 0, y: 0.15, z: 0 })]
   for (let i = 0; i < 4; i++) parts.push(at(solid(rbox(0.07, 0.02, 1.2, 0.01, 1), rgba(d)), { x: -0.75 + i * 0.14, y: 0.305, z: 0 }))
-  // 兩個 >> 箭頭：每個是兩條斜桿
+  // 兩個 >> 箭頭：每個是兩條斜桿，在 +x 端收成尖角（yaw 正值會把 +z 端轉向 +x，所以 z>0 那條取負）
   for (const cx of [-0.1, 0.22]) {
     for (const s of [-1, 1]) {
-      parts.push(at(solid(rbox(0.1, 0.03, 0.46, 0.02, 1), rgba(KITCHEN.outline)), { x: cx, y: 0.31, z: s * 0.15, yaw: s * 0.7 }))
+      parts.push(at(solid(rbox(0.1, 0.03, 0.46, 0.02, 1), rgba(KITCHEN.outline)), { x: cx, y: 0.31, z: s * 0.15, yaw: -s * 0.7 }))
     }
   }
   return mergeData(parts)

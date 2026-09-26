@@ -92,6 +92,29 @@ export function collectLeaving(prevOrders: KitchenHudOrder[], gone: KitchenHudGo
   })
 }
 
+/** 訂單列的一格：在場的單，或正在播離場動畫的單（leave 有值） */
+export interface OrderRowCell {
+  key: string
+  order: KitchenHudOrder
+  leave?: LeavingOrder
+}
+
+/**
+ * 訂單列的顯示順序：離場卡依槽位由小到大插回原位（留在 flex 流裡，動畫尾段再收寬度），
+ * 後面的單不會在離場瞬間左移、被離場卡蓋住；槽位超出現有張數的接在尾端。
+ */
+export function orderRow(orders: KitchenHudOrder[], leaving: LeavingOrder[]): OrderRowCell[] {
+  const row: OrderRowCell[] = orders.map((o) => ({ key: String(o.id), order: o }))
+  for (const l of [...leaving].sort((a, b) => a.slot - b.slot)) {
+    row.splice(Math.min(l.slot, row.length), 0, {
+      key: `leave-${l.key}`,
+      order: { id: l.id, ing: l.ing, remainMs: l.remainMs },
+      leave: l,
+    })
+  }
+  return row
+}
+
 export function sortKitchenPlayers(players: KitchenHudPlayer[]): KitchenHudPlayer[] {
   return [...players].sort((a, b) => a.colorIndex - b.colorIndex)
 }

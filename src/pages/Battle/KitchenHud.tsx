@@ -11,6 +11,7 @@ import {
   isRecipeToggleKey,
   orderLevel,
   orderRatio,
+  orderRow,
   orderSeconds,
   sortKitchenPlayers,
   type LeavingOrder,
@@ -188,11 +189,11 @@ function OrderCard({ order, leave }: { order: KitchenHudOrder; leave?: LeavingOr
   )
 }
 
-/** 離場卡：疊回原槽位播動畫（出餐打勾飛出、逾時掉落淡出）；浮字與卡片分開，不跟著淡出 */
+/** 離場卡：留在原槽位播動畫（出餐打勾飛出、逾時掉落淡出），尾段收寬度讓後面的單補位；浮字與卡片分開，不跟著淡出 */
 function LeavingCard({ l }: { l: LeavingOrder }) {
   const float = goneFloatText(l)
   return (
-    <div className="kitchen-order-leaving" data-leaving={l.reason} style={{ '--kitchen-slot': l.slot } as CSSProperties}>
+    <div className={`kitchen-order-leaving kitchen-order-leaving-${l.reason}`} data-leaving={l.reason}>
       <OrderCard order={{ id: l.id, ing: l.ing, remainMs: l.remainMs }} leave={l.reason} />
       {float && <span className="kitchen-order-float">{float}</span>}
     </div>
@@ -248,12 +249,9 @@ export function KitchenHudView({ hud, leaving, scale = 1, recipeOpen = true, onT
       data-kitchen-hud=""
     >
       <div className="kitchen-orders">
-        {hud.orders.map((o) => (
-          <OrderCard key={o.id} order={o} />
-        ))}
-        {leaving.map((l) => (
-          <LeavingCard key={`leave-${l.key}`} l={l} />
-        ))}
+        {orderRow(hud.orders, leaving).map((c) =>
+          c.leave ? <LeavingCard key={c.key} l={c.leave} /> : <OrderCard key={c.key} order={c.order} />,
+        )}
       </div>
 
       <div className="kitchen-clock" data-urgent={clock.urgent}>

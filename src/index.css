@@ -1390,9 +1390,9 @@ html {
   @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--kitchen-ink) [--kitchen-ink:#2b2440] [--kitchen-paper:#fff6e3] [--kitchen-plate:#f3e6cb];
 }
 
-/* 左上訂單列：3 張 150×74、間距 10；離場卡以 --kitchen-slot 疊回原位 */
+/* 左上訂單列：3 張 150×74、間距 10；離場卡留在原槽位（flex 流內），動畫尾段收寬度與間距讓後面的單補位 */
 .kitchen-orders {
-  @apply absolute left-[calc(16px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex origin-top-left gap-[10px] [scale:var(--kitchen-scale)];
+  @apply absolute left-[calc(16px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex origin-top-left gap-(--kitchen-card-gap) [--kitchen-card-gap:10px] [--kitchen-card-w:150px] [scale:var(--kitchen-scale)];
 }
 .kitchen-order {
   @apply relative flex h-[74px] w-[150px] shrink-0 items-center gap-1.5 rounded-[14px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) pl-1.5 pr-2 shadow-[0_4px_0_rgba(0,0,0,.4)] animate-[kitchen-slide-in_0.35s_cubic-bezier(.34,1.56,.64,1)_both];
@@ -1401,7 +1401,13 @@ html {
   @apply border-[#ff3b4e] shadow-[0_4px_0_rgba(0,0,0,.4),0_0_12px_rgba(255,59,78,.75)] animate-[kitchen-shake_0.25s_linear_infinite];
 }
 .kitchen-order-leaving {
-  @apply absolute left-[calc(var(--kitchen-slot)_*_160px)] top-0 z-10;
+  @apply relative w-(--kitchen-card-w) shrink-0;
+}
+.kitchen-order-leaving-served {
+  @apply animate-[kitchen-collapse_0.6s_ease-in-out_both];
+}
+.kitchen-order-leaving-expired {
+  @apply animate-[kitchen-collapse_0.4s_ease-in-out_both];
 }
 .kitchen-order-leave-served {
   @apply animate-[kitchen-fly-out_0.6s_ease-in_both];
@@ -1455,7 +1461,7 @@ html {
   @apply size-[40px] stroke-[4] text-white drop-shadow-[0_2px_0_#2b2440];
 }
 .kitchen-order-float {
-  @apply absolute left-1/2 top-[40%] z-20 font-['Fredoka',_var(--font-sans)] font-bold text-[24px] leading-none text-[#ff3b4e] [text-shadow:0_2px_0_#2b2440] animate-[kitchen-float-up_0.4s_ease-out_both];
+  @apply absolute left-[calc(var(--kitchen-card-w)_/_2)] top-[40%] z-20 font-['Fredoka',_var(--font-sans)] font-bold text-[24px] leading-none text-[#ff3b4e] [text-shadow:0_2px_0_#2b2440] animate-[kitchen-float-up_0.4s_ease-out_both];
 }
 
 /* 步驟列：食材 › 切 › 煮 */
@@ -1599,6 +1605,11 @@ html {
   from { transform: translateY(0) rotate(0); opacity: 1; }
   to { transform: translateY(48px) rotate(6deg); opacity: 0; }
 }
+/* 離場卡尾段收合：前 55% 維持原寬，之後寬度與右側間距收到 0，後面的單滑進空位 */
+@keyframes kitchen-collapse {
+  0%, 55% { width: var(--kitchen-card-w); margin-right: 0; }
+  100% { width: 0; margin-right: calc(-1 * var(--kitchen-card-gap)); }
+}
 @keyframes kitchen-float-up {
   0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
   25% { transform: translate(-50%, -8px) scale(1.15); opacity: 1; }
@@ -1613,13 +1624,10 @@ html {
 /* 矮畫面（手機橫向）：訂單卡縮 64×40 膠囊、計時縮 140 寬、玩家卡隱藏、食譜固定收合 */
 @media (max-height: 500px) {
   .kitchen-orders {
-    @apply left-[max(8px,env(safe-area-inset-left))] top-[max(6px,env(safe-area-inset-top))] gap-1.5 [scale:1];
+    @apply left-[max(8px,env(safe-area-inset-left))] top-[max(6px,env(safe-area-inset-top))] [--kitchen-card-gap:6px] [--kitchen-card-w:64px] [scale:1];
   }
   .kitchen-order {
     @apply h-[40px] w-[64px] flex-col justify-center gap-0.5 rounded-[12px] border-2 px-1 py-0.5;
-  }
-  .kitchen-order-leaving {
-    @apply left-[calc(var(--kitchen-slot)_*_70px)];
   }
   .kitchen-order-dish {
     @apply size-[24px] border-0 bg-transparent;

@@ -18,6 +18,7 @@ import {
   isRecipeToggleKey,
   orderLevel,
   orderRatio,
+  orderRow,
   orderSeconds,
   sortKitchenPlayers,
 } from '@/pages/Battle/kitchenHud'
@@ -173,6 +174,40 @@ describe('消失訂單（gone）的離場動畫', () => {
     expect(freshGone(prev, gone).map((g) => g.id)).toEqual([8])
     const after = prev.filter((o) => o.id !== 8)
     expect(freshGone(after, gone)).toEqual([])
+  })
+
+  it('離場卡排回原槽位：後面的單不會立刻左移、被離場卡蓋住', () => {
+    const prev = kitchen().orders
+    const leaving = collectLeaving(prev, [{ id: 7, ing: 'v', reason: 'expired', scoreDelta: 0 }], 0)
+    const now = [...prev.slice(1), { id: 10, ing: 'v' as const, remainMs: 40_000 }]
+    expect(orderRow(now, leaving).map((c) => (c.leave ? `x${c.leave.id}` : c.order.id))).toEqual(['x7', 8, 9, 10])
+  })
+
+  it('出餐與逾時同一幀：兩張離場卡各回各的槽位', () => {
+    const prev = kitchen().orders
+    const leaving = collectLeaving(
+      prev,
+      [
+        { id: 9, ing: 'm', reason: 'expired', scoreDelta: SCORE_EXPIRE },
+        { id: 7, ing: 'v', reason: 'served', scoreDelta: SCORE_SERVE },
+      ],
+      0,
+    )
+    expect(orderRow([prev[1]], leaving).map((c) => (c.leave ? `x${c.leave.id}` : c.order.id))).toEqual(['x7', 8, 'x9'])
+  })
+
+  it('槽位超出現有張數時接在尾端', () => {
+    const leaving = collectLeaving(kitchen().orders, [{ id: 9, ing: 'm', reason: 'served', scoreDelta: SCORE_SERVE }], 0)
+    expect(orderRow([], leaving).map((c) => c.leave?.id)).toEqual([9])
+  })
+
+  it('靜態渲染：離場卡在 DOM 順序上排在原槽位', () => {
+    const prev = kitchen().orders
+    const leaving = collectLeaving(prev, [{ id: 7, ing: 'v', reason: 'expired', scoreDelta: SCORE_EXPIRE }], 0)
+    const html = renderToStaticMarkup(createElement(KitchenHudView, { hud: kitchen({ orders: prev.slice(1) }), leaving }))
+    const at = (s: string) => html.indexOf(s)
+    expect(at('data-leaving="expired"')).toBeGreaterThan(-1)
+    expect(at('data-leaving="expired"')).toBeLessThan(at('data-kitchen-order="8"'))
   })
 
   it('離場動畫時長：出餐 600ms、逾時 400ms', () => {

@@ -43,6 +43,9 @@ export interface LookOptions {
   tag: string
   /** 描邊色 hex */
   outline: string
+  /** 後製曝光與對比（不給＝bomber 定案的 1.05／1.08）；淺色場景在 ACES 下會發灰，可調高曝光 */
+  exposure?: number
+  contrast?: number
 }
 
 /** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
@@ -64,6 +67,8 @@ export class ToyLook {
   private glow: GlowLayer | null = null
   private readonly pipeline: DefaultRenderingPipeline
   private readonly glowColors = new Map<number, Color3>()
+  /** 已登記發光色、但目前不在白名單的 mesh（setGlow 關掉的） */
+  private readonly glowOff = new Set<number>()
   private readonly outlined = new Set<Mesh>()
   private readonly outlineColor: Color3
   private readonly tag: string
@@ -117,7 +122,10 @@ export class ToyLook {
     this.shadow.setDarkness(0.35)
     this.shadow.bias = 0.002
 
-    if (s.glow) this.glow = this.makeGlow()
+    if (s.glow) {
+      this.glow = this.makeGlow()
+      this.syncGlowEnabled() // 還沒有人登記：先關著
+    }
 
     this.pipeline = new DefaultRenderingPipeline(`${tag}-pipeline`, true, scene, [camera])
     this.pipeline.samples = 1
@@ -132,8 +140,8 @@ export class ToyLook {
     const ip = this.pipeline.imageProcessing
     ip.toneMappingEnabled = true
     ip.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES
-    ip.exposure = 1.05
-    ip.contrast = 1.08
+    ip.exposure = opts.exposure ?? 1.05
+    ip.contrast = opts.contrast ?? 1.08
 
     // UI 相機：與主相機同 fov、位在原點看 +Z，面板以相機座標擺放（與掛在主相機下相同）
     this.uiCamera = new TargetCamera(`${tag}-ui-cam`, Vector3.Zero(), scene)
@@ -189,8 +197,62 @@ export class ToyLook {
   /** GlowLayer 白名單（火焰外層、將爆炸彈、無敵代幣、AI 天線）；strength 縮放發光色 */
   glowMesh(mesh: Mesh, hex: string, strength = 1): void {
     this.glowColors.set(mesh.uniqueId, Color3.FromHexString(hex).scale(strength))
-    mesh.onDisposeObservable.addOnce(() => this.glowColors.delete(mesh.uniqueId))
+    this.glowOff.delete(mesh.uniqueId)
+    mesh.onDisposeObservable.addOnce(() => {
+      this.glowColors.delete(mesh.uniqueId)
+      this.glowOff.delete(mesh.uniqueId)
+      this.syncGlowEnabled()
+    })
     this.glow?.addIncludedOnlyMesh(mesh)
+    this.syncGlowEnabled()
+  }
+
+  /**
+   * GlowLayer 的 includedOnly 名單一旦空了會變成「全部 mesh 都畫進發光貼圖」（顏色雖是黑的，
+   * 但多一個 pass 還會遮掉後面的光暈），所以名單空時整層關掉、有人進名單再開。
+   */
+  private syncGlowEnabled(): void {
+    if (this.glow) this.glow.isEnabled = this.glowColors.size - this.glowOff.size > 0
+  }
+
+  /**
+   * 已登記的發光物改強度（脈動、閃光）；strength ≤ 0 時暫時移出白名單，
+   * 免得以黑色寫進發光貼圖、把後面的光暈遮掉。
+   */
+  setGlow(mesh: Mesh, hex: string, strength: number): void {
+    const id = mesh.uniqueId
+    const on = strength > 0
+    let c = this.glowColors.get(id)
+    if (!c) {
+      // 第一次見到：登記顏色，但先不進白名單（下面依 on 決定）
+      c = new Color3()
+      this.glowColors.set(id, c)
+      this.glowOff.add(id)
+      mesh.onDisposeObservable.addOnce(() => {
+        this.glowColors.delete(id)
+        this.glowOff.delete(id)
+        this.syncGlowEnabled()
+      })
+    }
+    if (on) this.hexColor(hex).scaleToRef(strength, c)
+    const glow = this.glow
+    const listed = !this.glowOff.has(id)
+    if (!glow || on === listed) return
+    if (on) {
+      this.glowOff.delete(id)
+      glow.addIncludedOnlyMesh(mesh)
+    } else {
+      this.glowOff.add(id)
+      glow.removeIncludedOnlyMesh(mesh)
+    }
+    this.syncGlowEnabled()
+  }
+
+  private readonly hexCache = new Map<string, Color3>()
+  private hexColor(hex: string): Color3 {
+    let c = this.hexCache.get(hex)
+    if (!c) this.hexCache.set(hex, (c = Color3.FromHexString(hex)))
+    return c
   }
 
   // ---- 每幀 ----
@@ -226,6 +288,7 @@ export class ToyLook {
     this.sun.dispose()
     this.hemi.dispose()
     this.glowColors.clear()
+    this.glowOff.clear()
     this.outlined.clear()
     this.scene.activeCameras = []
     this.scene.activeCamera = this.mainCamera
