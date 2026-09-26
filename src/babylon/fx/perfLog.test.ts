@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { perfLogLine } from '@/babylon/games/bomberFx/perfLog'
+import { perfLogLine } from '@/babylon/fx/perfLog'
 
 describe('perfLogLine（AC8 量測行）', () => {
   it('正常取樣：四捨五入 fps', () => {

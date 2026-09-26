@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { noDegradeFlag, pickTier, tierQuery } from '@/babylon/games/bomberFx/quality'
+import { noDegradeFlag, pickTier, tierQuery } from '@/babylon/fx/quality'
 
 describe('tierQuery（檔位參數同時讀 location.search 與 hash 路由內的 query）', () => {
   it('hash 路由的 query 也讀得到', () => {

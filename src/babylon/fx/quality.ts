@@ -1,9 +1,10 @@
 /**
- * 畫質檔位與自動降級（AC7，純邏輯）：開局依裝置選 desktop／mobile，網址參數可強制；
+ * 畫質檔位與自動降級（純邏輯，bomber／kitchen 共用）：開局依裝置選 desktop／mobile，網址參數可強制；
  * 遊戲中連續 60 幀平均低於 45fps 就依序關掉 描邊 → Glow → 陰影。
+ * 網址參數依遊戲 key 區分：`${key}Tier`、`${key}NoDegrade`（未給 key 時為 bomber，保留既有行為）。
  */
 
-export type BomberTier = 'desktop' | 'mobile'
+export type Tier = 'desktop' | 'mobile'
 export type DegradeStep = 'outline' | 'glow' | 'shadow'
 
 export const DEGRADE_ORDER: readonly DegradeStep[] = ['outline', 'glow', 'shadow']
@@ -31,8 +32,8 @@ export interface TierSettings {
 
 const param = (search: string, key: string): string | null => new URLSearchParams(search).get(key)
 
-export function pickTier(env: TierEnv): BomberTier {
-  const forced = param(env.search, 'bomberTier')
+export function pickTier(env: TierEnv, key = 'bomber'): Tier {
+  const forced = param(env.search, `${key}Tier`)
   if (forced === 'desktop' || forced === 'mobile') return forced
   if (env.touch) return 'mobile'
   if (env.cores !== undefined && env.cores <= 4) return 'mobile'
@@ -48,11 +49,11 @@ export function tierQuery(search: string, hash: string): string {
   return s ? `?${s}` : ''
 }
 
-export function noDegradeFlag(search: string): boolean {
-  return param(search, 'bomberNoDegrade') === '1'
+export function noDegradeFlag(search: string, key = 'bomber'): boolean {
+  return param(search, `${key}NoDegrade`) === '1'
 }
 
-export function tierSettings(tier: BomberTier, devicePixelRatio: number): TierSettings {
+export function tierSettings(tier: Tier, devicePixelRatio: number): TierSettings {
   if (tier === 'mobile') {
     return { outline: false, glow: false, bloom: false, shadowSize: 512, particleCap: 60, hardwareScaling: 1.5 }
   }

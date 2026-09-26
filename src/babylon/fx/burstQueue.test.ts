@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BurstQueue } from '@/babylon/games/bomberFx/burstQueue'
+import { BurstQueue } from '@/babylon/fx/burstQueue'
 
 describe('BurstQueue', () => {
   it('依序逐顆取出，同一筆請求的位置落在 spread 範圍內', () => {

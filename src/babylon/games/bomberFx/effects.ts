@@ -17,12 +17,13 @@ import {
   type DynamicTexture,
   type Scene,
 } from '@/babylon/babylonCore'
-import { BurstQueue, type BurstParticle } from '@/babylon/games/bomberFx/burstQueue'
-import { emitCount, floatTextPose, ringPose, scorchScale } from '@/babylon/games/bomberFx/fxCurves'
-import { roundedBox, type MeshData } from '@/babylon/games/bomberFx/geometry'
-import { rgba, solid, toMesh } from '@/babylon/games/bomberFx/models'
+import { BurstQueue, type BurstParticle } from '@/babylon/fx/burstQueue'
+import { emitCount, floatTextPose, ringPose } from '@/babylon/fx/curves'
+import { scorchScale } from '@/babylon/games/bomberFx/fxCurves'
+import { roundedBox, type MeshData } from '@/babylon/fx/geometry'
+import { rgba, solid, toMesh } from '@/babylon/fx/models'
 import { hexToRgb, TOY } from '@/babylon/games/bomberFx/palette'
-import { ThinGroup } from '@/babylon/games/bomberFx/thin'
+import { ThinGroup } from '@/babylon/fx/thin'
 import {
   bomberAssetUrl,
   createPlusOneTexture,

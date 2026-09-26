@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composeMatrix, mergeData, roundedBox, transformData, type MeshData } from '@/babylon/games/bomberFx/geometry'
+import { composeMatrix, mergeData, roundedBox, transformData, type MeshData } from '@/babylon/fx/geometry'
 
 /** Babylon 列向量慣例：p' = p * M（平移在 m[12..14]） */
 const apply = (m: ArrayLike<number>, o: number, p: [number, number, number]): [number, number, number] => [

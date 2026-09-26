@@ -44,7 +44,9 @@ import {
   type Item,
   type Kitchen,
   type KitchenView,
-} from './overcookedKitchen'
+} from '@/babylon/games/overcookedKitchen'
+import { PLAYER_PALETTE } from '@/babylon/fx/palette'
+import { colorIndexIn } from '@/babylon/games/kitchenFx/players'
 
 /**
  * 廚房快手（Phase D，計畫見 .prompts/babylon-multiplayer-games.md §3.3）。
@@ -144,11 +146,6 @@ class OvercookedScene implements GameModule {
   }
   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
 
-  private colorFor(id: string): Color3 {
-    let h = 0
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
-    return Color3.FromHSV(h % 360, 0.7, 0.9)
-  }
 
   private itemColor(it: Item): Color3 {
     if (it.kind === 'burnt') return new Color3(0.2, 0.18, 0.15)
@@ -170,12 +167,13 @@ class OvercookedScene implements GameModule {
 
   private makePlayer(id: string): Avatar {
     const scene = this.ctx.scene
-    const color = this.colorFor(id)
+    // 固定 4 色：依 ctx.players 序號（與 respawn 同序），各端一致
+    const pal = PLAYER_PALETTE[colorIndexIn(this.ctx.players, id)]
 
     const bodyMat = new StandardMaterial(`pl-mat-${id}`, scene)
-    bodyMat.diffuseColor = color
+    bodyMat.diffuseColor = Color3.FromHexString(pal.base)
     const limbMat = new StandardMaterial(`pl-limb-${id}`, scene)
-    limbMat.diffuseColor = color.scale(0.55)
+    limbMat.diffuseColor = Color3.FromHexString(pal.dark)
     const faceMat = new StandardMaterial(`pl-face-${id}`, scene)
     faceMat.diffuseColor = new Color3(0.12, 0.13, 0.18)
 

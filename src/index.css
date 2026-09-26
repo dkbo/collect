@@ -1384,3 +1384,309 @@ html {
     @apply animate-none;
   }
 }
+
+/* ===== 廚房快手 HUD（A · Toy Kitchen，kitchen spec §8）：960×540 設計尺寸，--kitchen-scale 由 JS 依容器等比縮放；token 與 bomber 玩家卡同套 ===== */
+.kitchen-hud {
+  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--kitchen-ink) [--kitchen-ink:#2b2440] [--kitchen-paper:#fff6e3] [--kitchen-plate:#f3e6cb];
+}
+
+/* 左上訂單列：3 張 150×74、間距 10；離場卡以 --kitchen-slot 疊回原位 */
+.kitchen-orders {
+  @apply absolute left-[calc(16px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex origin-top-left gap-[10px] [scale:var(--kitchen-scale)];
+}
+.kitchen-order {
+  @apply relative flex h-[74px] w-[150px] shrink-0 items-center gap-1.5 rounded-[14px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) pl-1.5 pr-2 shadow-[0_4px_0_rgba(0,0,0,.4)] animate-[kitchen-slide-in_0.35s_cubic-bezier(.34,1.56,.64,1)_both];
+}
+.kitchen-order-danger {
+  @apply border-[#ff3b4e] shadow-[0_4px_0_rgba(0,0,0,.4),0_0_12px_rgba(255,59,78,.75)] animate-[kitchen-shake_0.25s_linear_infinite];
+}
+.kitchen-order-leaving {
+  @apply absolute left-[calc(var(--kitchen-slot)_*_160px)] top-0 z-10;
+}
+.kitchen-order-leave-served {
+  @apply animate-[kitchen-fly-out_0.6s_ease-in_both];
+}
+.kitchen-order-leave-expired {
+  @apply animate-[kitchen-drop-out_0.4s_ease-in_both];
+}
+.kitchen-order-alert {
+  @apply absolute -top-3.5 left-0.5 z-20 size-[22px] fill-[#fff6e3] stroke-[2.5] text-[#ff3b4e];
+}
+.kitchen-order-badge {
+  @apply absolute -right-1.5 -top-2.5 rounded-full border-2 border-(--kitchen-ink) bg-[#ffcf3f] px-1.5 font-['Fredoka',_var(--font-sans)] font-bold text-[11px] leading-[16px];
+}
+.kitchen-order-dish {
+  @apply flex size-[48px] shrink-0 items-center justify-center rounded-full border-2 border-(--kitchen-ink) bg-(--kitchen-plate);
+}
+.kitchen-order-dish-svg {
+  @apply size-[40px];
+}
+.kitchen-order-body {
+  @apply flex min-w-0 flex-1 flex-col gap-0.5;
+}
+.kitchen-order-name {
+  @apply truncate text-[13px] font-black leading-tight;
+}
+.kitchen-order-timer {
+  @apply flex items-center gap-1;
+}
+.kitchen-order-bar {
+  @apply relative h-[9px] flex-1 overflow-hidden rounded-full border-[1.5px] border-(--kitchen-ink) bg-[#e4d6bc];
+}
+.kitchen-order-fill {
+  @apply absolute inset-y-0 left-0 rounded-full bg-[#2fcf5e] transition-[width] duration-100 ease-linear;
+}
+.kitchen-order-warn .kitchen-order-fill {
+  @apply bg-[#ffc21a];
+}
+.kitchen-order-danger .kitchen-order-fill {
+  @apply bg-[#ff3b4e];
+}
+.kitchen-order-sec {
+  @apply w-[26px] text-right font-['Fredoka',_var(--font-sans)] font-bold text-[12px] leading-none tabular-nums;
+}
+.kitchen-order-danger .kitchen-order-sec {
+  @apply text-[#ff3b4e];
+}
+.kitchen-order-check {
+  @apply absolute inset-0 flex items-center justify-center rounded-[12px] bg-[#2fcf5e]/80;
+}
+.kitchen-order-check-icon {
+  @apply size-[40px] stroke-[4] text-white drop-shadow-[0_2px_0_#2b2440];
+}
+.kitchen-order-float {
+  @apply absolute left-1/2 top-[40%] z-20 font-['Fredoka',_var(--font-sans)] font-bold text-[24px] leading-none text-[#ff3b4e] [text-shadow:0_2px_0_#2b2440] animate-[kitchen-float-up_0.4s_ease-out_both];
+}
+
+/* 步驟列：食材 › 切 › 煮 */
+.kitchen-steps {
+  @apply flex items-center gap-px;
+}
+.kitchen-steps-ing {
+  @apply size-[15px] shrink-0;
+}
+.kitchen-steps-icon {
+  @apply size-[13px] shrink-0 stroke-[2.25];
+}
+.kitchen-steps-sep {
+  @apply size-[9px] shrink-0 stroke-[3] text-[#8a7a66];
+}
+
+/* 右上計時＋分數膠囊 210×48；讓出 Battle 的浮動全螢幕鈕（right max(0.5rem, safe-right)、size-9＝2.25rem）再加 10px */
+.kitchen-clock {
+  @apply absolute right-[calc(max(0.5rem,env(safe-area-inset-right))_+_2.25rem_+_10px)] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex h-[48px] w-[210px] origin-top-right items-center gap-2 whitespace-nowrap rounded-full border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) px-3.5 shadow-[0_4px_0_rgba(0,0,0,.4)] [scale:var(--kitchen-scale)];
+}
+.kitchen-clock-icon {
+  @apply size-[22px] shrink-0 stroke-[2.5] text-[#ff3b4e];
+}
+.kitchen-clock-text {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[30px] leading-none tabular-nums;
+}
+.kitchen-clock[data-urgent='true'] .kitchen-clock-text {
+  @apply inline-block animate-[kitchen-pulse_0.5s_ease-in-out_infinite] text-[#ff3b4e];
+}
+.kitchen-clock-sep {
+  @apply h-7 w-[2px] shrink-0 rounded-full bg-[#e4d6bc];
+}
+.kitchen-clock-coins {
+  @apply size-[20px] shrink-0 stroke-[2.25] text-[#f5a800];
+}
+.kitchen-clock-score {
+  @apply flex flex-col items-start leading-none;
+}
+.kitchen-clock-points {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[22px] leading-none tabular-nums;
+}
+.kitchen-clock-served {
+  @apply text-[9px] font-extrabold text-[#8a7a66];
+}
+
+/* 左側玩家卡 120×56、間距 10（只列實際人數） */
+.kitchen-players {
+  @apply absolute left-[calc(10px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(150px_*_var(--kitchen-scale))] flex origin-top-left flex-col gap-[10px] [scale:var(--kitchen-scale)];
+}
+.kitchen-player {
+  @apply relative flex h-[56px] w-[120px] items-stretch rounded-[12px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) shadow-[0_4px_0_rgba(0,0,0,.4)];
+}
+.kitchen-player-you {
+  @apply absolute -top-2.5 left-[26px] z-10 rounded-full border-2 border-(--kitchen-ink) bg-[#ff3b4e] px-1.5 text-[9px] font-black leading-[13px] text-white;
+}
+.kitchen-player-avatar {
+  @apply flex w-[44px] shrink-0 items-center justify-center overflow-hidden rounded-l-[9.5px] border-r-[2.5px] border-(--kitchen-ink) bg-linear-to-b from-(--kc-light) to-(--kc-base);
+}
+.kitchen-player-avatar-svg {
+  @apply size-[42px];
+}
+.kitchen-player-info {
+  @apply flex min-w-0 flex-1 flex-col justify-center gap-1 pl-1.5;
+}
+.kitchen-player-name {
+  @apply truncate text-[12px] font-black leading-none;
+}
+.kitchen-player-no {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[13px] leading-none text-(--kc-dark);
+}
+.kitchen-player-held {
+  @apply my-auto mr-1.5 flex size-[34px] shrink-0 items-center justify-center rounded-full border-2 border-(--kitchen-ink) bg-(--kitchen-plate);
+}
+.kitchen-player-held-svg {
+  @apply size-[28px];
+}
+.kitchen-player-held-empty {
+  @apply size-[18px] stroke-2 text-[#c9b99c];
+}
+
+/* 右側食譜 128 寬，預設展開；收合成 44px 圓鈕（R 或點標題） */
+.kitchen-recipe {
+  @apply pointer-events-auto absolute right-[calc(10px_*_var(--kitchen-scale)_+_env(safe-area-inset-right))] top-[calc(140px_*_var(--kitchen-scale))] w-[128px] origin-top-right overflow-hidden rounded-[14px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) shadow-[0_4px_0_rgba(0,0,0,.4)] [scale:var(--kitchen-scale)];
+}
+.kitchen-recipe-head {
+  @apply flex h-[34px] w-full cursor-pointer items-center gap-1.5 px-2.5 text-(--kitchen-ink) outline-none;
+}
+.kitchen-recipe-icon {
+  @apply size-[18px] shrink-0 stroke-[2.25];
+}
+.kitchen-recipe-title {
+  @apply text-[14px] font-black leading-none;
+}
+.kitchen-recipe-list {
+  @apply flex flex-col border-t-2 border-[#e4d6bc] px-1.5 pb-1;
+}
+.kitchen-recipe-row {
+  @apply flex items-center gap-1.5 border-b-2 border-[#e4d6bc] py-1.5 last:border-b-0;
+}
+.kitchen-recipe-dish {
+  @apply flex size-[34px] shrink-0 items-center justify-center rounded-full border-2 border-(--kitchen-ink) bg-(--kitchen-plate);
+}
+.kitchen-recipe-dish-svg {
+  @apply size-[28px];
+}
+.kitchen-recipe-info {
+  @apply flex min-w-0 flex-1 flex-col gap-0.5;
+}
+.kitchen-recipe-name {
+  @apply flex items-baseline justify-between gap-1 text-[12px] font-black leading-tight;
+}
+.kitchen-recipe-score {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[11px] text-[#c27d00];
+}
+.kitchen-recipe[data-open='false'] {
+  @apply w-[44px] rounded-full;
+}
+.kitchen-recipe[data-open='false'] .kitchen-recipe-head {
+  @apply h-[39px] justify-center px-0;
+}
+.kitchen-recipe[data-open='false'] .kitchen-recipe-title,
+.kitchen-recipe[data-open='false'] .kitchen-recipe-list {
+  @apply hidden;
+}
+
+@keyframes kitchen-slide-in {
+  from { transform: translateX(-120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes kitchen-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-2px) rotate(-1.5deg); }
+  75% { transform: translateX(2px) rotate(1.5deg); }
+}
+@keyframes kitchen-fly-out {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  35% { transform: translate(0, -6px) scale(1.06); opacity: 1; }
+  100% { transform: translate(60px, -90px) scale(0.5); opacity: 0; }
+}
+@keyframes kitchen-drop-out {
+  from { transform: translateY(0) rotate(0); opacity: 1; }
+  to { transform: translateY(48px) rotate(6deg); opacity: 0; }
+}
+@keyframes kitchen-float-up {
+  0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+  25% { transform: translate(-50%, -8px) scale(1.15); opacity: 1; }
+  75% { transform: translate(-50%, -22px) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -30px) scale(1); opacity: 0; }
+}
+@keyframes kitchen-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* 矮畫面（手機橫向）：訂單卡縮 64×40 膠囊、計時縮 140 寬、玩家卡隱藏、食譜固定收合 */
+@media (max-height: 500px) {
+  .kitchen-orders {
+    @apply left-[max(8px,env(safe-area-inset-left))] top-[max(6px,env(safe-area-inset-top))] gap-1.5 [scale:1];
+  }
+  .kitchen-order {
+    @apply h-[40px] w-[64px] flex-col justify-center gap-0.5 rounded-[12px] border-2 px-1 py-0.5;
+  }
+  .kitchen-order-leaving {
+    @apply left-[calc(var(--kitchen-slot)_*_70px)];
+  }
+  .kitchen-order-dish {
+    @apply size-[24px] border-0 bg-transparent;
+  }
+  .kitchen-order-dish-svg {
+    @apply size-[24px];
+  }
+  .kitchen-order-body {
+    @apply w-full flex-none;
+  }
+  .kitchen-order-name,
+  .kitchen-order .kitchen-steps,
+  .kitchen-order-sec,
+  .kitchen-order-badge {
+    @apply hidden;
+  }
+  .kitchen-order-bar {
+    @apply h-[6px] border;
+  }
+  .kitchen-order-alert {
+    @apply -left-1.5 -top-1.5 size-[14px];
+  }
+  .kitchen-order-check-icon {
+    @apply size-[22px];
+  }
+  .kitchen-order-float {
+    @apply text-[16px];
+  }
+  .kitchen-clock {
+    @apply top-[max(6px,env(safe-area-inset-top))] h-[34px] w-[140px] gap-1.5 px-2.5 [scale:1];
+  }
+  .kitchen-clock-icon {
+    @apply size-4;
+  }
+  .kitchen-clock-text {
+    @apply text-[19px];
+  }
+  .kitchen-clock-sep {
+    @apply h-5;
+  }
+  .kitchen-clock-coins {
+    @apply size-[14px];
+  }
+  .kitchen-clock-points {
+    @apply text-[15px];
+  }
+  .kitchen-clock-served {
+    @apply text-[8px];
+  }
+  .kitchen-players {
+    @apply hidden;
+  }
+  .kitchen-recipe {
+    @apply top-[calc(max(6px,env(safe-area-inset-top))_+_42px)] right-[max(8px,env(safe-area-inset-right))] w-[44px] rounded-full [scale:1];
+  }
+  .kitchen-recipe .kitchen-recipe-head {
+    @apply pointer-events-none h-[39px] justify-center px-0;
+  }
+  .kitchen-recipe .kitchen-recipe-title,
+  .kitchen-recipe .kitchen-recipe-list {
+    @apply hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kitchen-order-danger,
+  .kitchen-clock[data-urgent='true'] .kitchen-clock-text {
+    @apply animate-none;
+  }
+}
