@@ -27,7 +27,7 @@ DK_SETUP_CMD="pnpm install --frozen-lockfile --prefer-offline"
 > herdr --version && command -v jq git claude >/dev/null || { echo "缺少 herdr/jq/git/claude"; exit 1; }
 > git status --porcelain | grep -q . && { echo "工作樹不乾淨，請先 commit 或 stash"; exit 1; }
 > REPO=https://github.com/dkbo/dkbo-team.git   # fork 的話改這裡
-> VER=v0.16.0   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
+> VER=v0.17.0   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
 > tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" "$REPO" "$tmp" && (cd "$tmp/.dkbo" && rm -rf tasks decisions.md PROJECT.md settings.env .sessions) && cp -r "$tmp/.dkbo" ./.dkbo && rm -rf "$tmp"
 > .dkbo/install.sh
 > git add -A && git commit -m "chore: add dkbo"
@@ -38,7 +38,7 @@ DK_SETUP_CMD="pnpm install --frozen-lockfile --prefer-offline"
 
 預期輸出的最後兩行：
 ```
-dkbo 0.16.0 installed into /path/to/project
+dkbo 0.17.0 installed into /path/to/project
 leader
 ```
 
@@ -51,7 +51,7 @@ leader
 ## 驗證
 ```bash
 .dkbo/bin/dk-whoami            # leader
-.dkbo/bin/dk-version           # dkbo 0.16.0
+.dkbo/bin/dk-version           # dkbo 0.17.0
 ls -l .claude/skills .agents/skills | grep dkbo   # 十個 symlink
 tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 ```
@@ -64,6 +64,7 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 - 領導失憶：在領導 pane `/clear`，然後叫 `/dkbo-run`（它第一步就是 `dk-resume`）。
 - 想知道現在做到哪：隨時跑 `.dkbo/bin/dk-resume`，不必先叫 skill —— 它是唯讀看板，開頭就印任務與本波已進行多久、每位員工等了幾分鐘。
 - 想知道時間花在哪：`.dkbo/bin/dk-timeline [<任務>]` 從 process.md 算出每波開了多久、dev 多久、審查多久，印一張 markdown 表。只讀、零 token；結案時 `dk-task-close` 會自動把它附進 `report.md` 的「## 時間」段。
+- 給 dashboard 讀：`.dkbo/bin/dk-status --json [<任務>]` 唯讀輸出任務記憶的 JSON，schema 見 `.dkbo/status-schema.md`；細節見下方「給 dashboard 讀的 JSON」。
 - 新角色：`/dkbo-add-role`。
 - 第二位領導：在任何 herdr shell 執行 `.dkbo/bin/dk-leader pay "金流"`。它的 kind 取 `DK_LEADER_KIND`，model/effort 取該 kind `KIND_DEFAULT_TIERS` 的 L 檔；`--kind` / `--model` / `--effort` 可逐次覆寫。
 - 每波自動附審查：dev DONE 後領導派 1–3 位 reviewer（kind 依 `.dkbo/settings.env` 的 `DK_REVIEW_KINDS`，檔位依 `DK_REVIEW_TIER`，預設 L）與 qa 並行；wave-close 會檢查裁定、每位 dev 的 report、`DK_TEST_CMD`，以及拿 worktree 的真實 git diff 比對本波的檔案所有權（沒人擁有的檔一律不放行），四道全過才關 pane 並在 worktree 內 commit 這一波。純文件波在 brief 審查欄寫 `skip: <理由>`。
@@ -71,6 +72,16 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 - 專案層熔斷：`dk-kind` 看跨任務仍在熔斷的 kind 與恢復時間，`dk-kind up <k>` 解除；從畫面、CLI 狀態列、前一個任務的 ruling 或別人口中確認某 kind 額度耗盡，當下 `dk-kind down <k> [--until YYYY-MM-DDTHH:MM] [--note <文字>]` 登記（沒給 `--until` 就猜現在＋5 小時），下一次派 reviewer 或員工就會跳過它。
 - 結案：`dk-task-close` 合併回主分支；任務 tab 不自動關（最後一行印 `herdr tab close <id>`），看完 report 自己關。
 - 人多時的版面：領導在 tab 1 左欄，員工填右側 2×2（或 3×2）；第 5 位起自動開 `<short>-2` 等 tab，每 tab 6 位。
+
+## 給 dashboard 讀的 JSON
+`dk-status` 把 `.dkbo/tasks/` 的任務記憶（INDEX、`.task.env`、brief、process、messages、state、`.panes`、`.repos`）與專案層 kinds-down 轉成 JSON，給另一個 repo 的 dashboard 讀，dashboard 不必自己解析 markdown。兩種用法：
+
+```
+.dkbo/bin/dk-status --json            # list：全部任務的摘要（依資料夾名升冪）＋未過期的 kinds_down
+.dkbo/bin/dk-status --json login      # detail：單一任務（資料夾名或短名；短名取日期最晚的）的完整內容
+```
+
+stdout 是單行 JSON，exit 0；找不到任務 exit 1，用法錯 exit 2。它只讀檔：不呼叫 herdr、不寫任何檔、不看 session 綁定，在 herdr 外照樣能跑；即時狀態由 dashboard 自己訂 herdr events，用 `panes[].pane` 對上。相容規則：只加欄位不升 `schema_version`，改名、刪欄、改型別、改語意才升；消費端遇到不認識的欄位要忽略。每個鍵的型別、來源與說明見 [status-schema.md](status-schema.md)。
 
 ## 目錄
 | 路徑 | 用途 |
@@ -88,7 +99,7 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 只更新核心，保留你的 `tasks/`、`PROJECT.md`、`decisions.md` 與自訂角色：
 先用 .dkbo/bin/dk-version 看目前版本，再到 tags 頁挑要升的版本。
 ```bash
-VER=v0.16.0 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
+VER=v0.17.0 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
 rsync -a --exclude=tasks --exclude=PROJECT.md --exclude=decisions.md --exclude='roles/*' --exclude=.sessions --exclude=settings.env "$tmp/.dkbo/" ./.dkbo/
 rsync -a --ignore-existing "$tmp/.dkbo/roles/" ./.dkbo/roles/   # 只補新角色，不覆蓋既有
 rm -rf "$tmp" && .dkbo/install.sh && git add -A && git commit -m "chore: update dkbo"

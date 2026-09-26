@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# dk-status --json [<任務>] — 把 tasks/ 的任務記憶轉成 JSON 給 dashboard 讀。schema 見 .dkbo/status-schema.md。
+# 只讀：零 token、不寫／建／刪任何檔，不叫 herdr、不看 session 綁定，所以在 herdr 外也跑得動。
+# JSON 一律由 jq 產生：每個任務一支 awk 把它的檔串成一條流（每檔前一行檔頭標記）、一次 jq 讀完，
+# 所以任務數翻倍，jq 呼叫只多固定次數，跟 process.md 有幾行無關。
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+. "$DK_ROOT/lib/frontmatter.sh"
+. "$DK_ROOT/lib/brief.sh"
+. "$DK_ROOT/lib/kinds.sh"
+. "$DK_ROOT/lib/repos.sh"
+
+usage() { echo "dk-status: 目前只支援 --json（用法：dk-status --json [<任務>]）" >&2; exit 2; }
+[ "${1:-}" = --json ] && [ $# -le 2 ] || usage
+case "${2:-}" in -*) usage;; esac
+
+TASKS="$DK_ROOT/tasks"
+DK_TASK_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}-[^/]+$'   # _chores、BACKLOG.md、.、.. 都不是任務
+is_task() { [[ "$1" =~ $DK_TASK_RE ]] && [ -d "$TASKS/$1" ]; }
+task_names() { local p; for p in "$TASKS"/*/; do p="${p%/}"; p="${p##*/}"; if is_task "$p"; then echo "$p"; fi; done; }
+resolve() { # 資料夾名或短名 → 資料夾名。短名取日期最晚的那個（同 dk-timeline），但比對是逐字的，不當 glob
+  local x="$1" t hit=""
+  if is_task "$x"; then echo "$x"; return 0; fi
+  while IFS= read -r t; do if [ -n "$t" ] && [ "${t:11}" = "$x" ]; then hit="$t"; fi; done <<< "$(task_names)"
+  [ -n "$hit" ] || dk_die "no task '$x'"
+  echo "$hit"
+}
+
+# 一個任務 → 一行 JSON（mode=list 只給摘要，detail 再加詳情欄位）。行格式的解析全在 jq 裡：
+# 原文經 -R 讀進來就是 JSON 字串，引號、反斜線、tab、$(...) 都不會經過 shell。
+# brief 的表格例外：切欄走 lib/brief.sh（跳脫的 \| 由它保留），jq 只做同一套跳脫感知的切法。
+# shellcheck disable=SC2016  # jq 程式，$x 是 jq 變數
+JQ_TASK='
+def nl: if . == "" then [] else split("\n") end;
+def trim: sub("^[ \t]+"; "") | sub("[ \t]+$"; "");
+def fields: [splits("[ \t]+")] | map(select(. != ""));
+def nonempty: if . == null or . == "" then null else . end;
+def int_or_null: if type == "string" and test("^[0-9]+$") then tonumber else null end;
+def cells: split("\\|") | join("\u0001") | split("|") | map(split("\u0001") | join("|"));
+def globs: split(",") | map(trim) | map(select(. != "" and . != "—"));
+def tsline: test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}([ \t]|$)");
+
+# 檔頭行是 \u001edk-status:<路徑>（見 task_json 的 awk）。不直接把多個檔交給 jq -R 再看 input_filename：
+# 前一個檔沒有結尾換行時，jq 會把它的最後一行跟下一個檔的第一行黏成一行。
+(reduce inputs as $l ({f: "", m: {}};
+   if ($l | startswith("\u001edk-status:")) then .f = ($l | .[11:]) else .m[.f] += [$l] end) | .m) as $F
+| def lines($f): if $f == "" then [] else ($F[$f] // []) end;
+
+# .task.env：KEY="VALUE"（dk_env_set 不准值裡有 " \ $ `，所以去掉外層引號就是原值）
+(reduce (lines($taskenv)[] | capture("^(?<k>[A-Za-z_][A-Za-z0-9_]*)=(?<v>.*)$")) as $e ({};
+   .[$e.k] = ($e.v | if test("^\".*\"$") then .[1:-1] else . end))) as $E
+| def env($k): $E[$k] | nonempty;
+
+# process.md：第 1 欄不是時間戳的行略過（計數）；f 是 awk 式的欄位切法，給 dk_ts_pick 同款比對用
+lines($process) as $PL
+| [ $PL[] | select(tsline) | {ts: .[0:16], rest: (.[16:] | sub("^[ \t]+"; ""))} | .f = (.rest | fields) ] as $P
+| def pick($a; $b; $c): [ $P[] | select((.f[0] // "") == $a and ($b == "" or .f[1] == $b) and ($c == "" or .f[2] == $c)) | .ts ] | last;
+def closeline($n): [ $P[] | select(.rest | test("^wave-close[ \t]+" + $n + "[ \t]+tests[ \t]+.*[ \t]+[0-9]+[ \t]+agents closed$")) ] | last;
+
+# messages.log：<ts> <from> -> <to> [TYPE] 內文，或 <ts> <who> [ACK]；解析不出的行略過（計數）
+lines($messages) as $ML
+| [ $ML[] | select(tsline) | .[0:16] as $ts | (.[16:] | sub("^[ \t]+"; "")) as $r
+    | ( ($r | capture("^(?<from>[^ \t]+) \\[ACK\\][ \t]*$") | {ts: $ts, from: .from, to: null, type: "ACK", text: ""}),
+        ($r | capture("^(?<from>[^ \t]+) -> (?<to>[^ \t]+) \\[(?<type>[A-Z][A-Z_]*)\\]( (?<text>.*))?$")
+            | {ts: $ts, from: .from, to: .to, type: .type, text: (.text // "")}) ) ] as $M
+
+| ($brief_owners | nl | map(cells | {member: .[0], writable: ((.[1] // "") | globs),
+    readonly: ((.[2] // "") | globs), exclusive: ((.[3] // "") | globs)})) as $owners
+| ($brief_waves | nl | map(cells | {wave: (.[0] | int_or_null), type: .[1], member: .[2], what: .[3],
+    tier: .[4], done: .[5], review: (.[6] | nonempty)})) as $bwaves
+| ($brief_acc | nl | map(capture("^- \\[(?<c>.)\\] (?<t>.*)$") | {text: .t, checked: (.c == "x" or .c == "X")})) as $acc
+| ($brief_goal | nl | map(trim) | map(select(. != "")) | if length == 0 then null else join("\n") end) as $goal
+
+| ($repos | nl | map(fields) | map(select(length > 0))
+    | map({name: .[0], path: (.[1] // null), worktree: (.[2] // null), base: (.[3] // null)})) as $R
+| (lines($panes) | map(select(test("[^ \t]")))) as $PN
+
+# INDEX：名稱欄等於 DK_DISPLAY 的那一列（| 存成 ／，同 dk_index_set），多列取最後一列
+| (env("DK_DISPLAY")) as $display
+| (if $display == null then null else ($display | split("|") | join("／")) as $n
+    | [ lines($index)[] | split("|") | select(length >= 6 and .[2] == " " + $n + " ") ] | last end) as $row
+| ($row | if . == null then "unknown" else (.[4] | trim) as $s
+    | if (["planning", "running", "done", "abandoned"] | map(. == $s) | any) then $s else "unknown" end end) as $status
+
+| ([ $P[] | select(.rest | test("^task-close (merged |in-tree |abandoned: )")) ] | last) as $close
+| ([ $P[] | select(.f[0] == "ruling:")
+     | {ts: .ts, text: (.rest | sub("^ruling:[ \t]*"; "")), autonomous: (.rest | sub("^ruling:[ \t]*"; "") | startswith("[自主]"))} ]) as $rulings
+| ([ $P[] | .rest | capture("^wave-close[ \t]+(?<n>[0-9]+)[ \t]+tests[ \t]+.*[ \t]+[0-9]+[ \t]+agents closed$") | .n ] | unique | length) as $closed
+
+| {
+    dir: $dir,
+    short: (env("DK_SHORT") // ($dir | .[11:])),
+    display: $display,
+    date: ($dir | .[0:10]),
+    status: $status,
+    index_note: ($row | if . == null then null else (.[5] | trim) end),
+    branch: env("DK_BRANCH"),
+    worktree: env("DK_WORKTREE"),
+    task_tab: env("DK_TASK_TAB"),
+    repo_names: ($R | map(.name)),
+    current_wave: ($E.DK_WAVE | int_or_null),
+    waves_planned: ([ $bwaves[].wave | select(. != null) ] | unique | length),
+    waves_closed: $closed,
+    created_at: ([ $P[] | select(.f[0] == "task-new") | .ts ] | first),
+    gate1_at: pick("gate1"; "approved"; ""),
+    closed_at: ($close | if . == null then null else .ts end),
+    close_result: ($close | if . == null then null else (.rest | sub("^task-close "; "")) end),
+    updated_at: ($P | last | if . == null then null else .ts end),
+    panes_open: ($PN | length),
+    counts: {
+      rulings: ($rulings | length),
+      autonomous_rulings: ($rulings | map(select(.autonomous)) | length),
+      minors: $minors,
+      undelivered: ($M | map(select(.type == "UNDELIVERED")) | length),
+      escalations: ($M | map(select(.type == "ESCALATE")) | length)
+    }
+  }
+| if $mode == "list" then . else . + {
+    repos: $R,
+    brief: {goal: $goal, acceptance: $acc, owners: $owners, waves: $bwaves},
+    waves: ( ([ $bwaves[].wave | select(. != null) ]
+              + [ $P[] | select(.f[0] == "wave-open" and ((.f[1] // "") | test("^[0-9]+$"))) | .f[1] | tonumber ]) | unique
+      | map(tostring as $n | closeline($n) as $cl
+        | ([ $P[] | select(.f[0] == "review" and .f[1] == $n and .f[2] == "verdict") ] | last) as $rv
+        | ([ $P[] | select(.f[0] == "review" and .f[1] == $n and .f[2] == "skipped:") ] | last) as $rs
+        | ($cl | if . == null then null else (.rest | capture("^wave-close[ \t]+[0-9]+[ \t]+tests[ \t]+(?<t>.*)[ \t]+[0-9]+[ \t]+agents closed$") | .t) end) as $tests
+        | {
+            wave: ($n | tonumber),
+            opened_at: pick("wave-open"; $n; ""),
+            dev_done_at: pick("dev-done"; "wave"; $n),
+            review_spawned_at: pick("review"; $n; "spawned"),
+            review_verdict_at: pick("review"; $n; "verdict"),
+            review_verdict: (if $rv != null then ($rv.rest | sub("^review[ \t]+[0-9]+[ \t]+verdict[ \t]*"; ""))
+                             elif $rs != null then ($rs.rest | sub("^review[ \t]+[0-9]+[ \t]+"; ""))
+                             else null end),
+            closed_at: ($cl | if . == null then null else .ts end),
+            tests: $tests,
+            tests_ok: ($tests | if . == null then null else (test("failed") | not) end),
+            commits: [ $P[] | .rest | capture("^commit (?<sha>[0-9a-f]+) wave " + $n + "( repo (?<repo>[^ \t]+))?[ \t]*$")
+                       | {repo: (.repo // null), sha: .sha} ]
+          })),
+    # 依檔名（含 .md）的碼點序：glob 的順序隨 locale 而變，去掉 .md 再排又會讓 qa-b.md（- < .）跑到 qa.md 後面
+    members: ( $states | nl | sort_by(sub("^.*/"; "")) | map(. as $path | ($path | sub("^.*/"; "") | sub("\\.md$"; "")) as $name
+      # state：key: value；touched／todo 收 "  - " 項；其他鍵的縮排續行接在該鍵最後一次出現之後
+      | (reduce lines($path)[] as $l ({cur: null, lst: null, kv: {}, lists: {}};
+          if ($l | test("^[A-Za-z_][A-Za-z0-9_]*:")) then
+            ($l | capture("^(?<k>[A-Za-z_][A-Za-z0-9_]*):(?<v>.*)$")) as $m | ($m.v | trim) as $v
+            | if $m.k == "touched" or $m.k == "todo" then
+                .cur = null | .lst = $m.k
+                | .lists[$m.k] = ((.lists[$m.k] // []) + (if $v == "" or $v == "[]" then [] else [$v] end))
+              else .lst = null | .cur = $m.k | .kv[$m.k] = ((.kv[$m.k] // []) + [[$v]]) end
+          elif .lst != null and ($l | startswith("  - ")) then .lists[.lst] += [$l | .[4:]]
+          elif .lst == null and .cur != null and ($l | test("^[ \t]+[^ \t]")) then
+            .cur as $c | .kv[$c] |= (.[:-1] + [.[-1] + [$l | trim]])
+          elif ($l | test("^[^ \t]")) then .cur = null | .lst = null
+          else . end)) as $s
+      | def one($k): ($s.kv[$k] // []) | if length == 0 then null else (.[0] | map(select(. != "")) | join("\n") | nonempty) end;
+        {
+          name: $name,
+          status: one("status"),
+          wave: (one("wave") | int_or_null),
+          current: one("current"),
+          touched: ($s.lists.touched // []),
+          todo: ($s.lists.todo // []),
+          blocked_by: one("blocked_by"),
+          notes: ($s.kv.notes // [] | map(.[]) | map(select(. != "")) | if length == 0 then null else join("\n") end),
+          has_report: ($reports | nl | map(. == $name) | any)
+        }) ),
+    panes: ($PN | map(fields | {agent: .[0], pane: (.[1] // null), since_epoch: (.[2] | int_or_null),
+             group: (.[3] // null), tab: (.[4] // null), slot: (.[5] // null)})),
+    rulings: $rulings,
+    events: [ $P[] | {ts: .ts, kind: ((.f[0] // "") | sub(":$"; "")), text: .rest} ],
+    messages: $M,
+    skipped_lines: {process: (($PL | length) - ($P | length)), messages: (($ML | length) - ($M | length))}
+  } end
+'
+
+task_json() { # 資料夾名 list|detail → 一行 JSON
+  local t="$1" d="$TASKS/$1" f n st="" rp="" owners="" waves="" acc="" goal="" repos=""
+  local -a files=()
+  for f in "$d/process.md" "$d/messages.log" "$d/.task.env" "$d/.panes" "$TASKS/INDEX.md"; do
+    if [ -f "$f" ] && [ -r "$f" ]; then files+=("$f"); fi
+  done
+  for f in "$d"/state/*.md; do
+    case "$f" in *.report.md) continue;; esac
+    [ -f "$f" ] && [ -r "$f" ] || continue
+    files+=("$f"); st="$st$f"$'\n'
+    n="${f##*/}"; n="${n%.md}"
+    if [ -f "$d/state/$n.report.md" ]; then rp="$rp$n"$'\n'; fi
+  done
+  if [ -f "$d/brief.md" ]; then
+    owners=$(dk_brief_owners "$d/brief.md" 2>/dev/null || true)
+    waves=$(dk_brief_waves "$d/brief.md" 2>/dev/null || true)
+    acc=$(dk_brief_acceptance "$d/brief.md" 2>/dev/null || true)
+    goal=$(dk_brief_section "$d/brief.md" "## 目標" 2>/dev/null || true)
+  fi
+  repos=$(dk_repos_rows "$d" 2>/dev/null || true)
+  ok() { [ -f "$1" ] && [ -r "$1" ] && echo "$1" || true; }
+  # awk 對每一行都補上換行，檔尾缺換行也不會黏行；沒有檔時讀 /dev/null，不會去等 stdin
+  awk 'FNR == 1 { printf "\036dk-status:%s\n", FILENAME } { print }' ${files[@]+"${files[@]}"} < /dev/null \
+  | jq -n -R -c --arg dir "$t" --arg mode "$2" \
+    --arg process "$(ok "$d/process.md")" --arg messages "$(ok "$d/messages.log")" \
+    --arg taskenv "$(ok "$d/.task.env")" --arg panes "$(ok "$d/.panes")" --arg index "$(ok "$TASKS/INDEX.md")" \
+    --arg states "${st%$'\n'}" --arg reports "${rp%$'\n'}" \
+    --arg brief_owners "$owners" --arg brief_waves "$waves" --arg brief_acc "$acc" --arg brief_goal "$goal" \
+    --arg repos "$repos" --argjson minors "$(dk_minor_count "$d/process.md")" \
+    "$JQ_TASK"
+}
+
+kinds_down_json() { # 未過期的 kinds-down 列 → JSON 陣列；本地時間在 shell 算（dk_epoch_to_local），逐列對齊傳進 jq
+  local rows e locals="" _k _r
+  rows=$(dk_kinds_down_rows | awk '$2 ~ /^[0-9]+$/')
+  while read -r _k e _r; do
+    [ -n "${e:-}" ] || continue
+    locals="$locals$(dk_epoch_to_local "$e")"$'\n'
+  done <<< "$rows"
+  printf '%s' "$rows" | jq -R -s -c --arg locals "$locals" '
+    def trim: sub("^[ \t]+"; "") | sub("[ \t]+$"; "");
+    ($locals | split("\n")) as $L
+    | [ split("\n") | map(select(. != "")) | to_entries[] | .key as $i | .value
+        | capture("^[ \t]*(?<kind>[^ \t]+)[ \t]+(?<e>[0-9]+)(?:[ \t]+(?<x>[^ \t]+))?(?:[ \t]+(?<rt>[^ \t]+))?(?:[ \t]+(?<tn>[^ \t]+))?(?:[ \t]+(?<ag>[^ \t]+))?(?:[ \t]+(?<rs>.*))?$")
+        | {kind: .kind, until: $L[$i], until_epoch: (.e | tonumber), exact: (.x == "exact"),
+           recorded_at: (.rt // ""), from_task: (.tn // ""), agent: (.ag // ""), reason: ((.rs // "") | trim)} ]
+    | sort_by(.kind)'
+}
+
+version=""; has_version=false
+if [ -f "$DK_ROOT/VERSION" ]; then version=$(tr -d '[:space:]' < "$DK_ROOT/VERSION"); has_version=true; fi
+kd=$(kinds_down_json)
+# shellcheck disable=SC2016  # jq 程式
+HEAD='{schema_version: 1, dkbo_version: (if $hv then $v else null end), generated_at: $g, kinds_down: $kd}'
+
+if [ $# -eq 2 ]; then
+  t=$(resolve "$2")
+  task_json "$t" detail | jq -c --arg v "$version" --argjson hv "$has_version" --arg g "$(dk_now)" --argjson kd "$kd" \
+    "$HEAD"' + {task: .}'
+else
+  task_names | while IFS= read -r t; do [ -z "$t" ] || task_json "$t" list; done \
+    | jq -s -c --arg v "$version" --argjson hv "$has_version" --arg g "$(dk_now)" --argjson kd "$kd" \
+      "$HEAD"' + {tasks: sort_by(.dir)}'
+fi
