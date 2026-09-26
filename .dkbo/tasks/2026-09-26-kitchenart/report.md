@@ -1,5 +1,5 @@
 # 廚房快手美術優化（A Toy Kitchen） 結案
-結果：merged   分支：dk/kitchenart   波數：3
+結果：merged 1329443   分支：dk/kitchenart   波數：3
 
 ## 完成
 - AC1 共用模組：bomberFx 通用部分抽到 `src/babylon/fx/`（toon／geometry／thin／thinSlots／burstQueue／perfLog／rig／upright 以 git mv，quality／look 參數化 key／tag／outline，countdown theme 共用）；bomber 網址參數與 `[bomber]` 前綴不變，vendor-babylon −1.2 KB、無重複打包。
@@ -82,9 +82,9 @@
 任務 2026-09-26-kitchenart
 | 階段 | 開始 | 結束 | 時長 | dev | 審查 |
 |---|---|---|---|---|---|
-| 任務 | 2026-09-26T08:26 | 2026-09-26T12:16 | 230m（進行中） | — | — |
+| 任務 | 2026-09-26T08:26 | 2026-09-26T12:16 | 230m | — | — |
 | 計畫 | 2026-09-26T08:26 | 2026-09-26T08:35 | 9m | — | — |
 | 波 1 | 2026-09-26T08:42 | 2026-09-26T09:16 | 34m | 15m | 18m |
 | 波 2 | 2026-09-26T09:16 | 2026-09-26T10:51 | 95m | 44m | 12m |
 | 波 3 | 2026-09-26T10:51 | 2026-09-26T12:08 | 77m | 63m | 22m |
-| 結案 | 2026-09-26T12:08 | — | — | — | — |
+| 結案 | 2026-09-26T12:08 | 2026-09-26T12:16 | 8m | — | — |
