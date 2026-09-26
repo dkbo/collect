@@ -3,12 +3,14 @@ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
 import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { NetTransport } from '@/core/webrtc'
-import type { GameHud, GameOverlay, GamePlayer } from '@/babylon/types'
+import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder } from '@/babylon/types'
 import { getGameFactory } from '@/babylon/games'
 import type { GameType } from '@/core/room'
 import { TouchControls, type TouchAction } from './TouchControls'
 import { BomberHud } from '@/pages/Battle/BomberHud'
 import { sameHud } from '@/pages/Battle/bomberHud'
+import { KitchenHud as KitchenHudPanel } from '@/pages/Battle/KitchenHud'
+import { KITCHEN_LEAVE_MS, collectLeaving, freshGone, isKitchenHud, type LeavingOrder } from '@/pages/Battle/kitchenHud'
 
 interface BabylonCanvasProps {
   gameType: GameType
@@ -42,7 +44,9 @@ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
 export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
-  const [hud, setHudState] = useState<GameHud | null>(null)
+  const [hud, setHudState] = useState<GameHud | KitchenHud | null>(null)
+  // 廚房 HUD 正在播離場動畫的訂單卡（gone 只出現在一次 setHud，另存起來播完才移除）
+  const [leaving, setLeaving] = useState<LeavingOrder[]>([])
   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
   const isTouch = useMemo(() => window.matchMedia?.('(pointer: coarse)')?.matches ?? false, [])
   // 觸控裝置強制橫向：直向時以提示蓋住遊戲，並嘗試原生鎖定方向
@@ -85,8 +89,30 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
     const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true })
     const scene = new Scene(engine)
     const game = getGameFactory(gameType)()
-    // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪
-    const setHud = (next: GameHud | null) => setHudState((prev) => (sameHud(prev, next) ? prev : next))
+    // 廚房 HUD 的 gone：以上一張 HUD 的 orders 找回原槽位，排進離場卡、播完移除
+    let prevKitchenOrders: KitchenHudOrder[] = []
+    let leaveSeq = 0
+    const leaveTimers = new Set<number>()
+    const queueLeaving = (next: KitchenHud) => {
+      const added = collectLeaving(prevKitchenOrders, freshGone(prevKitchenOrders, next.gone), leaveSeq)
+      prevKitchenOrders = next.orders
+      if (added.length === 0) return
+      leaveSeq += added.length
+      setLeaving((prev) => [...prev, ...added])
+      for (const l of added) {
+        const t = window.setTimeout(() => {
+          leaveTimers.delete(t)
+          setLeaving((prev) => prev.filter((x) => x.key !== l.key))
+        }, KITCHEN_LEAVE_MS[l.reason])
+        leaveTimers.add(t)
+      }
+    }
+    // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪；沒有 kind 的一律當 bomber
+    const setHud = (next: GameHud | KitchenHud | null) => {
+      if (isKitchenHud(next)) queueLeaving(next)
+      else prevKitchenOrders = []
+      setHudState((prev) => (sameHud<GameHud | KitchenHud>(prev, next) ? prev : next))
+    }
     game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
 
     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
@@ -144,8 +170,10 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
       game.dispose()
       scene.dispose()
       engine.dispose()
+      for (const t of leaveTimers) window.clearTimeout(t)
       setOverlay(null)
       setHudState(null)
+      setLeaving([])
       ;(window as unknown as Record<string, unknown>).__BATTLE_READY = false
     }
   }, [gameType, net, selfId, role, hostId])
@@ -158,7 +186,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
         className="block size-full bg-slate-950 outline-none touch-none"
         tabIndex={0}
       />
-      {hud && <BomberHud hud={hud} />}
+      {hud && (isKitchenHud(hud) ? <KitchenHudPanel hud={hud} leaving={leaving} /> : <BomberHud hud={hud} />)}
       {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
       {isTouch && portrait && (
         <div

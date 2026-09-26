@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ThinSlots } from '@/babylon/games/bomberFx/thinSlots'
+import { ThinSlots } from '@/babylon/fx/thinSlots'
 
 const fill = (s: ThinSlots<number>, k: number, v: number) => s.write(k, (buf, o) => buf.fill(v, o, o + 16))
 

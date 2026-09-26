@@ -1,16 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  armDelayMs,
-  deathPose,
-  emitCount,
-  flameEmissive,
-  floatTextPose,
-  itemHop,
-  pickupFlight,
-  placeScale,
-  ringPose,
-  scorchScale,
-} from '@/babylon/games/bomberFx/fxCurves'
+import { emitCount, floatTextPose, itemHop, pickupFlight, ringPose } from '@/babylon/fx/curves'
+import { armDelayMs, deathPose, flameEmissive, placeScale, scorchScale } from '@/babylon/games/bomberFx/fxCurves'
 
 describe('placeScale（放炸彈 back-out 0.6 → 1.0）', () => {
   it('起點 0.6、終點 1.0，超過 1 之後維持 1', () => {

@@ -52,6 +52,50 @@ export interface GameHud {
   players: GameHudPlayer[]
 }
 
+/** 廚房快手的食材（蔬菜 / 肉）與物品加工狀態，與 overcookedKitchen 的 Ing／ItemKind 同值 */
+export type KitchenIng = 'v' | 'm'
+export type KitchenItemKind = 'raw' | 'chop' | 'soup' | 'burnt'
+
+/** 廚房 HUD 的在場訂單；remainMs 量化到 100ms，計時條比例以 ORDER_LIFE_MS 計 */
+export interface KitchenHudOrder {
+  /** 穩定 id（React key 與新單動畫用） */
+  id: number
+  ing: KitchenIng
+  remainMs: number
+}
+
+/** 本次快照相比上一張消失的訂單：served＝出餐、expired＝逾時；scoreDelta 為實際分數變化 */
+export interface KitchenHudGone {
+  id: number
+  ing: KitchenIng
+  reason: 'served' | 'expired'
+  scoreDelta: number
+}
+
+/** 廚房 HUD 玩家卡；colorIndex = 在 ctx.players 的序號，P 編號 = colorIndex + 1 */
+export interface KitchenHudPlayer {
+  id: string
+  name: string
+  colorIndex: 0 | 1 | 2 | 3
+  isSelf: boolean
+  held: { ing: KitchenIng; kind: KitchenItemKind } | null
+}
+
+/**
+ * 廚房快手的 React HUD 資料（共用契約：欄位只增不改）。
+ * 以 kind 與 bomber 的 GameHud 區分；gone 只在該次快照相比上一張有單消失時非空。
+ */
+export interface KitchenHud {
+  kind: 'kitchen'
+  /** 本局剩餘秒數，量化到整秒 */
+  remainSec: number
+  score: number
+  delivered: number
+  orders: KitchenHudOrder[]
+  gone: KitchenHudGone[]
+  players: KitchenHudPlayer[]
+}
+
 /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
 export interface GameContext {
   scene: Scene
@@ -63,8 +107,11 @@ export interface GameContext {
   players: GamePlayer[]
   /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
   setOverlay?: (overlay: GameOverlay | null) => void
-  /** 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件） */
-  setHud?: (hud: GameHud | null) => void
+  /**
+   * 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件）。
+   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD。
+   */
+  setHud?: (hud: GameHud | KitchenHud | null) => void
 }
 
 /**

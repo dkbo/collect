@@ -1,7 +1,7 @@
 /**
- * 炸彈超人光影與後製（spec §6／§7／§10，AC4／AC7）：雙光、陰影、GlowLayer 白名單、卡通描邊、
+ * 玩具系列光影與後製（bomber spec §6／§7／§10，kitchen spec §6）：雙光、陰影、GlowLayer 白名單、卡通描邊、
  * DefaultRenderingPipeline、解析度與檔位；遊戲中 fps 過低時依序關掉 描邊 → Glow → 陰影。
- * 只管「怎麼畫」，哪些 mesh 投影／發光／描邊由呼叫端登記。
+ * 只管「怎麼畫」，哪些 mesh 投影／發光／描邊由呼叫端登記；log 前綴、網址參數、描邊色由 LookOptions 給。
  */
 import {
   Color3,
@@ -18,7 +18,6 @@ import {
   type Mesh,
   type Scene,
 } from '@/babylon/babylonCore'
-import { TOY } from '@/babylon/games/bomberFx/palette'
 import {
   FpsWatch,
   nextDegrade,
@@ -26,11 +25,11 @@ import {
   pickTier,
   tierQuery,
   tierSettings,
-  type BomberTier,
+  type Tier,
   type DegradeStep,
   type TierSettings,
-} from '@/babylon/games/bomberFx/quality'
-import { applyToon } from '@/babylon/games/bomberFx/toon'
+} from '@/babylon/fx/quality'
+import { applyToon } from '@/babylon/fx/toon'
 
 const OUTLINE_WIDTH = 0.02
 const SUN_DIR = new Vector3(-0.4, -1, 0.3)
@@ -40,19 +39,26 @@ export const UI_LAYER = 0x10000000
 export interface LookOptions {
   /** 陰影正交投影要涵蓋的半徑（場地半對角線加餘裕） */
   shadowRadius: number
+  /** 遊戲代號：log 前綴 `[tag]`、網址參數 `${tag}Tier`／`${tag}NoDegrade`、Babylon 物件名前綴 */
+  tag: string
+  /** 描邊色 hex */
+  outline: string
+  /** 後製曝光與對比（不給＝bomber 定案的 1.05／1.08）；淺色場景在 ACES 下會發灰，可調高曝光 */
+  exposure?: number
+  contrast?: number
 }
 
 /** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
-function detectTier(): { tier: BomberTier; noDegrade: boolean } {
+function detectTier(key: string): { tier: Tier; noDegrade: boolean } {
   if (typeof window === 'undefined') return { tier: 'desktop', noDegrade: true }
   const search = tierQuery(window.location.search, window.location.hash)
   const touch = 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0
   const cores = navigator.hardwareConcurrency || undefined
-  return { tier: pickTier({ search, touch, cores }), noDegrade: noDegradeFlag(search) }
+  return { tier: pickTier({ search, touch, cores }, key), noDegrade: noDegradeFlag(search, key) }
 }
 
 export class ToyLook {
-  readonly tier: BomberTier
+  readonly tier: Tier
   readonly settings: TierSettings
   private readonly scene: Scene
   private readonly hemi: HemisphericLight
@@ -61,8 +67,11 @@ export class ToyLook {
   private glow: GlowLayer | null = null
   private readonly pipeline: DefaultRenderingPipeline
   private readonly glowColors = new Map<number, Color3>()
+  /** 已登記發光色、但目前不在白名單的 mesh（setGlow 關掉的） */
+  private readonly glowOff = new Set<number>()
   private readonly outlined = new Set<Mesh>()
-  private readonly outlineColor = Color3.FromHexString(TOY.outline)
+  private readonly outlineColor: Color3
+  private readonly tag: string
   private readonly active: Record<DegradeStep, boolean>
   private watch: FpsWatch | null
   private readonly prevScaling: number
@@ -74,21 +83,24 @@ export class ToyLook {
   constructor(scene: Scene, camera: Camera, opts: LookOptions) {
     this.scene = scene
     this.mainCamera = camera
-    const { tier, noDegrade } = detectTier()
+    const tag = opts.tag
+    this.tag = tag
+    this.outlineColor = Color3.FromHexString(opts.outline)
+    const { tier, noDegrade } = detectTier(tag)
     this.tier = tier
     this.settings = tierSettings(tier, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1)
     const s = this.settings
-    console.info(`[bomber] tier ${tier}`)
+    console.info(`[${tag}] tier ${tier}`)
 
     const engine = scene.getEngine()
     this.prevScaling = engine.getHardwareScalingLevel()
     engine.setHardwareScalingLevel(s.hardwareScaling)
 
     // 暖主光＋冷環境光（spec §7）
-    this.hemi = new HemisphericLight('bomber-hemi', new Vector3(0.2, 1, 0.1), scene)
+    this.hemi = new HemisphericLight(`${tag}-hemi`, new Vector3(0.2, 1, 0.1), scene)
     this.hemi.intensity = 0.55
     this.hemi.groundColor = Color3.FromHexString('#3A3F5C')
-    this.sun = new DirectionalLight('bomber-sun', SUN_DIR.clone(), scene)
+    this.sun = new DirectionalLight(`${tag}-sun`, SUN_DIR.clone(), scene)
     this.sun.intensity = 0.9
     this.sun.diffuse = Color3.FromHexString('#FFF4E0')
     this.sun.specular = Color3.FromHexString('#FFF4E0')
@@ -110,9 +122,12 @@ export class ToyLook {
     this.shadow.setDarkness(0.35)
     this.shadow.bias = 0.002
 
-    if (s.glow) this.glow = this.makeGlow()
+    if (s.glow) {
+      this.glow = this.makeGlow()
+      this.syncGlowEnabled() // 還沒有人登記：先關著
+    }
 
-    this.pipeline = new DefaultRenderingPipeline('bomber-pipeline', true, scene, [camera])
+    this.pipeline = new DefaultRenderingPipeline(`${tag}-pipeline`, true, scene, [camera])
     this.pipeline.samples = 1
     this.pipeline.fxaaEnabled = true
     this.pipeline.bloomEnabled = s.bloom
@@ -125,11 +140,11 @@ export class ToyLook {
     const ip = this.pipeline.imageProcessing
     ip.toneMappingEnabled = true
     ip.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES
-    ip.exposure = 1.05
-    ip.contrast = 1.08
+    ip.exposure = opts.exposure ?? 1.05
+    ip.contrast = opts.contrast ?? 1.08
 
     // UI 相機：與主相機同 fov、位在原點看 +Z，面板以相機座標擺放（與掛在主相機下相同）
-    this.uiCamera = new TargetCamera('bomber-ui-cam', Vector3.Zero(), scene)
+    this.uiCamera = new TargetCamera(`${tag}-ui-cam`, Vector3.Zero(), scene)
     this.uiCamera.setTarget(new Vector3(0, 0, 1))
     this.uiCamera.fov = camera.fov
     this.uiCamera.layerMask = UI_LAYER
@@ -141,7 +156,7 @@ export class ToyLook {
   }
 
   private makeGlow(): GlowLayer {
-    const glow = new GlowLayer('bomber-glow', this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5, camera: this.mainCamera })
+    const glow = new GlowLayer(`${this.tag}-glow`, this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5, camera: this.mainCamera })
     glow.intensity = 0.7
     // 白名單內每個 mesh 用登記的發光色（炸彈、道具材質本身沒有 emissive）
     glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
@@ -182,8 +197,62 @@ export class ToyLook {
   /** GlowLayer 白名單（火焰外層、將爆炸彈、無敵代幣、AI 天線）；strength 縮放發光色 */
   glowMesh(mesh: Mesh, hex: string, strength = 1): void {
     this.glowColors.set(mesh.uniqueId, Color3.FromHexString(hex).scale(strength))
-    mesh.onDisposeObservable.addOnce(() => this.glowColors.delete(mesh.uniqueId))
+    this.glowOff.delete(mesh.uniqueId)
+    mesh.onDisposeObservable.addOnce(() => {
+      this.glowColors.delete(mesh.uniqueId)
+      this.glowOff.delete(mesh.uniqueId)
+      this.syncGlowEnabled()
+    })
     this.glow?.addIncludedOnlyMesh(mesh)
+    this.syncGlowEnabled()
+  }
+
+  /**
+   * GlowLayer 的 includedOnly 名單一旦空了會變成「全部 mesh 都畫進發光貼圖」（顏色雖是黑的，
+   * 但多一個 pass 還會遮掉後面的光暈），所以名單空時整層關掉、有人進名單再開。
+   */
+  private syncGlowEnabled(): void {
+    if (this.glow) this.glow.isEnabled = this.glowColors.size - this.glowOff.size > 0
+  }
+
+  /**
+   * 已登記的發光物改強度（脈動、閃光）；strength ≤ 0 時暫時移出白名單，
+   * 免得以黑色寫進發光貼圖、把後面的光暈遮掉。
+   */
+  setGlow(mesh: Mesh, hex: string, strength: number): void {
+    const id = mesh.uniqueId
+    const on = strength > 0
+    let c = this.glowColors.get(id)
+    if (!c) {
+      // 第一次見到：登記顏色，但先不進白名單（下面依 on 決定）
+      c = new Color3()
+      this.glowColors.set(id, c)
+      this.glowOff.add(id)
+      mesh.onDisposeObservable.addOnce(() => {
+        this.glowColors.delete(id)
+        this.glowOff.delete(id)
+        this.syncGlowEnabled()
+      })
+    }
+    if (on) this.hexColor(hex).scaleToRef(strength, c)
+    const glow = this.glow
+    const listed = !this.glowOff.has(id)
+    if (!glow || on === listed) return
+    if (on) {
+      this.glowOff.delete(id)
+      glow.addIncludedOnlyMesh(mesh)
+    } else {
+      this.glowOff.add(id)
+      glow.removeIncludedOnlyMesh(mesh)
+    }
+    this.syncGlowEnabled()
+  }
+
+  private readonly hexCache = new Map<string, Color3>()
+  private hexColor(hex: string): Color3 {
+    let c = this.hexCache.get(hex)
+    if (!c) this.hexCache.set(hex, (c = Color3.FromHexString(hex)))
+    return c
   }
 
   // ---- 每幀 ----
@@ -208,7 +277,7 @@ export class ToyLook {
       this.glow?.dispose()
       this.glow = null
     } else this.sun.shadowEnabled = false
-    console.info(`[bomber] degrade ${step}`)
+    console.info(`[${this.tag}] degrade ${step}`)
   }
 
   dispose(): void {
@@ -219,6 +288,7 @@ export class ToyLook {
     this.sun.dispose()
     this.hemi.dispose()
     this.glowColors.clear()
+    this.glowOff.clear()
     this.outlined.clear()
     this.scene.activeCameras = []
     this.scene.activeCamera = this.mainCamera

@@ -59,8 +59,8 @@ export function hudScale(width: number, height: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
 }
 
-/** HUD 內容是否相同（遊戲可每幀 setHud，內容沒變就不重繪） */
-export function sameHud(a: GameHud | null, b: GameHud | null): boolean {
+/** HUD 內容是否相同（遊戲可每幀 setHud，內容沒變就不重繪）；bomber 與 kitchen 共用 */
+export function sameHud<T = GameHud>(a: T | null, b: T | null): boolean {
   if (a === b) return true
   if (!a || !b) return false
   return JSON.stringify(a) === JSON.stringify(b)

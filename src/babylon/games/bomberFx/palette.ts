@@ -2,25 +2,14 @@
  * 炸彈超人 A「Toy Box」配色（spec §4／§5）：純資料與純函式，不依賴 Babylon，可在 node 單測。
  */
 
-export type ColorIndex = 0 | 1 | 2 | 3
+import { OUTLINE, PLAYER_PALETTE, type ColorIndex } from '@/babylon/fx/palette'
 
-export interface PlayerPalette {
-  light: string
-  base: string
-  dark: string
-}
-
-/** 固定 4 色，依出生序（= SPAWN_CORNERS 順序）分配；P 編號 = index + 1 */
-export const PLAYER_PALETTE: readonly PlayerPalette[] = [
-  { light: '#FF8A94', base: '#FF3B4E', dark: '#B3122A' }, // P1 紅
-  { light: '#8CC4FF', base: '#2F86FF', dark: '#1446B8' }, // P2 藍
-  { light: '#93F0A8', base: '#2FCF5E', dark: '#138A3A' }, // P3 綠
-  { light: '#FFF0A0', base: '#FFC21A', dark: '#C27D00' }, // P4 黃
-]
+// 通用的玩家配色已搬到 fx/palette；這裡轉出給既有使用端（bomber、bomberHud）
+export { PLAYER_PALETTE, hexToRgb, type ColorIndex, type PlayerPalette } from '@/babylon/fx/palette'
 
 /** 場景物件色票（spec §5） */
 export const TOY = {
-  outline: '#2B2440',
+  outline: OUTLINE,
   face: '#FFF1E0',
   eye: '#2B2440',
   aiAntenna: '#39E6FF',
@@ -65,11 +54,6 @@ export const ITEM_ICON_DARK = '#3A2A00'
 export function colorIndexOf(id: string, entityIds: readonly string[]): ColorIndex {
   const idx = Math.max(0, entityIds.indexOf(id))
   return (idx % PLAYER_PALETTE.length) as ColorIndex
-}
-
-export function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16)
-  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
 }
 
 export const INVINCIBLE_BLINK_HZ = 8

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { swingRange } from '@/babylon/games/bomberFx/rig'
+import { swingRange } from '@/babylon/fx/rig'
 
 describe('swingRange', () => {
   it('繞 X 軸以樞紐 (y,z) 旋轉指定範圍的頂點，範圍外不動', () => {

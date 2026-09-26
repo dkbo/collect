@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FpsWatch, nextDegrade, noDegradeFlag, pickTier, tierSettings } from '@/babylon/games/bomberFx/quality'
+import { FpsWatch, nextDegrade, noDegradeFlag, pickTier, tierSettings } from '@/babylon/fx/quality'
 
 describe('pickTier', () => {
   it('桌機：非觸控且核心數 > 4', () => {

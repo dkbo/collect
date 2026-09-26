@@ -188,7 +188,8 @@ export const applyUse = (k: Kitchen, playerId: string, stationId: string, now: n
       k.hands[playerId] = null
       return true
     }
-    if (hand === null && (slot.item?.kind === 'soup' || slot.item?.kind === 'burnt') && isReady(slot, now)) {
+    // soup 的 busyUntil 是快焦期限（不是加工中），煮好就能取；burnt 照舊
+    if (hand === null && (slot.item?.kind === 'soup' || (slot.item?.kind === 'burnt' && isReady(slot, now)))) {
       k.hands[playerId] = slot.item
       slot.item = null
       return true

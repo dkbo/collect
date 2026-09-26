@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { uprightAxis } from '@/babylon/games/bomberFx/upright'
+import { uprightAxis } from '@/babylon/fx/upright'
 
 // bomber 的相機：ArcRotateCamera(α −π/2, β 0.55, r 30) → 位置 (0, 30cosβ, −30sinβ)，畫面上方 = (0, sinβ, cosβ)
 const B = 0.55

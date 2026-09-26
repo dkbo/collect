@@ -3,8 +3,8 @@
  * slot 管理在 ThinSlots（純邏輯），這裡只負責把 buffer 同步給 Babylon。
  */
 import type { Mesh } from '@/babylon/babylonCore'
-import { composeMatrix, type Trs } from '@/babylon/games/bomberFx/geometry'
-import { ThinSlots } from '@/babylon/games/bomberFx/thinSlots'
+import { composeMatrix, type Trs } from '@/babylon/fx/geometry'
+import { ThinSlots } from '@/babylon/fx/thinSlots'
 
 export class ThinGroup<K> {
   readonly mesh: Mesh

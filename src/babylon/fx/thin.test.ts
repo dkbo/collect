@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Mesh } from '@/babylon/babylonCore'
-import { ThinGroup } from '@/babylon/games/bomberFx/thin'
+import { ThinGroup } from '@/babylon/fx/thin'
 
 /**
  * 假 mesh：照 Babylon thinInstanceMesh 的行為模擬 GPU 端——

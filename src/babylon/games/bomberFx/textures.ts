@@ -1,24 +1,13 @@
 /**
  * 炸彈超人 A 方案的程式貼圖（DynamicTexture + Canvas 2D，不載入外部圖檔）。
- * 地面棋盤、方塊圖集（柱牆／外框／落牆／木箱三態）、道具圖集、「你」與 AI 標籤。
+ * 地面棋盤、方塊圖集（柱牆／外框／落牆／木箱三態）、道具圖集；「你」與 AI 標籤在 fx/textures。
  */
 import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
 import { ITEM_COLORS, ITEM_ICON_DARK, TOY } from '@/babylon/games/bomberFx/palette'
-import type { FaceUV } from '@/babylon/games/bomberFx/geometry'
+import type { FaceUV } from '@/babylon/fx/geometry'
+import { ctxOf, roundRect, whenFontReady, type Ctx } from '@/babylon/fx/textures'
 
-type Ctx = CanvasRenderingContext2D
-
-const ctxOf = (tex: DynamicTexture): Ctx => tex.getContext() as unknown as Ctx
-
-const roundRect = (g: Ctx, x: number, y: number, w: number, h: number, r: number): void => {
-  g.beginPath()
-  g.moveTo(x + r, y)
-  g.arcTo(x + w, y, x + w, y + h, r)
-  g.arcTo(x + w, y + h, x, y + h, r)
-  g.arcTo(x, y + h, x, y, r)
-  g.arcTo(x, y, x + w, y, r)
-  g.closePath()
-}
+export { createRingTexture, whenFontReady } from '@/babylon/fx/textures'
 
 /** 決定性小亂數（貼圖點綴用，各端一致） */
 const rand = (seed: number): (() => number) => {
@@ -366,24 +355,6 @@ export function createItemAtlas(scene: Scene, iconUrl: string = bomberAssetUrl('
   return tex
 }
 
-/** 地面 ring（放炸彈、落牆灰塵環）：透明底白色圓環，顏色由材質 tint */
-export function createRingTexture(scene: Scene): DynamicTexture {
-  const S = 128
-  const tex = new DynamicTexture('bomber-ring-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
-  tex.hasAlpha = true
-  const g = ctxOf(tex)
-  g.clearRect(0, 0, S, S)
-  const gr = g.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.48)
-  gr.addColorStop(0, 'rgba(255,255,255,0)')
-  gr.addColorStop(0.45, 'rgba(255,255,255,1)')
-  gr.addColorStop(0.7, 'rgba(255,255,255,0.85)')
-  gr.addColorStop(1, 'rgba(255,255,255,0)')
-  g.fillStyle = gr
-  g.fillRect(0, 0, S, S)
-  tex.update()
-  return tex
-}
-
 /** 焦痕 decal：深紫褐色不規則斑塊，邊緣柔化 */
 export function createScorchTexture(scene: Scene): DynamicTexture {
   const S = 128
@@ -412,19 +383,6 @@ export function createScorchTexture(scene: Scene): DynamicTexture {
   return tex
 }
 
-/** 字型載好再重畫一次（Fredoka 由 index.css 的 @font-face 宣告，第一次用到才下載） */
-export function whenFontReady(font: string, tex: DynamicTexture, draw: () => void): void {
-  draw()
-  const fonts = typeof document === 'undefined' ? undefined : document.fonts
-  if (!fonts) return
-  let alive = true
-  tex.onDisposeObservable.addOnce(() => (alive = false))
-  fonts.load(font).then(
-    () => alive && draw(),
-    () => undefined
-  )
-}
-
 /** 拾取飄字「+1」：金色字、深紫描邊、透明底 */
 export function createPlusOneTexture(scene: Scene): DynamicTexture {
   const W = 128
@@ -446,29 +404,5 @@ export function createPlusOneTexture(scene: Scene): DynamicTexture {
     g.fillText('+1', W / 2, H / 2 + 4)
     tex.update()
   })
-  return tex
-}
-
-/** 膠囊標籤（「你」／AI 小章）：透明底、本色膠囊、深紫描邊、白字 */
-export function createLabelTexture(scene: Scene, name: string, text: string, bg: string, w = 128, h = 64): DynamicTexture {
-  const tex = new DynamicTexture(name, { width: w, height: h }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
-  tex.hasAlpha = true
-  const g = ctxOf(tex)
-  g.clearRect(0, 0, w, h)
-  roundRect(g, 4, 4, w - 8, h - 8, (h - 8) / 2)
-  g.fillStyle = bg
-  g.fill()
-  g.lineWidth = 5
-  g.strokeStyle = TOY.outline
-  g.stroke()
-  g.fillStyle = '#FFFFFF'
-  g.font = `900 ${Math.round(h * 0.56)}px Fredoka, "Noto Sans TC", sans-serif`
-  g.textAlign = 'center'
-  g.textBaseline = 'middle'
-  g.lineWidth = 6
-  g.strokeStyle = TOY.outline
-  g.strokeText(text, w / 2, h / 2 + 2)
-  g.fillText(text, w / 2, h / 2 + 2)
-  tex.update()
   return tex
 }

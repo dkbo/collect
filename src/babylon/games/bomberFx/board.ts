@@ -4,8 +4,9 @@
  */
 import { Color3, MeshBuilder, StandardMaterial, type DynamicTexture, type Mesh, type Scene } from '@/babylon/babylonCore'
 import type { FlameCell } from '@/babylon/games/bomberFx/flames'
-import { itemHop, pickupFlight } from '@/babylon/games/bomberFx/fxCurves'
-import type { Trs } from '@/babylon/games/bomberFx/geometry'
+import { itemHop, pickupFlight } from '@/babylon/fx/curves'
+import type { Trs } from '@/babylon/fx/geometry'
+import { toMesh } from '@/babylon/fx/models'
 import {
   bombData,
   borderBlockData,
@@ -14,13 +15,12 @@ import {
   flameCapData,
   FLAME_LAYERS,
   pillarData,
-  toMesh,
   tokenData,
   warnQuadData,
   type CrateVariant,
 } from '@/babylon/games/bomberFx/models'
 import { ITEM_COLORS, TOY } from '@/babylon/games/bomberFx/palette'
-import { ThinGroup } from '@/babylon/games/bomberFx/thin'
+import { ThinGroup } from '@/babylon/fx/thin'
 import { BLOCK_TILE, createBlockAtlas, createGroundTexture, createItemAtlas, ITEM_ORDER } from '@/babylon/games/bomberFx/textures'
 
 export type ItemKindName = (typeof ITEM_ORDER)[number]

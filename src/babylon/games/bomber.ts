@@ -2,7 +2,8 @@ import { ArcRotateCamera, Quaternion, SceneInstrumentation, Vector3, type Mesh }
 import type { GameContext, GameHud, GameModule, GameOverlay } from '@/babylon/types'
 import type { GameNetMessage } from '@/core/webrtc'
 import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
-import { createCountdownPanel, type CountdownTheme, type TextPanel } from '@/babylon/hud'
+import { createCountdownPanel, type TextPanel } from '@/babylon/hud'
+import { COUNTDOWN_THEME } from '@/babylon/fx/countdown'
 import {
   canAdvanceMidRound,
   createFixedTicker,
@@ -48,17 +49,18 @@ import {
   type ItemKind,
   type PickupPayload,
 } from './bomberNet'
-import { AVATAR_SCALE, AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
+import { AVATAR_SCALE, AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/fx/avatar'
+import { BOMBER_AVATAR } from '@/babylon/games/bomberFx/avatar'
 import { ToyBoard } from '@/babylon/games/bomberFx/board'
 import { ToyFx } from '@/babylon/games/bomberFx/effects'
 import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
 import { armDelayMs, deathPose, flameEmissive, placeScale } from '@/babylon/games/bomberFx/fxCurves'
 import { buildBomberHud, phaseTimer } from '@/babylon/games/bomberFx/hudModel'
-import { perfLogLine } from '@/babylon/games/bomberFx/perfLog'
+import { perfLogLine } from '@/babylon/fx/perfLog'
 import { colorIndexOf, invincibleBlinkOn, PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
-import { ToyLook, UI_LAYER } from '@/babylon/games/bomberFx/look'
-import { uprightAxis } from '@/babylon/games/bomberFx/upright'
+import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
+import { uprightAxis } from '@/babylon/fx/upright'
 
 /**
  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
@@ -169,16 +171,6 @@ const FUSE_TIP = { x: 0.3, y: 0.84 } // 引信末端（炸彈模型座標，見 
 const HEAD_Y = 2.4 // 拾取代幣飛向的頭頂高度
 const UPRIGHT_BACK_TILT = 0.35 // 角色往後仰（遠離相機）的弧度：高俯角下頭才不會整個蓋住身體（對照 variant-A-sheet 的正面）
 const PLUS_ONE_Y = 3.7 // 「+1」起飄高度：在「你」標記（約 3.3）之上，不被頭與標記擋住
-
-/** 開局倒數 A 配色（spec §9：奶油底、深紫描邊、Fredoka）；面板走 UI 相機，不經 ACES／bloom，填的就是畫面色 */
-const COUNTDOWN_THEME: CountdownTheme = {
-  fontFamily: 'Fredoka, sans-serif',
-  count: { glow: 'rgba(0,0,0,0.4)', fill: '#FFF6E3', border: TOY.outline, stroke: TOY.outline, text: '#FF7A1A' },
-  go: { glow: 'rgba(0,0,0,0.4)', fill: '#2FCF5E', border: TOY.outline, stroke: TOY.outline, text: '#FFFFFF' },
-  plain: { stroke: TOY.outline, text: '#FFF6E3' },
-  shadowOffset: 0.12,
-  shadowBlur: 0,
-}
 
 // 道具：初始一顆彈、火力 1，吃道具才成長
 const INIT_BOMBS = 1
@@ -1214,7 +1206,7 @@ class BomberScene implements GameModule {
     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 30, Vector3.Zero(), scene)
     // 光影與後製（AC4／AC7）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位
     const halfDiag = Math.hypot(GRID_W * CELL, GRID_H * CELL) / 2
-    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + CELL })
+    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + CELL, tag: 'bomber', outline: TOY.outline })
 
     // 場景物件（A「Toy Box」）：地面單 mesh＋程式棋盤，柱牆／外框／木箱／落牆／炸彈／火焰／道具走 thin instance
     this.board = new ToyBoard(scene, {
@@ -1223,7 +1215,7 @@ class BomberScene implements GameModule {
       cell: CELL,
       toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
     })
-    this.avatarKit = new AvatarKit(scene)
+    this.avatarKit = new AvatarKit(scene, BOMBER_AVATAR)
     const fx = this.board.fxTargets()
     this.look.toon(...fx.toon, this.avatarKit.bodyMat)
     this.look.receiver(...fx.receivers)
