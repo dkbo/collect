@@ -1,0 +1,3771 @@
+# 廚房快手美術優化（A Toy Kitchen） — wave 1 since d8ca4df — 2026-09-26T08:57
+# files changed: 52 (working tree included)
+
+## commits
+
+## stat
+ scripts/qa/kitchenart/bundle.mjs                   |  29 ++
+ scripts/qa/kitchenart/kitchen.mjs                  | 132 ++++++++
+ src/babylon/fx/avatar.ts                           | 254 +++++++++++++++
+ .../{games/bomberFx => fx}/burstQueue.test.ts      |   2 +-
+ src/babylon/{games/bomberFx => fx}/burstQueue.ts   |   0
+ src/babylon/fx/countdown.ts                        |  15 +
+ src/babylon/fx/curves.ts                           |  46 +++
+ .../{games/bomberFx => fx}/geometry.test.ts        |   2 +-
+ src/babylon/{games/bomberFx => fx}/geometry.ts     |   0
+ src/babylon/{games/bomberFx => fx}/look.ts         |  43 +--
+ src/babylon/fx/models.ts                           |  60 ++++
+ src/babylon/fx/palette.test.ts                     |  17 +
+ src/babylon/fx/palette.ts                          |  28 ++
+ src/babylon/fx/perfLog.tag.test.ts                 |   8 +
+ src/babylon/{games/bomberFx => fx}/perfLog.test.ts |   2 +-
+ src/babylon/fx/perfLog.ts                          |   8 +
+ src/babylon/fx/quality.key.test.ts                 |  20 ++
+ .../{games/bomberFx => fx}/quality.query.test.ts   |   2 +-
+ src/babylon/{games/bomberFx => fx}/quality.test.ts |   2 +-
+ src/babylon/{games/bomberFx => fx}/quality.ts      |  15 +-
+ src/babylon/{games/bomberFx => fx}/rig.test.ts     |   2 +-
+ src/babylon/{games/bomberFx => fx}/rig.ts          |   0
+ src/babylon/fx/textures.ts                         |  44 +++
+ src/babylon/{games/bomberFx => fx}/thin.test.ts    |   2 +-
+ src/babylon/{games/bomberFx => fx}/thin.ts         |   4 +-
+ .../{games/bomberFx => fx}/thinSlots.test.ts       |   2 +-
+ src/babylon/{games/bomberFx => fx}/thinSlots.ts    |   0
+ src/babylon/{games/bomberFx => fx}/toon.ts         |   0
+ src/babylon/{games/bomberFx => fx}/upright.test.ts |   2 +-
+ src/babylon/{games/bomberFx => fx}/upright.ts      |   0
+ src/babylon/games/bomber.ts                        |  26 +-
+ src/babylon/games/bomberFx/avatar.ts               | 245 ++------------
+ src/babylon/games/bomberFx/board.ts                |   8 +-
+ src/babylon/games/bomberFx/effects.ts              |  11 +-
+ src/babylon/games/bomberFx/fxCurves.test.ts        |  14 +-
+ src/babylon/games/bomberFx/fxCurves.ts             |  45 +--
+ src/babylon/games/bomberFx/models.ts               |  61 +---
+ src/babylon/games/bomberFx/palette.ts              |  24 +-
+ src/babylon/games/bomberFx/perfLog.ts              |   8 -
+ src/babylon/games/bomberFx/textures.ts             |  43 +--
+ src/babylon/games/kitchenFx/players.test.ts        |  36 +++
+ src/babylon/games/kitchenFx/players.ts             |  29 ++
+ src/babylon/games/overcooked.ts                    |  16 +-
+ src/babylon/games/overcookedKitchen.test.ts        | 140 ++++++++
+ src/babylon/games/overcookedKitchen.ts             |   3 +-
+ src/babylon/types.ts                               |  51 ++-
+ src/index.css                                      | 306 ++++++++++++++++++
+ src/pages/Battle/BabylonCanvas.tsx                 |  38 ++-
+ src/pages/Battle/KitchenHud.tsx                    | 352 +++++++++++++++++++++
+ src/pages/Battle/bomberHud.ts                      |   4 +-
+ src/pages/Battle/kitchenHud.test.ts                | 268 ++++++++++++++++
+ src/pages/Battle/kitchenHud.ts                     | 102 ++++++
+ 52 files changed, 2083 insertions(+), 488 deletions(-)
+
+## diff (-U10)
+diff --git a/scripts/qa/kitchenart/bundle.mjs b/scripts/qa/kitchenart/bundle.mjs
+new file mode 100644
+index 0000000..b849488
+--- /dev/null
++++ b/scripts/qa/kitchenart/bundle.mjs
+@@ -0,0 +1,29 @@
++#!/usr/bin/env node
++// kitchenart qa：比較兩份 vite 產物的 vendor-babylon-*.js 與 Battle-*.js（含其他遊戲相關 chunk）gzip 大小。
++// 用法：node scripts/qa/kitchenart/bundle.mjs <base dist> [<new dist>]；stdout JSON（位元組，gzip level 9 與 vite 報表同級）。
++import { readdirSync, readFileSync } from 'node:fs'
++import { join } from 'node:path'
++import { gzipSync } from 'node:zlib'
++
++const measure = (dir) => {
++  const out = {}
++  for (const f of readdirSync(join(dir, 'assets')).filter((f) => f.endsWith('.js'))) {
++    const buf = readFileSync(join(dir, 'assets', f))
++    out[f] = { raw: buf.length, gzip: gzipSync(buf, { level: 9 }).length }
++  }
++  return out
++}
++const sum = (m, re) => Object.entries(m).filter(([f]) => re.test(f)).reduce((a, [, v]) => a + v.gzip, 0)
++const [baseDir, newDir] = process.argv.slice(2)
++const base = measure(baseDir)
++const res = { base: { vendorBabylon: sum(base, /^vendor-babylon-/), battle: sum(base, /^Battle-/) } }
++if (newDir) {
++  const next = measure(newDir)
++  const strip = (f) => f.replace(/-[\w-]{8}\.js$/, '')
++  const baseNames = new Set(Object.keys(base).map(strip))
++  res.newChunks = Object.keys(next).filter((f) => !baseNames.has(strip(f))).map((f) => ({ f, gzip: next[f].gzip }))
++  res.next = { vendorBabylon: sum(next, /^vendor-babylon-/), battle: sum(next, /^Battle-/) }
++  res.delta = { vendorBabylon: res.next.vendorBabylon - res.base.vendorBabylon, battle: res.next.battle - res.base.battle, newChunks: res.newChunks.reduce((a, c) => a + c.gzip, 0) }
++  res.pass = { vendorBabylon: res.delta.vendorBabylon <= 10240, battle: res.delta.battle + res.delta.newChunks <= 25600 }
++}
++console.log(JSON.stringify(res, null, 2))
+diff --git a/scripts/qa/kitchenart/kitchen.mjs b/scripts/qa/kitchenart/kitchen.mjs
+new file mode 100644
+index 0000000..70cca49
+--- /dev/null
++++ b/scripts/qa/kitchenart/kitchen.mjs
+@@ -0,0 +1,132 @@
++#!/usr/bin/env node
++// kitchenart qa：/battle 單人驅動。模式：
++//   bomber  — bomber 單人固定時點截圖（開局倒數、playing +1.5s、+6s），記 [data-bomber-hud]／[data-kitchen-hud] 節點
++//   ac2     — overcooked 單人：取菜→切→下鍋→煮好後 ~0.8s 取湯（快焦窗口內）→出餐，score>0 即 AC2 通過
++// 用法：node scripts/qa/kitchenart/kitchen.mjs <mode> <base 例 http://localhost:5174/collect/> <out 前綴> [--qs 'a=1&b=2'] [--w 1920 --h 1080]
++// stdout：JSON summary（截圖、consoleErrors、pageErrors、事件證據）。截圖只寫 out 前綴（放 scratchpad）。
++import { existsSync, readdirSync } from 'node:fs'
++import { homedir } from 'node:os'
++import { join } from 'node:path'
++import { pathToFileURL } from 'node:url'
++
++const [MODE, BASE, OUT] = process.argv.slice(2)
++const opt = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : d }
++const QS = opt('qs', '')
++const W = Number(opt('w', 1920)), H = Number(opt('h', 1080))
++const HOME = homedir()
++const wait = (ms) => new Promise((r) => setTimeout(r, ms))
++
++async function loadPlaywright() {
++  const cands = []
++  const npx = join(HOME, '.npm/_npx')
++  if (existsSync(npx)) for (const d of readdirSync(npx)) cands.push(join(npx, d, 'node_modules/playwright'), join(npx, d, 'node_modules/playwright-core'))
++  for (const c of cands) if (existsSync(join(c, 'index.mjs'))) return import(pathToFileURL(join(c, 'index.mjs')).href)
++  throw new Error('no playwright')
++}
++function findChromium(chromium) {
++  try { const p = chromium.executablePath(); if (p && existsSync(p)) return p } catch {}
++  const dir = join(HOME, '.cache/ms-playwright')
++  const vs = readdirSync(dir).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]))
++  for (const v of vs) for (const rel of ['chrome-linux64/chrome', 'chrome-linux/chrome']) { const p = join(dir, v, rel); if (existsSync(p)) return p }
++}
++
++const { chromium } = await loadPlaywright()
++const browser = await chromium.launch({ executablePath: findChromium(chromium), headless: true, args: ['--enable-unsafe-swiftshader'] })
++const ctx = await browser.newContext({ viewport: { width: W, height: H } })
++const page = await ctx.newPage()
++const r = { mode: MODE, base: BASE, qs: QS, viewport: [W, H], shots: [], consoleErrors: [], pageErrors: [], info: [], ev: {} }
++page.on('console', (m) => {
++  const t = m.text()
++  if (m.type() === 'error' || m.type() === 'warning') r.consoleErrors.push(`[${m.type()}] ${t}`)
++  else if (/^\[(kitchen|bomber)\]/.test(t)) r.info.push(t)
++})
++page.on('pageerror', (e) => r.pageErrors.push(String(e)))
++
++const pos = () => page.evaluate(() => window.__BATTLE_POS ?? null)
++const phase = () => page.evaluate(() => window.__BATTLE_PHASE ?? null)
++const huds = () => page.evaluate(() => ({
++  bomber: Boolean(document.querySelector('[data-bomber-hud]')),
++  kitchen: Boolean(document.querySelector('[data-kitchen-hud]')),
++  kitchenText: document.querySelector('[data-kitchen-hud]')?.innerText ?? null,
++}))
++async function shot(label) { const f = `${OUT}-${label}.png`; await page.screenshot({ path: f }); r.shots.push(f); return f }
++async function waitPhase(want, timeout) {
++  const t0 = Date.now()
++  while (Date.now() - t0 < timeout) { if (want.includes(await phase())) return true; await wait(200) }
++  return false
++}
++const tap = async (k, ms = 60) => { await page.keyboard.down(k); await wait(ms); await page.keyboard.up(k) }
++async function goAxis(axis, target, { tol = 0.3, timeout = 30000 } = {}) {
++  const t0 = Date.now()
++  let held = null
++  const release = async () => { if (held) { await page.keyboard.up(held); held = null } }
++  let ok = false
++  while (Date.now() - t0 < timeout) {
++    const q = await pos()
++    if (!q) { await wait(50); continue }
++    const d = target - q[axis]
++    if (Math.abs(d) <= tol) { ok = true; break }
++    const k = axis === 'x' ? (d > 0 ? 'd' : 'a') : (d > 0 ? 'w' : 's')
++    if (Math.abs(d) < 1) { await release(); await tap(k, 35); await wait(90); continue }
++    if (held !== k) { await release(); await page.keyboard.down(k); held = k }
++    await wait(30)
++  }
++  await release()
++  return ok
++}
++const goTo = async (x, z) => (await goAxis('x', x)) && (await goAxis('z', z))
++const cw = (c, n) => (c - (n - 1) / 2) * 2
++
++async function startSolo(game) {
++  const url = `${BASE}${QS ? `?${QS}` : ''}#/battle`
++  await page.goto(url, { waitUntil: 'load' })
++  await page.click(`[data-testid="battle-game-card-${game}"]`)
++  await page.click('[data-testid="battle-solo-btn"]')
++  await page.waitForSelector('[data-testid="battle-canvas"]', { timeout: 30000 })
++  r.ev.countdown = await waitPhase(['countdown', 'playing'], 30000)
++}
++
++try {
++  if (MODE === 'bomber') {
++    await startSolo('bomber')
++    await wait(800); await shot('1-countdown')
++    r.ev.playing = await waitPhase(['playing'], 40000)
++    await wait(1500); r.ev.hudPlaying = await huds(); await shot('2-playing')
++    await wait(4500); r.ev.hudMid = await huds(); await shot('3-mid')
++  } else if (MODE === 'ac2') {
++    await startSolo('overcooked')
++    r.ev.playing = await waitPhase(['playing'], 40000)
++    await wait(1000); r.ev.hud0 = await huds(); await shot('1-playing')
++    const cook = async (tag, crateCx, boardCy, potCy) => {
++      const log = { tag, t: [] }
++      const t0 = Date.now()
++      const mark = (s) => log.t.push([s, Math.round((Date.now() - t0) / 100) / 10])
++      await goTo(cw(crateCx, 11), cw(1, 7)); await tap('e'); mark('crate')
++      await goTo(cw(1, 11), cw(boardCy, 7)); await tap('e'); mark('board-put')
++      await wait(1800); await tap('e'); mark('board-take')
++      await goTo(cw(9, 11), cw(potCy, 7)); await tap('e'); mark('pot-put')
++      await wait(3000 + 800) // COOK_MS 後 0.8s：soup 且快焦窗口（busyUntil 未到）
++      await tap('e'); mark('pot-take-soup')
++      log.hudAfterTake = await huds()
++      await shot(`2-${tag}-after-take`)
++      log.posAfterTake = await pos()
++      await goTo(cw(8, 11), cw(1, 7)); mark('at-serve')
++      for (let i = 0; i < 30; i++) {
++        await tap('e'); await wait(1000)
++        const q = await pos()
++        if (q?.score > 0) { log.score = q.score; mark('served'); break }
++      }
++      log.hudEnd = await huds()
++      await shot(`3-${tag}-end`)
++      return log
++    }
++    r.ev.veg = await cook('veg', 2, 2, 2)
++    if (!(r.ev.veg.score > 0)) r.ev.meat = await cook('meat', 4, 4, 4)
++    r.ev.pass = (r.ev.veg.score ?? r.ev.meat?.score ?? 0) > 0
++  } else throw new Error(`unknown mode ${MODE}`)
++} catch (e) {
++  r.error = String(e)
++  await shot('error').catch(() => {})
++}
++await browser.close()
++console.log(JSON.stringify(r, null, 2))
+diff --git a/src/babylon/fx/avatar.ts b/src/babylon/fx/avatar.ts
+new file mode 100644
+index 0000000..0de6465
+--- /dev/null
++++ b/src/babylon/fx/avatar.ts
+@@ -0,0 +1,254 @@
++/**
++ * 玩具系列 Q 版角色（bomber spec §4、kitchen spec §4）：身體、頭、臉、眼睛、四肢合併成一個頂點色 mesh
++ * （1 個 draw call），四肢擺動由 CPU 改寫頂點（rig.ts）。頭飾與服裝由遊戲傳入（AvatarStyle），
++ * AI 天線球、AI 小章、「你」標記、無敵金圈是另外的小 mesh，方便 GlowLayer 白名單與顯示切換。
++ */
++import { Color3, Mesh, MeshBuilder, StandardMaterial, type DynamicTexture, type Scene } from '@/babylon/babylonCore'
++import { mergeData, roundedBox, type MeshData } from '@/babylon/fx/geometry'
++import { at, radial, rgba, solid, sphere, toMesh } from '@/babylon/fx/models'
++import { OUTLINE, PLAYER_PALETTE, type ColorIndex, type PlayerPalette } from '@/babylon/fx/palette'
++import { swingRange } from '@/babylon/fx/rig'
++import { createLabelTexture } from '@/babylon/fx/textures'
++
++type Limb = 'legL' | 'legR' | 'armL' | 'armR'
++
++interface LimbRange {
++  limb: Limb
++  start: number
++  count: number
++  pivot: { y: number; z: number }
++}
++
++export interface ToyAvatar {
++  /** 位移錨點（不轉面向，只有俯角透視補償會微傾它）；標記掛這裡才不會跟著面向轉 */
++  root: Mesh
++  /** 合併後的身體，rotation.y = 面向 */
++  body: Mesh
++  /** AI 的發光天線球（Glow 白名單用；kit 沒設 ai 時不建） */
++  antenna?: Mesh
++  tag?: Mesh
++  marker?: Mesh
++  halo: Mesh
++  colorIndex: ColorIndex
++  isAI: boolean
++  isSelf: boolean
++  base: Float32Array
++  baseN: Float32Array
++  pos: Float32Array
++  nrm: Float32Array
++  limbs: LimbRange[]
++  lastSwing: number
++}
++
++/** 遊戲決定的外觀：頭飾（頭心座標，組好後整顆頭一起仰）、服裝（身體座標）、褲子色 */
++export interface AvatarStyle {
++  headgear: (pal: PlayerPalette, isAI: boolean) => MeshData[]
++  outfit?: (pal: PlayerPalette) => MeshData[]
++  legs: string
++  face: string
++  eye: string
++}
++
++export interface AvatarKitOptions {
++  style: AvatarStyle
++  /** 無敵金圈色 */
++  haloColor: string
++  /** AI 發光天線球與 AI 小章；不給就不建（沒有 AI 的遊戲） */
++  ai?: { color: string; ballY: number }
++}
++
++/** 外觀放大倍率：對齊 variant-A-sheet 的頭身比例（頭約 0.6 格寬） */
++export const AVATAR_SCALE = 1.35
++const LEG_PIVOT = { y: 0.4, z: 0 }
++export const HEAD_Y = 1.24
++/** 頭往鏡頭仰的角度（Babylon rotation.x，負值讓 +Z 臉朝上） */
++export const HEAD_TILT = -0.42
++const ARM_PIVOT = { y: 0.8, z: 0 }
++
++/** 角色共用的材質、外觀與標籤貼圖（每個場景一份） */
++export class AvatarKit {
++  readonly bodyMat: StandardMaterial
++  readonly haloMat: StandardMaterial
++  readonly antennaMat?: StandardMaterial
++  readonly style: AvatarStyle
++  readonly ai?: { color: string; ballY: number }
++  private labelMats = new Map<string, StandardMaterial>()
++  private textures: DynamicTexture[] = []
++  private readonly scene: Scene
++
++  constructor(scene: Scene, opts: AvatarKitOptions) {
++    this.scene = scene
++    this.style = opts.style
++    this.ai = opts.ai
++    this.bodyMat = new StandardMaterial('toy-avatar-mat', scene)
++    this.bodyMat.diffuseColor = Color3.White()
++    this.bodyMat.specularColor = new Color3(0.18, 0.18, 0.18)
++    this.haloMat = new StandardMaterial('toy-halo-mat', scene)
++    this.haloMat.emissiveColor = Color3.FromHexString(opts.haloColor)
++    this.haloMat.disableLighting = true
++    this.haloMat.alpha = 0.32
++    if (opts.ai) {
++      this.antennaMat = new StandardMaterial('toy-ai-antenna-mat', scene)
++      this.antennaMat.emissiveColor = Color3.FromHexString(opts.ai.color)
++      this.antennaMat.disableLighting = true
++    }
++  }
++
++  labelMat(key: string, text: string, bg: string, w: number, h: number): StandardMaterial {
++    let m = this.labelMats.get(key)
++    if (m) return m
++    const tex = createLabelTexture(this.scene, `toy-label-${key}`, text, bg, w, h)
++    this.textures.push(tex)
++    m = new StandardMaterial(`toy-label-mat-${key}`, this.scene)
++    m.diffuseTexture = tex
++    m.useAlphaFromDiffuseTexture = true
++    m.emissiveColor = Color3.White()
++    m.disableLighting = true
++    m.backFaceCulling = false
++    this.labelMats.set(key, m)
++    return m
++  }
++
++  dispose(): void {
++    this.bodyMat.dispose()
++    this.haloMat.dispose()
++    this.antennaMat?.dispose()
++    for (const m of this.labelMats.values()) m.dispose()
++    for (const t of this.textures) t.dispose()
++    this.labelMats.clear()
++    this.textures = []
++  }
++}
++
++const rbox = (w: number, h: number, d: number, r: number): MeshData => roundedBox({ width: w, height: h, depth: d, radius: r, segments: 2 })
++
++/** 組身體頂點；回傳合併資料與四肢頂點範圍 */
++function bodyData(ci: ColorIndex, isAI: boolean, style: AvatarStyle): { data: MeshData; limbs: LimbRange[] } {
++  const pal = PLAYER_PALETTE[ci]
++  const legC = rgba(style.legs)
++  const footC = rgba(OUTLINE)
++  const white = rgba('#FFFFFF')
++  const parts: { d: MeshData; limb?: Limb; pivot?: { y: number; z: number } }[] = []
++  const limb = (l: Limb, pivot: { y: number; z: number }, ...ds: MeshData[]) => parts.push({ d: mergeData(ds), limb: l, pivot })
++
++  for (const [l, sx] of [['legL', -1], ['legR', 1]] as const) {
++    limb(
++      l,
++      LEG_PIVOT,
++      at(solid(rbox(0.22, 0.34, 0.24, 0.07), legC), { x: sx * 0.14, y: 0.25, z: 0 }),
++      at(solid(rbox(0.26, 0.14, 0.34, 0.06), footC), { x: sx * 0.14, y: 0.07, z: 0.04 })
++    )
++  }
++  parts.push({ d: at(radial(rbox(0.6, 0.46, 0.44, 0.14), pal.light, pal.base, pal.dark), { x: 0, y: 0.6, z: 0 }) })
++  parts.push({ d: at(solid(rbox(0.63, 0.1, 0.47, 0.05), rgba(pal.dark)), { x: 0, y: 0.47, z: 0 }) })
++  for (const d of style.outfit?.(pal) ?? []) parts.push({ d })
++  for (const [l, sx] of [['armL', -1], ['armR', 1]] as const) {
++    limb(
++      l,
++      ARM_PIVOT,
++      at(radial(rbox(0.16, 0.3, 0.18, 0.07), pal.light, pal.base, pal.dark), { x: sx * 0.38, y: 0.66, z: 0 }),
++      at(solid(sphere(0.21, 10), white), { x: sx * 0.39, y: 0.48, z: 0 })
++    )
++  }
++  // 頭（徑向漸層）＋臉＋眼睛（白色光點）＋頭飾：以頭心為原點組好，整顆往鏡頭仰 HEAD_TILT，
++  // 俯視 3/4 角度下臉才看得到（對照 variant-A-sheet 的正臉）
++  const head: MeshData[] = [
++    radial(sphere(0.92, 16), pal.light, pal.base, pal.dark),
++    at(solid(sphere(1, 14), rgba(style.face)), { x: 0, y: -0.04, z: 0.3, sx: 0.66, sy: 0.54, sz: 0.5 }),
++  ]
++  for (const sx of [-1, 1]) {
++    head.push(at(solid(sphere(1, 10), rgba(style.eye)), { x: sx * 0.12, y: 0.01, z: 0.53, sx: 0.11, sy: 0.2, sz: 0.08 }))
++    head.push(at(solid(sphere(0.06, 6), white), { x: sx * 0.12 - 0.025, y: 0.06, z: 0.575 }))
++  }
++  head.push(...style.headgear(pal, isAI))
++  parts.push({ d: at(mergeData(head), { x: 0, y: HEAD_Y, z: 0, pitch: HEAD_TILT }) })
++
++  const limbs: LimbRange[] = []
++  let v = 0
++  for (const p of parts) {
++    const n = p.d.positions.length / 3
++    if (p.limb && p.pivot) limbs.push({ limb: p.limb, start: v, count: n, pivot: p.pivot })
++    v += n
++  }
++  return { data: mergeData(parts.map((p) => p.d)), limbs }
++}
++
++export function buildAvatar(scene: Scene, kit: AvatarKit, id: string, ci: ColorIndex, opts: { isAI: boolean; isSelf: boolean }): ToyAvatar {
++  const root = new Mesh(`pl-${id}`, scene)
++  const { data, limbs } = bodyData(ci, opts.isAI, kit.style)
++  const body = toMesh(`pl-body-${id}`, data, scene, true)
++  body.material = kit.bodyMat
++  body.parent = root
++  body.alwaysSelectAsActiveMesh = true // 四肢改頂點會跑出原 bounding
++  body.scaling.setAll(AVATAR_SCALE) // 只放大外觀，碰撞半徑不變
++
++  let antenna: Mesh | undefined
++  let tag: Mesh | undefined
++  if (opts.isAI && kit.ai && kit.antennaMat) {
++    // 頭心座標系中天線球的位置，轉成身體座標（AI 發光球要跟著仰）
++    const ballY = kit.ai.ballY
++    antenna = MeshBuilder.CreateSphere(`pl-ai-ant-${id}`, { diameter: 0.21, segments: 10 }, scene)
++    antenna.material = kit.antennaMat
++    antenna.parent = body
++    antenna.position.set(0, HEAD_Y + ballY * Math.cos(HEAD_TILT), ballY * Math.sin(HEAD_TILT))
++    tag = MeshBuilder.CreatePlane(`pl-ai-tag-${id}`, { width: 0.5, height: 0.28 }, scene)
++    tag.material = kit.labelMat('ai', 'AI', kit.ai.color, 112, 64)
++    tag.parent = root
++    tag.position.set(0.42 * AVATAR_SCALE, 1.66 * AVATAR_SCALE, 0)
++    tag.billboardMode = Mesh.BILLBOARDMODE_ALL
++  }
++  let marker: Mesh | undefined
++  if (opts.isSelf) {
++    marker = MeshBuilder.CreatePlane(`pl-you-${id}`, { width: 0.8, height: 0.42 }, scene)
++    marker.material = kit.labelMat(`you-${ci}`, '你', PLAYER_PALETTE[ci].base, 128, 68)
++    marker.parent = root
++    marker.position.set(0, 2.45 * AVATAR_SCALE, 0)
++    marker.billboardMode = Mesh.BILLBOARDMODE_ALL
++  }
++  const halo = MeshBuilder.CreateSphere(`pl-halo-${id}`, { diameter: 1, segments: 12 }, scene)
++  halo.material = kit.haloMat
++  halo.parent = root
++  halo.position.set(0, 1.0 * AVATAR_SCALE, 0)
++  halo.scaling.set(1.3 * AVATAR_SCALE, 2.15 * AVATAR_SCALE, 1.3 * AVATAR_SCALE)
++  halo.isVisible = false
++  halo.isPickable = false
++
++  const base = new Float32Array(data.positions)
++  const baseN = new Float32Array(data.normals)
++  return {
++    root,
++    body,
++    antenna,
++    tag,
++    marker,
++    halo,
++    colorIndex: ci,
++    isAI: opts.isAI,
++    isSelf: opts.isSelf,
++    base,
++    baseN,
++    pos: new Float32Array(base),
++    nrm: new Float32Array(baseN),
++    limbs,
++    lastSwing: 0,
++  }
++}
++
++const SWING_SIGN: Record<Limb, number> = { legL: 1, legR: -1, armL: -1, armR: 1 }
++
++/** 擺動四肢（角度沒變就不重傳頂點） */
++export function poseAvatar(av: ToyAvatar, swing: number): void {
++  if (Math.abs(swing - av.lastSwing) < 1e-3) return
++  av.lastSwing = swing
++  for (const l of av.limbs) {
++    const a = swing * SWING_SIGN[l.limb]
++    swingRange(av.base, av.pos, l.start, l.count, l.pivot, a)
++    swingRange(av.baseN, av.nrm, l.start, l.count, null, a)
++  }
++  av.body.updateVerticesData('position', av.pos)
++  av.body.updateVerticesData('normal', av.nrm)
++}
++
++export function disposeAvatar(av: ToyAvatar): void {
++  av.root.dispose(false, false)
++}
+diff --git a/src/babylon/games/bomberFx/burstQueue.test.ts b/src/babylon/fx/burstQueue.test.ts
+similarity index 96%
+rename from src/babylon/games/bomberFx/burstQueue.test.ts
+rename to src/babylon/fx/burstQueue.test.ts
+index 4aef968..24d72c1 100644
+--- a/src/babylon/games/bomberFx/burstQueue.test.ts
++++ b/src/babylon/fx/burstQueue.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { BurstQueue } from '@/babylon/games/bomberFx/burstQueue'
++import { BurstQueue } from '@/babylon/fx/burstQueue'
+ 
+ describe('BurstQueue', () => {
+   it('依序逐顆取出，同一筆請求的位置落在 spread 範圍內', () => {
+     const q = new BurstQueue<string>(() => 0.5)
+     q.push({ x: 1, y: 2, z: 3, spread: 0.4, count: 2, style: 'a' })
+     q.push({ x: -5, y: 0, z: 0, spread: 0, count: 1, style: 'b' })
+     expect(q.total).toBe(3)
+     const p1 = q.next()
+     const p2 = q.next()
+     const p3 = q.next()
+diff --git a/src/babylon/games/bomberFx/burstQueue.ts b/src/babylon/fx/burstQueue.ts
+similarity index 100%
+rename from src/babylon/games/bomberFx/burstQueue.ts
+rename to src/babylon/fx/burstQueue.ts
+diff --git a/src/babylon/fx/countdown.ts b/src/babylon/fx/countdown.ts
+new file mode 100644
+index 0000000..4d2a9a5
+--- /dev/null
++++ b/src/babylon/fx/countdown.ts
+@@ -0,0 +1,15 @@
++/**
++ * 玩具系列開局倒數配色（bomber spec §9，kitchen 沿用）：奶油底、深紫描邊、Fredoka。
++ * 面板走 UI 相機，不經 ACES／bloom，填的就是畫面色。
++ */
++import type { CountdownTheme } from '@/babylon/hud'
++import { OUTLINE } from '@/babylon/fx/palette'
++
++export const COUNTDOWN_THEME: CountdownTheme = {
++  fontFamily: 'Fredoka, sans-serif',
++  count: { glow: 'rgba(0,0,0,0.4)', fill: '#FFF6E3', border: OUTLINE, stroke: OUTLINE, text: '#FF7A1A' },
++  go: { glow: 'rgba(0,0,0,0.4)', fill: '#2FCF5E', border: OUTLINE, stroke: OUTLINE, text: '#FFFFFF' },
++  plain: { stroke: OUTLINE, text: '#FFF6E3' },
++  shadowOffset: 0.12,
++  shadowBlur: 0,
++}
+diff --git a/src/babylon/fx/curves.ts b/src/babylon/fx/curves.ts
+new file mode 100644
+index 0000000..847ef5e
+--- /dev/null
++++ b/src/babylon/fx/curves.ts
+@@ -0,0 +1,46 @@
++/**
++ * 玩具系列特效的通用時間曲線（純函式，可在 node 單測；bomber 與 kitchen 共用）。
++ * t 一律是 0..1 的進度（呼叫端用 經過毫秒 / 時長 算），超出範圍自動夾住。
++ */
++
++export const clamp01 = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t)
++export const easeOut = (t: number): number => 1 - (1 - t) * (1 - t)
++
++/** back-out：衝過 1 再回到 1 */
++export function backOut(t: number): number {
++  const s = 1.70158
++  const u = clamp01(t) - 1
++  return 1 + (s + 1) * u * u * u + s * u * u
++}
++
++/** 道具出現：往上彈 0.4 CELL 再落回，同時轉一整圈 */
++export function itemHop(t: number, cell: number): { lift: number; spin: number } {
++  if (t >= 1 + 1e-9 || t < 0) return { lift: 0, spin: 0 }
++  const u = clamp01(t)
++  return { lift: 0.4 * cell * Math.sin(Math.PI * u), spin: Math.PI * 2 * easeOut(u) }
++}
++
++/** 拾取：位置插值（先慢後快，像被吸過去）、縮放 1 → 0 */
++export function pickupFlight(t: number): { k: number; scale: number } {
++  const u = clamp01(t)
++  return { k: u * u, scale: 1 - u }
++}
++
++/** 地面 ring：擴散 0.35 → 1.25（相對一格），同時淡出 */
++export function ringPose(t: number): { scale: number; alpha: number } {
++  const u = clamp01(t)
++  return { scale: 0.35 + 0.9 * easeOut(u), alpha: 0.9 * (1 - u) }
++}
++
++/** 飄字（+1）：往上飄 0.9，前 40% 不透明、之後淡出 */
++export function floatTextPose(t: number): { rise: number; alpha: number } {
++  const u = clamp01(t)
++  return { rise: 0.9 * easeOut(u), alpha: u < 0.4 ? 1 : 1 - (u - 0.4) / 0.6 }
++}
++
++/** 連續發射：每秒 rate 顆，小數累積到下一幀；單幀最多算 100ms（切分頁回來不會一次噴爆） */
++export function emitCount(acc: number, rate: number, dtMs: number): { count: number; acc: number } {
++  const total = acc + (rate * Math.min(dtMs, 100)) / 1000
++  const count = Math.floor(total + 1e-9)
++  return { count, acc: total - count }
++}
+diff --git a/src/babylon/games/bomberFx/geometry.test.ts b/src/babylon/fx/geometry.test.ts
+similarity index 98%
+rename from src/babylon/games/bomberFx/geometry.test.ts
+rename to src/babylon/fx/geometry.test.ts
+index 6c12d27..8e821a1 100644
+--- a/src/babylon/games/bomberFx/geometry.test.ts
++++ b/src/babylon/fx/geometry.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { composeMatrix, mergeData, roundedBox, transformData, type MeshData } from '@/babylon/games/bomberFx/geometry'
++import { composeMatrix, mergeData, roundedBox, transformData, type MeshData } from '@/babylon/fx/geometry'
+ 
+ /** Babylon 列向量慣例：p' = p * M（平移在 m[12..14]） */
+ const apply = (m: ArrayLike<number>, o: number, p: [number, number, number]): [number, number, number] => [
+   p[0] * m[o] + p[1] * m[o + 4] + p[2] * m[o + 8] + m[o + 12],
+   p[0] * m[o + 1] + p[1] * m[o + 5] + p[2] * m[o + 9] + m[o + 13],
+   p[0] * m[o + 2] + p[1] * m[o + 6] + p[2] * m[o + 10] + m[o + 14],
+ ]
+ const close = (a: number[], b: number[]) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], 5))
+ 
+ describe('composeMatrix', () => {
+diff --git a/src/babylon/games/bomberFx/geometry.ts b/src/babylon/fx/geometry.ts
+similarity index 100%
+rename from src/babylon/games/bomberFx/geometry.ts
+rename to src/babylon/fx/geometry.ts
+diff --git a/src/babylon/games/bomberFx/look.ts b/src/babylon/fx/look.ts
+similarity index 83%
+rename from src/babylon/games/bomberFx/look.ts
+rename to src/babylon/fx/look.ts
+index b6c0078..aa3fc7e 100644
+--- a/src/babylon/games/bomberFx/look.ts
++++ b/src/babylon/fx/look.ts
+@@ -1,101 +1,108 @@
+ /**
+- * 炸彈超人光影與後製（spec §6／§7／§10，AC4／AC7）：雙光、陰影、GlowLayer 白名單、卡通描邊、
++ * 玩具系列光影與後製（bomber spec §6／§7／§10，kitchen spec §6）：雙光、陰影、GlowLayer 白名單、卡通描邊、
+  * DefaultRenderingPipeline、解析度與檔位；遊戲中 fps 過低時依序關掉 描邊 → Glow → 陰影。
+- * 只管「怎麼畫」，哪些 mesh 投影／發光／描邊由呼叫端登記。
++ * 只管「怎麼畫」，哪些 mesh 投影／發光／描邊由呼叫端登記；log 前綴、網址參數、描邊色由 LookOptions 給。
+  */
+ import {
+   Color3,
+   DefaultRenderingPipeline,
+   DirectionalLight,
+   GlowLayer,
+   HemisphericLight,
+   ImageProcessingConfiguration,
+   ShadowGenerator,
+   TargetCamera,
+   Vector3,
+   type Camera,
+   type Material,
+   type Mesh,
+   type Scene,
+ } from '@/babylon/babylonCore'
+-import { TOY } from '@/babylon/games/bomberFx/palette'
+ import {
+   FpsWatch,
+   nextDegrade,
+   noDegradeFlag,
+   pickTier,
+   tierQuery,
+   tierSettings,
+-  type BomberTier,
++  type Tier,
+   type DegradeStep,
+   type TierSettings,
+-} from '@/babylon/games/bomberFx/quality'
+-import { applyToon } from '@/babylon/games/bomberFx/toon'
++} from '@/babylon/fx/quality'
++import { applyToon } from '@/babylon/fx/toon'
+ 
+ const OUTLINE_WIDTH = 0.02
+ const SUN_DIR = new Vector3(-0.4, -1, 0.3)
+ /** 只給 UI 相機看的圖層（主相機預設 0x0FFFFFFF 看不到） */
+ export const UI_LAYER = 0x10000000
+ 
+ export interface LookOptions {
+   /** 陰影正交投影要涵蓋的半徑（場地半對角線加餘裕） */
+   shadowRadius: number
++  /** 遊戲代號：log 前綴 `[tag]`、網址參數 `${tag}Tier`／`${tag}NoDegrade`、Babylon 物件名前綴 */
++  tag: string
++  /** 描邊色 hex */
++  outline: string
+ }
+ 
+ /** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
+-function detectTier(): { tier: BomberTier; noDegrade: boolean } {
++function detectTier(key: string): { tier: Tier; noDegrade: boolean } {
+   if (typeof window === 'undefined') return { tier: 'desktop', noDegrade: true }
+   const search = tierQuery(window.location.search, window.location.hash)
+   const touch = 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0
+   const cores = navigator.hardwareConcurrency || undefined
+-  return { tier: pickTier({ search, touch, cores }), noDegrade: noDegradeFlag(search) }
++  return { tier: pickTier({ search, touch, cores }, key), noDegrade: noDegradeFlag(search, key) }
+ }
+ 
+ export class ToyLook {
+-  readonly tier: BomberTier
++  readonly tier: Tier
+   readonly settings: TierSettings
+   private readonly scene: Scene
+   private readonly hemi: HemisphericLight
+   private readonly sun: DirectionalLight
+   private readonly shadow: ShadowGenerator
+   private glow: GlowLayer | null = null
+   private readonly pipeline: DefaultRenderingPipeline
+   private readonly glowColors = new Map<number, Color3>()
+   private readonly outlined = new Set<Mesh>()
+-  private readonly outlineColor = Color3.FromHexString(TOY.outline)
++  private readonly outlineColor: Color3
++  private readonly tag: string
+   private readonly active: Record<DegradeStep, boolean>
+   private watch: FpsWatch | null
+   private readonly prevScaling: number
+   /** 畫 3D UI（開局倒數）的第二台相機：只看 UI_LAYER、不掛後製，顏色不被 ACES／bloom 改掉 */
+   readonly uiCamera: TargetCamera
+ 
+   private readonly mainCamera: Camera
+ 
+   constructor(scene: Scene, camera: Camera, opts: LookOptions) {
+     this.scene = scene
+     this.mainCamera = camera
+-    const { tier, noDegrade } = detectTier()
++    const tag = opts.tag
++    this.tag = tag
++    this.outlineColor = Color3.FromHexString(opts.outline)
++    const { tier, noDegrade } = detectTier(tag)
+     this.tier = tier
+     this.settings = tierSettings(tier, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1)
+     const s = this.settings
+-    console.info(`[bomber] tier ${tier}`)
++    console.info(`[${tag}] tier ${tier}`)
+ 
+     const engine = scene.getEngine()
+     this.prevScaling = engine.getHardwareScalingLevel()
+     engine.setHardwareScalingLevel(s.hardwareScaling)
+ 
+     // 暖主光＋冷環境光（spec §7）
+-    this.hemi = new HemisphericLight('bomber-hemi', new Vector3(0.2, 1, 0.1), scene)
++    this.hemi = new HemisphericLight(`${tag}-hemi`, new Vector3(0.2, 1, 0.1), scene)
+     this.hemi.intensity = 0.55
+     this.hemi.groundColor = Color3.FromHexString('#3A3F5C')
+-    this.sun = new DirectionalLight('bomber-sun', SUN_DIR.clone(), scene)
++    this.sun = new DirectionalLight(`${tag}-sun`, SUN_DIR.clone(), scene)
+     this.sun.intensity = 0.9
+     this.sun.diffuse = Color3.FromHexString('#FFF4E0')
+     this.sun.specular = Color3.FromHexString('#FFF4E0')
+     // 固定正交範圍涵蓋整個場地：thin instance 的 bounding 只在原點，自動範圍會漏掉場上的炸彈與道具
+     const r = opts.shadowRadius
+     this.sun.position = SUN_DIR.normalizeToNew().scale(-40)
+     this.sun.autoUpdateExtends = false
+     this.sun.autoCalcShadowZBounds = false
+     this.sun.orthoLeft = -r
+     this.sun.orthoRight = r
+@@ -105,50 +112,50 @@ export class ToyLook {
+     this.sun.shadowMaxZ = 80
+ 
+     this.shadow = new ShadowGenerator(s.shadowSize, this.sun)
+     this.shadow.usePercentageCloserFiltering = true
+     this.shadow.filteringQuality = ShadowGenerator.QUALITY_MEDIUM
+     this.shadow.setDarkness(0.35)
+     this.shadow.bias = 0.002
+ 
+     if (s.glow) this.glow = this.makeGlow()
+ 
+-    this.pipeline = new DefaultRenderingPipeline('bomber-pipeline', true, scene, [camera])
++    this.pipeline = new DefaultRenderingPipeline(`${tag}-pipeline`, true, scene, [camera])
+     this.pipeline.samples = 1
+     this.pipeline.fxaaEnabled = true
+     this.pipeline.bloomEnabled = s.bloom
+     if (s.bloom) {
+       this.pipeline.bloomThreshold = 0.85
+       this.pipeline.bloomWeight = 0.3
+       this.pipeline.bloomKernel = 48
+     }
+     this.pipeline.imageProcessingEnabled = true
+     const ip = this.pipeline.imageProcessing
+     ip.toneMappingEnabled = true
+     ip.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES
+     ip.exposure = 1.05
+     ip.contrast = 1.08
+ 
+     // UI 相機：與主相機同 fov、位在原點看 +Z，面板以相機座標擺放（與掛在主相機下相同）
+-    this.uiCamera = new TargetCamera('bomber-ui-cam', Vector3.Zero(), scene)
++    this.uiCamera = new TargetCamera(`${tag}-ui-cam`, Vector3.Zero(), scene)
+     this.uiCamera.setTarget(new Vector3(0, 0, 1))
+     this.uiCamera.fov = camera.fov
+     this.uiCamera.layerMask = UI_LAYER
+     scene.activeCameras = [camera, this.uiCamera]
+     scene.cameraToUseForPointers = camera
+ 
+     this.active = { outline: s.outline, glow: s.glow, shadow: true }
+     this.watch = noDegrade ? null : new FpsWatch()
+   }
+ 
+   private makeGlow(): GlowLayer {
+-    const glow = new GlowLayer('bomber-glow', this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5, camera: this.mainCamera })
++    const glow = new GlowLayer(`${this.tag}-glow`, this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5, camera: this.mainCamera })
+     glow.intensity = 0.7
+     // 白名單內每個 mesh 用登記的發光色（炸彈、道具材質本身沒有 emissive）
+     glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
+       const c = this.glowColors.get(mesh.uniqueId)
+       if (c) result.set(c.r, c.g, c.b, 1)
+       else result.set(0, 0, 0, 0)
+     }
+     return glow
+   }
+ 
+@@ -201,21 +208,21 @@ export class ToyLook {
+     this.watch = nextDegrade(this.active) ? new FpsWatch() : null
+   }
+ 
+   private degrade(step: DegradeStep): void {
+     this.active[step] = false
+     if (step === 'outline') for (const m of this.outlined) m.renderOutline = false
+     else if (step === 'glow') {
+       this.glow?.dispose()
+       this.glow = null
+     } else this.sun.shadowEnabled = false
+-    console.info(`[bomber] degrade ${step}`)
++    console.info(`[${this.tag}] degrade ${step}`)
+   }
+ 
+   dispose(): void {
+     this.pipeline.dispose()
+     this.glow?.dispose()
+     this.glow = null
+     this.shadow.dispose()
+     this.sun.dispose()
+     this.hemi.dispose()
+     this.glowColors.clear()
+diff --git a/src/babylon/fx/models.ts b/src/babylon/fx/models.ts
+new file mode 100644
+index 0000000..a0ca2f8
+--- /dev/null
++++ b/src/babylon/fx/models.ts
+@@ -0,0 +1,60 @@
++/**
++ * 玩具系列程式建模的通用積木：圓角盒以外的球、圓柱、頂點色（單色／徑向漸層）、擺放與轉成 Babylon Mesh。
++ * 遊戲專屬的物件組合留在各自的 `games/<遊戲>Fx/models.ts`。
++ */
++import { Mesh, VertexBuilders, VertexData, type Scene } from '@/babylon/babylonCore'
++import { colorize, transformData, type MeshData, type Trs } from '@/babylon/fx/geometry'
++import { hexToRgb } from '@/babylon/fx/palette'
++
++export type Rgba = readonly [number, number, number, number]
++export const rgba = (hex: string, a = 1): Rgba => [...hexToRgb(hex), a] as const
++const lerp = (a: Rgba, b: Rgba, t: number): Rgba => [
++  a[0] + (b[0] - a[0]) * t,
++  a[1] + (b[1] - a[1]) * t,
++  a[2] + (b[2] - a[2]) * t,
++  1,
++]
++
++/** Babylon VertexData → MeshData */
++const fromVD = (vd: VertexData): MeshData => ({
++  positions: Array.from(vd.positions ?? []),
++  normals: Array.from(vd.normals ?? []),
++  uvs: Array.from(vd.uvs ?? []),
++  indices: Array.from(vd.indices ?? []),
++})
++
++export const sphere = (diameter: number, segments = 12): MeshData =>
++  fromVD(VertexBuilders.CreateSphereVertexData({ diameter, segments }))
++
++export const cylinder = (height: number, diameter: number, tessellation = 10): MeshData =>
++  fromVD(VertexBuilders.CreateCylinderVertexData({ height, diameter, tessellation }))
++
++export const solid = (d: MeshData, c: Rgba): MeshData => colorize(d, () => c)
++
++/** 三段徑向漸層（亮 → 本色 → 暗），以法線與高光方向的夾角決定；對應 spec 的 radial gradient */
++export const radial = (d: MeshData, light: string, base: string, dark: string, dir: [number, number, number] = [-0.35, 0.85, -0.4]): MeshData => {
++  const len = Math.hypot(...dir)
++  const [hx, hy, hz] = dir.map((v) => v / len)
++  const L = rgba(light)
++  const B = rgba(base)
++  const D = rgba(dark)
++  return colorize(d, (_p, n) => {
++    const t = (1 - (n[0] * hx + n[1] * hy + n[2] * hz)) / 2 // 0 = 正對高光
++    return t < 0.5 ? lerp(L, B, t / 0.5) : lerp(B, D, (t - 0.5) / 0.5)
++  })
++}
++
++export const at = (d: MeshData, t: Trs): MeshData => transformData(d, t)
++
++/** MeshData → Babylon Mesh（updatable 供 CPU 擺動四肢） */
++export function toMesh(name: string, d: MeshData, scene: Scene, updatable = false): Mesh {
++  const vd = new VertexData()
++  vd.positions = d.positions
++  vd.normals = d.normals
++  vd.uvs = d.uvs
++  vd.indices = d.indices
++  if (d.colors) vd.colors = d.colors
++  const mesh = new Mesh(name, scene)
++  vd.applyToMesh(mesh, updatable)
++  return mesh
++}
+diff --git a/src/babylon/fx/palette.test.ts b/src/babylon/fx/palette.test.ts
+new file mode 100644
+index 0000000..e1ef733
+--- /dev/null
++++ b/src/babylon/fx/palette.test.ts
+@@ -0,0 +1,17 @@
++import { describe, expect, it } from 'vitest'
++import { PLAYER_PALETTE, hexToRgb } from '@/babylon/fx/palette'
++import * as bomberPalette from '@/babylon/games/bomberFx/palette'
++
++describe('fx/palette 共用色票', () => {
++  it('PLAYER_PALETTE 固定 4 色（spec §4）', () => {
++    expect(PLAYER_PALETTE.map((p) => p.base)).toEqual(['#FF3B4E', '#2F86FF', '#2FCF5E', '#FFC21A'])
++    expect(PLAYER_PALETTE[1]).toEqual({ light: '#8CC4FF', base: '#2F86FF', dark: '#1446B8' })
++  })
++  it('bomberFx/palette 轉出的是同一份（不重複定義）', () => {
++    expect(bomberPalette.PLAYER_PALETTE).toBe(PLAYER_PALETTE)
++    expect(bomberPalette.hexToRgb).toBe(hexToRgb)
++  })
++  it('hexToRgb 轉成 0..1', () => {
++    expect(hexToRgb('#2B2440')).toEqual([0x2b / 255, 0x24 / 255, 0x40 / 255])
++  })
++})
+diff --git a/src/babylon/fx/palette.ts b/src/babylon/fx/palette.ts
+new file mode 100644
+index 0000000..2d4b1f4
+--- /dev/null
++++ b/src/babylon/fx/palette.ts
+@@ -0,0 +1,28 @@
++/**
++ * /battle 玩具系列共用的玩家配色（bomber spec §4、kitchen spec §4）：純資料與純函式，不依賴 Babylon。
++ * 遊戲專屬色票留在各自的 `games/<遊戲>Fx/palette.ts`。
++ */
++
++export type ColorIndex = 0 | 1 | 2 | 3
++
++export interface PlayerPalette {
++  light: string
++  base: string
++  dark: string
++}
++
++/** 固定 4 色，依各遊戲的出生序分配；P 編號 = index + 1 */
++export const PLAYER_PALETTE: readonly PlayerPalette[] = [
++  { light: '#FF8A94', base: '#FF3B4E', dark: '#B3122A' }, // P1 紅
++  { light: '#8CC4FF', base: '#2F86FF', dark: '#1446B8' }, // P2 藍
++  { light: '#93F0A8', base: '#2FCF5E', dark: '#138A3A' }, // P3 綠
++  { light: '#FFF0A0', base: '#FFC21A', dark: '#C27D00' }, // P4 黃
++]
++
++export function hexToRgb(hex: string): [number, number, number] {
++  const n = parseInt(hex.slice(1), 16)
++  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
++}
++
++/** 玩具系列共用描邊／深色線稿色（bomber TOY.outline、kitchen 描邊同色） */
++export const OUTLINE = '#2B2440'
+diff --git a/src/babylon/fx/perfLog.tag.test.ts b/src/babylon/fx/perfLog.tag.test.ts
+new file mode 100644
+index 0000000..f346338
+--- /dev/null
++++ b/src/babylon/fx/perfLog.tag.test.ts
+@@ -0,0 +1,8 @@
++import { describe, expect, it } from 'vitest'
++import { perfLogLine } from '@/babylon/fx/perfLog'
++
++describe('perfLogLine 的 tag（log 前綴依遊戲）', () => {
++  it("tag='kitchen' 印 [kitchen]", () => {
++    expect(perfLogLine(42, 59.6, 'kitchen')).toBe('[kitchen] drawCalls=42 fps=60')
++  })
++})
+diff --git a/src/babylon/games/bomberFx/perfLog.test.ts b/src/babylon/fx/perfLog.test.ts
+similarity index 88%
+rename from src/babylon/games/bomberFx/perfLog.test.ts
+rename to src/babylon/fx/perfLog.test.ts
+index 2f600c8..2a97791 100644
+--- a/src/babylon/games/bomberFx/perfLog.test.ts
++++ b/src/babylon/fx/perfLog.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { perfLogLine } from '@/babylon/games/bomberFx/perfLog'
++import { perfLogLine } from '@/babylon/fx/perfLog'
+ 
+ describe('perfLogLine（AC8 量測行）', () => {
+   it('正常取樣：四捨五入 fps', () => {
+     expect(perfLogLine(42, 59.6)).toBe('[bomber] drawCalls=42 fps=60')
+   })
+ 
+   it('還沒渲染過（drawCalls=0 或 fps 非有限值）回 null，不印雜訊', () => {
+     expect(perfLogLine(0, Infinity)).toBeNull()
+     expect(perfLogLine(0, 60)).toBeNull()
+     expect(perfLogLine(30, Infinity)).toBeNull()
+diff --git a/src/babylon/fx/perfLog.ts b/src/babylon/fx/perfLog.ts
+new file mode 100644
+index 0000000..b00936d
+--- /dev/null
++++ b/src/babylon/fx/perfLog.ts
+@@ -0,0 +1,8 @@
++/**
++ * 量測行（純函式，bomber AC8／kitchen AC9）：還沒渲染過的取樣（drawCalls=0、fps 非有限值）回 null，
++ * 開局第一行不會印出 `drawCalls=0 fps=Infinity` 的雜訊。tag 為 log 前綴（未給時為 bomber，保留既有行為）。
++ */
++export function perfLogLine(drawCalls: number, fps: number, tag = 'bomber'): string | null {
++  if (drawCalls <= 0 || !Number.isFinite(fps)) return null
++  return `[${tag}] drawCalls=${drawCalls} fps=${Math.round(fps)}`
++}
+diff --git a/src/babylon/fx/quality.key.test.ts b/src/babylon/fx/quality.key.test.ts
+new file mode 100644
+index 0000000..8f7871c
+--- /dev/null
++++ b/src/babylon/fx/quality.key.test.ts
+@@ -0,0 +1,20 @@
++import { describe, expect, it } from 'vitest'
++import { noDegradeFlag, pickTier, tierQuery } from '@/babylon/fx/quality'
++
++describe('quality 以 key 區分遊戲的網址參數', () => {
++  it("key='kitchen' 讀 kitchenTier／kitchenNoDegrade", () => {
++    const q = tierQuery('', '#/battle?kitchenTier=mobile&kitchenNoDegrade=1')
++    expect(pickTier({ search: q, touch: false, cores: 16 }, 'kitchen')).toBe('mobile')
++    expect(noDegradeFlag(q, 'kitchen')).toBe(true)
++  })
++  it('別的遊戲的參數互不影響', () => {
++    const q = '?bomberTier=mobile&bomberNoDegrade=1'
++    expect(pickTier({ search: q, touch: false, cores: 16 }, 'kitchen')).toBe('desktop')
++    expect(noDegradeFlag(q, 'kitchen')).toBe(false)
++    expect(pickTier({ search: '?kitchenTier=mobile', touch: false, cores: 16 }, 'bomber')).toBe('desktop')
++  })
++  it("key='bomber' 行為同既有預設", () => {
++    expect(pickTier({ search: '?bomberTier=mobile', touch: false, cores: 16 }, 'bomber')).toBe('mobile')
++    expect(noDegradeFlag('?bomberNoDegrade=1', 'bomber')).toBe(true)
++  })
++})
+diff --git a/src/babylon/games/bomberFx/quality.query.test.ts b/src/babylon/fx/quality.query.test.ts
+similarity index 90%
+rename from src/babylon/games/bomberFx/quality.query.test.ts
+rename to src/babylon/fx/quality.query.test.ts
+index 02b557a..04f4f4e 100644
+--- a/src/babylon/games/bomberFx/quality.query.test.ts
++++ b/src/babylon/fx/quality.query.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { noDegradeFlag, pickTier, tierQuery } from '@/babylon/games/bomberFx/quality'
++import { noDegradeFlag, pickTier, tierQuery } from '@/babylon/fx/quality'
+ 
+ describe('tierQuery（檔位參數同時讀 location.search 與 hash 路由內的 query）', () => {
+   it('hash 路由的 query 也讀得到', () => {
+     const q = tierQuery('', '#/battle?bomberTier=mobile&bomberNoDegrade=1')
+     expect(pickTier({ search: q, touch: false, cores: 16 })).toBe('mobile')
+     expect(noDegradeFlag(q)).toBe(true)
+   })
+ 
+   it('search 與 hash 都有時以 search 為準', () => {
+     const q = tierQuery('?bomberTier=desktop', '#/battle?bomberTier=mobile')
+diff --git a/src/babylon/games/bomberFx/quality.test.ts b/src/babylon/fx/quality.test.ts
+similarity index 98%
+rename from src/babylon/games/bomberFx/quality.test.ts
+rename to src/babylon/fx/quality.test.ts
+index c46bdc9..5b617f6 100644
+--- a/src/babylon/games/bomberFx/quality.test.ts
++++ b/src/babylon/fx/quality.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { FpsWatch, nextDegrade, noDegradeFlag, pickTier, tierSettings } from '@/babylon/games/bomberFx/quality'
++import { FpsWatch, nextDegrade, noDegradeFlag, pickTier, tierSettings } from '@/babylon/fx/quality'
+ 
+ describe('pickTier', () => {
+   it('桌機：非觸控且核心數 > 4', () => {
+     expect(pickTier({ search: '', touch: false, cores: 8 })).toBe('desktop')
+   })
+ 
+   it('觸控或核心數 <= 4 走 mobile', () => {
+     expect(pickTier({ search: '', touch: true, cores: 16 })).toBe('mobile')
+     expect(pickTier({ search: '', touch: false, cores: 4 })).toBe('mobile')
+   })
+diff --git a/src/babylon/games/bomberFx/quality.ts b/src/babylon/fx/quality.ts
+similarity index 84%
+rename from src/babylon/games/bomberFx/quality.ts
+rename to src/babylon/fx/quality.ts
+index 7d175b9..502d636 100644
+--- a/src/babylon/games/bomberFx/quality.ts
++++ b/src/babylon/fx/quality.ts
+@@ -1,16 +1,17 @@
+ /**
+- * 畫質檔位與自動降級（AC7，純邏輯）：開局依裝置選 desktop／mobile，網址參數可強制；
++ * 畫質檔位與自動降級（純邏輯，bomber／kitchen 共用）：開局依裝置選 desktop／mobile，網址參數可強制；
+  * 遊戲中連續 60 幀平均低於 45fps 就依序關掉 描邊 → Glow → 陰影。
++ * 網址參數依遊戲 key 區分：`${key}Tier`、`${key}NoDegrade`（未給 key 時為 bomber，保留既有行為）。
+  */
+ 
+-export type BomberTier = 'desktop' | 'mobile'
++export type Tier = 'desktop' | 'mobile'
+ export type DegradeStep = 'outline' | 'glow' | 'shadow'
+ 
+ export const DEGRADE_ORDER: readonly DegradeStep[] = ['outline', 'glow', 'shadow']
+ 
+ export interface TierEnv {
+   /** location.search */
+   search: string
+   /** 觸控裝置 */
+   touch: boolean
+   /** navigator.hardwareConcurrency（取不到為 undefined） */
+@@ -24,42 +25,42 @@ export interface TierSettings {
+   /** 陰影貼圖邊長 */
+   shadowSize: number
+   /** 每組粒子上限 */
+   particleCap: number
+   /** engine.setHardwareScalingLevel 的值 */
+   hardwareScaling: number
+ }
+ 
+ const param = (search: string, key: string): string | null => new URLSearchParams(search).get(key)
+ 
+-export function pickTier(env: TierEnv): BomberTier {
+-  const forced = param(env.search, 'bomberTier')
++export function pickTier(env: TierEnv, key = 'bomber'): Tier {
++  const forced = param(env.search, `${key}Tier`)
+   if (forced === 'desktop' || forced === 'mobile') return forced
+   if (env.touch) return 'mobile'
+   if (env.cores !== undefined && env.cores <= 4) return 'mobile'
+   return 'desktop'
+ }
+ 
+ /** 合併 location.search 與 hash 路由內的 query（`#/battle?bomberTier=mobile`）；同名參數以 search 為準 */
+ export function tierQuery(search: string, hash: string): string {
+   const q = hash.indexOf('?')
+   const merged = new URLSearchParams(q >= 0 ? hash.slice(q + 1) : '')
+   for (const [k, v] of new URLSearchParams(search)) merged.set(k, v)
+   const s = merged.toString()
+   return s ? `?${s}` : ''
+ }
+ 
+-export function noDegradeFlag(search: string): boolean {
+-  return param(search, 'bomberNoDegrade') === '1'
++export function noDegradeFlag(search: string, key = 'bomber'): boolean {
++  return param(search, `${key}NoDegrade`) === '1'
+ }
+ 
+-export function tierSettings(tier: BomberTier, devicePixelRatio: number): TierSettings {
++export function tierSettings(tier: Tier, devicePixelRatio: number): TierSettings {
+   if (tier === 'mobile') {
+     return { outline: false, glow: false, bloom: false, shadowSize: 512, particleCap: 60, hardwareScaling: 1.5 }
+   }
+   return {
+     outline: true,
+     glow: true,
+     bloom: true,
+     shadowSize: 1024,
+     particleCap: 150,
+     hardwareScaling: 1 / Math.min(Math.max(devicePixelRatio, 1), 2),
+diff --git a/src/babylon/games/bomberFx/rig.test.ts b/src/babylon/fx/rig.test.ts
+similarity index 95%
+rename from src/babylon/games/bomberFx/rig.test.ts
+rename to src/babylon/fx/rig.test.ts
+index 6b711e7..8428a13 100644
+--- a/src/babylon/games/bomberFx/rig.test.ts
++++ b/src/babylon/fx/rig.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { swingRange } from '@/babylon/games/bomberFx/rig'
++import { swingRange } from '@/babylon/fx/rig'
+ 
+ describe('swingRange', () => {
+   it('繞 X 軸以樞紐 (y,z) 旋轉指定範圍的頂點，範圍外不動', () => {
+     // 兩個頂點：第 0 個在樞紐正下方 1 單位，第 1 個不在範圍
+     const base = new Float32Array([0, -1, 0, 9, 9, 9])
+     const out = new Float32Array(base)
+     swingRange(base, out, 0, 1, { y: 0, z: 0 }, Math.PI / 2)
+     // Babylon RotationX(θ)：y' = y·c − z·s、z' = y·s + z·c
+     expect(out[1]).toBeCloseTo(0, 5)
+     expect(out[2]).toBeCloseTo(-1, 5)
+diff --git a/src/babylon/games/bomberFx/rig.ts b/src/babylon/fx/rig.ts
+similarity index 100%
+rename from src/babylon/games/bomberFx/rig.ts
+rename to src/babylon/fx/rig.ts
+diff --git a/src/babylon/fx/textures.ts b/src/babylon/fx/textures.ts
+new file mode 100644
+index 0000000..2278fa3
+--- /dev/null
++++ b/src/babylon/fx/textures.ts
+@@ -0,0 +1,44 @@
++/**
++ * 玩具系列共用的程式貼圖（DynamicTexture + Canvas 2D，不載入外部圖檔）：Canvas 小工具與 billboard 標籤。
++ * 遊戲專屬的地面、圖集留在各自的 `games/<遊戲>Fx/textures.ts`。
++ */
++import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
++import { OUTLINE } from '@/babylon/fx/palette'
++
++export type Ctx = CanvasRenderingContext2D
++
++export const ctxOf = (tex: DynamicTexture): Ctx => tex.getContext() as unknown as Ctx
++
++export const roundRect = (g: Ctx, x: number, y: number, w: number, h: number, r: number): void => {
++  g.beginPath()
++  g.moveTo(x + r, y)
++  g.arcTo(x + w, y, x + w, y + h, r)
++  g.arcTo(x + w, y + h, x, y + h, r)
++  g.arcTo(x, y + h, x, y, r)
++  g.arcTo(x, y, x + w, y, r)
++  g.closePath()
++}
++
++/** 膠囊標籤（「你」／AI 小章）：透明底、本色膠囊、深紫描邊、白字 */
++export function createLabelTexture(scene: Scene, name: string, text: string, bg: string, w = 128, h = 64): DynamicTexture {
++  const tex = new DynamicTexture(name, { width: w, height: h }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = true
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, w, h)
++  roundRect(g, 4, 4, w - 8, h - 8, (h - 8) / 2)
++  g.fillStyle = bg
++  g.fill()
++  g.lineWidth = 5
++  g.strokeStyle = OUTLINE
++  g.stroke()
++  g.fillStyle = '#FFFFFF'
++  g.font = `900 ${Math.round(h * 0.56)}px Fredoka, "Noto Sans TC", sans-serif`
++  g.textAlign = 'center'
++  g.textBaseline = 'middle'
++  g.lineWidth = 6
++  g.strokeStyle = OUTLINE
++  g.strokeText(text, w / 2, h / 2 + 2)
++  g.fillText(text, w / 2, h / 2 + 2)
++  tex.update()
++  return tex
++}
+diff --git a/src/babylon/games/bomberFx/thin.test.ts b/src/babylon/fx/thin.test.ts
+similarity index 96%
+rename from src/babylon/games/bomberFx/thin.test.ts
+rename to src/babylon/fx/thin.test.ts
+index 8c526a0..c77d695 100644
+--- a/src/babylon/games/bomberFx/thin.test.ts
++++ b/src/babylon/fx/thin.test.ts
+@@ -1,13 +1,13 @@
+ import { describe, expect, it } from 'vitest'
+ import type { Mesh } from '@/babylon/babylonCore'
+-import { ThinGroup } from '@/babylon/games/bomberFx/thin'
++import { ThinGroup } from '@/babylon/fx/thin'
+ 
+ /**
+  * 假 mesh：照 Babylon thinInstanceMesh 的行為模擬 GPU 端——
+  * thinInstanceBufferUpdated 只上傳「當下 thinInstanceCount 筆」矩陣（thinInstanceMesh.pure.js:308），
+  * thinInstanceSetBuffer 整份上傳並把 count 設成 buffer 容量。
+  */
+ function fakeMesh() {
+   const gpu: number[] = []
+   let data: Float32Array = new Float32Array(0)
+   const m = {
+diff --git a/src/babylon/games/bomberFx/thin.ts b/src/babylon/fx/thin.ts
+similarity index 93%
+rename from src/babylon/games/bomberFx/thin.ts
+rename to src/babylon/fx/thin.ts
+index 56290d7..bf4342d 100644
+--- a/src/babylon/games/bomberFx/thin.ts
++++ b/src/babylon/fx/thin.ts
+@@ -1,17 +1,17 @@
+ /**
+  * thin instance 群組：一個 mesh 畫同形狀的所有實例（1 個 draw call）。
+  * slot 管理在 ThinSlots（純邏輯），這裡只負責把 buffer 同步給 Babylon。
+  */
+ import type { Mesh } from '@/babylon/babylonCore'
+-import { composeMatrix, type Trs } from '@/babylon/games/bomberFx/geometry'
+-import { ThinSlots } from '@/babylon/games/bomberFx/thinSlots'
++import { composeMatrix, type Trs } from '@/babylon/fx/geometry'
++import { ThinSlots } from '@/babylon/fx/thinSlots'
+ 
+ export class ThinGroup<K> {
+   readonly mesh: Mesh
+   readonly slots: ThinSlots<K>
+   private version: number
+ 
+   constructor(mesh: Mesh, capacity: number) {
+     this.mesh = mesh
+     this.slots = new ThinSlots<K>(capacity)
+     this.version = this.slots.bufferVersion
+diff --git a/src/babylon/games/bomberFx/thinSlots.test.ts b/src/babylon/fx/thinSlots.test.ts
+similarity index 96%
+rename from src/babylon/games/bomberFx/thinSlots.test.ts
+rename to src/babylon/fx/thinSlots.test.ts
+index 575f34b..a1a28b4 100644
+--- a/src/babylon/games/bomberFx/thinSlots.test.ts
++++ b/src/babylon/fx/thinSlots.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { ThinSlots } from '@/babylon/games/bomberFx/thinSlots'
++import { ThinSlots } from '@/babylon/fx/thinSlots'
+ 
+ const fill = (s: ThinSlots<number>, k: number, v: number) => s.write(k, (buf, o) => buf.fill(v, o, o + 16))
+ 
+ describe('ThinSlots', () => {
+   it('add 依序配 slot、count 累加', () => {
+     const s = new ThinSlots<number>(4)
+     s.add(10)
+     s.add(20)
+     expect(s.count).toBe(2)
+     expect(s.slotOf(20)).toBe(1)
+diff --git a/src/babylon/games/bomberFx/thinSlots.ts b/src/babylon/fx/thinSlots.ts
+similarity index 100%
+rename from src/babylon/games/bomberFx/thinSlots.ts
+rename to src/babylon/fx/thinSlots.ts
+diff --git a/src/babylon/games/bomberFx/toon.ts b/src/babylon/fx/toon.ts
+similarity index 100%
+rename from src/babylon/games/bomberFx/toon.ts
+rename to src/babylon/fx/toon.ts
+diff --git a/src/babylon/games/bomberFx/upright.test.ts b/src/babylon/fx/upright.test.ts
+similarity index 97%
+rename from src/babylon/games/bomberFx/upright.test.ts
+rename to src/babylon/fx/upright.test.ts
+index b6d8cf7..ae41ae8 100644
+--- a/src/babylon/games/bomberFx/upright.test.ts
++++ b/src/babylon/fx/upright.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, it } from 'vitest'
+-import { uprightAxis } from '@/babylon/games/bomberFx/upright'
++import { uprightAxis } from '@/babylon/fx/upright'
+ 
+ // bomber 的相機：ArcRotateCamera(α −π/2, β 0.55, r 30) → 位置 (0, 30cosβ, −30sinβ)，畫面上方 = (0, sinβ, cosβ)
+ const B = 0.55
+ const CAM: [number, number, number] = [0, 30 * Math.cos(B), -30 * Math.sin(B)]
+ const UP: [number, number, number] = [0, Math.sin(B), Math.cos(B)]
+ const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+ const cross = (a: number[], b: number[]) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+ 
+ describe('uprightAxis（抵銷俯角透視的起伏位移：角色上軸在畫面上投影成直立）', () => {
+   it('畫面正中那一欄不用傾斜', () => {
+diff --git a/src/babylon/games/bomberFx/upright.ts b/src/babylon/fx/upright.ts
+similarity index 100%
+rename from src/babylon/games/bomberFx/upright.ts
+rename to src/babylon/fx/upright.ts
+diff --git a/src/babylon/games/bomber.ts b/src/babylon/games/bomber.ts
+index 5d0ec36..c729243 100644
+--- a/src/babylon/games/bomber.ts
++++ b/src/babylon/games/bomber.ts
+@@ -1,15 +1,16 @@
+ import { ArcRotateCamera, Quaternion, SceneInstrumentation, Vector3, type Mesh } from '@/babylon/babylonCore'
+ import type { GameContext, GameHud, GameModule, GameOverlay } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+-import { createCountdownPanel, type CountdownTheme, type TextPanel } from '@/babylon/hud'
++import { createCountdownPanel, type TextPanel } from '@/babylon/hud'
++import { COUNTDOWN_THEME } from '@/babylon/fx/countdown'
+ import {
+   canAdvanceMidRound,
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
+ } from '@/babylon/net'
+ import {
+@@ -41,31 +42,32 @@ import {
+   type BoomPayload,
+   type BombMovePayload,
+   type BombPayload,
+   type BotEntry,
+   type BotsPayload,
+   type CloseWallPayload,
+   type Drop,
+   type ItemKind,
+   type PickupPayload,
+ } from './bomberNet'
+-import { AVATAR_SCALE, AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/games/bomberFx/avatar'
++import { AVATAR_SCALE, AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/fx/avatar'
++import { BOMBER_AVATAR } from '@/babylon/games/bomberFx/avatar'
+ import { ToyBoard } from '@/babylon/games/bomberFx/board'
+ import { ToyFx } from '@/babylon/games/bomberFx/effects'
+ import { classifyFlameCells } from '@/babylon/games/bomberFx/flames'
+ import { armDelayMs, deathPose, flameEmissive, placeScale } from '@/babylon/games/bomberFx/fxCurves'
+ import { buildBomberHud, phaseTimer } from '@/babylon/games/bomberFx/hudModel'
+-import { perfLogLine } from '@/babylon/games/bomberFx/perfLog'
++import { perfLogLine } from '@/babylon/fx/perfLog'
+ import { colorIndexOf, invincibleBlinkOn, PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
+ import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
+-import { ToyLook, UI_LAYER } from '@/babylon/games/bomberFx/look'
+-import { uprightAxis } from '@/babylon/games/bomberFx/upright'
++import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
++import { uprightAxis } from '@/babylon/fx/upright'
+ 
+ /**
+  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
+  *
+  * 同步模型：Host Authority 事件制——
+  * - 位置：各自模擬自己的人（ownership 20Hz 廣播 {x,z}，他人插值）
+  * - 地圖：host 播種 seed（reliable + channel open 補送），各端決定性生成
+  * - 炸彈：guest 廣播 bombReq → host 驗證 → 廣播 bomb（放置）/ boom（爆炸格、毀箱、擊殺）
+  * - 勝負：host 裁決最後生存者 → flow.endGame
+  */
+@@ -163,30 +165,20 @@ const SHAKE_MS = 220 // 爆炸相機震動時長
+ const CLOSE_WARN_MS = 400 // 突然死亡落牆前的紅色預告格時長（純視覺）
+ const PERF_LOG_MS = 2000 // draw calls / fps 量測輸出間隔
+ // 特效時長（spec §8，純視覺）
+ const PLACE_POP_MS = 180 // 放炸彈彈跳＋地面 ring
+ const DEATH_MS = 700 // 陣亡跳起旋轉縮小
+ const FUSE_TIP = { x: 0.3, y: 0.84 } // 引信末端（炸彈模型座標，見 models.bombData）
+ const HEAD_Y = 2.4 // 拾取代幣飛向的頭頂高度
+ const UPRIGHT_BACK_TILT = 0.35 // 角色往後仰（遠離相機）的弧度：高俯角下頭才不會整個蓋住身體（對照 variant-A-sheet 的正面）
+ const PLUS_ONE_Y = 3.7 // 「+1」起飄高度：在「你」標記（約 3.3）之上，不被頭與標記擋住
+ 
+-/** 開局倒數 A 配色（spec §9：奶油底、深紫描邊、Fredoka）；面板走 UI 相機，不經 ACES／bloom，填的就是畫面色 */
+-const COUNTDOWN_THEME: CountdownTheme = {
+-  fontFamily: 'Fredoka, sans-serif',
+-  count: { glow: 'rgba(0,0,0,0.4)', fill: '#FFF6E3', border: TOY.outline, stroke: TOY.outline, text: '#FF7A1A' },
+-  go: { glow: 'rgba(0,0,0,0.4)', fill: '#2FCF5E', border: TOY.outline, stroke: TOY.outline, text: '#FFFFFF' },
+-  plain: { stroke: TOY.outline, text: '#FFF6E3' },
+-  shadowOffset: 0.12,
+-  shadowBlur: 0,
+-}
+-
+ // 道具：初始一顆彈、火力 1，吃道具才成長
+ const INIT_BOMBS = 1
+ const INIT_FIRE = 1
+ const MAX_BOMBS = 6
+ const MAX_FIRE = 6
+ const MAX_SPEED_LV = 3
+ const ITEM_DROP_CHANCE = 0.45 // 木箱炸毀後掉落道具的機率（host 決定）
+ const INVINCIBLE_MS = 7000 // 無敵 buff 持續時間
+ const KICK_STEP_MS = 120 // 踢炸彈每滑一格的時間（各端依此插值）
+ const THROW_HOP_MS = 110 // 丟炸彈每飛一格的時間
+@@ -1207,30 +1199,30 @@ class BomberScene implements GameModule {
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+     // 固定俯視相機（不開放操作）
+     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 30, Vector3.Zero(), scene)
+     // 光影與後製（AC4／AC7）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位
+     const halfDiag = Math.hypot(GRID_W * CELL, GRID_H * CELL) / 2
+-    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + CELL })
++    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + CELL, tag: 'bomber', outline: TOY.outline })
+ 
+     // 場景物件（A「Toy Box」）：地面單 mesh＋程式棋盤，柱牆／外框／木箱／落牆／炸彈／火焰／道具走 thin instance
+     this.board = new ToyBoard(scene, {
+       gridW: GRID_W,
+       gridH: GRID_H,
+       cell: CELL,
+       toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
+     })
+-    this.avatarKit = new AvatarKit(scene)
++    this.avatarKit = new AvatarKit(scene, BOMBER_AVATAR)
+     const fx = this.board.fxTargets()
+     this.look.toon(...fx.toon, this.avatarKit.bodyMat)
+     this.look.receiver(...fx.receivers)
+     this.look.caster(...fx.casters)
+     this.look.outline(...fx.outlined)
+     for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
+     // AC5：特效（粒子上限依檔位）
+     this.fx = new ToyFx(scene, { cell: CELL, cap: this.look.settings.particleCap })
+     this.look.toon(...this.fx.toonMaterials())
+     // AC8：draw calls 量測（每 PERF_LOG_MS 印一次）
+diff --git a/src/babylon/games/bomberFx/avatar.ts b/src/babylon/games/bomberFx/avatar.ts
+index af66449..bc93c3b 100644
+--- a/src/babylon/games/bomberFx/avatar.ts
++++ b/src/babylon/games/bomberFx/avatar.ts
+@@ -1,232 +1,23 @@
+ /**
+- * Q 版角色（spec §4）：身體、頭盔、臉、眼睛、四肢合併成一個頂點色 mesh（1 個 draw call），
+- * 四肢擺動由 CPU 改寫頂點（rig.ts）。AI 天線球、AI 小章、「你」標記、無敵金圈是另外的小 mesh，
+- * 方便 GlowLayer 白名單與顯示切換。
++ * 炸彈超人角色外觀（spec §4）：通用角色在 fx/avatar，這裡只給頭上的天線與 AvatarKit 設定。
++ * 真人的粉紅天線球併進身體；AI 的青色發光球由 fx/avatar 另建（Glow 白名單）。
+  */
+-import { Color3, Mesh, MeshBuilder, StandardMaterial, type DynamicTexture, type Scene } from '@/babylon/babylonCore'
+-import { mergeData, roundedBox, type MeshData } from '@/babylon/games/bomberFx/geometry'
+-import { at, radial, rgba, solid, sphere, cylinder, toMesh } from '@/babylon/games/bomberFx/models'
+-import { PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
+-import { swingRange } from '@/babylon/games/bomberFx/rig'
+-import { createLabelTexture } from '@/babylon/games/bomberFx/textures'
+-
+-type Limb = 'legL' | 'legR' | 'armL' | 'armR'
+-
+-interface LimbRange {
+-  limb: Limb
+-  start: number
+-  count: number
+-  pivot: { y: number; z: number }
+-}
+-
+-export interface ToyAvatar {
+-  /** 位移錨點（不轉面向，只有 bomber 的俯角透視補償會微傾它）；標記掛這裡才不會跟著面向轉 */
+-  root: Mesh
+-  /** 合併後的身體，rotation.y = 面向 */
+-  body: Mesh
+-  /** AI 的青色天線球（Glow 白名單用） */
+-  antenna?: Mesh
+-  tag?: Mesh
+-  marker?: Mesh
+-  halo: Mesh
+-  colorIndex: ColorIndex
+-  isAI: boolean
+-  isSelf: boolean
+-  base: Float32Array
+-  baseN: Float32Array
+-  pos: Float32Array
+-  nrm: Float32Array
+-  limbs: LimbRange[]
+-  lastSwing: number
+-}
+-
+-/** 外觀放大倍率：對齊 variant-A-sheet 的頭身比例（頭盔約 0.6 格寬） */
+-export const AVATAR_SCALE = 1.35
+-const LEG_PIVOT = { y: 0.4, z: 0 }
+-const HEAD_Y = 1.24
+-/** 頭往鏡頭仰的角度（Babylon rotation.x，負值讓 +Z 臉朝上） */
+-const HEAD_TILT = -0.42
+-/** 頭心座標系中天線球的位置，轉成身體座標（AI 發光球要跟著仰） */
+-const ANTENNA_BALL = { y: HEAD_Y + 0.68 * Math.cos(HEAD_TILT), z: 0.68 * Math.sin(HEAD_TILT) }
+-const ARM_PIVOT = { y: 0.8, z: 0 }
+-
+-/** 角色共用的材質與標籤貼圖（每個場景一份） */
+-export class AvatarKit {
+-  readonly bodyMat: StandardMaterial
+-  readonly haloMat: StandardMaterial
+-  readonly antennaMat: StandardMaterial
+-  private labelMats = new Map<string, StandardMaterial>()
+-  private textures: DynamicTexture[] = []
+-  private readonly scene: Scene
+-
+-  constructor(scene: Scene) {
+-    this.scene = scene
+-    this.bodyMat = new StandardMaterial('toy-avatar-mat', scene)
+-    this.bodyMat.diffuseColor = Color3.White()
+-    this.bodyMat.specularColor = new Color3(0.18, 0.18, 0.18)
+-    this.haloMat = new StandardMaterial('toy-halo-mat', scene)
+-    this.haloMat.emissiveColor = Color3.FromHexString(TOY.invincible)
+-    this.haloMat.disableLighting = true
+-    this.haloMat.alpha = 0.32
+-    this.antennaMat = new StandardMaterial('toy-ai-antenna-mat', scene)
+-    this.antennaMat.emissiveColor = Color3.FromHexString(TOY.aiAntenna)
+-    this.antennaMat.disableLighting = true
+-  }
+-
+-  labelMat(key: string, text: string, bg: string, w: number, h: number): StandardMaterial {
+-    let m = this.labelMats.get(key)
+-    if (m) return m
+-    const tex = createLabelTexture(this.scene, `toy-label-${key}`, text, bg, w, h)
+-    this.textures.push(tex)
+-    m = new StandardMaterial(`toy-label-mat-${key}`, this.scene)
+-    m.diffuseTexture = tex
+-    m.useAlphaFromDiffuseTexture = true
+-    m.emissiveColor = Color3.White()
+-    m.disableLighting = true
+-    m.backFaceCulling = false
+-    this.labelMats.set(key, m)
+-    return m
+-  }
+-
+-  dispose(): void {
+-    this.bodyMat.dispose()
+-    this.haloMat.dispose()
+-    this.antennaMat.dispose()
+-    for (const m of this.labelMats.values()) m.dispose()
+-    for (const t of this.textures) t.dispose()
+-    this.labelMats.clear()
+-    this.textures = []
+-  }
+-}
+-
+-const rbox = (w: number, h: number, d: number, r: number): MeshData => roundedBox({ width: w, height: h, depth: d, radius: r, segments: 2 })
+-
+-/** 組身體頂點；回傳合併資料與四肢頂點範圍 */
+-function bodyData(ci: ColorIndex, isAI: boolean): { data: MeshData; limbs: LimbRange[] } {
+-  const pal = PLAYER_PALETTE[ci]
+-  const legC = rgba('#3B3453')
+-  const footC = rgba(TOY.outline)
+-  const white = rgba('#FFFFFF')
+-  const parts: { d: MeshData; limb?: Limb; pivot?: { y: number; z: number } }[] = []
+-  const limb = (l: Limb, pivot: { y: number; z: number }, ...ds: MeshData[]) => parts.push({ d: mergeData(ds), limb: l, pivot })
+-
+-  for (const [l, sx] of [['legL', -1], ['legR', 1]] as const) {
+-    limb(
+-      l,
+-      LEG_PIVOT,
+-      at(solid(rbox(0.22, 0.34, 0.24, 0.07), legC), { x: sx * 0.14, y: 0.25, z: 0 }),
+-      at(solid(rbox(0.26, 0.14, 0.34, 0.06), footC), { x: sx * 0.14, y: 0.07, z: 0.04 })
+-    )
+-  }
+-  parts.push({ d: at(radial(rbox(0.6, 0.46, 0.44, 0.14), pal.light, pal.base, pal.dark), { x: 0, y: 0.6, z: 0 }) })
+-  parts.push({ d: at(solid(rbox(0.63, 0.1, 0.47, 0.05), rgba(pal.dark)), { x: 0, y: 0.47, z: 0 }) })
+-  for (const [l, sx] of [['armL', -1], ['armR', 1]] as const) {
+-    limb(
+-      l,
+-      ARM_PIVOT,
+-      at(radial(rbox(0.16, 0.3, 0.18, 0.07), pal.light, pal.base, pal.dark), { x: sx * 0.38, y: 0.66, z: 0 }),
+-      at(solid(sphere(0.21, 10), white), { x: sx * 0.39, y: 0.48, z: 0 })
+-    )
+-  }
+-  // 頭盔（徑向漸層）＋臉＋眼睛（白色光點）＋天線：以頭心為原點組好，整顆往鏡頭仰 HEAD_TILT，
+-  // 俯視 3/4 角度下臉才看得到（對照 variant-A-sheet 的正臉）
+-  const head: MeshData[] = [
+-    radial(sphere(0.92, 16), pal.light, pal.base, pal.dark),
+-    at(solid(sphere(1, 14), rgba(TOY.face)), { x: 0, y: -0.04, z: 0.3, sx: 0.66, sy: 0.54, sz: 0.5 }),
+-  ]
+-  for (const sx of [-1, 1]) {
+-    head.push(at(solid(sphere(1, 10), rgba(TOY.eye)), { x: sx * 0.12, y: 0.01, z: 0.53, sx: 0.11, sy: 0.2, sz: 0.08 }))
+-    head.push(at(solid(sphere(0.06, 6), white), { x: sx * 0.12 - 0.025, y: 0.06, z: 0.575 }))
+-  }
+-  head.push(at(solid(cylinder(0.2, 0.045, 6), rgba(TOY.outline)), { x: 0, y: 0.54, z: 0 }))
+-  // 真人天線球是粉紅（併進身體）；AI 另建青色發光球
+-  if (!isAI) head.push(at(radial(sphere(0.19, 10), '#FFB3D6', '#FF5AA8', '#C2307A'), { x: 0, y: 0.68, z: 0 }))
+-  parts.push({ d: at(mergeData(head), { x: 0, y: HEAD_Y, z: 0, pitch: HEAD_TILT }) })
+-
+-  const limbs: LimbRange[] = []
+-  let v = 0
+-  for (const p of parts) {
+-    const n = p.d.positions.length / 3
+-    if (p.limb && p.pivot) limbs.push({ limb: p.limb, start: v, count: n, pivot: p.pivot })
+-    v += n
+-  }
+-  return { data: mergeData(parts.map((p) => p.d)), limbs }
+-}
+-
+-export function buildAvatar(scene: Scene, kit: AvatarKit, id: string, ci: ColorIndex, opts: { isAI: boolean; isSelf: boolean }): ToyAvatar {
+-  const root = new Mesh(`pl-${id}`, scene)
+-  const { data, limbs } = bodyData(ci, opts.isAI)
+-  const body = toMesh(`pl-body-${id}`, data, scene, true)
+-  body.material = kit.bodyMat
+-  body.parent = root
+-  body.alwaysSelectAsActiveMesh = true // 四肢改頂點會跑出原 bounding
+-  body.scaling.setAll(AVATAR_SCALE) // 只放大外觀，碰撞半徑（PLAYER_R）不變
+-
+-  let antenna: Mesh | undefined
+-  let tag: Mesh | undefined
+-  if (opts.isAI) {
+-    antenna = MeshBuilder.CreateSphere(`pl-ai-ant-${id}`, { diameter: 0.21, segments: 10 }, scene)
+-    antenna.material = kit.antennaMat
+-    antenna.parent = body
+-    antenna.position.set(0, ANTENNA_BALL.y, ANTENNA_BALL.z)
+-    tag = MeshBuilder.CreatePlane(`pl-ai-tag-${id}`, { width: 0.5, height: 0.28 }, scene)
+-    tag.material = kit.labelMat('ai', 'AI', TOY.aiAntenna, 112, 64)
+-    tag.parent = root
+-    tag.position.set(0.42 * AVATAR_SCALE, 1.66 * AVATAR_SCALE, 0)
+-    tag.billboardMode = Mesh.BILLBOARDMODE_ALL
+-  }
+-  let marker: Mesh | undefined
+-  if (opts.isSelf) {
+-    marker = MeshBuilder.CreatePlane(`pl-you-${id}`, { width: 0.8, height: 0.42 }, scene)
+-    marker.material = kit.labelMat(`you-${ci}`, '你', PLAYER_PALETTE[ci].base, 128, 68)
+-    marker.parent = root
+-    marker.position.set(0, 2.45 * AVATAR_SCALE, 0)
+-    marker.billboardMode = Mesh.BILLBOARDMODE_ALL
+-  }
+-  const halo = MeshBuilder.CreateSphere(`pl-halo-${id}`, { diameter: 1, segments: 12 }, scene)
+-  halo.material = kit.haloMat
+-  halo.parent = root
+-  halo.position.set(0, 1.0 * AVATAR_SCALE, 0)
+-  halo.scaling.set(1.3 * AVATAR_SCALE, 2.15 * AVATAR_SCALE, 1.3 * AVATAR_SCALE)
+-  halo.isVisible = false
+-  halo.isPickable = false
+-
+-  const base = new Float32Array(data.positions)
+-  const baseN = new Float32Array(data.normals)
+-  return {
+-    root,
+-    body,
+-    antenna,
+-    tag,
+-    marker,
+-    halo,
+-    colorIndex: ci,
+-    isAI: opts.isAI,
+-    isSelf: opts.isSelf,
+-    base,
+-    baseN,
+-    pos: new Float32Array(base),
+-    nrm: new Float32Array(baseN),
+-    limbs,
+-    lastSwing: 0,
+-  }
+-}
+-
+-const SWING_SIGN: Record<Limb, number> = { legL: 1, legR: -1, armL: -1, armR: 1 }
+-
+-/** 擺動四肢（角度沒變就不重傳頂點） */
+-export function poseAvatar(av: ToyAvatar, swing: number): void {
+-  if (Math.abs(swing - av.lastSwing) < 1e-3) return
+-  av.lastSwing = swing
+-  for (const l of av.limbs) {
+-    const a = swing * SWING_SIGN[l.limb]
+-    swingRange(av.base, av.pos, l.start, l.count, l.pivot, a)
+-    swingRange(av.baseN, av.nrm, l.start, l.count, null, a)
+-  }
+-  av.body.updateVerticesData('position', av.pos)
+-  av.body.updateVerticesData('normal', av.nrm)
++import type { MeshData } from '@/babylon/fx/geometry'
++import { at, cylinder, radial, rgba, solid, sphere } from '@/babylon/fx/models'
++import type { AvatarKitOptions } from '@/babylon/fx/avatar'
++import { TOY } from '@/babylon/games/bomberFx/palette'
++
++/** 天線球在頭心座標系的高度 */
++const ANTENNA_BALL_Y = 0.68
++
++const antenna = (_pal: unknown, isAI: boolean): MeshData[] => {
++  const parts = [at(solid(cylinder(0.2, 0.045, 6), rgba(TOY.outline)), { x: 0, y: 0.54, z: 0 })]
++  if (!isAI) parts.push(at(radial(sphere(0.19, 10), '#FFB3D6', '#FF5AA8', '#C2307A'), { x: 0, y: ANTENNA_BALL_Y, z: 0 }))
++  return parts
+ }
+ 
+-export function disposeAvatar(av: ToyAvatar): void {
+-  av.root.dispose(false, false)
++export const BOMBER_AVATAR: AvatarKitOptions = {
++  style: { headgear: antenna, legs: '#3B3453', face: TOY.face, eye: TOY.eye },
++  haloColor: TOY.invincible,
++  ai: { color: TOY.aiAntenna, ballY: ANTENNA_BALL_Y },
+ }
+diff --git a/src/babylon/games/bomberFx/board.ts b/src/babylon/games/bomberFx/board.ts
+index 668d31b..32f4e46 100644
+--- a/src/babylon/games/bomberFx/board.ts
++++ b/src/babylon/games/bomberFx/board.ts
+@@ -1,33 +1,33 @@
+ /**
+  * 炸彈超人場景物件（spec §5／§10）：地面 1 個 mesh；柱牆、外框、木箱三態、落牆、炸彈、火焰、道具
+  * 各自一個 thin instance 群組，場上物件再多 draw call 也固定。遊戲邏輯留在 bomber.ts，這裡只管畫。
+  */
+ import { Color3, MeshBuilder, StandardMaterial, type DynamicTexture, type Mesh, type Scene } from '@/babylon/babylonCore'
+ import type { FlameCell } from '@/babylon/games/bomberFx/flames'
+-import { itemHop, pickupFlight } from '@/babylon/games/bomberFx/fxCurves'
+-import type { Trs } from '@/babylon/games/bomberFx/geometry'
++import { itemHop, pickupFlight } from '@/babylon/fx/curves'
++import type { Trs } from '@/babylon/fx/geometry'
++import { toMesh } from '@/babylon/fx/models'
+ import {
+   bombData,
+   borderBlockData,
+   crateData,
+   flameArmData,
+   flameCapData,
+   FLAME_LAYERS,
+   pillarData,
+-  toMesh,
+   tokenData,
+   warnQuadData,
+   type CrateVariant,
+ } from '@/babylon/games/bomberFx/models'
+ import { ITEM_COLORS, TOY } from '@/babylon/games/bomberFx/palette'
+-import { ThinGroup } from '@/babylon/games/bomberFx/thin'
++import { ThinGroup } from '@/babylon/fx/thin'
+ import { BLOCK_TILE, createBlockAtlas, createGroundTexture, createItemAtlas, ITEM_ORDER } from '@/babylon/games/bomberFx/textures'
+ 
+ export type ItemKindName = (typeof ITEM_ORDER)[number]
+ 
+ /** 光影登記用：依用途分好的 mesh 與材質（ToyLook 用） */
+ export interface BoardFxTargets {
+   /** 卡通 ramp（發光物與預告格走 emissive，不在內） */
+   toon: StandardMaterial[]
+   /** 接影：地面、牆、箱 */
+   receivers: Mesh[]
+diff --git a/src/babylon/games/bomberFx/effects.ts b/src/babylon/games/bomberFx/effects.ts
+index c7689c2..b153b0f 100644
+--- a/src/babylon/games/bomberFx/effects.ts
++++ b/src/babylon/games/bomberFx/effects.ts
+@@ -10,26 +10,27 @@ import {
+   Color4,
+   Mesh,
+   MeshBuilder,
+   ParticleSystem,
+   StandardMaterial,
+   Texture,
+   Vector3,
+   type DynamicTexture,
+   type Scene,
+ } from '@/babylon/babylonCore'
+-import { BurstQueue, type BurstParticle } from '@/babylon/games/bomberFx/burstQueue'
+-import { emitCount, floatTextPose, ringPose, scorchScale } from '@/babylon/games/bomberFx/fxCurves'
+-import { roundedBox, type MeshData } from '@/babylon/games/bomberFx/geometry'
+-import { rgba, solid, toMesh } from '@/babylon/games/bomberFx/models'
++import { BurstQueue, type BurstParticle } from '@/babylon/fx/burstQueue'
++import { emitCount, floatTextPose, ringPose } from '@/babylon/fx/curves'
++import { scorchScale } from '@/babylon/games/bomberFx/fxCurves'
++import { roundedBox, type MeshData } from '@/babylon/fx/geometry'
++import { rgba, solid, toMesh } from '@/babylon/fx/models'
+ import { hexToRgb, TOY } from '@/babylon/games/bomberFx/palette'
+-import { ThinGroup } from '@/babylon/games/bomberFx/thin'
++import { ThinGroup } from '@/babylon/fx/thin'
+ import {
+   bomberAssetUrl,
+   createPlusOneTexture,
+   createRingTexture,
+   createScorchTexture,
+ } from '@/babylon/games/bomberFx/textures'
+ 
+ type Dir = 'fountain' | 'up' | 'burst' | 'radial'
+ 
+ interface FxStyle {
+diff --git a/src/babylon/games/bomberFx/fxCurves.test.ts b/src/babylon/games/bomberFx/fxCurves.test.ts
+index d4bba72..dda81ae 100644
+--- a/src/babylon/games/bomberFx/fxCurves.test.ts
++++ b/src/babylon/games/bomberFx/fxCurves.test.ts
+@@ -1,23 +1,13 @@
+ import { describe, expect, it } from 'vitest'
+-import {
+-  armDelayMs,
+-  deathPose,
+-  emitCount,
+-  flameEmissive,
+-  floatTextPose,
+-  itemHop,
+-  pickupFlight,
+-  placeScale,
+-  ringPose,
+-  scorchScale,
+-} from '@/babylon/games/bomberFx/fxCurves'
++import { emitCount, floatTextPose, itemHop, pickupFlight, ringPose } from '@/babylon/fx/curves'
++import { armDelayMs, deathPose, flameEmissive, placeScale, scorchScale } from '@/babylon/games/bomberFx/fxCurves'
+ 
+ describe('placeScale（放炸彈 back-out 0.6 → 1.0）', () => {
+   it('起點 0.6、終點 1.0，超過 1 之後維持 1', () => {
+     expect(placeScale(0)).toBeCloseTo(0.6)
+     expect(placeScale(1)).toBeCloseTo(1)
+     expect(placeScale(3)).toBe(1)
+   })
+ 
+   it('中段會衝過 1（back-out 的回彈）', () => {
+     const peak = Math.max(...[0.5, 0.6, 0.7, 0.8, 0.9].map(placeScale))
+diff --git a/src/babylon/games/bomberFx/fxCurves.ts b/src/babylon/games/bomberFx/fxCurves.ts
+index 30a9245..81443fb 100644
+--- a/src/babylon/games/bomberFx/fxCurves.ts
++++ b/src/babylon/games/bomberFx/fxCurves.ts
+@@ -1,24 +1,15 @@
+ /**
+- * 炸彈超人特效的時間曲線（spec §8，純函式，可在 node 單測）。
++ * 炸彈超人專屬的特效時間曲線（spec §8，純函式，可在 node 單測）；通用曲線在 fx/curves。
+  * t 一律是 0..1 的進度（呼叫端用 經過毫秒 / 時長 算），超出範圍自動夾住。
+  */
+-
+-const clamp01 = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t)
+-const easeOut = (t: number): number => 1 - (1 - t) * (1 - t)
+-
+-/** back-out：衝過 1 再回到 1 */
+-export function backOut(t: number): number {
+-  const s = 1.70158
+-  const u = clamp01(t) - 1
+-  return 1 + (s + 1) * u * u * u + s * u * u
+-}
++import { backOut, clamp01 } from '@/babylon/fx/curves'
+ 
+ /** 放炸彈：縮放 0.6 → 1.0（back-out） */
+ export function placeScale(t: number): number {
+   if (t >= 1) return 1
+   return 0.6 + 0.4 * backOut(t)
+ }
+ 
+ /** 爆炸臂依序生長：每離爆心一格延遲 25ms */
+ export const ARM_STEP_MS = 25
+ export function armDelayMs(cx: number, cy: number, ccx: number, ccy: number): number {
+@@ -35,49 +26,17 @@ export function deathPose(t: number): { lift: number; spin: number; scale: numbe
+   const u = clamp01(t)
+   if (u === 0) return { lift: 0, spin: 0, scale: 1 }
+   const hop = Math.min(1, u / 0.7)
+   return {
+     lift: 1.6 * Math.sin(Math.PI * hop) * (1 - 0.4 * u),
+     spin: Math.PI * 4 * u * u,
+     scale: 1 - u * u,
+   }
+ }
+ 
+-/** 道具出現：往上彈 0.4 CELL 再落回，同時轉一整圈 */
+-export function itemHop(t: number, cell: number): { lift: number; spin: number } {
+-  if (t >= 1 + 1e-9 || t < 0) return { lift: 0, spin: 0 }
+-  const u = clamp01(t)
+-  return { lift: 0.4 * cell * Math.sin(Math.PI * u), spin: Math.PI * 2 * easeOut(u) }
+-}
+-
+-/** 拾取：位置插值（先慢後快，像被吸過去）、縮放 1 → 0 */
+-export function pickupFlight(t: number): { k: number; scale: number } {
+-  const u = clamp01(t)
+-  return { k: u * u, scale: 1 - u }
+-}
+-
+-/** 地面 ring：擴散 0.35 → 1.25（相對一格），同時淡出 */
+-export function ringPose(t: number): { scale: number; alpha: number } {
+-  const u = clamp01(t)
+-  return { scale: 0.35 + 0.9 * easeOut(u), alpha: 0.9 * (1 - u) }
+-}
+-
+-/** 飄字（+1）：往上飄 0.9，前 40% 不透明、之後淡出 */
+-export function floatTextPose(t: number): { rise: number; alpha: number } {
+-  const u = clamp01(t)
+-  return { rise: 0.9 * easeOut(u), alpha: u < 0.4 ? 1 : 1 - (u - 0.4) / 0.6 }
+-}
+-
+ /** 焦痕：前段維持原大小，最後 400ms 縮到 0（thin instance 沒有逐顆 alpha，用縮小代替淡出） */
+ export const SCORCH_FADE_MS = 400
+ export function scorchScale(ageMs: number, lifeMs: number): number {
+   const left = lifeMs - ageMs
+   if (left <= 0) return 0
+   return Math.min(1, left / SCORCH_FADE_MS)
+ }
+-
+-/** 連續發射：每秒 rate 顆，小數累積到下一幀；單幀最多算 100ms（切分頁回來不會一次噴爆） */
+-export function emitCount(acc: number, rate: number, dtMs: number): { count: number; acc: number } {
+-  const total = acc + (rate * Math.min(dtMs, 100)) / 1000
+-  const count = Math.floor(total + 1e-9)
+-  return { count, acc: total - count }
+-}
+diff --git a/src/babylon/games/bomberFx/models.ts b/src/babylon/games/bomberFx/models.ts
+index 172096f..f22c056 100644
+--- a/src/babylon/games/bomberFx/models.ts
++++ b/src/babylon/games/bomberFx/models.ts
+@@ -1,72 +1,19 @@
+ /**
+  * 炸彈超人 A 方案的程式建模：把圓角盒、球、圓柱組成合併後的單一 mesh（頂點色／圖集 UV），
+- * 每種物件一個 mesh，重複的物件交給 thin instance（見 thin.ts）。
++ * 每種物件一個 mesh，重複的物件交給 thin instance（見 fx/thin.ts）；通用積木在 fx/models。
+  */
+-import { Mesh, VertexBuilders, VertexData, type Scene } from '@/babylon/babylonCore'
+-import { colorize, mergeData, roundedBox, transformData, type MeshData, type Trs } from '@/babylon/games/bomberFx/geometry'
+-import { hexToRgb, TOY } from '@/babylon/games/bomberFx/palette'
++import { mergeData, roundedBox, type MeshData } from '@/babylon/fx/geometry'
++import { at, cylinder, radial, rgba, solid, sphere, type Rgba } from '@/babylon/fx/models'
++import { TOY } from '@/babylon/games/bomberFx/palette'
+ import { BLOCK_TILE, boxFaceUV, ITEM_WHITE_CELL, itemCellUV } from '@/babylon/games/bomberFx/textures'
+ 
+-export type Rgba = readonly [number, number, number, number]
+-export const rgba = (hex: string, a = 1): Rgba => [...hexToRgb(hex), a] as const
+-const lerp = (a: Rgba, b: Rgba, t: number): Rgba => [
+-  a[0] + (b[0] - a[0]) * t,
+-  a[1] + (b[1] - a[1]) * t,
+-  a[2] + (b[2] - a[2]) * t,
+-  1,
+-]
+-
+-/** Babylon VertexData → MeshData */
+-const fromVD = (vd: VertexData): MeshData => ({
+-  positions: Array.from(vd.positions ?? []),
+-  normals: Array.from(vd.normals ?? []),
+-  uvs: Array.from(vd.uvs ?? []),
+-  indices: Array.from(vd.indices ?? []),
+-})
+-
+-export const sphere = (diameter: number, segments = 12): MeshData =>
+-  fromVD(VertexBuilders.CreateSphereVertexData({ diameter, segments }))
+-
+-export const cylinder = (height: number, diameter: number, tessellation = 10): MeshData =>
+-  fromVD(VertexBuilders.CreateCylinderVertexData({ height, diameter, tessellation }))
+-
+-export const solid = (d: MeshData, c: Rgba): MeshData => colorize(d, () => c)
+-
+-/** 三段徑向漸層（亮 → 本色 → 暗），以法線與高光方向的夾角決定；對應 spec 的 radial gradient */
+-export const radial = (d: MeshData, light: string, base: string, dark: string, dir: [number, number, number] = [-0.35, 0.85, -0.4]): MeshData => {
+-  const len = Math.hypot(...dir)
+-  const [hx, hy, hz] = dir.map((v) => v / len)
+-  const L = rgba(light)
+-  const B = rgba(base)
+-  const D = rgba(dark)
+-  return colorize(d, (_p, n) => {
+-    const t = (1 - (n[0] * hx + n[1] * hy + n[2] * hz)) / 2 // 0 = 正對高光
+-    return t < 0.5 ? lerp(L, B, t / 0.5) : lerp(B, D, (t - 0.5) / 0.5)
+-  })
+-}
+-
+-export const at = (d: MeshData, t: Trs): MeshData => transformData(d, t)
+-
+-/** MeshData → Babylon Mesh（updatable 供 CPU 擺動四肢） */
+-export function toMesh(name: string, d: MeshData, scene: Scene, updatable = false): Mesh {
+-  const vd = new VertexData()
+-  vd.positions = d.positions
+-  vd.normals = d.normals
+-  vd.uvs = d.uvs
+-  vd.indices = d.indices
+-  if (d.colors) vd.colors = d.colors
+-  const mesh = new Mesh(name, scene)
+-  vd.applyToMesh(mesh, updatable)
+-  return mesh
+-}
+-
+ // ---- 方塊（圖集貼圖，底面貼地 y=0） ----
+ 
+ /** 柱牆：圓角盒 0.96×1.1×0.96 CELL，淺灰石頂＋磚縫側面 */
+ export const pillarData = (cell: number, topTile: number = BLOCK_TILE.pillarTop): MeshData => {
+   const h = cell * 1.1
+   return at(
+     roundedBox({ width: cell * 0.96, height: h, depth: cell * 0.96, radius: cell * 0.09, segments: 2, faceUV: boxFaceUV(BLOCK_TILE.pillarSide, topTile) }),
+     { x: 0, y: h / 2, z: 0 }
+   )
+ }
+diff --git a/src/babylon/games/bomberFx/palette.ts b/src/babylon/games/bomberFx/palette.ts
+index 0a49d3f..87fb6d4 100644
+--- a/src/babylon/games/bomberFx/palette.ts
++++ b/src/babylon/games/bomberFx/palette.ts
+@@ -1,33 +1,22 @@
+ /**
+  * 炸彈超人 A「Toy Box」配色（spec §4／§5）：純資料與純函式，不依賴 Babylon，可在 node 單測。
+  */
+ 
+-export type ColorIndex = 0 | 1 | 2 | 3
++import { OUTLINE, PLAYER_PALETTE, type ColorIndex } from '@/babylon/fx/palette'
+ 
+-export interface PlayerPalette {
+-  light: string
+-  base: string
+-  dark: string
+-}
+-
+-/** 固定 4 色，依出生序（= SPAWN_CORNERS 順序）分配；P 編號 = index + 1 */
+-export const PLAYER_PALETTE: readonly PlayerPalette[] = [
+-  { light: '#FF8A94', base: '#FF3B4E', dark: '#B3122A' }, // P1 紅
+-  { light: '#8CC4FF', base: '#2F86FF', dark: '#1446B8' }, // P2 藍
+-  { light: '#93F0A8', base: '#2FCF5E', dark: '#138A3A' }, // P3 綠
+-  { light: '#FFF0A0', base: '#FFC21A', dark: '#C27D00' }, // P4 黃
+-]
++// 通用的玩家配色已搬到 fx/palette；這裡轉出給既有使用端（bomber、bomberHud）
++export { PLAYER_PALETTE, hexToRgb, type ColorIndex, type PlayerPalette } from '@/babylon/fx/palette'
+ 
+ /** 場景物件色票（spec §5） */
+ export const TOY = {
+-  outline: '#2B2440',
++  outline: OUTLINE,
+   face: '#FFF1E0',
+   eye: '#2B2440',
+   aiAntenna: '#39E6FF',
+   invincible: '#FFCF3F',
+   groundA: '#79C257',
+   groundB: '#6CB44C',
+   grassTuft: '#58A03C',
+   pillarTop: ['#E3E6EF', '#C4C8D6'],
+   pillarSide: ['#9BA1B8', '#767C95'],
+   pillarJoint: '#5D627A',
+@@ -60,25 +49,20 @@ export const ITEM_COLORS = {
+ } as const
+ export const ITEM_ICON_DARK = '#3A2A00'
+ 
+ /** 依實體序取色：entityIds 為「真人在前、bot 在後」的合併名冊，與 spawnOf 用同一個順序，
+  *  所以同一位玩家在每個 client 上顏色一致。找不到回 0（對齊 spawnOf 的 Math.max(0, idx)）。 */
+ export function colorIndexOf(id: string, entityIds: readonly string[]): ColorIndex {
+   const idx = Math.max(0, entityIds.indexOf(id))
+   return (idx % PLAYER_PALETTE.length) as ColorIndex
+ }
+ 
+-export function hexToRgb(hex: string): [number, number, number] {
+-  const n = parseInt(hex.slice(1), 16)
+-  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+-}
+-
+ export const INVINCIBLE_BLINK_HZ = 8
+ export const INVINCIBLE_FAST_HZ = 16
+ export const INVINCIBLE_FAST_MS = 1500
+ 
+ /** 無敵金圈閃爍（方波）：剩 > 1.5 秒 8Hz，最後 1.5 秒 16Hz；以剩餘時間算相位，各端一致 */
+ export function invincibleBlinkOn(now: number, until: number): boolean {
+   const left = until - now
+   if (left <= 0) return false
+   const hz = left > INVINCIBLE_FAST_MS ? INVINCIBLE_BLINK_HZ : INVINCIBLE_FAST_HZ
+   return Math.floor((left / 1000) * hz * 2) % 2 === 0
+diff --git a/src/babylon/games/bomberFx/perfLog.ts b/src/babylon/games/bomberFx/perfLog.ts
+deleted file mode 100644
+index adb3c1f..0000000
+--- a/src/babylon/games/bomberFx/perfLog.ts
++++ /dev/null
+@@ -1,8 +0,0 @@
+-/**
+- * AC8 量測行（純函式）：還沒渲染過的取樣（drawCalls=0、fps 非有限值）回 null，
+- * 開局第一行不會印出 `drawCalls=0 fps=Infinity` 的雜訊。
+- */
+-export function perfLogLine(drawCalls: number, fps: number): string | null {
+-  if (drawCalls <= 0 || !Number.isFinite(fps)) return null
+-  return `[bomber] drawCalls=${drawCalls} fps=${Math.round(fps)}`
+-}
+diff --git a/src/babylon/games/bomberFx/textures.ts b/src/babylon/games/bomberFx/textures.ts
+index 1d48b17..22d73e0 100644
+--- a/src/babylon/games/bomberFx/textures.ts
++++ b/src/babylon/games/bomberFx/textures.ts
+@@ -1,31 +1,18 @@
+ /**
+  * 炸彈超人 A 方案的程式貼圖（DynamicTexture + Canvas 2D，不載入外部圖檔）。
+- * 地面棋盤、方塊圖集（柱牆／外框／落牆／木箱三態）、道具圖集、「你」與 AI 標籤。
++ * 地面棋盤、方塊圖集（柱牆／外框／落牆／木箱三態）、道具圖集；「你」與 AI 標籤在 fx/textures。
+  */
+ import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
+ import { ITEM_COLORS, ITEM_ICON_DARK, TOY } from '@/babylon/games/bomberFx/palette'
+-import type { FaceUV } from '@/babylon/games/bomberFx/geometry'
+-
+-type Ctx = CanvasRenderingContext2D
+-
+-const ctxOf = (tex: DynamicTexture): Ctx => tex.getContext() as unknown as Ctx
+-
+-const roundRect = (g: Ctx, x: number, y: number, w: number, h: number, r: number): void => {
+-  g.beginPath()
+-  g.moveTo(x + r, y)
+-  g.arcTo(x + w, y, x + w, y + h, r)
+-  g.arcTo(x + w, y + h, x, y + h, r)
+-  g.arcTo(x, y + h, x, y, r)
+-  g.arcTo(x, y, x + w, y, r)
+-  g.closePath()
+-}
++import type { FaceUV } from '@/babylon/fx/geometry'
++import { ctxOf, roundRect, type Ctx } from '@/babylon/fx/textures'
+ 
+ /** 決定性小亂數（貼圖點綴用，各端一致） */
+ const rand = (seed: number): (() => number) => {
+   let s = seed >>> 0
+   return () => {
+     s = (Math.imul(s ^ (s >>> 15), 0x2c1b3c6d) + 0x9e3779b9) >>> 0
+     return s / 0x100000000
+   }
+ }
+ 
+@@ -441,34 +428,10 @@ export function createPlusOneTexture(scene: Scene): DynamicTexture {
+     g.lineJoin = 'round'
+     g.lineWidth = 12
+     g.strokeStyle = TOY.outline
+     g.strokeText('+1', W / 2, H / 2 + 4)
+     g.fillStyle = TOY.invincible
+     g.fillText('+1', W / 2, H / 2 + 4)
+     tex.update()
+   })
+   return tex
+ }
+-
+-/** 膠囊標籤（「你」／AI 小章）：透明底、本色膠囊、深紫描邊、白字 */
+-export function createLabelTexture(scene: Scene, name: string, text: string, bg: string, w = 128, h = 64): DynamicTexture {
+-  const tex = new DynamicTexture(name, { width: w, height: h }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+-  tex.hasAlpha = true
+-  const g = ctxOf(tex)
+-  g.clearRect(0, 0, w, h)
+-  roundRect(g, 4, 4, w - 8, h - 8, (h - 8) / 2)
+-  g.fillStyle = bg
+-  g.fill()
+-  g.lineWidth = 5
+-  g.strokeStyle = TOY.outline
+-  g.stroke()
+-  g.fillStyle = '#FFFFFF'
+-  g.font = `900 ${Math.round(h * 0.56)}px Fredoka, "Noto Sans TC", sans-serif`
+-  g.textAlign = 'center'
+-  g.textBaseline = 'middle'
+-  g.lineWidth = 6
+-  g.strokeStyle = TOY.outline
+-  g.strokeText(text, w / 2, h / 2 + 2)
+-  g.fillText(text, w / 2, h / 2 + 2)
+-  tex.update()
+-  return tex
+-}
+diff --git a/src/babylon/games/kitchenFx/players.test.ts b/src/babylon/games/kitchenFx/players.test.ts
+new file mode 100644
+index 0000000..664478a
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/players.test.ts
+@@ -0,0 +1,36 @@
++import { describe, expect, it } from 'vitest'
++import { colorIndexIn, kitchenRoster } from '@/babylon/games/kitchenFx/players'
++
++const players = [
++  { id: 'uidC', name: '小明' },
++  { id: 'uidA', name: '阿華' },
++  { id: 'uidB', name: 'Bob' },
++  { id: 'uidD', name: '丁丁' },
++]
++
++describe('colorIndexIn（colorIndex = 在 ctx.players 的序號，與 respawn 同序）', () => {
++  it('依序號取 0..3，不看 id 內容', () => {
++    expect(players.map((p) => colorIndexIn(players, p.id))).toEqual([0, 1, 2, 3])
++  })
++  it('找不到的 id 退回 0（對齊 respawn 的 Math.max(0, idx)）', () => {
++    expect(colorIndexIn(players, 'ghost')).toBe(0)
++  })
++  it('超過 4 人時環繞', () => {
++    const five = [...players, { id: 'uidE', name: 'E' }]
++    expect(colorIndexIn(five, 'uidE')).toBe(0)
++  })
++})
++
++describe('kitchenRoster', () => {
++  it('同一份 players 陣列在任何 selfId 下，每位玩家的 colorIndex 一致', () => {
++    const colorsBy = (selfId: string) => kitchenRoster(players, selfId).map((r) => [r.id, r.colorIndex])
++    const expected = colorsBy('uidC')
++    for (const p of players) expect(colorsBy(p.id)).toEqual(expected)
++    expect(colorsBy('spectator')).toEqual(expected)
++  })
++  it('只有自己標 isSelf，順序與名字照 players', () => {
++    const r = kitchenRoster(players, 'uidB')
++    expect(r.map((x) => x.isSelf)).toEqual([false, false, true, false])
++    expect(r.map((x) => x.name)).toEqual(['小明', '阿華', 'Bob', '丁丁'])
++  })
++})
+diff --git a/src/babylon/games/kitchenFx/players.ts b/src/babylon/games/kitchenFx/players.ts
+new file mode 100644
+index 0000000..cf9f2b7
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/players.ts
+@@ -0,0 +1,29 @@
++/**
++ * 廚房快手玩家配色（kitchen spec §4、裁決⑦）：colorIndex = 玩家在 ctx.players 的序號，
++ * 與 respawn() 取出生點的 findIndex 同序，所以同一位玩家在每個 client 顏色一致。純函式，可在 node 單測。
++ */
++import { PLAYER_PALETTE, type ColorIndex } from '@/babylon/fx/palette'
++import type { GamePlayer } from '@/babylon/types'
++
++/** 找不到回 0（對齊 respawn 的 Math.max(0, idx)）；超過 4 人環繞 */
++export function colorIndexIn(players: readonly GamePlayer[], id: string): ColorIndex {
++  const idx = Math.max(0, players.findIndex((p) => p.id === id))
++  return (idx % PLAYER_PALETTE.length) as ColorIndex
++}
++
++export interface RosterEntry {
++  id: string
++  name: string
++  colorIndex: ColorIndex
++  isSelf: boolean
++}
++
++/** 名冊（順序照 players）；selfId 只影響 isSelf，不影響顏色 */
++export function kitchenRoster(players: readonly GamePlayer[], selfId: string): RosterEntry[] {
++  return players.map((p, i) => ({
++    id: p.id,
++    name: p.name,
++    colorIndex: (i % PLAYER_PALETTE.length) as ColorIndex,
++    isSelf: p.id === selfId,
++  }))
++}
+diff --git a/src/babylon/games/overcooked.ts b/src/babylon/games/overcooked.ts
+index da40840..7c8ff7f 100644
+--- a/src/babylon/games/overcooked.ts
++++ b/src/babylon/games/overcooked.ts
+@@ -37,21 +37,23 @@ import {
+   applyUse,
+   buildView,
+   createKitchen,
+   isBorder,
+   stationById,
+   tickKitchen,
+   type Ing,
+   type Item,
+   type Kitchen,
+   type KitchenView,
+-} from './overcookedKitchen'
++} from '@/babylon/games/overcookedKitchen'
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import { colorIndexIn } from '@/babylon/games/kitchenFx/players'
+ 
+ /**
+  * 廚房快手（Phase D，計畫見 .prompts/babylon-multiplayer-games.md §3.3）。
+  *
+  * 同步模型：Host Authority 全狀態制——
+  * - 位置：ownership 20Hz + 插值（同 race/bomber）
+  * - 廚房：host 持有 Kitchen，8Hz 廣播可序列化 view（snapshotSync），guest 取 latest 渲染
+  * - 互動：guest 廣播 use intent（站點 id）→ host 驗證距離 + 手持物 × 站點狀態 → 套用；
+  *   guest 永不直接改廚房狀態（兩人搶同格由 host 序列化天然解決）
+  * - 合作計分：時限 2 分鐘，出餐得分、訂單逾期扣分，結算顯示團隊成績
+@@ -137,25 +139,20 @@ class OvercookedScene implements GameModule {
+   private steamSystems: ParticleSystem[] = []
+   private sparkSystem: ParticleSystem | null = null
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const key = e.key.toLowerCase()
+     this.keys.add(key)
+     if (key === ' ' || key === 'enter' || key === 'e') this.requestUse()
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+ 
+-  private colorFor(id: string): Color3 {
+-    let h = 0
+-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+-    return Color3.FromHSV(h % 360, 0.7, 0.9)
+-  }
+ 
+   private itemColor(it: Item): Color3 {
+     if (it.kind === 'burnt') return new Color3(0.2, 0.18, 0.15)
+     if (it.kind === 'soup') return it.ing === 'v' ? new Color3(0.3, 0.62, 0.95) : new Color3(0.95, 0.6, 0.2)
+     const base = it.ing === 'v' ? new Color3(0.2, 0.7, 0.3) : new Color3(0.85, 0.28, 0.28)
+     return it.kind === 'chop' ? Color3.Lerp(base, Color3.White(), 0.4) : base
+   }
+ 
+   private itemMat(it: Item): StandardMaterial {
+     const key = `${it.kind}-${it.ing}`
+@@ -163,26 +160,27 @@ class OvercookedScene implements GameModule {
+     if (!mat) {
+       mat = new StandardMaterial(`item-${key}`, this.ctx.scene)
+       mat.diffuseColor = this.itemColor(it)
+       this.itemMats.set(key, mat)
+     }
+     return mat
+   }
+ 
+   private makePlayer(id: string): Avatar {
+     const scene = this.ctx.scene
+-    const color = this.colorFor(id)
++    // 固定 4 色：依 ctx.players 序號（與 respawn 同序），各端一致
++    const pal = PLAYER_PALETTE[colorIndexIn(this.ctx.players, id)]
+ 
+     const bodyMat = new StandardMaterial(`pl-mat-${id}`, scene)
+-    bodyMat.diffuseColor = color
++    bodyMat.diffuseColor = Color3.FromHexString(pal.base)
+     const limbMat = new StandardMaterial(`pl-limb-${id}`, scene)
+-    limbMat.diffuseColor = color.scale(0.55)
++    limbMat.diffuseColor = Color3.FromHexString(pal.dark)
+     const faceMat = new StandardMaterial(`pl-face-${id}`, scene)
+     faceMat.diffuseColor = new Color3(0.12, 0.13, 0.18)
+ 
+     const root = new Mesh(`pl-${id}`, scene)
+     root.position.y = 0
+ 
+     const body = MeshBuilder.CreateBox(`pl-body-${id}`, { width: 0.6, height: 0.55, depth: 0.45 }, scene)
+     body.material = bodyMat
+     body.parent = root
+     body.position.set(0, 0.78, 0)
+diff --git a/src/babylon/games/overcookedKitchen.test.ts b/src/babylon/games/overcookedKitchen.test.ts
+new file mode 100644
+index 0000000..7275ce5
+--- /dev/null
++++ b/src/babylon/games/overcookedKitchen.test.ts
+@@ -0,0 +1,140 @@
++import { describe, expect, it } from 'vitest'
++import {
++  COOK_MS,
++  ORDER_LIFE_MS,
++  OVERCOOK_MS,
++  SCORE_EXPIRE,
++  SCORE_SERVE,
++  applyUse,
++  buildView,
++  createKitchen,
++  tickKitchen,
++  type Kitchen,
++} from '@/babylon/games/overcookedKitchen'
++
++const P = 'p1'
++const T0 = 1000
++/** 不出新單（rand 只在補單時用；把 nextOrderAt 推遠即可） */
++const noRand = () => 0
++
++/** 把一份切好的 ing 放進 pot-0，tick 到煮好；回傳 soup 開始的時刻 */
++function cookSoup(k: Kitchen, ing: 'v' | 'm' = 'v'): number {
++  k.nextOrderAt = Number.POSITIVE_INFINITY
++  k.hands[P] = { kind: 'chop', ing }
++  expect(applyUse(k, P, 'pot-0', T0)).toBe(true)
++  const soupAt = T0 + COOK_MS
++  tickKitchen(k, soupAt, noRand)
++  expect(k.slots['pot-0'].item).toEqual({ kind: 'soup', ing })
++  return soupAt
++}
++
++const potView = (k: Kitchen, now: number) => buildView(k, now).slots.find((s) => s.id === 'pot-0')!
++
++describe('取湯（AC2）', () => {
++  it('煮好當下空手即可取走 soup', () => {
++    const k = createKitchen([P], 0)
++    const soupAt = cookSoup(k)
++    expect(applyUse(k, P, 'pot-0', soupAt)).toBe(true)
++    expect(k.hands[P]).toEqual({ kind: 'soup', ing: 'v' })
++    expect(k.slots['pot-0'].item).toBeNull()
++  })
++
++  it('煮好後 0–5 秒內任何時刻都能取到 soup（不需等 busyUntil）', () => {
++    for (const dt of [1, 2000, 4000, OVERCOOK_MS - 1]) {
++      const k = createKitchen([P], 0)
++      const soupAt = cookSoup(k, 'm')
++      tickKitchen(k, soupAt + dt, noRand)
++      expect(applyUse(k, P, 'pot-0', soupAt + dt)).toBe(true)
++      expect(k.hands[P]).toEqual({ kind: 'soup', ing: 'm' })
++    }
++  })
++
++  it('超過 5 秒變 burnt，burnt 照舊可取', () => {
++    const k = createKitchen([P], 0)
++    const soupAt = cookSoup(k)
++    tickKitchen(k, soupAt + OVERCOOK_MS, noRand)
++    expect(k.slots['pot-0'].item).toEqual({ kind: 'burnt', ing: 'v' })
++    expect(applyUse(k, P, 'pot-0', soupAt + OVERCOOK_MS + 10)).toBe(true)
++    expect(k.hands[P]).toEqual({ kind: 'burnt', ing: 'v' })
++  })
++
++  it('煮的過程中（chop 在鍋裡）不能取', () => {
++    const k = createKitchen([P], 0)
++    k.hands[P] = { kind: 'chop', ing: 'v' }
++    applyUse(k, P, 'pot-0', T0)
++    expect(applyUse(k, P, 'pot-0', T0 + COOK_MS - 1)).toBe(false)
++    expect(k.hands[P]).toBeNull()
++  })
++
++  it('手上有東西時不能取湯', () => {
++    const k = createKitchen([P], 0)
++    const soupAt = cookSoup(k)
++    k.hands[P] = { kind: 'raw', ing: 'm' }
++    expect(applyUse(k, P, 'pot-0', soupAt + 100)).toBe(false)
++    expect(k.slots['pot-0'].item).toEqual({ kind: 'soup', ing: 'v' })
++  })
++})
++
++describe('快焦 progress 語意（⑥，buildView 算式不變）', () => {
++  it('soup 前 2 秒 progress 為 0', () => {
++    const k = createKitchen([P], 0)
++    const soupAt = cookSoup(k)
++    for (const dt of [0, 1000, OVERCOOK_MS - COOK_MS]) expect(potView(k, soupAt + dt).progress).toBe(0)
++  })
++
++  it('之後 0→1 線性上升（剩 3 秒時開始）', () => {
++    const k = createKitchen([P], 0)
++    const soupAt = cookSoup(k)
++    const start = soupAt + OVERCOOK_MS - COOK_MS
++    expect(potView(k, start + COOK_MS / 2).progress).toBeCloseTo(0.5)
++    expect(potView(k, start + COOK_MS - 30).progress).toBeCloseTo(0.99)
++    expect(potView(k, start + 1).progress).toBeGreaterThan(0)
++  })
++
++  it('煮的過程 progress 0→1', () => {
++    const k = createKitchen([P], 0)
++    k.hands[P] = { kind: 'chop', ing: 'v' }
++    applyUse(k, P, 'pot-0', T0)
++    expect(potView(k, T0).progress).toBe(0)
++    expect(potView(k, T0 + COOK_MS / 2).progress).toBeCloseTo(0.5)
++  })
++})
++
++describe('出餐與訂單', () => {
++  it('送對 ing 得 SCORE_SERVE、訂單消失、出餐數 +1', () => {
++    const k = createKitchen([P], 0)
++    k.orders.push({ id: 1, recipeId: 'meat-soup', ing: 'm', expiresAt: T0 + ORDER_LIFE_MS })
++    k.hands[P] = { kind: 'soup', ing: 'm' }
++    expect(applyUse(k, P, 'serve', T0)).toBe(true)
++    expect(k.score).toBe(SCORE_SERVE)
++    expect(k.delivered).toBe(1)
++    expect(k.orders).toHaveLength(0)
++    expect(k.hands[P]).toBeNull()
++  })
++
++  it('送錯 ing 或送 burnt 不收', () => {
++    const k = createKitchen([P], 0)
++    k.orders.push({ id: 1, recipeId: 'veg-soup', ing: 'v', expiresAt: T0 + ORDER_LIFE_MS })
++    k.hands[P] = { kind: 'soup', ing: 'm' }
++    expect(applyUse(k, P, 'serve', T0)).toBe(false)
++    k.hands[P] = { kind: 'burnt', ing: 'v' }
++    expect(applyUse(k, P, 'serve', T0)).toBe(false)
++    expect(k.score).toBe(0)
++    expect(k.orders).toHaveLength(1)
++  })
++
++  it('訂單逾時扣 SCORE_EXPIRE，分數下限 0', () => {
++    const k = createKitchen([P], 0)
++    k.nextOrderAt = Number.POSITIVE_INFINITY
++    k.score = 30
++    k.orders.push({ id: 1, recipeId: 'veg-soup', ing: 'v', expiresAt: T0 })
++    k.orders.push({ id: 2, recipeId: 'meat-soup', ing: 'm', expiresAt: T0 + 5 })
++    tickKitchen(k, T0, noRand)
++    expect(k.score).toBe(30 + SCORE_EXPIRE)
++    expect(k.orders.map((o) => o.id)).toEqual([2])
++    k.score = 5
++    tickKitchen(k, T0 + 5, noRand)
++    expect(k.score).toBe(0)
++    expect(k.orders).toHaveLength(0)
++  })
++})
+diff --git a/src/babylon/games/overcookedKitchen.ts b/src/babylon/games/overcookedKitchen.ts
+index 7982c67..a46d76f 100644
+--- a/src/babylon/games/overcookedKitchen.ts
++++ b/src/babylon/games/overcookedKitchen.ts
+@@ -181,21 +181,22 @@ export const applyUse = (k: Kitchen, playerId: string, stationId: string, now: n
+     return false
+   }
+ 
+   if (st.kind === 'pot') {
+     if (hand?.kind === 'chop' && slot.item === null) {
+       slot.item = hand
+       slot.busyUntil = now + COOK_MS
+       k.hands[playerId] = null
+       return true
+     }
+-    if (hand === null && (slot.item?.kind === 'soup' || slot.item?.kind === 'burnt') && isReady(slot, now)) {
++    // soup 的 busyUntil 是快焦期限（不是加工中），煮好就能取；burnt 照舊
++    if (hand === null && (slot.item?.kind === 'soup' || (slot.item?.kind === 'burnt' && isReady(slot, now)))) {
+       k.hands[playerId] = slot.item
+       slot.item = null
+       return true
+     }
+     return false
+   }
+ 
+   // counter：放下 / 拿起
+   if (hand !== null && slot.item === null) {
+     slot.item = hand
+diff --git a/src/babylon/types.ts b/src/babylon/types.ts
+index 3035b94..a7152d6 100644
+--- a/src/babylon/types.ts
++++ b/src/babylon/types.ts
+@@ -45,33 +45,80 @@ export interface GameHudPlayer {
+  * 共用契約：欄位只增不改；其他遊戲不呼叫 setHud 即不受影響。
+  */
+ export interface GameHud {
+   /** 距突然死亡倒數；suddenDeath 為 true 時 secondsLeft 無意義 */
+   timer: { secondsLeft: number; suddenDeath: boolean }
+   aliveCount: number
+   totalCount: number
+   players: GameHudPlayer[]
+ }
+ 
++/** 廚房快手的食材（蔬菜 / 肉）與物品加工狀態，與 overcookedKitchen 的 Ing／ItemKind 同值 */
++export type KitchenIng = 'v' | 'm'
++export type KitchenItemKind = 'raw' | 'chop' | 'soup' | 'burnt'
++
++/** 廚房 HUD 的在場訂單；remainMs 量化到 100ms，計時條比例以 ORDER_LIFE_MS 計 */
++export interface KitchenHudOrder {
++  /** 穩定 id（React key 與新單動畫用） */
++  id: number
++  ing: KitchenIng
++  remainMs: number
++}
++
++/** 本次快照相比上一張消失的訂單：served＝出餐、expired＝逾時；scoreDelta 為實際分數變化 */
++export interface KitchenHudGone {
++  id: number
++  ing: KitchenIng
++  reason: 'served' | 'expired'
++  scoreDelta: number
++}
++
++/** 廚房 HUD 玩家卡；colorIndex = 在 ctx.players 的序號，P 編號 = colorIndex + 1 */
++export interface KitchenHudPlayer {
++  id: string
++  name: string
++  colorIndex: 0 | 1 | 2 | 3
++  isSelf: boolean
++  held: { ing: KitchenIng; kind: KitchenItemKind } | null
++}
++
++/**
++ * 廚房快手的 React HUD 資料（共用契約：欄位只增不改）。
++ * 以 kind 與 bomber 的 GameHud 區分；gone 只在該次快照相比上一張有單消失時非空。
++ */
++export interface KitchenHud {
++  kind: 'kitchen'
++  /** 本局剩餘秒數，量化到整秒 */
++  remainSec: number
++  score: number
++  delivered: number
++  orders: KitchenHudOrder[]
++  gone: KitchenHudGone[]
++  players: KitchenHudPlayer[]
++}
++
+ /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
+ export interface GameContext {
+   scene: Scene
+   net: NetTransport
+   selfId: string
+   role: 'host' | 'guest'
+   /** 房主 uid（單人模式即自己）：guest 只信任來自它的權威訊息（安全審查 C1） */
+   hostId: string
+   players: GamePlayer[]
+   /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
+   setOverlay?: (overlay: GameOverlay | null) => void
+-  /** 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件） */
+-  setHud?: (hud: GameHud | null) => void
++  /**
++   * 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件）。
++   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD。
++   */
++  setHud?: (hud: GameHud | KitchenHud | null) => void
+ }
+ 
+ /**
+  * 對戰遊戲標準介面（計畫 §3）。
+  * 每款 Babylon 遊戲實作此介面 + 一個 Scene；新增遊戲不需 Godot 專案或匯出。
+  */
+ export interface GameModule {
+   readonly gameId: string
+   /** 建場景、註冊輸入、初始網路握手 */
+   init(ctx: GameContext): void
+diff --git a/src/index.css b/src/index.css
+index 7405799..1ff2ebf 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1377,10 +1377,316 @@ html {
+   .bomber-timer-alive {
+     @apply text-[12px];
+   }
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .bomber-timer-urgent {
+     @apply animate-none;
+   }
+ }
++
++/* ===== 廚房快手 HUD（A · Toy Kitchen，kitchen spec §8）：960×540 設計尺寸，--kitchen-scale 由 JS 依容器等比縮放；token 與 bomber 玩家卡同套 ===== */
++.kitchen-hud {
++  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--kitchen-ink) [--kitchen-ink:#2b2440] [--kitchen-paper:#fff6e3] [--kitchen-plate:#f3e6cb];
++}
++
++/* 左上訂單列：3 張 150×74、間距 10；離場卡以 --kitchen-slot 疊回原位 */
++.kitchen-orders {
++  @apply absolute left-[calc(16px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex origin-top-left gap-[10px] [scale:var(--kitchen-scale)];
++}
++.kitchen-order {
++  @apply relative flex h-[74px] w-[150px] shrink-0 items-center gap-1.5 rounded-[14px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) pl-1.5 pr-2 shadow-[0_4px_0_rgba(0,0,0,.4)] animate-[kitchen-slide-in_0.35s_cubic-bezier(.34,1.56,.64,1)_both];
++}
++.kitchen-order-danger {
++  @apply border-[#ff3b4e] shadow-[0_4px_0_rgba(0,0,0,.4),0_0_12px_rgba(255,59,78,.75)] animate-[kitchen-shake_0.25s_linear_infinite];
++}
++.kitchen-order-leaving {
++  @apply absolute left-[calc(var(--kitchen-slot)_*_160px)] top-0 z-10;
++}
++.kitchen-order-leave-served {
++  @apply animate-[kitchen-fly-out_0.6s_ease-in_both];
++}
++.kitchen-order-leave-expired {
++  @apply animate-[kitchen-drop-out_0.4s_ease-in_both];
++}
++.kitchen-order-alert {
++  @apply absolute -top-3.5 left-0.5 z-20 size-[22px] fill-[#fff6e3] stroke-[2.5] text-[#ff3b4e];
++}
++.kitchen-order-badge {
++  @apply absolute -right-1.5 -top-2.5 rounded-full border-2 border-(--kitchen-ink) bg-[#ffcf3f] px-1.5 font-['Fredoka',_var(--font-sans)] font-bold text-[11px] leading-[16px];
++}
++.kitchen-order-dish {
++  @apply flex size-[48px] shrink-0 items-center justify-center rounded-full border-2 border-(--kitchen-ink) bg-(--kitchen-plate);
++}
++.kitchen-order-dish-svg {
++  @apply size-[40px];
++}
++.kitchen-order-body {
++  @apply flex min-w-0 flex-1 flex-col gap-0.5;
++}
++.kitchen-order-name {
++  @apply truncate text-[13px] font-black leading-tight;
++}
++.kitchen-order-timer {
++  @apply flex items-center gap-1;
++}
++.kitchen-order-bar {
++  @apply relative h-[9px] flex-1 overflow-hidden rounded-full border-[1.5px] border-(--kitchen-ink) bg-[#e4d6bc];
++}
++.kitchen-order-fill {
++  @apply absolute inset-y-0 left-0 rounded-full bg-[#2fcf5e] transition-[width] duration-100 ease-linear;
++}
++.kitchen-order-warn .kitchen-order-fill {
++  @apply bg-[#ffc21a];
++}
++.kitchen-order-danger .kitchen-order-fill {
++  @apply bg-[#ff3b4e];
++}
++.kitchen-order-sec {
++  @apply w-[26px] text-right font-['Fredoka',_var(--font-sans)] font-bold text-[12px] leading-none tabular-nums;
++}
++.kitchen-order-danger .kitchen-order-sec {
++  @apply text-[#ff3b4e];
++}
++.kitchen-order-check {
++  @apply absolute inset-0 flex items-center justify-center rounded-[12px] bg-[#2fcf5e]/80;
++}
++.kitchen-order-check-icon {
++  @apply size-[40px] stroke-[4] text-white drop-shadow-[0_2px_0_#2b2440];
++}
++.kitchen-order-float {
++  @apply absolute left-1/2 top-[40%] z-20 font-['Fredoka',_var(--font-sans)] font-bold text-[24px] leading-none text-[#ff3b4e] [text-shadow:0_2px_0_#2b2440] animate-[kitchen-float-up_0.4s_ease-out_both];
++}
++
++/* 步驟列：食材 › 切 › 煮 */
++.kitchen-steps {
++  @apply flex items-center gap-px;
++}
++.kitchen-steps-ing {
++  @apply size-[15px] shrink-0;
++}
++.kitchen-steps-icon {
++  @apply size-[13px] shrink-0 stroke-[2.25];
++}
++.kitchen-steps-sep {
++  @apply size-[9px] shrink-0 stroke-[3] text-[#8a7a66];
++}
++
++/* 右上計時＋分數膠囊 210×48；讓出 Battle 的浮動全螢幕鈕（right max(0.5rem, safe-right)、size-9＝2.25rem）再加 10px */
++.kitchen-clock {
++  @apply absolute right-[calc(max(0.5rem,env(safe-area-inset-right))_+_2.25rem_+_10px)] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex h-[48px] w-[210px] origin-top-right items-center gap-2 whitespace-nowrap rounded-full border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) px-3.5 shadow-[0_4px_0_rgba(0,0,0,.4)] [scale:var(--kitchen-scale)];
++}
++.kitchen-clock-icon {
++  @apply size-[22px] shrink-0 stroke-[2.5] text-[#ff3b4e];
++}
++.kitchen-clock-text {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[30px] leading-none tabular-nums;
++}
++.kitchen-clock[data-urgent='true'] .kitchen-clock-text {
++  @apply inline-block animate-[kitchen-pulse_0.5s_ease-in-out_infinite] text-[#ff3b4e];
++}
++.kitchen-clock-sep {
++  @apply h-7 w-[2px] shrink-0 rounded-full bg-[#e4d6bc];
++}
++.kitchen-clock-coins {
++  @apply size-[20px] shrink-0 stroke-[2.25] text-[#f5a800];
++}
++.kitchen-clock-score {
++  @apply flex flex-col items-start leading-none;
++}
++.kitchen-clock-points {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[22px] leading-none tabular-nums;
++}
++.kitchen-clock-served {
++  @apply text-[9px] font-extrabold text-[#8a7a66];
++}
++
++/* 左側玩家卡 120×56、間距 10（只列實際人數） */
++.kitchen-players {
++  @apply absolute left-[calc(10px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(150px_*_var(--kitchen-scale))] flex origin-top-left flex-col gap-[10px] [scale:var(--kitchen-scale)];
++}
++.kitchen-player {
++  @apply relative flex h-[56px] w-[120px] items-stretch rounded-[12px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) shadow-[0_4px_0_rgba(0,0,0,.4)];
++}
++.kitchen-player-you {
++  @apply absolute -top-2.5 left-[26px] z-10 rounded-full border-2 border-(--kitchen-ink) bg-[#ff3b4e] px-1.5 text-[9px] font-black leading-[13px] text-white;
++}
++.kitchen-player-avatar {
++  @apply flex w-[44px] shrink-0 items-center justify-center overflow-hidden rounded-l-[9.5px] border-r-[2.5px] border-(--kitchen-ink) bg-linear-to-b from-(--kc-light) to-(--kc-base);
++}
++.kitchen-player-avatar-svg {
++  @apply size-[42px];
++}
++.kitchen-player-info {
++  @apply flex min-w-0 flex-1 flex-col justify-center gap-1 pl-1.5;
++}
++.kitchen-player-name {
++  @apply truncate text-[12px] font-black leading-none;
++}
++.kitchen-player-no {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[13px] leading-none text-(--kc-dark);
++}
++.kitchen-player-held {
++  @apply my-auto mr-1.5 flex size-[34px] shrink-0 items-center justify-center rounded-full border-2 border-(--kitchen-ink) bg-(--kitchen-plate);
++}
++.kitchen-player-held-svg {
++  @apply size-[28px];
++}
++.kitchen-player-held-empty {
++  @apply size-[18px] stroke-2 text-[#c9b99c];
++}
++
++/* 右側食譜 128 寬，預設展開；收合成 44px 圓鈕（R 或點標題） */
++.kitchen-recipe {
++  @apply pointer-events-auto absolute right-[calc(10px_*_var(--kitchen-scale)_+_env(safe-area-inset-right))] top-[calc(140px_*_var(--kitchen-scale))] w-[128px] origin-top-right overflow-hidden rounded-[14px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) shadow-[0_4px_0_rgba(0,0,0,.4)] [scale:var(--kitchen-scale)];
++}
++.kitchen-recipe-head {
++  @apply flex h-[34px] w-full cursor-pointer items-center gap-1.5 px-2.5 text-(--kitchen-ink) outline-none;
++}
++.kitchen-recipe-icon {
++  @apply size-[18px] shrink-0 stroke-[2.25];
++}
++.kitchen-recipe-title {
++  @apply text-[14px] font-black leading-none;
++}
++.kitchen-recipe-list {
++  @apply flex flex-col border-t-2 border-[#e4d6bc] px-1.5 pb-1;
++}
++.kitchen-recipe-row {
++  @apply flex items-center gap-1.5 border-b-2 border-[#e4d6bc] py-1.5 last:border-b-0;
++}
++.kitchen-recipe-dish {
++  @apply flex size-[34px] shrink-0 items-center justify-center rounded-full border-2 border-(--kitchen-ink) bg-(--kitchen-plate);
++}
++.kitchen-recipe-dish-svg {
++  @apply size-[28px];
++}
++.kitchen-recipe-info {
++  @apply flex min-w-0 flex-1 flex-col gap-0.5;
++}
++.kitchen-recipe-name {
++  @apply flex items-baseline justify-between gap-1 text-[12px] font-black leading-tight;
++}
++.kitchen-recipe-score {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[11px] text-[#c27d00];
++}
++.kitchen-recipe[data-open='false'] {
++  @apply w-[44px] rounded-full;
++}
++.kitchen-recipe[data-open='false'] .kitchen-recipe-head {
++  @apply h-[39px] justify-center px-0;
++}
++.kitchen-recipe[data-open='false'] .kitchen-recipe-title,
++.kitchen-recipe[data-open='false'] .kitchen-recipe-list {
++  @apply hidden;
++}
++
++@keyframes kitchen-slide-in {
++  from { transform: translateX(-120%); opacity: 0; }
++  to { transform: translateX(0); opacity: 1; }
++}
++@keyframes kitchen-shake {
++  0%, 100% { transform: translateX(0) rotate(0); }
++  25% { transform: translateX(-2px) rotate(-1.5deg); }
++  75% { transform: translateX(2px) rotate(1.5deg); }
++}
++@keyframes kitchen-fly-out {
++  0% { transform: translate(0, 0) scale(1); opacity: 1; }
++  35% { transform: translate(0, -6px) scale(1.06); opacity: 1; }
++  100% { transform: translate(60px, -90px) scale(0.5); opacity: 0; }
++}
++@keyframes kitchen-drop-out {
++  from { transform: translateY(0) rotate(0); opacity: 1; }
++  to { transform: translateY(48px) rotate(6deg); opacity: 0; }
++}
++@keyframes kitchen-float-up {
++  0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
++  25% { transform: translate(-50%, -8px) scale(1.15); opacity: 1; }
++  75% { transform: translate(-50%, -22px) scale(1); opacity: 1; }
++  100% { transform: translate(-50%, -30px) scale(1); opacity: 0; }
++}
++@keyframes kitchen-pulse {
++  0%, 100% { transform: scale(1); }
++  50% { transform: scale(1.1); }
++}
++
++/* 矮畫面（手機橫向）：訂單卡縮 64×40 膠囊、計時縮 140 寬、玩家卡隱藏、食譜固定收合 */
++@media (max-height: 500px) {
++  .kitchen-orders {
++    @apply left-[max(8px,env(safe-area-inset-left))] top-[max(6px,env(safe-area-inset-top))] gap-1.5 [scale:1];
++  }
++  .kitchen-order {
++    @apply h-[40px] w-[64px] flex-col justify-center gap-0.5 rounded-[12px] border-2 px-1 py-0.5;
++  }
++  .kitchen-order-leaving {
++    @apply left-[calc(var(--kitchen-slot)_*_70px)];
++  }
++  .kitchen-order-dish {
++    @apply size-[24px] border-0 bg-transparent;
++  }
++  .kitchen-order-dish-svg {
++    @apply size-[24px];
++  }
++  .kitchen-order-body {
++    @apply w-full flex-none;
++  }
++  .kitchen-order-name,
++  .kitchen-order .kitchen-steps,
++  .kitchen-order-sec,
++  .kitchen-order-badge {
++    @apply hidden;
++  }
++  .kitchen-order-bar {
++    @apply h-[6px] border;
++  }
++  .kitchen-order-alert {
++    @apply -left-1.5 -top-1.5 size-[14px];
++  }
++  .kitchen-order-check-icon {
++    @apply size-[22px];
++  }
++  .kitchen-order-float {
++    @apply text-[16px];
++  }
++  .kitchen-clock {
++    @apply top-[max(6px,env(safe-area-inset-top))] h-[34px] w-[140px] gap-1.5 px-2.5 [scale:1];
++  }
++  .kitchen-clock-icon {
++    @apply size-4;
++  }
++  .kitchen-clock-text {
++    @apply text-[19px];
++  }
++  .kitchen-clock-sep {
++    @apply h-5;
++  }
++  .kitchen-clock-coins {
++    @apply size-[14px];
++  }
++  .kitchen-clock-points {
++    @apply text-[15px];
++  }
++  .kitchen-clock-served {
++    @apply text-[8px];
++  }
++  .kitchen-players {
++    @apply hidden;
++  }
++  .kitchen-recipe {
++    @apply top-[calc(max(6px,env(safe-area-inset-top))_+_42px)] right-[max(8px,env(safe-area-inset-right))] w-[44px] rounded-full [scale:1];
++  }
++  .kitchen-recipe .kitchen-recipe-head {
++    @apply pointer-events-none h-[39px] justify-center px-0;
++  }
++  .kitchen-recipe .kitchen-recipe-title,
++  .kitchen-recipe .kitchen-recipe-list {
++    @apply hidden;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .kitchen-order-danger,
++  .kitchen-clock[data-urgent='true'] .kitchen-clock-text {
++    @apply animate-none;
++  }
++}
+diff --git a/src/pages/Battle/BabylonCanvas.tsx b/src/pages/Battle/BabylonCanvas.tsx
+index f3dcdc5..48f7473 100644
+--- a/src/pages/Battle/BabylonCanvas.tsx
++++ b/src/pages/Battle/BabylonCanvas.tsx
+@@ -1,21 +1,23 @@
+ import { useEffect, useMemo, useRef, useState } from 'react'
+ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
+ import { RotateCw } from 'lucide-react'
+ import { Button } from '@/components/ui/button'
+ import type { NetTransport } from '@/core/webrtc'
+-import type { GameHud, GameOverlay, GamePlayer } from '@/babylon/types'
++import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder } from '@/babylon/types'
+ import { getGameFactory } from '@/babylon/games'
+ import type { GameType } from '@/core/room'
+ import { TouchControls, type TouchAction } from './TouchControls'
+ import { BomberHud } from '@/pages/Battle/BomberHud'
+ import { sameHud } from '@/pages/Battle/bomberHud'
++import { KitchenHud as KitchenHudPanel } from '@/pages/Battle/KitchenHud'
++import { KITCHEN_LEAVE_MS, collectLeaving, freshGone, isKitchenHud, type LeavingOrder } from '@/pages/Battle/kitchenHud'
+ 
+ interface BabylonCanvasProps {
+   gameType: GameType
+   net: NetTransport
+   selfId: string
+   role: 'host' | 'guest'
+   /** 房主 uid：遊戲層據此過濾非房主的權威訊息 */
+   hostId: string
+   players: GamePlayer[]
+ }
+@@ -35,21 +37,23 @@ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
+ }
+ 
+ /**
+  * Babylon 引擎掛載點（計畫 §2）。負責 Engine/Scene 生命週期、
+  * 依 gameType 實例化 GameModule、把 NetTransport 訊息轉進場景、跑 render loop，
+  * 卸載時依序釋放所有資源。遊戲本身與網路同處 JS context，無 iframe/postMessage。
+  */
+ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
+   const canvasRef = useRef<HTMLCanvasElement>(null)
+   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
+-  const [hud, setHudState] = useState<GameHud | null>(null)
++  const [hud, setHudState] = useState<GameHud | KitchenHud | null>(null)
++  // 廚房 HUD 正在播離場動畫的訂單卡（gone 只出現在一次 setHud，另存起來播完才移除）
++  const [leaving, setLeaving] = useState<LeavingOrder[]>([])
+   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
+   const isTouch = useMemo(() => window.matchMedia?.('(pointer: coarse)')?.matches ?? false, [])
+   // 觸控裝置強制橫向：直向時以提示蓋住遊戲，並嘗試原生鎖定方向
+   const [portrait, setPortrait] = useState(false)
+   // players 走 ref，避免列表變動觸發引擎重建（init 只在掛載時讀一次初始值）
+   const playersRef = useRef(players)
+   useEffect(() => {
+     playersRef.current = players
+   }, [players])
+ 
+@@ -78,22 +82,44 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+     }
+   }, [isTouch])
+ 
+   useEffect(() => {
+     const canvas = canvasRef.current
+     if (!canvas) return
+ 
+     const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true })
+     const scene = new Scene(engine)
+     const game = getGameFactory(gameType)()
+-    // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪
+-    const setHud = (next: GameHud | null) => setHudState((prev) => (sameHud(prev, next) ? prev : next))
++    // 廚房 HUD 的 gone：以上一張 HUD 的 orders 找回原槽位，排進離場卡、播完移除
++    let prevKitchenOrders: KitchenHudOrder[] = []
++    let leaveSeq = 0
++    const leaveTimers = new Set<number>()
++    const queueLeaving = (next: KitchenHud) => {
++      const added = collectLeaving(prevKitchenOrders, freshGone(prevKitchenOrders, next.gone), leaveSeq)
++      prevKitchenOrders = next.orders
++      if (added.length === 0) return
++      leaveSeq += added.length
++      setLeaving((prev) => [...prev, ...added])
++      for (const l of added) {
++        const t = window.setTimeout(() => {
++          leaveTimers.delete(t)
++          setLeaving((prev) => prev.filter((x) => x.key !== l.key))
++        }, KITCHEN_LEAVE_MS[l.reason])
++        leaveTimers.add(t)
++      }
++    }
++    // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪；沒有 kind 的一律當 bomber
++    const setHud = (next: GameHud | KitchenHud | null) => {
++      if (isKitchenHud(next)) queueLeaving(next)
++      else prevKitchenOrders = []
++      setHudState((prev) => (sameHud<GameHud | KitchenHud>(prev, next) ? prev : next))
++    }
+     game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
+ 
+     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
+ 
+     // 遊戲操作鍵（空白鍵/方向鍵）在 canvas 聚焦時不可觸發頁面捲動
+     const SCROLL_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+     const blockScrollKeys = (e: KeyboardEvent) => {
+       if (SCROLL_KEYS.includes(e.key)) e.preventDefault()
+     }
+     canvas.addEventListener('keydown', blockScrollKeys)
+@@ -137,35 +163,37 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+ 
+     return () => {
+       ro.disconnect()
+       window.removeEventListener('resize', resize)
+       canvas.removeEventListener('keydown', blockScrollKeys)
+       offMessage()
+       engine.stopRenderLoop()
+       game.dispose()
+       scene.dispose()
+       engine.dispose()
++      for (const t of leaveTimers) window.clearTimeout(t)
+       setOverlay(null)
+       setHudState(null)
++      setLeaving([])
+       ;(window as unknown as Record<string, unknown>).__BATTLE_READY = false
+     }
+   }, [gameType, net, selfId, role, hostId])
+ 
+   return (
+     <>
+       <canvas
+         ref={canvasRef}
+         data-testid="battle-canvas"
+         className="block size-full bg-slate-950 outline-none touch-none"
+         tabIndex={0}
+       />
+-      {hud && <BomberHud hud={hud} />}
++      {hud && (isKitchenHud(hud) ? <KitchenHudPanel hud={hud} leaving={leaving} /> : <BomberHud hud={hud} />)}
+       {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
+       {isTouch && portrait && (
+         <div
+           className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/95 p-6 text-center"
+           data-testid="rotate-prompt"
+         >
+           <RotateCw className="size-14 animate-pulse text-indigo-400" aria-hidden="true" />
+           <p className="text-lg font-bold text-slate-100">請將手機轉為橫向</p>
+           <p className="text-sm text-slate-400">本遊戲需橫向遊玩</p>
+         </div>
+diff --git a/src/pages/Battle/KitchenHud.tsx b/src/pages/Battle/KitchenHud.tsx
+new file mode 100644
+index 0000000..08c34bc
+--- /dev/null
++++ b/src/pages/Battle/KitchenHud.tsx
+@@ -0,0 +1,352 @@
++import { useEffect, useRef, useState, type CSSProperties, type Ref } from 'react'
++import { AlarmClock, BookOpen, Check, ChevronRight, Coins, CookingPot, Hand, Slice, TriangleAlert } from 'lucide-react'
++import type { KitchenHud, KitchenHudOrder, KitchenHudPlayer, KitchenIng, KitchenItemKind } from '@/babylon/types'
++import { hudScale, playerLabel } from '@/pages/Battle/bomberHud'
++import {
++  KITCHEN_COLORS,
++  KITCHEN_DISHES,
++  clockView,
++  dishName,
++  goneFloatText,
++  isRecipeToggleKey,
++  orderLevel,
++  orderRatio,
++  orderSeconds,
++  sortKitchenPlayers,
++  type LeavingOrder,
++} from '@/pages/Battle/kitchenHud'
++
++const INK = '#2B2440'
++/** 物品色票（spec 特寫表色票） */
++const ITEM = {
++  veg: '#6FCF3F',
++  vegDark: '#3E9A1E',
++  vegChop: '#B6F07A',
++  meat: '#E8525E',
++  meatDark: '#A92A38',
++  meatFat: '#FFE9DE',
++  vegSoup: '#9BD65A',
++  meatSoup: '#EE8A3A',
++  burnt: '#2E2424',
++  bowl: '#FFFFFF',
++  bowlShade: '#C9C3DA',
++} as const
++
++/** 玩家色以 CSS 變數交給 .kitchen-* class 取用 */
++function colorVars(colorIndex: number): CSSProperties {
++  const c = KITCHEN_COLORS[colorIndex] ?? KITCHEN_COLORS[0]
++  return { '--kc-light': c.light, '--kc-base': c.base, '--kc-dark': c.dark } as CSSProperties
++}
++
++/** 碗（湯或焦炭）：白碗、內緣湯面；焦了是黑色焦塊 */
++function Bowl({ ing, burnt }: { ing: KitchenIng; burnt?: boolean }) {
++  const soup = ing === 'v' ? ITEM.vegSoup : ITEM.meatSoup
++  return (
++    <g>
++      <path d="M8 30 H56 C56 45 46 54 32 54 C18 54 8 45 8 30 Z" fill={ITEM.bowl} stroke={INK} strokeWidth="2.5" />
++      <path d="M13 38 C16 47 23 51 32 51" fill="none" stroke={ITEM.bowlShade} strokeWidth="2.5" strokeLinecap="round" />
++      <ellipse cx="32" cy="30" rx="24" ry="7" fill={burnt ? ITEM.burnt : soup} stroke={INK} strokeWidth="2.5" />
++      {burnt ? (
++        <g>
++          <path d="M22 30 C24 20 40 20 42 30 Z" fill={ITEM.burnt} stroke={INK} strokeWidth="2" />
++          <path d="M28 25 l3 3 l-3 2 M36 24 l-2 4 l3 1" fill="none" stroke="#FF7A1A" strokeWidth="1.6" strokeLinecap="round" />
++        </g>
++      ) : ing === 'v' ? (
++        <g fill={ITEM.vegDark}>
++          <circle cx="24" cy="29" r="2.4" />
++          <circle cx="34" cy="31" r="2" />
++          <circle cx="41" cy="28" r="2.2" />
++        </g>
++      ) : (
++        <g fill={ITEM.meat} stroke={INK} strokeWidth="1.2">
++          <rect x="21" y="26.5" width="5" height="4.5" rx="1.2" />
++          <rect x="31" y="28" width="5" height="4.5" rx="1.2" />
++          <rect x="39" y="26" width="5" height="4.5" rx="1.2" />
++        </g>
++      )}
++      <ellipse cx="24" cy="28" rx="5" ry="1.4" fill="#fff" opacity="0.55" />
++    </g>
++  )
++}
++
++function Raw({ ing }: { ing: KitchenIng }) {
++  if (ing === 'v') {
++    return (
++      <g>
++        <circle cx="32" cy="34" r="19" fill={ITEM.veg} stroke={INK} strokeWidth="2.5" />
++        <path d="M32 16 V52 M32 34 C24 30 20 24 20 20 M32 40 C40 36 44 30 44 25" fill="none" stroke={ITEM.vegDark} strokeWidth="2.2" strokeLinecap="round" />
++        <path d="M14 34 C14 44 20 50 26 52 M50 34 C50 44 44 50 38 52" fill="none" stroke={INK} strokeWidth="2.5" />
++      </g>
++    )
++  }
++  return (
++    <g>
++      <path d="M10 34 C10 22 22 16 34 16 C48 16 56 24 56 34 C56 46 44 52 32 52 C18 52 10 44 10 34 Z" fill={ITEM.meat} stroke={INK} strokeWidth="2.5" />
++      <path d="M16 34 C16 26 24 22 34 22 C45 22 50 28 50 34" fill="none" stroke={ITEM.meatFat} strokeWidth="3" strokeLinecap="round" />
++      <circle cx="47" cy="42" r="4.5" fill={ITEM.meatFat} stroke={INK} strokeWidth="2" />
++    </g>
++  )
++}
++
++function Chopped({ ing }: { ing: KitchenIng }) {
++  const fill = ing === 'v' ? ITEM.vegChop : ITEM.meat
++  const edge = ing === 'v' ? ITEM.vegDark : ITEM.meatDark
++  return (
++    <g stroke={INK} strokeWidth="2.2">
++      {[
++        [12, 30],
++        [30, 22],
++        [26, 38],
++        [42, 34],
++      ].map(([x, y]) => (
++        <g key={`${x}-${y}`}>
++          <rect x={x} y={y} width="14" height="12" rx="3.5" fill={fill} />
++          <path d={`M${x + 3} ${y + 9} H${x + 11}`} stroke={edge} strokeWidth="2" strokeLinecap="round" />
++        </g>
++      ))}
++    </g>
++  )
++}
++
++/** 食材／成品圖示（inline SVG，照特寫表 2×4 矩陣） */
++export function KitchenItemIcon({ ing, kind, className }: { ing: KitchenIng; kind: KitchenItemKind; className?: string }) {
++  return (
++    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
++      {kind === 'raw' && <Raw ing={ing} />}
++      {kind === 'chop' && <Chopped ing={ing} />}
++      {(kind === 'soup' || kind === 'burnt') && <Bowl ing={ing} burnt={kind === 'burnt'} />}
++    </svg>
++  )
++}
++
++/** Q 版廚師頭像（同 BomberAvatar 的臉，拿掉天線換白色廚師帽） */
++export function KitchenAvatar({ colorIndex, className }: { colorIndex: number; className?: string }) {
++  const c = KITCHEN_COLORS[colorIndex] ?? KITCHEN_COLORS[0]
++  return (
++    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
++      <circle cx="32" cy="36" r="17" fill={c.base} stroke={INK} strokeWidth="2.2" />
++      <path d="M17 42 C20 50 26 53 32 53" fill="none" stroke={c.dark} strokeWidth="3" strokeLinecap="round" />
++      <rect x="20" y="30" width="24" height="16" rx="7.5" fill="#FFF1E0" stroke={INK} strokeWidth="1.8" />
++      <ellipse cx="27.5" cy="38" rx="2.5" ry="3.5" fill={INK} />
++      <ellipse cx="36.5" cy="38" rx="2.5" ry="3.5" fill={INK} />
++      <circle cx="28.4" cy="36.5" r="1" fill="#fff" />
++      <circle cx="37.4" cy="36.5" r="1" fill="#fff" />
++      <g fill="#fff" stroke={INK} strokeWidth="2">
++        <circle cx="22" cy="14" r="7.5" />
++        <circle cx="42" cy="14" r="7.5" />
++        <circle cx="32" cy="10" r="8.5" />
++        <rect x="18" y="16" width="28" height="8" rx="3" />
++      </g>
++      <path d="M22 22 H42" stroke="#C9C3DA" strokeWidth="2" strokeLinecap="round" />
++    </svg>
++  )
++}
++
++/** 步驟列：食材 › 切 › 煮（兩道湯都是這三步） */
++function Steps({ ing }: { ing: KitchenIng }) {
++  return (
++    <span className="kitchen-steps" aria-hidden="true">
++      <KitchenItemIcon ing={ing} kind="raw" className="kitchen-steps-ing" />
++      <ChevronRight className="kitchen-steps-sep" />
++      <Slice className="kitchen-steps-icon" />
++      <ChevronRight className="kitchen-steps-sep" />
++      <CookingPot className="kitchen-steps-icon" />
++    </span>
++  )
++}
++
++function OrderCard({ order, leave }: { order: KitchenHudOrder; leave?: LeavingOrder['reason'] }) {
++  const level = orderLevel(order.remainMs)
++  const dish = KITCHEN_DISHES.find((d) => d.ing === order.ing)
++  return (
++    <div
++      className={`kitchen-order kitchen-order-${level}${leave ? ` kitchen-order-leave-${leave}` : ''}`}
++      data-kitchen-order={order.id}
++      data-level={level}
++    >
++      {level === 'danger' && <TriangleAlert className="kitchen-order-alert" aria-label="快逾時" />}
++      <span className="kitchen-order-badge">+{dish?.score}</span>
++      <div className="kitchen-order-dish">
++        <KitchenItemIcon ing={order.ing} kind="soup" className="kitchen-order-dish-svg" />
++      </div>
++      <div className="kitchen-order-body">
++        <span className="kitchen-order-name">{dishName(order.ing)}</span>
++        <Steps ing={order.ing} />
++        <div className="kitchen-order-timer">
++          <span className="kitchen-order-bar">
++            <span className="kitchen-order-fill" style={{ width: `${orderRatio(order.remainMs) * 100}%` }} />
++          </span>
++          <span className="kitchen-order-sec">{orderSeconds(order.remainMs)}s</span>
++        </div>
++      </div>
++      {leave === 'served' && (
++        <span className="kitchen-order-check" aria-label="出餐">
++          <Check className="kitchen-order-check-icon" />
++        </span>
++      )}
++    </div>
++  )
++}
++
++/** 離場卡：疊回原槽位播動畫（出餐打勾飛出、逾時掉落淡出）；浮字與卡片分開，不跟著淡出 */
++function LeavingCard({ l }: { l: LeavingOrder }) {
++  const float = goneFloatText(l)
++  return (
++    <div className="kitchen-order-leaving" data-leaving={l.reason} style={{ '--kitchen-slot': l.slot } as CSSProperties}>
++      <OrderCard order={{ id: l.id, ing: l.ing, remainMs: l.remainMs }} leave={l.reason} />
++      {float && <span className="kitchen-order-float">{float}</span>}
++    </div>
++  )
++}
++
++function PlayerCard({ p }: { p: KitchenHudPlayer }) {
++  return (
++    <div
++      className="kitchen-player"
++      style={colorVars(p.colorIndex)}
++      data-kitchen-player={p.colorIndex}
++      data-self={p.isSelf}
++      data-held={p.held ? `${p.held.kind}-${p.held.ing}` : 'none'}
++      title={p.name}
++    >
++      {p.isSelf && <span className="kitchen-player-you">你</span>}
++      <div className="kitchen-player-avatar">
++        <KitchenAvatar colorIndex={p.colorIndex} className="kitchen-player-avatar-svg" />
++      </div>
++      <div className="kitchen-player-info">
++        <span className="kitchen-player-name">{p.isSelf ? '你' : p.name}</span>
++        <span className="kitchen-player-no">{playerLabel(p.colorIndex)}</span>
++      </div>
++      <div className="kitchen-player-held" aria-label={p.held ? '手持物' : '空手'}>
++        {p.held ? (
++          <KitchenItemIcon ing={p.held.ing} kind={p.held.kind} className="kitchen-player-held-svg" />
++        ) : (
++          <Hand className="kitchen-player-held-empty" />
++        )}
++      </div>
++    </div>
++  )
++}
++
++interface KitchenHudViewProps {
++  hud: KitchenHud
++  leaving: LeavingOrder[]
++  scale?: number
++  recipeOpen?: boolean
++  onToggleRecipe?: () => void
++  rootRef?: Ref<HTMLDivElement>
++}
++
++/** 廚房 HUD 的純呈現（無副作用，可在 node 靜態渲染自查） */
++export function KitchenHudView({ hud, leaving, scale = 1, recipeOpen = true, onToggleRecipe, rootRef }: KitchenHudViewProps) {
++  const clock = clockView(hud.remainSec)
++  return (
++    <div
++      ref={rootRef}
++      className="kitchen-hud"
++      style={{ '--kitchen-scale': scale } as CSSProperties}
++      data-kitchen-hud=""
++    >
++      <div className="kitchen-orders">
++        {hud.orders.map((o) => (
++          <OrderCard key={o.id} order={o} />
++        ))}
++        {leaving.map((l) => (
++          <LeavingCard key={`leave-${l.key}`} l={l} />
++        ))}
++      </div>
++
++      <div className="kitchen-clock" data-urgent={clock.urgent}>
++        <AlarmClock className="kitchen-clock-icon" />
++        <span className="kitchen-clock-text">{clock.text}</span>
++        <span className="kitchen-clock-sep" />
++        <Coins className="kitchen-clock-coins" />
++        <span className="kitchen-clock-score">
++          <span className="kitchen-clock-points">{hud.score}</span>
++          <span className="kitchen-clock-served">出餐 {hud.delivered}</span>
++        </span>
++      </div>
++
++      <div className="kitchen-players">
++        {sortKitchenPlayers(hud.players).map((p) => (
++          <PlayerCard key={p.id} p={p} />
++        ))}
++      </div>
++
++      <div className="kitchen-recipe" data-open={recipeOpen}>
++        <button
++          type="button"
++          className="kitchen-recipe-head"
++          aria-expanded={recipeOpen}
++          aria-label="食譜（R）"
++          onClick={(e) => {
++            // 點完交還焦點：否則空白鍵／Enter（遊戲的互動鍵）會再觸發這顆按鈕
++            e.currentTarget.blur()
++            onToggleRecipe?.()
++          }}
++        >
++          <BookOpen className="kitchen-recipe-icon" />
++          <span className="kitchen-recipe-title">食譜</span>
++        </button>
++        <ul className="kitchen-recipe-list">
++          {KITCHEN_DISHES.map((d) => (
++            <li key={d.ing} className="kitchen-recipe-row" data-kitchen-recipe={d.ing}>
++              <span className="kitchen-recipe-dish">
++                <KitchenItemIcon ing={d.ing} kind="soup" className="kitchen-recipe-dish-svg" />
++              </span>
++              <span className="kitchen-recipe-info">
++                <span className="kitchen-recipe-name">
++                  {d.name}
++                  <span className="kitchen-recipe-score">+{d.score}</span>
++                </span>
++                <Steps ing={d.ing} />
++              </span>
++            </li>
++          ))}
++        </ul>
++      </div>
++    </div>
++  )
++}
++
++/**
++ * 廚房快手的 React HUD（spec §8）：左上訂單卡、右上計時＋分數、左側玩家卡、右側食譜。
++ * 以 960×540 設計尺寸排版，依容器等比縮放（--kitchen-scale）；矮畫面由 CSS 切成精簡版。
++ * R 鍵收合食譜的監聽只在本元件掛載期間存在。
++ */
++export function KitchenHud({ hud, leaving }: { hud: KitchenHud; leaving: LeavingOrder[] }) {
++  const rootRef = useRef<HTMLDivElement>(null)
++  const [scale, setScale] = useState(1)
++  const [recipeOpen, setRecipeOpen] = useState(true)
++
++  useEffect(() => {
++    const el = rootRef.current
++    if (!el) return
++    const update = () => setScale(hudScale(el.clientWidth, el.clientHeight))
++    update()
++    const ro = new ResizeObserver(update)
++    ro.observe(el)
++    return () => ro.disconnect()
++  }, [])
++
++  useEffect(() => {
++    const onKey = (e: KeyboardEvent) => {
++      if (isRecipeToggleKey(e)) setRecipeOpen((v) => !v)
++    }
++    window.addEventListener('keydown', onKey)
++    return () => window.removeEventListener('keydown', onKey)
++  }, [])
++
++  return (
++    <KitchenHudView
++      hud={hud}
++      leaving={leaving}
++      scale={scale}
++      recipeOpen={recipeOpen}
++      onToggleRecipe={() => setRecipeOpen((v) => !v)}
++      rootRef={rootRef}
++    />
++  )
++}
++
++export default KitchenHud
+diff --git a/src/pages/Battle/bomberHud.ts b/src/pages/Battle/bomberHud.ts
+index a551e50..411a976 100644
+--- a/src/pages/Battle/bomberHud.ts
++++ b/src/pages/Battle/bomberHud.ts
+@@ -52,16 +52,16 @@ export function invincibleSeconds(ms: number): number {
+   return ms > 0 ? Math.ceil(ms / 1000) : 0
+ }
+ 
+ /** 容器尺寸 → HUD 縮放（取寬高較小的比例，夾在 0.5–2；尺寸未知時為 1） */
+ export function hudScale(width: number, height: number): number {
+   if (width <= 0 || height <= 0) return 1
+   const s = Math.min(width / DESIGN_W, height / DESIGN_H)
+   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
+ }
+ 
+-/** HUD 內容是否相同（遊戲可每幀 setHud，內容沒變就不重繪） */
+-export function sameHud(a: GameHud | null, b: GameHud | null): boolean {
++/** HUD 內容是否相同（遊戲可每幀 setHud，內容沒變就不重繪）；bomber 與 kitchen 共用 */
++export function sameHud<T = GameHud>(a: T | null, b: T | null): boolean {
+   if (a === b) return true
+   if (!a || !b) return false
+   return JSON.stringify(a) === JSON.stringify(b)
+ }
+diff --git a/src/pages/Battle/kitchenHud.test.ts b/src/pages/Battle/kitchenHud.test.ts
+new file mode 100644
+index 0000000..36d60d5
+--- /dev/null
++++ b/src/pages/Battle/kitchenHud.test.ts
+@@ -0,0 +1,268 @@
++import { createElement } from 'react'
++import { renderToStaticMarkup } from 'react-dom/server'
++import { describe, expect, it } from 'vitest'
++import type { GameHud, KitchenHud, KitchenHudPlayer } from '@/babylon/types'
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import { ORDER_LIFE_MS, RECIPES, SCORE_EXPIRE, SCORE_SERVE } from '@/babylon/games/overcookedKitchen'
++import { sameHud } from '@/pages/Battle/bomberHud'
++import {
++  KITCHEN_COLORS,
++  KITCHEN_DISHES,
++  KITCHEN_LEAVE_MS,
++  clockView,
++  collectLeaving,
++  dishName,
++  freshGone,
++  goneFloatText,
++  isKitchenHud,
++  isRecipeToggleKey,
++  orderLevel,
++  orderRatio,
++  orderSeconds,
++  sortKitchenPlayers,
++} from '@/pages/Battle/kitchenHud'
++import { KitchenHudView } from '@/pages/Battle/KitchenHud'
++
++function player(colorIndex: 0 | 1 | 2 | 3, extra: Partial<KitchenHudPlayer> = {}): KitchenHudPlayer {
++  return { id: `p${colorIndex}`, name: `廚師${colorIndex + 1}`, colorIndex, isSelf: false, held: null, ...extra }
++}
++
++/** 假資料（照 KitchenHud 共用契約）：4 人、3 張單分落綠／黃／紅三段 */
++function kitchen(extra: Partial<KitchenHud> = {}): KitchenHud {
++  return {
++    kind: 'kitchen',
++    remainSec: 84,
++    score: 120,
++    delivered: 6,
++    orders: [
++      { id: 7, ing: 'v', remainMs: 33_000 },
++      { id: 8, ing: 'm', remainMs: 19_000 },
++      { id: 9, ing: 'm', remainMs: 6_000 },
++    ],
++    gone: [],
++    players: [
++      player(0, { isSelf: true }),
++      player(1, { held: { ing: 'v', kind: 'soup' } }),
++      player(2),
++      player(3, { held: { ing: 'm', kind: 'raw' } }),
++    ],
++    ...extra,
++  }
++}
++
++const bomber: GameHud = {
++  timer: { secondsLeft: 24, suddenDeath: false },
++  aliveCount: 1,
++  totalCount: 1,
++  players: [],
++}
++
++describe('isKitchenHud', () => {
++  it('kind 為 kitchen 才是廚房 HUD', () => {
++    expect(isKitchenHud(kitchen())).toBe(true)
++  })
++
++  it('沒有 kind 的一律當 bomber', () => {
++    expect(isKitchenHud(bomber)).toBe(false)
++    expect(isKitchenHud(null)).toBe(false)
++  })
++})
++
++describe('sameHud 擴充到 KitchenHud', () => {
++  it('內容相同視為同一份（每幀 setHud 不重繪）', () => {
++    expect(sameHud<KitchenHud>(kitchen(), kitchen())).toBe(true)
++  })
++
++  it('gone 或訂單剩餘時間不同就要重繪', () => {
++    const served = kitchen({ gone: [{ id: 6, ing: 'v', reason: 'served', scoreDelta: SCORE_SERVE }] })
++    expect(sameHud<KitchenHud>(kitchen(), served)).toBe(false)
++    const tick = kitchen({ orders: [{ id: 7, ing: 'v', remainMs: 32_900 }] })
++    expect(sameHud<KitchenHud>(kitchen(), tick)).toBe(false)
++  })
++
++  it('bomber 與 kitchen 互換時一定重繪', () => {
++    expect(sameHud<GameHud | KitchenHud>(bomber, kitchen())).toBe(false)
++  })
++})
++
++describe('照實顯示菜名與分數（裁決 ⑤）', () => {
++  it('依 ing 顯示蔬菜湯／肉湯，與 RECIPES 同名', () => {
++    const name = (id: string) => RECIPES.find((r) => r.id === id)?.name
++    expect(dishName('v')).toBe(name('veg-soup'))
++    expect(dishName('m')).toBe(name('meat-soup'))
++  })
++
++  it('食譜只列兩道，分數取 SCORE_SERVE', () => {
++    expect(KITCHEN_DISHES.map((d) => d.ing)).toEqual(['v', 'm'])
++    expect(KITCHEN_DISHES.every((d) => d.score === SCORE_SERVE)).toBe(true)
++  })
++})
++
++describe('訂單計時條', () => {
++  it('比例以 ORDER_LIFE_MS 計並夾在 0–1', () => {
++    expect(orderRatio(ORDER_LIFE_MS / 2)).toBe(0.5)
++    expect(orderRatio(ORDER_LIFE_MS * 2)).toBe(1)
++    expect(orderRatio(-100)).toBe(0)
++  })
++
++  it('綠 >50%、黃 25–50%、紅 <25%', () => {
++    expect(orderLevel(ORDER_LIFE_MS * 0.51)).toBe('ok')
++    expect(orderLevel(ORDER_LIFE_MS * 0.5)).toBe('warn')
++    expect(orderLevel(ORDER_LIFE_MS * 0.25)).toBe('warn')
++    expect(orderLevel(ORDER_LIFE_MS * 0.24)).toBe('danger')
++    expect(orderLevel(0)).toBe('danger')
++  })
++
++  it('秒數無條件進位、不為負', () => {
++    expect(orderSeconds(5_100)).toBe(6)
++    expect(orderSeconds(6_000)).toBe(6)
++    expect(orderSeconds(-1)).toBe(0)
++  })
++})
++
++describe('計時＋分數膠囊', () => {
++  it('m:ss 顯示', () => {
++    expect(clockView(84).text).toBe('1:24')
++  })
++
++  it('最後 15 秒（含）變紅跳動', () => {
++    expect(clockView(16).urgent).toBe(false)
++    expect(clockView(15).urgent).toBe(true)
++    expect(clockView(0).urgent).toBe(true)
++  })
++})
++
++describe('消失訂單（gone）的離場動畫', () => {
++  it('逾時浮出實際扣分，為 0 時不顯示', () => {
++    expect(goneFloatText({ id: 1, ing: 'v', reason: 'expired', scoreDelta: SCORE_EXPIRE })).toBe('-10')
++    expect(goneFloatText({ id: 1, ing: 'v', reason: 'expired', scoreDelta: 0 })).toBeNull()
++  })
++
++  it('出餐只打勾飛出，不浮字', () => {
++    expect(goneFloatText({ id: 1, ing: 'v', reason: 'served', scoreDelta: SCORE_SERVE })).toBeNull()
++  })
++
++  it('出餐與逾時同一幀：各自帶上一張快照的槽位與剩餘時間、key 不重複', () => {
++    const prev = kitchen().orders
++    const out = collectLeaving(
++      prev,
++      [
++        { id: 9, ing: 'm', reason: 'expired', scoreDelta: SCORE_EXPIRE },
++        { id: 8, ing: 'm', reason: 'served', scoreDelta: SCORE_SERVE },
++      ],
++      41,
++    )
++    expect(out.map((l) => [l.id, l.reason, l.slot, l.remainMs])).toEqual([
++      [9, 'expired', 2, 6_000],
++      [8, 'served', 1, 19_000],
++    ])
++    expect(out.map((l) => l.key)).toEqual(['41', '42'])
++  })
++
++  it('上一張快照找不到該單時退回依序排、剩餘 0', () => {
++    const out = collectLeaving([], [{ id: 3, ing: 'v', reason: 'expired', scoreDelta: 0 }], 0)
++    expect(out[0]).toMatchObject({ slot: 0, remainMs: 0 })
++  })
++
++  it('只收上一張 HUD 還在場的消失單（每幀重送同一份 gone 不重播）', () => {
++    const prev = kitchen().orders
++    const gone = [
++      { id: 8, ing: 'm' as const, reason: 'served' as const, scoreDelta: SCORE_SERVE },
++      { id: 3, ing: 'v' as const, reason: 'expired' as const, scoreDelta: SCORE_EXPIRE },
++    ]
++    expect(freshGone(prev, gone).map((g) => g.id)).toEqual([8])
++    const after = prev.filter((o) => o.id !== 8)
++    expect(freshGone(after, gone)).toEqual([])
++  })
++
++  it('離場動畫時長：出餐 600ms、逾時 400ms', () => {
++    expect(KITCHEN_LEAVE_MS).toEqual({ served: 600, expired: 400 })
++  })
++})
++
++describe('玩家卡', () => {
++  it('依 P 編號排序、只列實際人數', () => {
++    const sorted = sortKitchenPlayers([player(2), player(0)])
++    expect(sorted.map((p) => p.colorIndex)).toEqual([0, 2])
++  })
++
++  it('色票直接取 fx/palette，不另存一份', () => {
++    expect(KITCHEN_COLORS).toBe(PLAYER_PALETTE)
++  })
++})
++
++describe('食譜收合鍵', () => {
++  it('R／r 無修飾鍵才收合', () => {
++    expect(isRecipeToggleKey({ key: 'r', repeat: false, ctrlKey: false, metaKey: false, altKey: false })).toBe(true)
++    expect(isRecipeToggleKey({ key: 'R', repeat: false, ctrlKey: false, metaKey: false, altKey: false })).toBe(true)
++  })
++
++  it('長按重複、Ctrl+R（重新整理）與其他鍵不收合', () => {
++    expect(isRecipeToggleKey({ key: 'r', repeat: true, ctrlKey: false, metaKey: false, altKey: false })).toBe(false)
++    expect(isRecipeToggleKey({ key: 'r', repeat: false, ctrlKey: true, metaKey: false, altKey: false })).toBe(false)
++    expect(isRecipeToggleKey({ key: 'e', repeat: false, ctrlKey: false, metaKey: false, altKey: false })).toBe(false)
++  })
++})
++
++describe('KitchenHudView 元件（假資料靜態渲染）', () => {
++  const render = (hud: KitchenHud, leaving = collectLeaving([], [], 0)) =>
++    renderToStaticMarkup(createElement(KitchenHudView, { hud, leaving }))
++
++  it('根節點 [data-kitchen-hud]，不出現 bomber HUD', () => {
++    const html = render(kitchen())
++    expect(html).toContain('data-kitchen-hud=""')
++    expect(html).not.toContain('data-bomber-hud')
++  })
++
++  it('訂單卡照實顯示菜名、+SCORE_SERVE 與三段計時色', () => {
++    const html = render(kitchen())
++    expect(html.match(/data-kitchen-order="/g)).toHaveLength(3)
++    expect(html).toContain('蔬菜湯')
++    expect(html).toContain('肉湯')
++    expect(html).not.toContain('烤肉拼盤')
++    expect(html).toContain(`+${SCORE_SERVE}`)
++    for (const lv of ['ok', 'warn', 'danger']) expect(html).toContain(`data-level="${lv}"`)
++  })
++
++  it('玩家卡只列實際人數，自己掛「你」', () => {
++    const solo = render(kitchen({ players: [player(0, { isSelf: true })] }))
++    expect(solo.match(/data-kitchen-player="/g)).toHaveLength(1)
++    expect(solo).toContain('data-self="true"')
++    const four = render(kitchen())
++    expect(four.match(/data-kitchen-player="/g)).toHaveLength(4)
++    expect(four).toContain('data-held="soup-v"')
++    expect(four).toContain('data-held="none"')
++  })
++
++  it('計時膠囊顯示 m:ss、分數與出餐數，最後 15 秒標 urgent', () => {
++    const html = render(kitchen())
++    expect(html).toContain('1:24')
++    expect(html).toContain('120')
++    expect(html).toContain('出餐 6')
++    expect(render(kitchen({ remainSec: 10 }))).toContain('data-urgent="true"')
++  })
++
++  it('食譜預設展開、列兩道菜', () => {
++    const html = render(kitchen())
++    expect(html).toContain('data-open="true"')
++    expect(html.match(/data-kitchen-recipe="/g)).toHaveLength(2)
++  })
++
++  it('離場卡：逾時掉落並浮實際扣分、出餐打勾、分數 0 的逾時不浮字', () => {
++    const prev = kitchen().orders
++    const leaving = collectLeaving(
++      prev,
++      [
++        { id: 9, ing: 'm', reason: 'expired', scoreDelta: SCORE_EXPIRE },
++        { id: 8, ing: 'm', reason: 'served', scoreDelta: SCORE_SERVE },
++        { id: 7, ing: 'v', reason: 'expired', scoreDelta: 0 },
++      ],
++      0,
++    )
++    const html = render(kitchen({ orders: [] }), leaving)
++    expect(html).toContain('data-leaving="expired"')
++    expect(html).toContain('data-leaving="served"')
++    expect(html.match(/kitchen-order-float/g)).toHaveLength(1)
++    expect(html).toContain('-10')
++  })
++})
+diff --git a/src/pages/Battle/kitchenHud.ts b/src/pages/Battle/kitchenHud.ts
+new file mode 100644
+index 0000000..8a51ad2
+--- /dev/null
++++ b/src/pages/Battle/kitchenHud.ts
+@@ -0,0 +1,102 @@
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import { ORDER_LIFE_MS, RECIPES, SCORE_SERVE } from '@/babylon/games/overcookedKitchen'
++import type { GameHud, KitchenHud, KitchenHudGone, KitchenHudOrder, KitchenHudPlayer, KitchenIng } from '@/babylon/types'
++import { formatTimer } from '@/pages/Battle/bomberHud'
++
++/** 固定 4 色（kitchen spec §4），與 3D 廚師同源；索引 = colorIndex */
++export const KITCHEN_COLORS = PLAYER_PALETTE
++
++/** 剩這麼多秒（含）以內計時膠囊變紅跳動 */
++const URGENT_SECONDS = 15
++/** 計時條分級門檻（剩餘比例） */
++const WARN_RATIO = 0.5
++const DANGER_RATIO = 0.25
++
++/** 離場動畫時長（spec §7：出餐 600ms、逾時 400ms） */
++export const KITCHEN_LEAVE_MS = { served: 600, expired: 400 } as const
++
++/** setHud 收到的是不是廚房 HUD（沒有 kind 的一律當 bomber） */
++export function isKitchenHud(hud: GameHud | KitchenHud | null): hud is KitchenHud {
++  return hud !== null && 'kind' in hud && hud.kind === 'kitchen'
++}
++
++const recipeName = (id: string, fallback: string) => RECIPES.find((r) => r.id === id)?.name ?? fallback
++
++/**
++ * HUD 照實顯示的菜（裁決 ⑤）：出餐只比對 ing，所以訂單卡與食譜只分蔬菜湯／肉湯，
++ * 分數一律是實際得分 SCORE_SERVE。
++ */
++export const KITCHEN_DISHES: readonly { ing: KitchenIng; name: string; score: number }[] = [
++  { ing: 'v', name: recipeName('veg-soup', '蔬菜湯'), score: SCORE_SERVE },
++  { ing: 'm', name: recipeName('meat-soup', '肉湯'), score: SCORE_SERVE },
++]
++
++export function dishName(ing: KitchenIng): string {
++  return KITCHEN_DISHES.find((d) => d.ing === ing)?.name ?? ''
++}
++
++/** 訂單剩餘比例（以 ORDER_LIFE_MS 計，夾在 0–1） */
++export function orderRatio(remainMs: number): number {
++  return Math.min(1, Math.max(0, remainMs / ORDER_LIFE_MS))
++}
++
++export type OrderLevel = 'ok' | 'warn' | 'danger'
++
++/** 計時條分級：綠 >50%、黃 25–50%、紅 <25% */
++export function orderLevel(remainMs: number): OrderLevel {
++  const r = orderRatio(remainMs)
++  if (r > WARN_RATIO) return 'ok'
++  return r >= DANGER_RATIO ? 'warn' : 'danger'
++}
++
++export function orderSeconds(remainMs: number): number {
++  return remainMs > 0 ? Math.ceil(remainMs / 1000) : 0
++}
++
++/** 計時膠囊：m:ss，最後 15 秒（含）變紅跳動 */
++export function clockView(remainSec: number): { text: string; urgent: boolean } {
++  return { text: formatTimer(remainSec), urgent: Math.ceil(remainSec) <= URGENT_SECONDS }
++}
++
++/** 離場浮字：只有逾時且實際扣分不為 0 才浮（分數下限 0 時可能沒扣） */
++export function goneFloatText(g: KitchenHudGone): string | null {
++  if (g.reason !== 'expired' || g.scoreDelta === 0) return null
++  return g.scoreDelta > 0 ? `+${g.scoreDelta}` : `${g.scoreDelta}`
++}
++
++/** 只收上一張 HUD 還在場的消失單：遊戲若每幀重送同一張快照的 gone，不會重播離場動畫 */
++export function freshGone(prevOrders: KitchenHudOrder[], gone: KitchenHudGone[]): KitchenHudGone[] {
++  return gone.filter((g) => prevOrders.some((o) => o.id === g.id))
++}
++
++/** 正在播離場動畫的訂單卡：沿用上一張快照的槽位與剩餘時間 */
++export interface LeavingOrder extends KitchenHudGone {
++  key: string
++  slot: number
++  remainMs: number
++}
++
++/**
++ * gone → 離場卡。槽位與剩餘時間取自上一張 HUD 的 orders（卡片留在原位播動畫）；
++ * key 由 seq 起遞增，避免跨局 id 重複時 React key 撞號。
++ */
++export function collectLeaving(prevOrders: KitchenHudOrder[], gone: KitchenHudGone[], seq: number): LeavingOrder[] {
++  return gone.map((g, i) => {
++    const slot = prevOrders.findIndex((o) => o.id === g.id)
++    return {
++      ...g,
++      key: String(seq + i),
++      slot: slot >= 0 ? slot : i,
++      remainMs: slot >= 0 ? prevOrders[slot].remainMs : 0,
++    }
++  })
++}
++
++export function sortKitchenPlayers(players: KitchenHudPlayer[]): KitchenHudPlayer[] {
++  return [...players].sort((a, b) => a.colorIndex - b.colorIndex)
++}
++
++/** 食譜收合鍵：R（不分大小寫），排除長按重複與 Ctrl／Cmd／Alt 組合（如 Ctrl+R 重新整理） */
++export function isRecipeToggleKey(e: Pick<KeyboardEvent, 'key' | 'repeat' | 'ctrlKey' | 'metaKey' | 'altKey'>): boolean {
++  return e.key.toLowerCase() === 'r' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey
++}
+

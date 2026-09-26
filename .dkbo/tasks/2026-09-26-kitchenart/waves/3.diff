@@ -1,0 +1,3702 @@
+# 廚房快手美術優化（A Toy Kitchen） — wave 3 since bf4c291 — 2026-09-26T11:54
+# files changed: 22 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/fx/emitter.ts                        | 132 +++++++
+ src/babylon/fx/look.ts                           |  71 +++-
+ src/babylon/fx/textures.ts                       |  31 ++
+ src/babylon/games/bomberFx/effects.ts            | 129 +------
+ src/babylon/games/bomberFx/textures.ts           |  35 +-
+ src/babylon/games/kitchenFx/board.ts             |  77 +++-
+ src/babylon/games/kitchenFx/effects.ts           | 442 ++++++++++++++++++++++
+ src/babylon/games/kitchenFx/effectsModel.test.ts | 145 +++++++
+ src/babylon/games/kitchenFx/effectsModel.ts      | 106 ++++++
+ src/babylon/games/kitchenFx/hudModel.test.ts     |  72 ++++
+ src/babylon/games/kitchenFx/hudModel.ts          |  63 ++++
+ src/babylon/games/kitchenFx/models.test.ts       |  25 ++
+ src/babylon/games/kitchenFx/models.ts            |   4 +-
+ src/babylon/games/kitchenFx/orders.test.ts       | 107 ++++++
+ src/babylon/games/kitchenFx/orders.ts            | 109 ++++++
+ src/babylon/games/kitchenFx/palette.ts           |   3 +
+ src/babylon/games/kitchenFx/textures.ts          | 358 ++++++++++++------
+ src/babylon/games/overcooked.ts                  | 458 ++++++++++++-----------
+ src/index.css                                    |  24 +-
+ src/pages/Battle/KitchenHud.tsx                  |  14 +-
+ src/pages/Battle/kitchenHud.test.ts              |  35 ++
+ src/pages/Battle/kitchenHud.ts                   |  23 ++
+ 22 files changed, 1950 insertions(+), 513 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/fx/emitter.ts b/src/babylon/fx/emitter.ts
+new file mode 100644
+index 0000000..34b18d1
+--- /dev/null
++++ b/src/babylon/fx/emitter.ts
+@@ -0,0 +1,132 @@
++/**
++ * 玩具系列粒子（bomber 與 kitchen 共用）：每種貼圖一組 ParticleSystem，同一幀要在很多位置噴時
++ * 把每顆的出生位置與樣式排進 BurstQueue，由 startPositionFunction 逐顆取出。
++ */
++import { Color4, ParticleSystem, Vector3, type Scene, type Texture } from '@/babylon/babylonCore'
++import { BurstQueue, type BurstParticle } from '@/babylon/fx/burstQueue'
++import { hexToRgb } from '@/babylon/fx/palette'
++
++export type Dir = 'fountain' | 'up' | 'burst' | 'radial'
++
++export interface FxStyle {
++  c1: Color4
++  c2: Color4
++  dead: Color4
++  size: readonly [number, number]
++  life: readonly [number, number]
++  /** 初速（方向向量的長度倍率） */
++  power: readonly [number, number]
++  dir: Dir
++}
++
++export const c4 = (hex: string, a = 1): Color4 => {
++  const [r, g, b] = hexToRgb(hex)
++  return new Color4(r, g, b, a)
++}
++/** 特效專用亂數（純視覺）：不吃 Math.random，host 的掉寶判定與 qa 的確定性亂數序列不受特效多寡影響 */
++export const fxRandom = (() => {
++  let s = 0x9e3779b9
++  return (): number => {
++    s = (s + 0x6d2b79f5) | 0
++    let t = Math.imul(s ^ (s >>> 15), 1 | s)
++    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
++  }
++})()
++export const between = ([a, b]: readonly [number, number]): number => a + fxRandom() * (b - a)
++
++export const style = (c1: string, c2: string, dead: string, o: Omit<FxStyle, 'c1' | 'c2' | 'dead'>, a = 1): FxStyle => ({
++  c1: c4(c1, a),
++  c2: c4(c2, a),
++  dead: c4(dead, 0),
++  ...o,
++})
++
++/** 一組粒子：佇列裡每筆請求在自己的位置噴自己的樣式 */
++export class FxEmitter {
++  readonly ps: ParticleSystem
++  private readonly queue: BurstQueue<FxStyle>
++  private cur: BurstParticle<FxStyle> | null = null
++
++  constructor(scene: Scene, name: string, tex: Texture, cap: number, blend: number, gravity: number) {
++    this.queue = new BurstQueue<FxStyle>(fxRandom, cap)
++    const ps = new ParticleSystem(name, cap, scene)
++    ps.particleTexture = tex
++    ps.emitter = Vector3.Zero()
++    ps.emitRate = 0
++    ps.manualEmitCount = 0
++    ps.updateSpeed = 1 / 60 // 壽命用真實秒數（Babylon 依 animation ratio 補幀率）
++    ps.gravity = new Vector3(0, gravity, 0)
++    ps.blendMode = blend
++    ps.minEmitPower = 1
++    ps.maxEmitPower = 1 // 初速改在方向函式裡乘（emit power 在出生位置之前就抽好了）
++    ps.minInitialRotation = 0
++    ps.maxInitialRotation = Math.PI * 2
++    ps.minAngularSpeed = -3
++    ps.maxAngularSpeed = 3
++    // 出生位置之後才算大小與顏色，所以在這裡換成這顆所屬請求的樣式；壽命已抽過，直接覆寫
++    ps.startPositionFunction = (_m, pos, particle) => {
++      const p = this.queue.next()
++      this.cur = p
++      if (!p) {
++        pos.set(0, -50, 0)
++        particle.lifeTime = 0.001
++        return
++      }
++      pos.set(p.x, p.y, p.z)
++      const s = p.style
++      particle.lifeTime = between(s.life)
++      ps.minSize = s.size[0]
++      ps.maxSize = s.size[1]
++      ps.color1 = s.c1
++      ps.color2 = s.c2
++      ps.colorDead = s.dead
++    }
++    ps.startDirectionFunction = (_m, dir) => {
++      const p = this.cur
++      if (!p) {
++        dir.set(0, 0, 0)
++        return
++      }
++      const k = between(p.style.power)
++      const r = () => fxRandom() * 2 - 1
++      if (p.style.dir === 'up') dir.set(r() * 0.25, 1, r() * 0.25)
++      else if (p.style.dir === 'burst') dir.set(r(), 0.2 + fxRandom() * 1.4, r())
++      else if (p.style.dir === 'radial') {
++        let dx = p.x - p.cx
++        let dz = p.z - p.cz
++        const len = Math.hypot(dx, dz)
++        if (len < 1e-4) {
++          const a = fxRandom() * Math.PI * 2
++          dx = Math.cos(a)
++          dz = Math.sin(a)
++        } else {
++          dx /= len
++          dz /= len
++        }
++        dir.set(dx, 0.12, dz)
++      } else dir.set(r(), 1 + fxRandom() * 1.5, r())
++      dir.scaleInPlace(k)
++    }
++    ps.start()
++    this.ps = ps
++  }
++
++  emit(x: number, y: number, z: number, spread: number, count: number, s: FxStyle): void {
++    // 上一幀沒噴完的是容量滿了噴不出來的，丟掉免得累積成延遲的一大團
++    if (this.ps.manualEmitCount <= 0 && this.queue.total > 0) this.queue.clear()
++    this.queue.push({ x, y, z, spread, count, style: s })
++    this.ps.manualEmitCount = this.queue.total
++  }
++
++  clear(): void {
++    this.queue.clear()
++    this.ps.manualEmitCount = 0
++    this.ps.reset()
++  }
++
++  dispose(): void {
++    this.ps.dispose(false)
++  }
++}
++
+diff --git a/src/babylon/fx/look.ts b/src/babylon/fx/look.ts
+index aa3fc7e..110b0fb 100644
+--- a/src/babylon/fx/look.ts
++++ b/src/babylon/fx/look.ts
+@@ -36,20 +36,23 @@ const SUN_DIR = new Vector3(-0.4, -1, 0.3)
+ /** 只給 UI 相機看的圖層（主相機預設 0x0FFFFFFF 看不到） */
+ export const UI_LAYER = 0x10000000
+ 
+ export interface LookOptions {
+   /** 陰影正交投影要涵蓋的半徑（場地半對角線加餘裕） */
+   shadowRadius: number
+   /** 遊戲代號：log 前綴 `[tag]`、網址參數 `${tag}Tier`／`${tag}NoDegrade`、Babylon 物件名前綴 */
+   tag: string
+   /** 描邊色 hex */
+   outline: string
++  /** 後製曝光與對比（不給＝bomber 定案的 1.05／1.08）；淺色場景在 ACES 下會發灰，可調高曝光 */
++  exposure?: number
++  contrast?: number
+ }
+ 
+ /** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
+ function detectTier(key: string): { tier: Tier; noDegrade: boolean } {
+   if (typeof window === 'undefined') return { tier: 'desktop', noDegrade: true }
+   const search = tierQuery(window.location.search, window.location.hash)
+   const touch = 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0
+   const cores = navigator.hardwareConcurrency || undefined
+   return { tier: pickTier({ search, touch, cores }, key), noDegrade: noDegradeFlag(search, key) }
+ }
+@@ -57,20 +60,22 @@ function detectTier(key: string): { tier: Tier; noDegrade: boolean } {
+ export class ToyLook {
+   readonly tier: Tier
+   readonly settings: TierSettings
+   private readonly scene: Scene
+   private readonly hemi: HemisphericLight
+   private readonly sun: DirectionalLight
+   private readonly shadow: ShadowGenerator
+   private glow: GlowLayer | null = null
+   private readonly pipeline: DefaultRenderingPipeline
+   private readonly glowColors = new Map<number, Color3>()
++  /** 已登記發光色、但目前不在白名單的 mesh（setGlow 關掉的） */
++  private readonly glowOff = new Set<number>()
+   private readonly outlined = new Set<Mesh>()
+   private readonly outlineColor: Color3
+   private readonly tag: string
+   private readonly active: Record<DegradeStep, boolean>
+   private watch: FpsWatch | null
+   private readonly prevScaling: number
+   /** 畫 3D UI（開局倒數）的第二台相機：只看 UI_LAYER、不掛後製，顏色不被 ACES／bloom 改掉 */
+   readonly uiCamera: TargetCamera
+ 
+   private readonly mainCamera: Camera
+@@ -110,37 +115,40 @@ export class ToyLook {
+     this.sun.orthoTop = r
+     this.sun.shadowMinZ = 1
+     this.sun.shadowMaxZ = 80
+ 
+     this.shadow = new ShadowGenerator(s.shadowSize, this.sun)
+     this.shadow.usePercentageCloserFiltering = true
+     this.shadow.filteringQuality = ShadowGenerator.QUALITY_MEDIUM
+     this.shadow.setDarkness(0.35)
+     this.shadow.bias = 0.002
+ 
+-    if (s.glow) this.glow = this.makeGlow()
++    if (s.glow) {
++      this.glow = this.makeGlow()
++      this.syncGlowEnabled() // 還沒有人登記：先關著
++    }
+ 
+     this.pipeline = new DefaultRenderingPipeline(`${tag}-pipeline`, true, scene, [camera])
+     this.pipeline.samples = 1
+     this.pipeline.fxaaEnabled = true
+     this.pipeline.bloomEnabled = s.bloom
+     if (s.bloom) {
+       this.pipeline.bloomThreshold = 0.85
+       this.pipeline.bloomWeight = 0.3
+       this.pipeline.bloomKernel = 48
+     }
+     this.pipeline.imageProcessingEnabled = true
+     const ip = this.pipeline.imageProcessing
+     ip.toneMappingEnabled = true
+     ip.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES
+-    ip.exposure = 1.05
+-    ip.contrast = 1.08
++    ip.exposure = opts.exposure ?? 1.05
++    ip.contrast = opts.contrast ?? 1.08
+ 
+     // UI 相機：與主相機同 fov、位在原點看 +Z，面板以相機座標擺放（與掛在主相機下相同）
+     this.uiCamera = new TargetCamera(`${tag}-ui-cam`, Vector3.Zero(), scene)
+     this.uiCamera.setTarget(new Vector3(0, 0, 1))
+     this.uiCamera.fov = camera.fov
+     this.uiCamera.layerMask = UI_LAYER
+     scene.activeCameras = [camera, this.uiCamera]
+     scene.cameraToUseForPointers = camera
+ 
+     this.active = { outline: s.outline, glow: s.glow, shadow: true }
+@@ -182,22 +190,76 @@ export class ToyLook {
+       m.outlineColor = this.outlineColor
+       m.outlineWidth = OUTLINE_WIDTH
+       m.renderOutline = this.active.outline
+       m.onDisposeObservable.addOnce(() => this.outlined.delete(m))
+     }
+   }
+ 
+   /** GlowLayer 白名單（火焰外層、將爆炸彈、無敵代幣、AI 天線）；strength 縮放發光色 */
+   glowMesh(mesh: Mesh, hex: string, strength = 1): void {
+     this.glowColors.set(mesh.uniqueId, Color3.FromHexString(hex).scale(strength))
+-    mesh.onDisposeObservable.addOnce(() => this.glowColors.delete(mesh.uniqueId))
++    this.glowOff.delete(mesh.uniqueId)
++    mesh.onDisposeObservable.addOnce(() => {
++      this.glowColors.delete(mesh.uniqueId)
++      this.glowOff.delete(mesh.uniqueId)
++      this.syncGlowEnabled()
++    })
+     this.glow?.addIncludedOnlyMesh(mesh)
++    this.syncGlowEnabled()
++  }
++
++  /**
++   * GlowLayer 的 includedOnly 名單一旦空了會變成「全部 mesh 都畫進發光貼圖」（顏色雖是黑的，
++   * 但多一個 pass 還會遮掉後面的光暈），所以名單空時整層關掉、有人進名單再開。
++   */
++  private syncGlowEnabled(): void {
++    if (this.glow) this.glow.isEnabled = this.glowColors.size - this.glowOff.size > 0
++  }
++
++  /**
++   * 已登記的發光物改強度（脈動、閃光）；strength ≤ 0 時暫時移出白名單，
++   * 免得以黑色寫進發光貼圖、把後面的光暈遮掉。
++   */
++  setGlow(mesh: Mesh, hex: string, strength: number): void {
++    const id = mesh.uniqueId
++    const on = strength > 0
++    let c = this.glowColors.get(id)
++    if (!c) {
++      // 第一次見到：登記顏色，但先不進白名單（下面依 on 決定）
++      c = new Color3()
++      this.glowColors.set(id, c)
++      this.glowOff.add(id)
++      mesh.onDisposeObservable.addOnce(() => {
++        this.glowColors.delete(id)
++        this.glowOff.delete(id)
++        this.syncGlowEnabled()
++      })
++    }
++    if (on) this.hexColor(hex).scaleToRef(strength, c)
++    const glow = this.glow
++    const listed = !this.glowOff.has(id)
++    if (!glow || on === listed) return
++    if (on) {
++      this.glowOff.delete(id)
++      glow.addIncludedOnlyMesh(mesh)
++    } else {
++      this.glowOff.add(id)
++      glow.removeIncludedOnlyMesh(mesh)
++    }
++    this.syncGlowEnabled()
++  }
++
++  private readonly hexCache = new Map<string, Color3>()
++  private hexColor(hex: string): Color3 {
++    let c = this.hexCache.get(hex)
++    if (!c) this.hexCache.set(hex, (c = Color3.FromHexString(hex)))
++    return c
+   }
+ 
+   // ---- 每幀 ----
+ 
+   /** 餵幀時間；連續 60 幀平均低於 45fps 就降一級 */
+   update(deltaMs: number): void {
+     if (!this.watch || !this.watch.push(deltaMs)) return
+     const step = nextDegrade(this.active)
+     if (!step) {
+       this.watch = null
+@@ -219,18 +281,19 @@ export class ToyLook {
+   }
+ 
+   dispose(): void {
+     this.pipeline.dispose()
+     this.glow?.dispose()
+     this.glow = null
+     this.shadow.dispose()
+     this.sun.dispose()
+     this.hemi.dispose()
+     this.glowColors.clear()
++    this.glowOff.clear()
+     this.outlined.clear()
+     this.scene.activeCameras = []
+     this.scene.activeCamera = this.mainCamera
+     this.scene.cameraToUseForPointers = null
+     this.uiCamera.dispose()
+     this.scene.getEngine().setHardwareScalingLevel(this.prevScaling)
+   }
+ }
+diff --git a/src/babylon/fx/textures.ts b/src/babylon/fx/textures.ts
+index 2278fa3..a010ace 100644
+--- a/src/babylon/fx/textures.ts
++++ b/src/babylon/fx/textures.ts
+@@ -35,10 +35,41 @@ export function createLabelTexture(scene: Scene, name: string, text: string, bg:
+   g.font = `900 ${Math.round(h * 0.56)}px Fredoka, "Noto Sans TC", sans-serif`
+   g.textAlign = 'center'
+   g.textBaseline = 'middle'
+   g.lineWidth = 6
+   g.strokeStyle = OUTLINE
+   g.strokeText(text, w / 2, h / 2 + 2)
+   g.fillText(text, w / 2, h / 2 + 2)
+   tex.update()
+   return tex
+ }
++
++/** 地面 ring（放炸彈、落牆灰塵環）：透明底白色圓環，顏色由材質 tint */
++export function createRingTexture(scene: Scene, name = 'bomber-ring-tex'): DynamicTexture {
++  const S = 128
++  const tex = new DynamicTexture(name, { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = true
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, S, S)
++  const gr = g.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.48)
++  gr.addColorStop(0, 'rgba(255,255,255,0)')
++  gr.addColorStop(0.45, 'rgba(255,255,255,1)')
++  gr.addColorStop(0.7, 'rgba(255,255,255,0.85)')
++  gr.addColorStop(1, 'rgba(255,255,255,0)')
++  g.fillStyle = gr
++  g.fillRect(0, 0, S, S)
++  tex.update()
++  return tex
++}
++
++/** 字型載好再重畫一次（Fredoka 由 index.css 的 @font-face 宣告，第一次用到才下載） */
++export function whenFontReady(font: string, tex: DynamicTexture, draw: () => void): void {
++  draw()
++  const fonts = typeof document === 'undefined' ? undefined : document.fonts
++  if (!fonts) return
++  let alive = true
++  tex.onDisposeObservable.addOnce(() => (alive = false))
++  fonts.load(font).then(
++    () => alive && draw(),
++    () => undefined
++  )
++}
+diff --git a/src/babylon/games/bomberFx/effects.ts b/src/babylon/games/bomberFx/effects.ts
+index b153b0f..6366c65 100644
+--- a/src/babylon/games/bomberFx/effects.ts
++++ b/src/babylon/games/bomberFx/effects.ts
+@@ -1,183 +1,58 @@
+ /**
+  * 炸彈超人特效（spec §8，AC5）：粒子（AC1 的 WebP 貼圖）、木片、焦痕 decal、地面 ring、「+1」飄字。
+  * 只管畫；什麼時候觸發由 bomber.ts 決定，時間曲線在 fxCurves.ts。
+  *
+  * 粒子：每種貼圖一組 ParticleSystem（上限 = 檔位的 particleCap），同一幀要在很多位置噴時
+  * 把每顆的出生位置與樣式排進 BurstQueue，由 startPositionFunction 逐顆取出。
+  */
+ import {
+   Color3,
+-  Color4,
+   Mesh,
+   MeshBuilder,
+   ParticleSystem,
+   StandardMaterial,
+   Texture,
+-  Vector3,
+   type DynamicTexture,
+   type Scene,
+ } from '@/babylon/babylonCore'
+-import { BurstQueue, type BurstParticle } from '@/babylon/fx/burstQueue'
++import { c4, FxEmitter, fxRandom, style, type FxStyle } from '@/babylon/fx/emitter'
+ import { emitCount, floatTextPose, ringPose } from '@/babylon/fx/curves'
+ import { scorchScale } from '@/babylon/games/bomberFx/fxCurves'
+ import { roundedBox, type MeshData } from '@/babylon/fx/geometry'
+ import { rgba, solid, toMesh } from '@/babylon/fx/models'
+-import { hexToRgb, TOY } from '@/babylon/games/bomberFx/palette'
++import { TOY } from '@/babylon/games/bomberFx/palette'
+ import { ThinGroup } from '@/babylon/fx/thin'
+ import {
+   bomberAssetUrl,
+   createPlusOneTexture,
+   createRingTexture,
+   createScorchTexture,
+ } from '@/babylon/games/bomberFx/textures'
+ 
+-type Dir = 'fountain' | 'up' | 'burst' | 'radial'
+-
+-interface FxStyle {
+-  c1: Color4
+-  c2: Color4
+-  dead: Color4
+-  size: readonly [number, number]
+-  life: readonly [number, number]
+-  /** 初速（方向向量的長度倍率） */
+-  power: readonly [number, number]
+-  dir: Dir
+-}
+-
+-const c4 = (hex: string, a = 1): Color4 => {
+-  const [r, g, b] = hexToRgb(hex)
+-  return new Color4(r, g, b, a)
+-}
+-/** 特效專用亂數（純視覺）：不吃 Math.random，host 的掉寶判定與 qa 的確定性亂數序列不受特效多寡影響 */
+-const fxRandom = (() => {
+-  let s = 0x9e3779b9
+-  return (): number => {
+-    s = (s + 0x6d2b79f5) | 0
+-    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+-  }
+-})()
+-const between = ([a, b]: readonly [number, number]): number => a + fxRandom() * (b - a)
+-
+-const style = (c1: string, c2: string, dead: string, o: Omit<FxStyle, 'c1' | 'c2' | 'dead'>, a = 1): FxStyle => ({
+-  c1: c4(c1, a),
+-  c2: c4(c2, a),
+-  dead: c4(dead, 0),
+-  ...o,
+-})
+-
+ const CREAM = '#FFF6E3'
+ const DUST = '#E9DCC0'
+ const WOOD = ['#F0B866', '#C07E33'] as const
+ 
+ const STYLE = {
+   fuse: style('#FFF6C8', '#FFC53A', '#FF7A1A', { size: [0.16, 0.3], life: [0.15, 0.3], power: [1.2, 2.2], dir: 'up' }),
+   blast: style(TOY.flame[2], TOY.flame[1], TOY.flame[0], { size: [0.22, 0.48], life: [0.25, 0.5], power: [4, 8], dir: 'burst' }),
+   metal: style('#FFFFFF', '#FFE38A', '#C3CBD8', { size: [0.12, 0.26], life: [0.1, 0.25], power: [3, 6], dir: 'burst' }),
+   crateSmoke: style(CREAM, '#F3E6CC', CREAM, { size: [0.9, 1.35], life: [0.45, 0.6], power: [0.4, 0.9], dir: 'up' }, 0.9),
+   deathSmoke: style('#FFFFFF', CREAM, CREAM, { size: [0.7, 1.2], life: [0.5, 0.8], power: [1, 2], dir: 'fountain' }, 0.9),
+   dust: style(DUST, '#D8C8A6', DUST, { size: [0.6, 1.0], life: [0.4, 0.6], power: [2.5, 4], dir: 'radial' }, 0.85),
+   sparkle: style(TOY.invincible, '#FFFFFF', '#FFE38A', { size: [0.22, 0.42], life: [0.3, 0.5], power: [1.5, 3], dir: 'fountain' }),
+ } as const
+ 
+ const deathStars = (hex: string): FxStyle =>
+   style(hex, '#FFFFFF', hex, { size: [0.3, 0.52], life: [0.5, 0.7], power: [2.5, 4], dir: 'fountain' })
+ 
+-/** 一組粒子：佇列裡每筆請求在自己的位置噴自己的樣式 */
+-class FxEmitter {
+-  readonly ps: ParticleSystem
+-  private readonly queue: BurstQueue<FxStyle>
+-  private cur: BurstParticle<FxStyle> | null = null
+-
+-  constructor(scene: Scene, name: string, tex: Texture, cap: number, blend: number, gravity: number) {
+-    this.queue = new BurstQueue<FxStyle>(fxRandom, cap)
+-    const ps = new ParticleSystem(name, cap, scene)
+-    ps.particleTexture = tex
+-    ps.emitter = Vector3.Zero()
+-    ps.emitRate = 0
+-    ps.manualEmitCount = 0
+-    ps.updateSpeed = 1 / 60 // 壽命用真實秒數（Babylon 依 animation ratio 補幀率）
+-    ps.gravity = new Vector3(0, gravity, 0)
+-    ps.blendMode = blend
+-    ps.minEmitPower = 1
+-    ps.maxEmitPower = 1 // 初速改在方向函式裡乘（emit power 在出生位置之前就抽好了）
+-    ps.minInitialRotation = 0
+-    ps.maxInitialRotation = Math.PI * 2
+-    ps.minAngularSpeed = -3
+-    ps.maxAngularSpeed = 3
+-    // 出生位置之後才算大小與顏色，所以在這裡換成這顆所屬請求的樣式；壽命已抽過，直接覆寫
+-    ps.startPositionFunction = (_m, pos, particle) => {
+-      const p = this.queue.next()
+-      this.cur = p
+-      if (!p) {
+-        pos.set(0, -50, 0)
+-        particle.lifeTime = 0.001
+-        return
+-      }
+-      pos.set(p.x, p.y, p.z)
+-      const s = p.style
+-      particle.lifeTime = between(s.life)
+-      ps.minSize = s.size[0]
+-      ps.maxSize = s.size[1]
+-      ps.color1 = s.c1
+-      ps.color2 = s.c2
+-      ps.colorDead = s.dead
+-    }
+-    ps.startDirectionFunction = (_m, dir) => {
+-      const p = this.cur
+-      if (!p) {
+-        dir.set(0, 0, 0)
+-        return
+-      }
+-      const k = between(p.style.power)
+-      const r = () => fxRandom() * 2 - 1
+-      if (p.style.dir === 'up') dir.set(r() * 0.25, 1, r() * 0.25)
+-      else if (p.style.dir === 'burst') dir.set(r(), 0.2 + fxRandom() * 1.4, r())
+-      else if (p.style.dir === 'radial') {
+-        let dx = p.x - p.cx
+-        let dz = p.z - p.cz
+-        const len = Math.hypot(dx, dz)
+-        if (len < 1e-4) {
+-          const a = fxRandom() * Math.PI * 2
+-          dx = Math.cos(a)
+-          dz = Math.sin(a)
+-        } else {
+-          dx /= len
+-          dz /= len
+-        }
+-        dir.set(dx, 0.12, dz)
+-      } else dir.set(r(), 1 + fxRandom() * 1.5, r())
+-      dir.scaleInPlace(k)
+-    }
+-    ps.start()
+-    this.ps = ps
+-  }
+-
+-  emit(x: number, y: number, z: number, spread: number, count: number, s: FxStyle): void {
+-    // 上一幀沒噴完的是容量滿了噴不出來的，丟掉免得累積成延遲的一大團
+-    if (this.ps.manualEmitCount <= 0 && this.queue.total > 0) this.queue.clear()
+-    this.queue.push({ x, y, z, spread, count, style: s })
+-    this.ps.manualEmitCount = this.queue.total
+-  }
+-
+-  clear(): void {
+-    this.queue.clear()
+-    this.ps.manualEmitCount = 0
+-    this.ps.reset()
+-  }
+-
+-  dispose(): void {
+-    this.ps.dispose(false)
+-  }
+-}
+ 
+ interface Chip {
+   group: ThinGroup<number>
+   key: number
+   x: number
+   y: number
+   z: number
+   vx: number
+   vy: number
+   vz: number
+diff --git a/src/babylon/games/bomberFx/textures.ts b/src/babylon/games/bomberFx/textures.ts
+index 22d73e0..2314587 100644
+--- a/src/babylon/games/bomberFx/textures.ts
++++ b/src/babylon/games/bomberFx/textures.ts
+@@ -1,18 +1,20 @@
+ /**
+  * 炸彈超人 A 方案的程式貼圖（DynamicTexture + Canvas 2D，不載入外部圖檔）。
+  * 地面棋盤、方塊圖集（柱牆／外框／落牆／木箱三態）、道具圖集；「你」與 AI 標籤在 fx/textures。
+  */
+ import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
+ import { ITEM_COLORS, ITEM_ICON_DARK, TOY } from '@/babylon/games/bomberFx/palette'
+ import type { FaceUV } from '@/babylon/fx/geometry'
+-import { ctxOf, roundRect, type Ctx } from '@/babylon/fx/textures'
++import { ctxOf, roundRect, whenFontReady, type Ctx } from '@/babylon/fx/textures'
++
++export { createRingTexture, whenFontReady } from '@/babylon/fx/textures'
+ 
+ /** 決定性小亂數（貼圖點綴用，各端一致） */
+ const rand = (seed: number): (() => number) => {
+   let s = seed >>> 0
+   return () => {
+     s = (Math.imul(s ^ (s >>> 15), 0x2c1b3c6d) + 0x9e3779b9) >>> 0
+     return s / 0x100000000
+   }
+ }
+ 
+@@ -346,38 +348,20 @@ export function createItemAtlas(scene: Scene, iconUrl: string = bomberAssetUrl('
+   }
+   let alive = true
+   tex.onDisposeObservable.addOnce(() => (alive = false))
+   const img = new Image()
+   img.onload = () => alive && paint(img)
+   img.onerror = () => alive && paint('fallback')
+   img.src = iconUrl
+   return tex
+ }
+ 
+-/** 地面 ring（放炸彈、落牆灰塵環）：透明底白色圓環，顏色由材質 tint */
+-export function createRingTexture(scene: Scene): DynamicTexture {
+-  const S = 128
+-  const tex = new DynamicTexture('bomber-ring-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+-  tex.hasAlpha = true
+-  const g = ctxOf(tex)
+-  g.clearRect(0, 0, S, S)
+-  const gr = g.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.48)
+-  gr.addColorStop(0, 'rgba(255,255,255,0)')
+-  gr.addColorStop(0.45, 'rgba(255,255,255,1)')
+-  gr.addColorStop(0.7, 'rgba(255,255,255,0.85)')
+-  gr.addColorStop(1, 'rgba(255,255,255,0)')
+-  g.fillStyle = gr
+-  g.fillRect(0, 0, S, S)
+-  tex.update()
+-  return tex
+-}
+-
+ /** 焦痕 decal：深紫褐色不規則斑塊，邊緣柔化 */
+ export function createScorchTexture(scene: Scene): DynamicTexture {
+   const S = 128
+   const tex = new DynamicTexture('bomber-scorch-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+   tex.hasAlpha = true
+   const g = ctxOf(tex)
+   g.clearRect(0, 0, S, S)
+   const rnd = rand(0x5c0)
+   const blot = (x: number, y: number, r: number, a: number) => {
+     const gr = g.createRadialGradient(x, y, 0, x, y, r)
+@@ -392,33 +376,20 @@ export function createScorchTexture(scene: Scene): DynamicTexture {
+   blot(S / 2, S / 2, S * 0.44, 0.6)
+   for (let i = 0; i < 4; i++) {
+     const a = rnd() * Math.PI * 2
+     const d = S * (0.16 + rnd() * 0.12)
+     blot(S / 2 + Math.cos(a) * d, S / 2 + Math.sin(a) * d, S * (0.14 + rnd() * 0.06), 0.4)
+   }
+   tex.update()
+   return tex
+ }
+ 
+-/** 字型載好再重畫一次（Fredoka 由 index.css 的 @font-face 宣告，第一次用到才下載） */
+-export function whenFontReady(font: string, tex: DynamicTexture, draw: () => void): void {
+-  draw()
+-  const fonts = typeof document === 'undefined' ? undefined : document.fonts
+-  if (!fonts) return
+-  let alive = true
+-  tex.onDisposeObservable.addOnce(() => (alive = false))
+-  fonts.load(font).then(
+-    () => alive && draw(),
+-    () => undefined
+-  )
+-}
+-
+ /** 拾取飄字「+1」：金色字、深紫描邊、透明底 */
+ export function createPlusOneTexture(scene: Scene): DynamicTexture {
+   const W = 128
+   const H = 96
+   const font = 'bold 72px Fredoka, sans-serif'
+   const tex = new DynamicTexture('bomber-plus1-tex', { width: W, height: H }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+   tex.hasAlpha = true
+   const g = ctxOf(tex)
+   whenFontReady(font, tex, () => {
+     g.clearRect(0, 0, W, H)
+diff --git a/src/babylon/games/kitchenFx/board.ts b/src/babylon/games/kitchenFx/board.ts
+index 30a7b33..cf9b069 100644
+--- a/src/babylon/games/kitchenFx/board.ts
++++ b/src/babylon/games/kitchenFx/board.ts
+@@ -24,20 +24,21 @@ import {
+   serveData,
+   soupDiscData,
+   stoveData,
+ } from '@/babylon/games/kitchenFx/models'
+ import { KITCHEN } from '@/babylon/games/kitchenFx/palette'
+ import {
+   createCounterAtlas,
+   createKitchenGroundTexture,
+   createWallTexture,
+   createWindowTexture,
++  createYardTexture,
+   WALL_WHITE_UV,
+ } from '@/babylon/games/kitchenFx/textures'
+ 
+ export interface KitchenBoardConfig {
+   gridW: number
+   gridH: number
+   cell: number
+   stations: readonly StationDef[]
+   toWorld: (cx: number, cy: number) => { x: number; z: number }
+ }
+@@ -48,58 +49,71 @@ export interface KitchenFxTargets {
+   casters: Mesh[]
+   outlined: Mesh[]
+   glow: { mesh: Mesh; color: string; strength: number }[]
+ }
+ 
+ interface PotParts {
+   disc: Mesh
+   discMat: StandardMaterial
+   burner: Mesh
+   alarm: Mesh
++  alarmMat: StandardMaterial
+   embers: Mesh
+ }
+ 
+ /** 檯面頂高（沿用 oc 的 CELL * 0.6） */
+ export const counterTop = (cell: number): number => cell * 0.6
+ /** 砧板頂面比檯面高多少（物品放在上面） */
+ const BOARD_TOP = 0.16
+ /** 手上物品縮放 */
+ export const HAND_SCALE = 0.85
+ const WALL_T = 0.3
+ const BACK_H = 3.2
+ const SIDE_H = 1.5
+ const FRONT_H = 0.45
+ const DISC_EMPTY = '#2F3350'
+ /** 盤架裝飾所在格（spec §5：(6,0) 疊 3 個白盤，純外觀）；這格同時是一般存放格 */
+ const PLATE_CELL = { cx: 6, cy: 0 } as const
+ /** 盤架疊起來的高度（plateStackData 3 盤＋盤緣約 0.3）：放在這格的物品要墊在盤子上，不然會穿模 */
+ const PLATE_STACK_H = 0.3
++/** 場外延伸地面（kitchen 以外一大片深青色；相機不動，照裁決⑩補畫面四周的空白） */
++const YARD_SIZE = 160
++const ALARM_HEX = '#FF3B4E'
+ 
+ type ItemSet = Record<ItemKey, ThinGroup<string>>
+ 
++/** hex → Color3 快取（每幀換色不再 new） */
++const colorCache = new Map<string, Color3>()
++const colorOf = (hex: string): Color3 => {
++  let c = colorCache.get(hex)
++  if (!c) colorCache.set(hex, (c = Color3.FromHexString(hex)))
++  return c
++}
++
+ export class KitchenBoard {
+   private readonly scene: Scene
+   private readonly cfg: KitchenBoardConfig
+   private textures: DynamicTexture[] = []
+   private mats: StandardMaterial[] = []
+   private meshes: Mesh[] = []
+   private groups: ThinGroup<string>[] = []
+   private toonMats: StandardMaterial[] = []
+   private receivers: Mesh[] = []
+   private outlined: Mesh[] = []
+   private glow: { mesh: Mesh; color: string; strength: number }[] = []
+   private stationItems!: ItemSet
+   private handItems!: ItemSet
+   /** 實例 key → 目前所在群組 */
+   private itemAt = new Map<string, { set: ItemSet; key: ItemKey }>()
+   private pots = new Map<string, PotParts>()
+   private boards!: ThinGroup<string>
++  private boardAt = new Map<string, { x: number; z: number }>()
+   private bell!: Mesh
+   private readonly top: number
+   private plateId: string | null = null
+ 
+   constructor(scene: Scene, cfg: KitchenBoardConfig) {
+     this.scene = scene
+     this.cfg = cfg
+     this.top = counterTop(cfg.cell)
+     this.build()
+   }
+@@ -135,20 +149,35 @@ export class KitchenBoard {
+ 
+     // 地面：1 個 mesh + 程式棋盤（含靠檯面 AO）
+     const groundTex = createKitchenGroundTexture(scene, gridW, gridH)
+     this.textures.push(groundTex)
+     const ground = MeshBuilder.CreateGround('kitchen-ground', { width: gw, height: gh }, scene)
+     ground.material = this.mat('kitchen-ground-mat', (m) => {
+       m.diffuseTexture = groundTex
+     })
+     this.meshes.push(ground)
+     this.receivers.push(ground)
++    const yardTex = createYardTexture(scene)
++    this.textures.push(yardTex)
++    const yard = MeshBuilder.CreateGround('kitchen-yard', { width: YARD_SIZE, height: YARD_SIZE }, scene)
++    yard.position.y = -0.04
++    yard.isPickable = false
++    yard.material = this.mat(
++      'kitchen-yard-mat',
++      (m) => {
++        m.emissiveTexture = yardTex
++        m.diffuseColor = Color3.Black()
++        m.disableLighting = true
++      },
++      false
++    )
++    this.meshes.push(yard)
+ 
+     // 牆：背牆（cy=0 那一側，磁磚貼圖）＋兩側與前方的紫色矮牆，合併成 1 個 mesh
+     const backSign = Math.sign(toWorld(0, 0).z) || 1
+     const serve = stations.find((s) => s.kind === 'serve')
+     const plates = stations.find((s) => s.cx === PLATE_CELL.cx && s.cy === PLATE_CELL.cy)
+     this.plateId = plates?.id ?? null
+     const serveX = serve ? toWorld(serve.cx, serve.cy).x : 0
+     const windowY0 = top + 0.35
+     const windowY1 = top + 1.25
+     const wallW = gw + WALL_T * 2
+@@ -220,38 +249,41 @@ export class KitchenBoard {
+       m.specularColor = new Color3(0.25, 0.25, 0.25)
+       m.specularPower = 48
+     })
+     const statics: MeshData[] = []
+     this.boards = this.group('kitchen-boards', boardData(), vcMat, 2)
+ 
+     for (const s of stations) {
+       const { x, z } = toWorld(s.cx, s.cy)
+       if (s.kind !== 'pot') counters.put(s.id, { x, y: 0, z })
+       if (s.kind === 'crate') statics.push(at(crateData(s.ing ?? 'v'), { x, y: top, z }))
+-      else if (s.kind === 'board') this.boards.put(s.id, { x, y: top, z })
++      else if (s.kind === 'board') {
++        this.boards.put(s.id, { x, y: top, z })
++        this.boardAt.set(s.id, { x, z })
++      }
+       else if (s.kind === 'serve') statics.push(at(serveData(), { x, y: top, z }))
+       else if (s.kind === 'pot') {
+         statics.push(at(stoveData(), { x, y: top, z }), at(counterBase(cell), { x, y: 0, z }))
+         this.buildPot(s.id, x, z)
+       } else if (plates && s.id === plates.id) statics.push(at(plateStackData(), { x, y: top, z }))
+     }
+     const stat = this.mesh('kitchen-stations', mergeData(statics), vcMat)
+     this.receivers.push(stat, counters.mesh, this.boards.mesh)
+     this.outlined.push(stat, this.boards.mesh)
+ 
+     // 服務鈴（波 3 回彈）
+     if (serve) {
+       const { x, z } = toWorld(serve.cx, serve.cy)
+       this.bell = this.mesh('kitchen-bell', bellData(), vcMat)
+       this.bell.position.set(x + 0.5, top + 0.3, z + 0.1)
+       this.outlined.push(this.bell)
+-      this.glow.push({ mesh: this.bell, color: '#FFD23F', strength: 0 })
++      // 鈴只在出餐閃光時才進 Glow 白名單（effects 用 ToyLook.setGlow），平常不遮出餐窗的光暈
+     }
+ 
+     // 物品：8 種 × 站點／手上
+     const mk = (prefix: string, cap: number): ItemSet => {
+       const set = {} as ItemSet
+       for (const k of ITEM_KEYS) {
+         const [kind, ing] = k.split('-') as [Item['kind'], Item['ing']]
+         set[k] = this.group(`kitchen-${prefix}-${k}`, itemData(kind, ing), vcMat, cap)
+         this.outlined.push(set[k].mesh)
+       }
+@@ -294,65 +326,84 @@ export class KitchenBoard {
+           m.emissiveColor = Color3.FromHexString(hex)
+           m.diffuseColor = Color3.Black()
+           m.disableLighting = true
+         },
+         false
+       )
+     const burner = this.mesh(`kitchen-burner-${id}`, burnerOnData(), emissive(`kitchen-burner-mat-${id}`, KITCHEN.burnerOn))
+     burner.position.set(x, top, z)
+     burner.isVisible = false
+     this.glow.push({ mesh: burner, color: KITCHEN.burnerOn, strength: 0.6 })
+-    const alarm = this.mesh(`kitchen-alarm-${id}`, potAlarmRimData(), emissive(`kitchen-alarm-mat-${id}`, '#FF3B4E'))
++    const alarmMat = emissive(`kitchen-alarm-mat-${id}`, ALARM_HEX)
++    const alarm = this.mesh(`kitchen-alarm-${id}`, potAlarmRimData(), alarmMat)
+     alarm.position.set(x, top, z)
+     alarm.isVisible = false
+-    this.glow.push({ mesh: alarm, color: '#FF3B4E', strength: 1 })
++    this.glow.push({ mesh: alarm, color: ALARM_HEX, strength: 1 })
+     const embers = this.mesh(`kitchen-embers-${id}`, emberDotsData(), emissive(`kitchen-ember-mat-${id}`, KITCHEN.crack))
+     embers.position.set(x, top + SOUP_Y + 0.02, z)
+     embers.isVisible = false
+-    this.pots.set(id, { disc, discMat, burner, alarm, embers })
++    this.pots.set(id, { disc, discMat, burner, alarm, alarmMat, embers })
+   }
+ 
+   private putItem(set: ItemSet, id: string, item: Item | null, t: Trs): void {
+     const cur = this.itemAt.get(id)
+     const key = item ? itemKey(item) : null
+     if (cur && (cur.set !== set || cur.key !== key)) {
+       cur.set[cur.key].remove(id)
+       this.itemAt.delete(id)
+     }
+     if (!item || !key) return
+     set[key].put(id, t)
+     this.itemAt.set(id, { set, key })
+   }
+ 
+   // ---- 每幀 ----
+ 
+   /** 站點存放格：檯面／砧板放物品實例；鍋改湯面顏色、開火爐圈、焦了的 ember */
+-  setSlot(st: StationDef, item: Item | null): void {
+-    const { x, z } = this.cfg.toWorld(st.cx, st.cy)
++  setSlot(st: StationDef, item: Item | null, pose?: Trs): void {
+     if (st.kind === 'pot') {
+       const p = this.pots.get(st.id)
+       if (!p) return
+       const hex = !item ? DISC_EMPTY : item.kind === 'burnt' ? KITCHEN.burnt : item.ing === 'v' ? KITCHEN.soupV : KITCHEN.soupM
+-      p.discMat.diffuseColor.copyFrom(Color3.FromHexString(hex))
++      p.discMat.diffuseColor.copyFrom(colorOf(hex))
+       p.burner.isVisible = item?.kind === 'chop' || item?.kind === 'soup'
+       p.embers.isVisible = item?.kind === 'burnt'
+       return
+     }
++    this.putItem(this.stationItems, `slot:${st.id}`, item, pose ?? this.slotPoint(st))
++  }
++
++  /** 站點上物品的落點（拾取／放下弧線的端點）；鍋是湯面 */
++  slotPoint(st: StationDef): { x: number; y: number; z: number } {
++    const { x, z } = this.cfg.toWorld(st.cx, st.cy)
++    if (st.kind === 'pot') return { x, y: this.top + SOUP_Y, z }
++    if (st.kind === 'crate' || st.kind === 'serve') return { x, y: this.top + 0.4, z }
+     const y = this.top + (st.kind === 'board' ? BOARD_TOP : st.id === this.plateId ? PLATE_STACK_H : 0)
+-    const dx = st.kind === 'board' ? -0.12 : 0
+-    this.putItem(this.stationItems, `slot:${st.id}`, item, { x: x + dx, y, z })
++    return { x: x + (st.kind === 'board' ? -0.12 : 0), y, z }
+   }
+ 
+-  /** 快焦鍋緣（波 3 脈動；這裡只切顯示） */
+-  setPotAlarm(stationId: string, on: boolean): void {
++  /** 快焦鍋緣：level 0..1 調發光強度（脈動由 effects 算） */
++  setPotAlarm(stationId: string, on: boolean, level = 1): void {
+     const p = this.pots.get(stationId)
+-    if (p) p.alarm.isVisible = on
++    if (!p) return
++    p.alarm.isVisible = on
++    if (on) colorOf(ALARM_HEX).scaleToRef(0.4 + 0.6 * level, p.alarmMat.emissiveColor)
++  }
++
++  potAlarmMesh(stationId: string): Mesh | undefined {
++    return this.pots.get(stationId)?.alarm
++  }
++
++  /** 砧板回彈：sy 是垂直縮放（切一下壓到 0.95 再彈回） */
++  squashBoard(stationId: string, sy: number): void {
++    const b = this.boardAt.get(stationId)
++    if (b) this.boards.put(stationId, { x: b.x, y: this.top, z: b.z, sy })
+   }
+ 
+   /** 手上物品（t 由呼叫端依角色胸前位置算好） */
+   setHand(playerId: string, item: Item | null, t: Trs): void {
+     this.putItem(this.handItems, `hand:${playerId}`, item, { ...t, sx: HAND_SCALE, sy: HAND_SCALE, sz: HAND_SCALE })
+   }
+ 
+   removeHand(playerId: string): void {
+     this.putItem(this.handItems, `hand:${playerId}`, null, { x: 0, y: 0, z: 0 })
+   }
+diff --git a/src/babylon/games/kitchenFx/effects.ts b/src/babylon/games/kitchenFx/effects.ts
+new file mode 100644
+index 0000000..b9ffd32
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/effects.ts
+@@ -0,0 +1,442 @@
++/**
++ * 廚房快手 3D 特效（kitchen spec §7，AC6）：進度條／進度環／勾選章、「!」警示章、爐火、蒸氣與焦煙、ember、
++ * 切菜碎片與砧板回彈、出餐金星＋鈴回彈＋「+20」浮字、拾取／放下的小白環。
++ * 只管畫；狀態分期與事件判定在 effectsModel.ts，觸發時機由 overcooked.ts 決定。
++ * 粒子沿用 bomber 的 fx_*.webp（裁決⑨，原路徑）與 fx/emitter，每組上限 = 檔位的 particleCap。
++ */
++import { Color3, Mesh, MeshBuilder, ParticleSystem, StandardMaterial, Texture, type DynamicTexture, type Scene } from '@/babylon/babylonCore'
++import { FxEmitter, fxRandom, style, type FxStyle } from '@/babylon/fx/emitter'
++import { backOut, clamp01, emitCount, floatTextPose, ringPose } from '@/babylon/fx/curves'
++import { createRingTexture } from '@/babylon/fx/textures'
++import { bomberAssetUrl } from '@/babylon/games/bomberFx/textures'
++import { advanceAlarmPhase, alarmPulse, alarmSmokeRate, type BoardPhase, type PotPhase } from '@/babylon/games/kitchenFx/effectsModel'
++import { KITCHEN } from '@/babylon/games/kitchenFx/palette'
++import {
++  createAlertTexture,
++  createIndicatorTexture,
++  createScoreTexture,
++  paintIndicator,
++  type IndicatorMode,
++} from '@/babylon/games/kitchenFx/textures'
++import type { Ing } from '@/babylon/games/overcookedKitchen'
++
++const GREEN = '#2FCF5E'
++const RED = '#FF3B4E'
++
++const STYLE = {
++  steam: style('#FFFFFF', '#F1F3F8', '#FFFFFF', { size: [0.35, 0.6], life: [0.6, 1.0], power: [0.8, 1.3], dir: 'up' }, 0.75),
++  bigSteam: style('#FFFFFF', '#F1F3F8', '#FFFFFF', { size: [0.6, 1.05], life: [0.5, 0.8], power: [1.4, 2.4], dir: 'fountain' }, 0.85),
++  alarmSmoke: style('#8A8798', '#4A4658', '#2E2A36', { size: [0.4, 0.75], life: [0.7, 1.1], power: [0.8, 1.4], dir: 'up' }, 0.8),
++  burntSmoke: style('#3A3440', '#1E1A22', '#2E2A36', { size: [0.6, 1.05], life: [0.6, 0.9], power: [1.5, 2.6], dir: 'fountain' }, 0.9),
++  wisp: style('#4A4552', '#2E2A36', '#4A4552', { size: [0.2, 0.36], life: [0.8, 1.2], power: [0.4, 0.7], dir: 'up' }, 0.6),
++  flame: style('#FFE08A', '#FF8A3D', '#FF5A4E', { size: [0.22, 0.36], life: [0.14, 0.26], power: [0.5, 1.0], dir: 'up' }),
++  ember: style('#FFD27A', KITCHEN.crack, '#B3122A', { size: [0.1, 0.2], life: [0.5, 0.8], power: [3, 5], dir: 'fountain' }),
++  star: style('#FFE38A', '#FFD23F', '#FFB800', { size: [0.3, 0.52], life: [0.5, 0.7], power: [2.5, 4], dir: 'fountain' }),
++  chipV: style(KITCHEN.veg[0], KITCHEN.veg[1], KITCHEN.veg[1], { size: [0.12, 0.2], life: [0.35, 0.5], power: [2, 3.2], dir: 'burst' }),
++  chipM: style(KITCHEN.fat, KITCHEN.meat[0], KITCHEN.meat[0], { size: [0.12, 0.2], life: [0.35, 0.5], power: [2, 3.2], dir: 'burst' }),
++} as const satisfies Record<string, FxStyle>
++
++/** 切一下的節奏（同 pose.CHOP_HZ 4Hz）與回彈時長 */
++const CHOP_BEAT_MS = 250
++const SQUASH_MS = 160
++const STAMP_MS = { board: 200, pot: 300 } as const
++const FLOAT_MS = 650
++const SERVE_MS = 600
++const RING_MS = 180
++const RING_POOL = 4
++const FLOAT_POOL = 3
++const FLAMES = 7
++const STEAM_RATE = 12
++const FLAME_RATE = 16 // 每個火苗每秒
++const WISP_RATE = 3
++/** 進度量化格數（重畫貼圖的門檻） */
++const STEPS = 48
++
++interface Indicator {
++  mesh: Mesh
++  tex: DynamicTexture
++  key: string
++  mode: IndicatorMode | null
++  stampAt: number
++}
++
++interface Station {
++  x: number
++  z: number
++  ind: Indicator
++}
++
++interface PotFx extends Station {
++  alert: Mesh
++  phase: PotPhase
++  /** 快焦脈動相位（進 alarm 時歸零，之後每幀累加） */
++  alarmPhase: number
++}
++
++interface BoardFx extends Station {
++  phase: BoardPhase
++  lastBeat: number
++  squashAt: number
++}
++
++interface Pooled {
++  mesh: Mesh
++  mat: StandardMaterial
++  start: number
++  x: number
++  y: number
++  z: number
++}
++
++export interface KitchenFxOptions {
++  cell: number
++  /** 檯面頂高 */
++  top: number
++  /** 每組粒子上限（檔位 particleCap） */
++  cap: number
++  /** 「+20」浮字文字 */
++  scoreText: string
++}
++
++export interface KitchenFxHooks {
++  squashBoard(id: string, sy: number): void
++  setPotAlarm(id: string, on: boolean, level: number): void
++  /** 發光強度（ToyLook.setGlow） */
++  glow(mesh: Mesh, hex: string, strength: number): void
++  potAlarmMesh(id: string): Mesh | undefined
++}
++
++export class KitchenFx {
++  private readonly scene: Scene
++  private readonly opts: KitchenFxOptions
++  private readonly hooks: KitchenFxHooks
++  private readonly textures: (Texture | DynamicTexture)[] = []
++  private readonly mats: StandardMaterial[] = []
++  private readonly meshes: Mesh[] = []
++  private readonly emitters: FxEmitter[] = []
++  private readonly smoke: FxEmitter
++  private readonly flame: FxEmitter
++  private readonly spark: FxEmitter
++  private readonly star: FxEmitter
++  private readonly chip: FxEmitter
++  private readonly boards = new Map<string, BoardFx>()
++  private readonly pots = new Map<string, PotFx>()
++  private readonly alertMat: StandardMaterial
++  private readonly rings: Pooled[] = []
++  private readonly floats: Pooled[] = []
++  private readonly acc = new Map<string, number>()
++  private serve: { x: number; z: number; bell?: Mesh; at: number } | null = null
++
++  constructor(scene: Scene, opts: KitchenFxOptions, hooks: KitchenFxHooks) {
++    this.scene = scene
++    this.opts = opts
++    this.hooks = hooks
++    const tex = (file: string): Texture => {
++      const t = new Texture(bomberAssetUrl(file), scene)
++      this.textures.push(t)
++      return t
++    }
++    const smoke = tex('fx_smoke.webp')
++    const spark = tex('fx_spark.webp')
++    const star = tex('fx_star.webp')
++    const circle = tex('fx_circle.webp')
++    const add = ParticleSystem.BLENDMODE_ADD
++    const std = ParticleSystem.BLENDMODE_STANDARD
++    const mk = (name: string, t: Texture, blend: number, gravity: number): FxEmitter => {
++      const e = new FxEmitter(scene, name, t, opts.cap, blend, gravity)
++      this.emitters.push(e)
++      return e
++    }
++    this.smoke = mk('kitchen-fx-smoke', smoke, std, 0.6)
++    this.flame = mk('kitchen-fx-flame', spark, add, 0)
++    this.spark = mk('kitchen-fx-ember', spark, add, -6)
++    this.star = mk('kitchen-fx-star', star, std, -4)
++    this.chip = mk('kitchen-fx-chip', circle, std, -14)
++
++    const alertTex = createAlertTexture(scene)
++    this.textures.push(alertTex)
++    this.alertMat = this.billboardMat('kitchen-alert-mat', alertTex)
++
++    const ringTex = createRingTexture(scene, 'kitchen-ring-tex')
++    const scoreTex = createScoreTexture(scene, opts.scoreText)
++    this.textures.push(ringTex, scoreTex)
++    for (let i = 0; i < RING_POOL; i++) {
++      const mesh = MeshBuilder.CreateGround(`kitchen-ring-${i}`, { width: 1, height: 1 }, scene)
++      const mat = this.mat(`kitchen-ring-mat-${i}`, (m) => {
++        m.diffuseTexture = ringTex
++        m.useAlphaFromDiffuseTexture = true
++        m.disableLighting = true
++        m.emissiveColor = Color3.White()
++        m.zOffset = -3
++      })
++      this.rings.push(this.pooled(mesh, mat))
++    }
++    for (let i = 0; i < FLOAT_POOL; i++) {
++      const mesh = MeshBuilder.CreatePlane(`kitchen-score-${i}`, { width: 1.9, height: 0.95 }, scene)
++      mesh.billboardMode = Mesh.BILLBOARDMODE_ALL
++      this.floats.push(this.pooled(mesh, this.billboardMat(`kitchen-score-mat-${i}`, scoreTex)))
++    }
++  }
++
++  private mat(name: string, setup: (m: StandardMaterial) => void): StandardMaterial {
++    const m = new StandardMaterial(name, this.scene)
++    m.specularColor = Color3.Black()
++    setup(m)
++    this.mats.push(m)
++    return m
++  }
++
++  private billboardMat(name: string, tex: DynamicTexture): StandardMaterial {
++    return this.mat(name, (m) => {
++      m.diffuseTexture = tex
++      m.useAlphaFromDiffuseTexture = true
++      m.disableLighting = true
++      m.emissiveColor = Color3.White()
++      m.backFaceCulling = false
++    })
++  }
++
++  private pooled(mesh: Mesh, mat: StandardMaterial): Pooled {
++    mesh.material = mat
++    mesh.isPickable = false
++    mesh.setEnabled(false)
++    this.meshes.push(mesh)
++    return { mesh, mat, start: 0, x: 0, y: 0, z: 0 }
++  }
++
++  private take(pool: Pooled[]): Pooled {
++    const idle = pool.find((p) => !p.mesh.isEnabled())
++    return idle ?? pool.reduce((a, b) => (a.start <= b.start ? a : b))
++  }
++
++  private indicator(id: string): Indicator {
++    const tex = createIndicatorTexture(this.scene, `kitchen-ind-tex-${id}`)
++    this.textures.push(tex)
++    const mesh = MeshBuilder.CreatePlane(`kitchen-ind-${id}`, { size: 1 }, this.scene)
++    mesh.billboardMode = Mesh.BILLBOARDMODE_ALL
++    mesh.material = this.billboardMat(`kitchen-ind-mat-${id}`, tex)
++    mesh.isPickable = false
++    mesh.setEnabled(false)
++    this.meshes.push(mesh)
++    return { mesh, tex, key: '', mode: null, stampAt: 0 }
++  }
++
++  // ---- 登記站點 ----
++
++  addBoard(id: string, x: number, z: number): void {
++    const ind = this.indicator(id)
++    ind.mesh.position.set(x - 0.12, this.opts.top + 1.25, z)
++    this.boards.set(id, { x, z, ind, phase: 'empty', lastBeat: 0, squashAt: -Infinity })
++  }
++
++  addPot(id: string, x: number, z: number): void {
++    const ind = this.indicator(id)
++    ind.mesh.position.set(x, this.opts.top + 1.85, z)
++    const alert = MeshBuilder.CreatePlane(`kitchen-alert-${id}`, { size: 0.9 }, this.scene)
++    alert.billboardMode = Mesh.BILLBOARDMODE_ALL
++    alert.material = this.alertMat
++    alert.isPickable = false
++    alert.setEnabled(false)
++    // 「!」在鍋靠廚房內側那邊（鍋在右排，往 −x）
++    alert.position.set(x - this.opts.cell * 0.75, this.opts.top + 1.2, z)
++    this.meshes.push(alert)
++    this.pots.set(id, { x, z, ind, alert, phase: 'empty', alarmPhase: 0 })
++  }
++
++  setServe(x: number, z: number, bell?: Mesh): void {
++    this.serve = { x, z, bell, at: -Infinity }
++  }
++
++  // ---- 進度提示 ----
++
++  /** 換模式／進度（量化後才重畫）；切到 check 時開始彈出動畫 */
++  private show(ind: Indicator, mode: IndicatorMode | null, progress: number, color: string, now: number): void {
++    if (!mode) {
++      ind.mesh.setEnabled(false)
++      ind.mode = null
++      return
++    }
++    if (mode === 'check' && ind.mode !== 'check') ind.stampAt = now
++    ind.mode = mode
++    ind.mesh.setEnabled(true)
++    const q = Math.round(clamp01(progress) * STEPS)
++    const key = `${mode}:${q}:${color}`
++    if (key === ind.key) return
++    ind.key = key
++    paintIndicator(ind.tex, mode, q / STEPS, color)
++  }
++
++  private sizeInd(ind: Indicator, base: number, stampMs: number, now: number): void {
++    const k = ind.mode === 'check' ? Math.max(0, backOut((now - ind.stampAt) / stampMs)) * 0.9 : 1
++    ind.mesh.scaling.setAll(base * k)
++  }
++
++  /** 砧板每幀：進度條、切好綠勾、每 250ms 砍一下（回彈＋碎片） */
++  updateBoard(id: string, phase: BoardPhase, progress: number, ing: Ing | null, now: number): void {
++    const b = this.boards.get(id)
++    if (!b) return
++    b.phase = phase
++    this.show(b.ind, phase === 'chopping' ? 'bar' : phase === 'done' ? 'check' : null, progress, GREEN, now)
++    this.sizeInd(b.ind, phase === 'chopping' ? this.opts.cell * 0.8 * 1.05 : 0.95, STAMP_MS.board, now)
++    if (phase === 'chopping' && progress < 1 && now - b.lastBeat >= CHOP_BEAT_MS) {
++      b.lastBeat = now
++      b.squashAt = now
++      const n = 2 + Math.floor(fxRandom() * 2)
++      this.chip.emit(b.x - 0.12, this.opts.top + 0.35, b.z, 0.15, n, ing === 'm' ? STYLE.chipM : STYLE.chipV)
++    }
++    // 壓到 0.95 再彈回
++    const t = (now - b.squashAt) / SQUASH_MS
++    const sy = t >= 1 ? 1 : t < 0.35 ? 1 - 0.05 * (t / 0.35) : 0.95 + 0.05 * backOut((t - 0.35) / 0.65)
++    this.hooks.squashBoard(id, sy)
++  }
++
++  /** 鍋每幀：進度環（綠→快焦紅）、煮好綠勾、「!」脈動、鍋緣紅光、爐火與煙 */
++  updatePot(id: string, phase: PotPhase, progress: number, now: number, dtMs: number): void {
++    const p = this.pots.get(id)
++    if (!p) return
++    const top = this.opts.top
++    const ringMode: IndicatorMode | null = phase === 'cooking' || phase === 'alarm' ? 'ring' : phase === 'done' ? 'check' : null
++    this.show(p.ind, ringMode, progress, phase === 'alarm' ? RED : GREEN, now)
++    this.sizeInd(p.ind, 1.15, STAMP_MS.pot, now)
++
++    const alarm = phase === 'alarm'
++    // 脈動：頻率 2Hz → 6Hz，每鍋累加相位（effectsModel.advanceAlarmPhase）；剛進快焦從 0 起算
++    p.alarmPhase = !alarm ? 0 : p.phase === 'alarm' ? advanceAlarmPhase(p.alarmPhase, progress, dtMs) : 0
++    const pulse = alarm ? alarmPulse(p.alarmPhase) : 0
++    p.alert.setEnabled(alarm)
++    if (alarm) p.alert.scaling.setAll(0.9 + 0.25 * pulse)
++    this.hooks.setPotAlarm(id, alarm, pulse)
++    const rim = this.hooks.potAlarmMesh(id)
++    if (rim) this.hooks.glow(rim, RED, alarm ? 0.35 + 0.65 * pulse : 0)
++
++    const y = top + 0.95
++    if (phase === 'cooking' || alarm) {
++      // 爐圈旁 7 個小火苗
++      const r = emitCount(this.acc.get(`flame:${id}`) ?? 0, FLAME_RATE * FLAMES, dtMs)
++      this.acc.set(`flame:${id}`, r.acc)
++      for (let i = 0; i < r.count; i++) {
++        const a = (Math.floor(fxRandom() * FLAMES) / FLAMES) * Math.PI * 2
++        this.flame.emit(p.x + Math.cos(a) * 0.72, top + 0.3, p.z + Math.sin(a) * 0.72, 0.03, 1, STYLE.flame)
++      }
++    }
++    if (phase === 'cooking') this.stream(`steam:${id}`, p.x, y, p.z, STEAM_RATE, dtMs, STYLE.steam)
++    else if (alarm) this.stream(`steam:${id}`, p.x, y, p.z, alarmSmokeRate(progress), dtMs, STYLE.alarmSmoke)
++    else if (phase === 'burnt') this.stream(`steam:${id}`, p.x, y, p.z, WISP_RATE, dtMs, STYLE.wisp)
++    p.phase = phase
++  }
++
++  private stream(key: string, x: number, y: number, z: number, rate: number, dtMs: number, s: FxStyle): void {
++    const r = emitCount(this.acc.get(key) ?? fxRandom(), rate, dtMs)
++    this.acc.set(key, r.acc)
++    if (r.count > 0) this.smoke.emit(x, y, z, 0.3, r.count, s)
++  }
++
++  /** 焦掉的東西端在手上或放在檯面：一縷細黑煙 */
++  wisp(key: string, x: number, y: number, z: number, dtMs: number): void {
++    this.stream(`wisp:${key}`, x, y, z, WISP_RATE, dtMs, STYLE.wisp)
++  }
++
++  // ---- 事件 ----
++
++  /** 煮好：湯面冒一陣大蒸氣 */
++  cookDone(id: string): void {
++    const p = this.pots.get(id)
++    if (p) this.smoke.emit(p.x, this.opts.top + 0.95, p.z, 0.35, 14, STYLE.bigSteam)
++  }
++
++  /** 焦了：一陣黑煙＋6 顆 ember 往上噴 */
++  burnt(id: string): void {
++    const p = this.pots.get(id)
++    if (!p) return
++    this.smoke.emit(p.x, this.opts.top + 0.95, p.z, 0.35, 14, STYLE.burntSmoke)
++    this.spark.emit(p.x, this.opts.top + 0.9, p.z, 0.3, 6, STYLE.ember)
++  }
++
++  /** 拾取／放下的落點：小白環 */
++  landRing(x: number, y: number, z: number): void {
++    const p = this.take(this.rings)
++    p.start = performance.now()
++    p.x = x
++    p.y = y + 0.03
++    p.z = z
++    p.mesh.position.set(p.x, p.y, p.z)
++    p.mesh.scaling.setAll(0.01)
++    p.mesh.setEnabled(true)
++  }
++
++  /** 出餐：金星 12 顆、鈴壓扁回彈並閃光、「+20」浮字 */
++  served(): void {
++    const s = this.serve
++    if (!s) return
++    const now = performance.now()
++    s.at = now
++    const y = this.opts.top + 0.6
++    this.star.emit(s.x, y, s.z, 0.35, 12, STYLE.star)
++    const f = this.take(this.floats)
++    f.start = now
++    f.x = s.x
++    f.y = this.opts.top + 1.6
++    f.z = s.z
++    f.mesh.position.set(f.x, f.y, f.z)
++    f.mat.alpha = 1
++    f.mesh.setEnabled(true)
++  }
++
++  // ---- 每幀 ----
++
++  update(now: number): void {
++    for (const p of this.rings) {
++      if (!p.mesh.isEnabled()) continue
++      const t = (now - p.start) / RING_MS
++      if (t >= 1) {
++        p.mesh.setEnabled(false)
++        continue
++      }
++      const r = ringPose(t)
++      const k = r.scale * this.opts.cell * 0.55
++      p.mesh.scaling.set(k, 1, k)
++      p.mat.alpha = r.alpha
++    }
++    for (const p of this.floats) {
++      if (!p.mesh.isEnabled()) continue
++      const t = (now - p.start) / FLOAT_MS
++      if (t >= 1) {
++        p.mesh.setEnabled(false)
++        continue
++      }
++      const f = floatTextPose(t)
++      p.mesh.position.set(p.x, p.y + f.rise, p.z)
++      p.mat.alpha = f.alpha
++    }
++    const s = this.serve
++    if (s?.bell) {
++      // 鈴：前 20% 壓到 0.7，之後 back-out 彈回；閃光 1 → 0
++      const t = (now - s.at) / SERVE_MS
++      const sy = t >= 1 ? 1 : t < 0.2 ? 1 - 0.3 * (t / 0.2) : 0.7 + 0.3 * backOut((t - 0.2) / 0.8)
++      s.bell.scaling.set(1 + (1 - sy) * 0.5, sy, 1 + (1 - sy) * 0.5)
++      this.hooks.glow(s.bell, '#FFD23F', t >= 1 ? 0 : 1 - t)
++    }
++  }
++
++  /** 新局：清掉殘留的特效 */
++  clearRound(): void {
++    for (const p of [...this.rings, ...this.floats]) p.mesh.setEnabled(false)
++    for (const e of this.emitters) e.clear()
++    this.acc.clear()
++    if (this.serve) this.serve.at = -Infinity
++  }
++
++  dispose(): void {
++    for (const e of this.emitters) e.dispose()
++    this.emitters.length = 0
++    for (const m of this.meshes) m.dispose()
++    for (const m of this.mats) m.dispose()
++    for (const t of this.textures) t.dispose()
++    this.meshes.length = 0
++    this.mats.length = 0
++    this.textures.length = 0
++    this.boards.clear()
++    this.pots.clear()
++    this.acc.clear()
++  }
++}
+diff --git a/src/babylon/games/kitchenFx/effectsModel.test.ts b/src/babylon/games/kitchenFx/effectsModel.test.ts
+new file mode 100644
+index 0000000..06e7cfb
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/effectsModel.test.ts
+@@ -0,0 +1,145 @@
++import { describe, expect, it } from 'vitest'
++import {
++  ALARM_HZ,
++  advanceAlarmPhase,
++  alarmHz,
++  alarmPulse,
++  alarmSmokeRate,
++  arcPoint,
++  boardPhase,
++  extrapolateProgress,
++  EXTRAPOLATE_MAX_MS,
++  potPhase,
++  slotEvents,
++} from '@/babylon/games/kitchenFx/effectsModel'
++import { CHOP_MS, COOK_MS } from '@/babylon/games/overcookedKitchen'
++
++describe('potPhase（快焦＝soup 且 progress > 0，裁決⑥）', () => {
++  it('空鍋、煮中、煮好、快焦、焦了', () => {
++    expect(potPhase(null, 1)).toBe('empty')
++    expect(potPhase({ kind: 'chop', ing: 'v' }, 0.4)).toBe('cooking')
++    expect(potPhase({ kind: 'soup', ing: 'v' }, 0)).toBe('done')
++    expect(potPhase({ kind: 'soup', ing: 'm' }, 0.01)).toBe('alarm')
++    expect(potPhase({ kind: 'burnt', ing: 'm' }, 1)).toBe('burnt')
++  })
++})
++
++describe('boardPhase', () => {
++  it('生食材在切、切好、空板', () => {
++    expect(boardPhase(null)).toBe('empty')
++    expect(boardPhase({ kind: 'raw', ing: 'v' })).toBe('chopping')
++    expect(boardPhase({ kind: 'chop', ing: 'm' })).toBe('done')
++  })
++})
++
++describe('快焦脈動與煙量', () => {
++  it('頻率 2Hz → 6Hz、煙 4 → 20，隨 progress 線性並夾住', () => {
++    expect(alarmHz(0)).toBe(ALARM_HZ[0])
++    expect(alarmHz(1)).toBe(ALARM_HZ[1])
++    expect(alarmHz(0.5)).toBeCloseTo(4)
++    expect(alarmHz(3)).toBe(6)
++    expect(alarmSmokeRate(0)).toBe(4)
++    expect(alarmSmokeRate(1)).toBe(20)
++  })
++})
++
++describe('extrapolateProgress（guest 8Hz 快照之間本地外插）', () => {
++  it('砧板生食材：progress += age / CHOP_MS，夾到 1', () => {
++    expect(extrapolateProgress('board', { kind: 'raw', ing: 'v' }, 0.2, CHOP_MS * 0.1)).toBeCloseTo(0.3)
++    expect(extrapolateProgress('board', { kind: 'raw', ing: 'v' }, 0.95, 400)).toBe(1)
++  })
++  it('鍋中煮與快焦：progress += age / COOK_MS', () => {
++    expect(extrapolateProgress('pot', { kind: 'chop', ing: 'm' }, 0.5, COOK_MS * 0.05)).toBeCloseTo(0.55)
++    expect(extrapolateProgress('pot', { kind: 'soup', ing: 'm' }, 0.3, COOK_MS * 0.05)).toBeCloseTo(0.35)
++  })
++  it('煮好的前 2 秒（soup 且 progress 0）不外插：不知道快焦何時開始', () => {
++    expect(extrapolateProgress('pot', { kind: 'soup', ing: 'v' }, 0, 100)).toBe(0)
++  })
++  it('完成品、空格、檯面不動', () => {
++    expect(extrapolateProgress('board', { kind: 'chop', ing: 'v' }, 1, 100)).toBe(1)
++    expect(extrapolateProgress('pot', null, 1, 100)).toBe(1)
++    expect(extrapolateProgress('counter', { kind: 'raw', ing: 'v' }, 1, 100)).toBe(1)
++  })
++  it('快照斷了也只外插 EXTRAPOLATE_MAX_MS；負的經過時間當 0', () => {
++    const cap = extrapolateProgress('board', { kind: 'raw', ing: 'v' }, 0, EXTRAPOLATE_MAX_MS)
++    expect(extrapolateProgress('board', { kind: 'raw', ing: 'v' }, 0, 60_000)).toBeCloseTo(cap)
++    expect(extrapolateProgress('board', { kind: 'raw', ing: 'v' }, 0.4, -50)).toBeCloseTo(0.4)
++  })
++})
++
++describe('arcPoint（拾取／放下弧線）', () => {
++  it('兩端點落在起訖、中間抬高', () => {
++    const a = { x: 0, y: 1, z: 0 }
++    const b = { x: 2, y: 1, z: 4 }
++    expect(arcPoint(a, b, 0, 0.8)).toEqual({ x: 0, y: 1, z: 0 })
++    const end = arcPoint(a, b, 1, 0.8)
++    expect(end.x).toBeCloseTo(2)
++    expect(end.y).toBeCloseTo(1)
++    expect(end.z).toBeCloseTo(4)
++    const mid = arcPoint(a, b, 0.5, 0.8)
++    expect(mid.y).toBeCloseTo(1.8)
++    expect(mid.x).toBeCloseTo(1)
++  })
++})
++
++describe('slotEvents（前後兩張 view 的站點差異 → 特效事件）', () => {
++  const sv = (id: string, item: { kind: 'raw' | 'chop' | 'soup' | 'burnt'; ing: 'v' | 'm' } | null, progress = 1) => ({ id, item, progress })
++  it('切：開始與切好', () => {
++    expect(slotEvents([sv('board-0', null)], [sv('board-0', { kind: 'raw', ing: 'v' }, 0)])).toEqual([{ type: 'chopStart', id: 'board-0' }])
++    expect(slotEvents([sv('board-0', { kind: 'raw', ing: 'v' }, 0.9)], [sv('board-0', { kind: 'chop', ing: 'v' })])).toEqual([
++      { type: 'chopDone', id: 'board-0' },
++    ])
++  })
++  it('煮：開始、煮好、焦了', () => {
++    expect(slotEvents([sv('pot-0', null)], [sv('pot-0', { kind: 'chop', ing: 'm' }, 0)])).toEqual([{ type: 'cookStart', id: 'pot-0' }])
++    expect(slotEvents([sv('pot-0', { kind: 'chop', ing: 'm' }, 0.9)], [sv('pot-0', { kind: 'soup', ing: 'm' }, 0)])).toEqual([
++      { type: 'cookDone', id: 'pot-0' },
++    ])
++    expect(slotEvents([sv('pot-0', { kind: 'soup', ing: 'm' }, 0.9)], [sv('pot-0', { kind: 'burnt', ing: 'm' })])).toEqual([
++      { type: 'burnt', id: 'pot-0' },
++    ])
++  })
++  it('快焦進度變化、同狀態不重報', () => {
++    expect(slotEvents([sv('pot-1', { kind: 'soup', ing: 'v' }, 0)], [sv('pot-1', { kind: 'soup', ing: 'v' }, 0.2)])).toEqual([])
++    expect(slotEvents([sv('counter-1-0', { kind: 'raw', ing: 'v' })], [sv('counter-1-0', { kind: 'raw', ing: 'v' })])).toEqual([])
++  })
++})
++
++describe('快焦脈動相位（每鍋累加，不用絕對時間）', () => {
++  const TAU = Math.PI * 2
++  it('progress 固定時每幀增量 = 2π·hz·dt，與已經過多久無關', () => {
++    const dt = 1000 / 60
++    const a = advanceAlarmPhase(0, 0.5, dt)
++    expect(a).toBeCloseTo(TAU * alarmHz(0.5) * (dt / 1000))
++    // 從任何相位起算，增量都一樣（對照：舊算式在 t=100s 時每幀轉 2 圈以上）
++    const b = advanceAlarmPhase(1.234, 0.5, dt)
++    expect(((b - 1.234 + TAU) % TAU)).toBeCloseTo(a)
++  })
++  it('2Hz 時 1 秒剛好轉 2 圈回到原相位；6Hz 時 1 秒轉 6 圈', () => {
++    let ph = 0
++    for (let i = 0; i < 60; i++) ph = advanceAlarmPhase(ph, 0, 1000 / 60)
++    expect(Math.sin(ph)).toBeCloseTo(0, 5)
++    // 從 π/2 起算，6 次過零都落在區間內部（不受浮點誤差卡在端點）
++    let n = 0
++    ph = Math.PI / 2
++    let prev = Math.sin(ph)
++    for (let i = 0; i < 600; i++) {
++      ph = advanceAlarmPhase(ph, 1, 1000 / 600)
++      const s = Math.sin(ph)
++      if (prev < 0 && s >= 0) n++
++      prev = s
++    }
++    expect(n).toBe(6)
++  })
++  it('相位保持在 [0, 2π)；單幀最多算 100ms（切分頁回來不暴衝）', () => {
++    const ph = advanceAlarmPhase(6, 1, 50)
++    expect(ph).toBeGreaterThanOrEqual(0)
++    expect(ph).toBeLessThan(TAU)
++    expect(advanceAlarmPhase(0, 0, 10_000)).toBeCloseTo(advanceAlarmPhase(0, 0, 100))
++  })
++  it('alarmPulse：相位 0 起從 0.5 開始、落在 0..1', () => {
++    expect(alarmPulse(0)).toBeCloseTo(0.5)
++    expect(alarmPulse(Math.PI / 2)).toBeCloseTo(1)
++    expect(alarmPulse(-Math.PI / 2)).toBeCloseTo(0)
++  })
++})
+diff --git a/src/babylon/games/kitchenFx/effectsModel.ts b/src/babylon/games/kitchenFx/effectsModel.ts
+new file mode 100644
+index 0000000..51ab253
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/effectsModel.ts
+@@ -0,0 +1,106 @@
++/**
++ * 廚房特效的判定（kitchen spec §7；純函式，可在 node 單測）：站點狀態分期、快焦脈動與煙量、
++ * guest 端進度外插、拾取／放下弧線、前後兩張 view 的站點事件。什麼時候畫、怎麼畫在 effects.ts。
++ */
++import { CHOP_MS, COOK_MS, type Item, type SlotView, type StationKind } from '@/babylon/games/overcookedKitchen'
++import { clamp01 } from '@/babylon/fx/curves'
++
++export type PotPhase = 'empty' | 'cooking' | 'done' | 'alarm' | 'burnt'
++export type BoardPhase = 'empty' | 'chopping' | 'done'
++
++/**
++ * 鍋的狀態。快焦（裁決⑥）：soup 的 busyUntil 是焦掉期限（OVERCOOK_MS），但 buildView 以 COOK_MS 當分母，
++ * 所以煮好的前 2 秒 progress 為 0（煮好）、最後 3 秒 0→1（快焦）。
++ */
++export function potPhase(item: Item | null, progress: number): PotPhase {
++  if (!item) return 'empty'
++  if (item.kind === 'chop') return 'cooking'
++  if (item.kind === 'soup') return progress > 0 ? 'alarm' : 'done'
++  if (item.kind === 'burnt') return 'burnt'
++  return 'empty'
++}
++
++export function boardPhase(item: Item | null): BoardPhase {
++  if (item?.kind === 'raw') return 'chopping'
++  if (item?.kind === 'chop') return 'done'
++  return 'empty'
++}
++
++/** 快焦鍋緣脈動頻率：2Hz → 6Hz */
++export const ALARM_HZ = [2, 6] as const
++export const alarmHz = (progress: number): number => ALARM_HZ[0] + (ALARM_HZ[1] - ALARM_HZ[0]) * clamp01(progress)
++const TAU = Math.PI * 2
++/**
++ * 快焦脈動相位：每鍋自己累加 phase += 2π·hz·dt（進 alarm 時由呼叫端歸零）。
++ * 不能用 sin(2π·hz(t)·t)：hz 隨時間變時瞬時頻率會變成 hz + t·dhz/dt，t 是頁面載入起算的秒數，越久越亂閃。
++ * 單幀最多算 100ms（切分頁回來不暴衝）。
++ */
++export function advanceAlarmPhase(phase: number, progress: number, dtMs: number): number {
++  const next = phase + TAU * alarmHz(progress) * (Math.min(Math.max(0, dtMs), 100) / 1000)
++  return ((next % TAU) + TAU) % TAU
++}
++/** 相位 → 脈動 0..1（相位 0 時 0.5） */
++export const alarmPulse = (phase: number): number => 0.5 + 0.5 * Math.sin(phase)
++/** 快焦灰黑煙每秒顆數：4 → 20 */
++export const alarmSmokeRate = (progress: number): number => 4 + 16 * clamp01(progress)
++
++/** 外插上限：快照斷掉時進度不會一路衝到底 */
++export const EXTRAPOLATE_MAX_MS = 400
++
++/**
++ * guest 端進度外插：快照只有 8Hz，兩張之間用 age（收到這張後經過的毫秒）往前推，收到下一張自然校正。
++ * 煮好的前 2 秒（soup 且 progress 0）不推：看不出快焦何時開始，等快照帶出 > 0 再接手。
++ */
++export function extrapolateProgress(kind: StationKind, item: Item | null, progress: number, ageMs: number): number {
++  if (!item || progress >= 1) return progress
++  const age = Math.min(EXTRAPOLATE_MAX_MS, Math.max(0, ageMs))
++  let total = 0
++  if (kind === 'board' && item.kind === 'raw') total = CHOP_MS
++  else if (kind === 'pot' && item.kind === 'chop') total = COOK_MS
++  else if (kind === 'pot' && item.kind === 'soup' && progress > 0) total = COOK_MS
++  if (total === 0) return progress
++  return Math.min(1, progress + age / total)
++}
++
++export interface P3 {
++  x: number
++  y: number
++  z: number
++}
++
++/** 拾取／放下：起訖直線插值，再加一段 sin 拱起（頂點高 h） */
++export function arcPoint(a: P3, b: P3, t: number, h: number): P3 {
++  const u = clamp01(t)
++  return {
++    x: a.x + (b.x - a.x) * u,
++    y: a.y + (b.y - a.y) * u + h * Math.sin(Math.PI * u),
++    z: a.z + (b.z - a.z) * u,
++  }
++}
++
++export type SlotEventType = 'chopStart' | 'chopDone' | 'cookStart' | 'cookDone' | 'burnt'
++export interface SlotEvent {
++  type: SlotEventType
++  id: string
++}
++
++/** 站點事件：只看物品 kind 的轉變（host 與 guest 看到的一樣）；id 前綴 board／pot 判站點種類 */
++export function slotEvents(prev: readonly SlotView[], next: readonly SlotView[]): SlotEvent[] {
++  const before = new Map(prev.map((s) => [s.id, s.item?.kind ?? null]))
++  const out: SlotEvent[] = []
++  for (const s of next) {
++    const a = before.get(s.id) ?? null
++    const b = s.item?.kind ?? null
++    if (a === b) continue
++    const id = s.id
++    if (id.startsWith('board')) {
++      if (b === 'raw') out.push({ type: 'chopStart', id })
++      else if (a === 'raw' && b === 'chop') out.push({ type: 'chopDone', id })
++    } else if (id.startsWith('pot')) {
++      if (b === 'chop') out.push({ type: 'cookStart', id })
++      else if (a === 'chop' && b === 'soup') out.push({ type: 'cookDone', id })
++      else if (b === 'burnt') out.push({ type: 'burnt', id })
++    }
++  }
++  return out
++}
+diff --git a/src/babylon/games/kitchenFx/hudModel.test.ts b/src/babylon/games/kitchenFx/hudModel.test.ts
+new file mode 100644
+index 0000000..2b8f684
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/hudModel.test.ts
+@@ -0,0 +1,72 @@
++import { describe, expect, it } from 'vitest'
++import { buildKitchenHud, handFlights, idleKitchenHud } from '@/babylon/games/kitchenFx/hudModel'
++import { ROUND_MS } from '@/babylon/games/overcookedKitchen'
++
++const players = [
++  { id: 'a', name: '小明' },
++  { id: 'b', name: '阿華' },
++]
++
++describe('buildKitchenHud（共用契約 KitchenHud）', () => {
++  const view = {
++    remainMs: 83_401,
++    score: 40,
++    delivered: 2,
++    orders: [
++      { recipeId: 'veg-soup', ing: 'v' as const, remainMs: 12_345 },
++      { recipeId: 'meat-soup', ing: 'm' as const, remainMs: 39_901 },
++    ],
++    hands: { a: { kind: 'soup' as const, ing: 'm' as const }, b: null },
++  }
++  const hud = buildKitchenHud({ view, ids: [7, 8], gone: [], players, selfId: 'b' })
++
++  it('kind 標記、剩餘秒數量化到整秒（無條件進位）', () => {
++    expect(hud.kind).toBe('kitchen')
++    expect(hud.remainSec).toBe(84)
++    expect(hud.score).toBe(40)
++    expect(hud.delivered).toBe(2)
++  })
++  it('訂單帶穩定 id、remainMs 量化到 100ms（無條件進位，還在場的不會變 0）', () => {
++    expect(hud.orders).toEqual([
++      { id: 7, ing: 'v', remainMs: 12_400 },
++      { id: 8, ing: 'm', remainMs: 40_000 },
++    ])
++    const tiny = buildKitchenHud({ view: { ...view, orders: [{ recipeId: 'x', ing: 'v', remainMs: 3 }] }, ids: [1], gone: [], players, selfId: 'a' })
++    expect(tiny.orders[0].remainMs).toBe(100)
++  })
++  it('玩家卡：序號配色、isSelf 與手持物', () => {
++    expect(hud.players).toEqual([
++      { id: 'a', name: '小明', colorIndex: 0, isSelf: false, held: { ing: 'm', kind: 'soup' } },
++      { id: 'b', name: '阿華', colorIndex: 1, isSelf: true, held: null },
++    ])
++  })
++  it('每次都回新物件（setHud 靠參照比對）', () => {
++    const again = buildKitchenHud({ view, ids: [7, 8], gone: [], players, selfId: 'b' })
++    expect(again).not.toBe(hud)
++    expect(again.orders).not.toBe(hud.orders)
++    expect(again).toEqual(hud)
++  })
++})
++
++describe('idleKitchenHud（開局倒數：新局的樣子）', () => {
++  it('滿時間、0 分、沒訂單、空手', () => {
++    const hud = idleKitchenHud(players, 'a')
++    expect(hud).toMatchObject({ kind: 'kitchen', remainSec: ROUND_MS / 1000, score: 0, delivered: 0, orders: [], gone: [] })
++    expect(hud.players.map((p) => p.held)).toEqual([null, null])
++  })
++})
++
++describe('handFlights（手持物變化 → 拾取／放下）', () => {
++  const soup = { kind: 'soup' as const, ing: 'v' as const }
++  const raw = { kind: 'raw' as const, ing: 'm' as const }
++  it('手上從空變有 → pickup、從有變空 → drop；不變不報', () => {
++    expect(handFlights({ a: null, b: soup }, { a: raw, b: null })).toEqual([
++      { pid: 'a', type: 'pickup' },
++      { pid: 'b', type: 'drop' },
++    ])
++    expect(handFlights({ a: raw }, { a: raw })).toEqual([])
++  })
++  it('新加入的玩家不當成拾取', () => {
++    expect(handFlights({}, { a: raw })).toEqual([])
++  })
++})
+diff --git a/src/babylon/games/kitchenFx/hudModel.ts b/src/babylon/games/kitchenFx/hudModel.ts
+new file mode 100644
+index 0000000..2474090
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/hudModel.ts
+@@ -0,0 +1,63 @@
++/**
++ * 組廚房 React HUD 的資料（KitchenHud 共用契約；純函式，可在 node 單測）。
++ * 量化：remainSec 整秒、訂單 remainMs 100ms，都無條件進位（還在場的單不會顯示 0）；每次回新物件。
++ */
++import { ROUND_MS, type Item, type KitchenView } from '@/babylon/games/overcookedKitchen'
++import { kitchenRoster } from '@/babylon/games/kitchenFx/players'
++import type { GamePlayer, KitchenHud, KitchenHudGone } from '@/babylon/types'
++
++export interface KitchenHudInput {
++  view: Pick<KitchenView, 'remainMs' | 'score' | 'delivered' | 'orders' | 'hands'>
++  /** 與 view.orders 同序的穩定 id（orders.ts） */
++  ids: readonly number[]
++  gone: readonly KitchenHudGone[]
++  players: readonly GamePlayer[]
++  selfId: string
++}
++
++const ceilTo = (v: number, step: number): number => Math.ceil(Math.max(0, v) / step) * step
++
++export function buildKitchenHud(input: KitchenHudInput): KitchenHud {
++  const { view, ids, gone, players, selfId } = input
++  return {
++    kind: 'kitchen',
++    remainSec: Math.ceil(Math.max(0, view.remainMs) / 1000),
++    score: view.score,
++    delivered: view.delivered,
++    orders: view.orders.map((o, i) => ({ id: ids[i] ?? -1 - i, ing: o.ing, remainMs: ceilTo(o.remainMs, 100) })),
++    gone: gone.map((g) => ({ ...g })),
++    players: kitchenRoster(players, selfId).map((r) => {
++      const h = view.hands[r.id] ?? null
++      return { ...r, held: h ? { ing: h.ing, kind: h.kind } : null }
++    }),
++  }
++}
++
++/** 開局倒數時的 HUD：新局的樣子（host 要等 playing 才重建廚房，舊分數不該露出來） */
++export function idleKitchenHud(players: readonly GamePlayer[], selfId: string): KitchenHud {
++  return buildKitchenHud({
++    view: { remainMs: ROUND_MS, score: 0, delivered: 0, orders: [], hands: {} },
++    ids: [],
++    gone: [],
++    players,
++    selfId,
++  })
++}
++
++export interface HandFlight {
++  pid: string
++  type: 'pickup' | 'drop'
++}
++
++/** 手持物前後差：空→有＝拾取、有→空＝放下（上一張沒有這位玩家的不算） */
++export function handFlights(prev: Readonly<Record<string, Item | null>>, next: Readonly<Record<string, Item | null>>): HandFlight[] {
++  const out: HandFlight[] = []
++  for (const [pid, item] of Object.entries(next)) {
++    if (!(pid in prev)) continue
++    const had = prev[pid] != null
++    const has = item != null
++    if (!had && has) out.push({ pid, type: 'pickup' })
++    else if (had && !has) out.push({ pid, type: 'drop' })
++  }
++  return out
++}
+diff --git a/src/babylon/games/kitchenFx/models.test.ts b/src/babylon/games/kitchenFx/models.test.ts
+new file mode 100644
+index 0000000..09bcb1a
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/models.test.ts
+@@ -0,0 +1,25 @@
++import { describe, expect, it } from 'vitest'
++import { serveData } from '@/babylon/games/kitchenFx/models'
++import { hexToRgb, OUTLINE } from '@/babylon/fx/palette'
++
++describe('serveData：出餐台的「>>」箭頭', () => {
++  it('每個箭頭兩條斜桿在 +x 那端收成尖角（指向遠離瀝架的 +x），開口朝 −x', () => {
++    const d = serveData()
++    const [r, g, b] = hexToRgb(OUTLINE)
++    const pts: { x: number; z: number }[] = []
++    for (let i = 0; i < d.positions.length / 3; i++) {
++      const c = d.colors!.slice(i * 4, i * 4 + 3)
++      if (Math.abs(c[0] - r) + Math.abs(c[1] - g) + Math.abs(c[2] - b) > 1e-3) continue
++      pts.push({ x: d.positions[i * 3], z: d.positions[i * 3 + 2] })
++    }
++    expect(pts.length).toBeGreaterThan(0)
++    // 尖角＝貼近中線的點（|z| 小），開口＝離中線遠的點；「>>」的尖角一定在開口的 +x 側
++    // （兩個箭頭的 x 範圍互相重疊，所以不按箭頭切，改比兩群點的平均 x）
++    const tips = pts.filter((p) => Math.abs(p.z) < 0.06)
++    const ends = pts.filter((p) => Math.abs(p.z) > 0.27)
++    const avg = (xs: { x: number }[]) => xs.reduce((t, p) => t + p.x, 0) / xs.length
++    expect(tips.length).toBeGreaterThan(0)
++    expect(ends.length).toBeGreaterThan(0)
++    expect(avg(tips) - avg(ends)).toBeGreaterThan(0.2)
++  })
++})
+diff --git a/src/babylon/games/kitchenFx/models.ts b/src/babylon/games/kitchenFx/models.ts
+index 11ab935..2b844cc 100644
+--- a/src/babylon/games/kitchenFx/models.ts
++++ b/src/babylon/games/kitchenFx/models.ts
+@@ -83,24 +83,24 @@ export const burnerOnData = (): MeshData => at(solid(torus(1.22, 0.12, 24), rgba
+ export const potAlarmRimData = (): MeshData => at(solid(torus(1.34, 0.14, 28), rgba('#FFFFFF')), { x: 0, y: POT_TOP, z: 0 })
+ /** 焦了的湯面上 2 顆 ember 點 */
+ export const emberDotsData = (): MeshData =>
+   mergeData([at(solid(sphere(0.1, 8), rgba('#FFFFFF')), { x: -0.2, y: 0.02, z: 0.12 }), at(solid(sphere(0.08, 8), rgba('#FFFFFF')), { x: 0.22, y: 0.02, z: -0.1 })])
+ 
+ /** 出餐台：黃色圓角台＋瀝架條紋＋「>>」箭頭（鈴另建，要回彈） */
+ export const serveData = (): MeshData => {
+   const [l, b, d] = tri(KITCHEN.serve)
+   const parts = [at(radial(rbox(1.8, 0.3, 1.6, 0.1), l, b, d), { x: 0, y: 0.15, z: 0 })]
+   for (let i = 0; i < 4; i++) parts.push(at(solid(rbox(0.07, 0.02, 1.2, 0.01, 1), rgba(d)), { x: -0.75 + i * 0.14, y: 0.305, z: 0 }))
+-  // 兩個 >> 箭頭：每個是兩條斜桿
++  // 兩個 >> 箭頭：每個是兩條斜桿，在 +x 端收成尖角（yaw 正值會把 +z 端轉向 +x，所以 z>0 那條取負）
+   for (const cx of [-0.1, 0.22]) {
+     for (const s of [-1, 1]) {
+-      parts.push(at(solid(rbox(0.1, 0.03, 0.46, 0.02, 1), rgba(KITCHEN.outline)), { x: cx, y: 0.31, z: s * 0.15, yaw: s * 0.7 }))
++      parts.push(at(solid(rbox(0.1, 0.03, 0.46, 0.02, 1), rgba(KITCHEN.outline)), { x: cx, y: 0.31, z: s * 0.15, yaw: -s * 0.7 }))
+     }
+   }
+   return mergeData(parts)
+ }
+ 
+ /** 服務鈴（半球＋底座＋按鈕），原點在出餐台頂面 */
+ export const bellData = (): MeshData => {
+   const [l, b, d] = tri(KITCHEN.bell)
+   return mergeData([
+     at(solid(cylinder(0.08, 0.62, 20), rgba(d)), { x: 0, y: 0.04, z: 0 }),
+diff --git a/src/babylon/games/kitchenFx/orders.test.ts b/src/babylon/games/kitchenFx/orders.test.ts
+new file mode 100644
+index 0000000..fc5910d
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/orders.test.ts
+@@ -0,0 +1,107 @@
++import { describe, expect, it } from 'vitest'
++import { trackOrders, type OrderSnap, type OrderTrack } from '@/babylon/games/kitchenFx/orders'
++import { SCORE_EXPIRE, SCORE_SERVE } from '@/babylon/games/overcookedKitchen'
++
++const o = (ing: 'v' | 'm', remainMs: number, recipeId = ing === 'v' ? 'veg-soup' : 'meat-soup') => ({ recipeId, ing, remainMs })
++const snap = (orders: OrderSnap['orders'], p: Partial<Omit<OrderSnap, 'orders'>> = {}): OrderSnap => ({
++  orders,
++  score: 0,
++  delivered: 0,
++  remainMs: 100_000,
++  ...p,
++})
++/** 依序餵多張快照，回最後一次的結果 */
++const feed = (...snaps: OrderSnap[]) => {
++  let track: OrderTrack | null = null
++  let last = trackOrders(null, snaps[0])
++  for (const s of snaps) {
++    last = trackOrders(track, s)
++    track = last.track
++  }
++  return last
++}
++
++describe('trackOrders：訂單 id 穩定化', () => {
++  it('第一張快照依序編號、沒有消失單', () => {
++    const r = trackOrders(null, snap([o('v', 30_000), o('m', 38_000)]))
++    expect(r.track.ids).toEqual([1, 2])
++    expect(r.gone).toEqual([])
++  })
++
++  it('剩餘時間照常遞減時 id 不變', () => {
++    const r = feed(snap([o('v', 30_000), o('m', 38_000)]), snap([o('v', 29_875), o('m', 37_875)], { remainMs: 99_875 }))
++    expect(r.track.ids).toEqual([1, 2])
++    expect(r.gone).toEqual([])
++  })
++
++  it('新單接在後面拿新 id', () => {
++    const r = feed(snap([o('v', 30_000)]), snap([o('v', 29_875), o('m', 40_000)], { remainMs: 99_875 }))
++    expect(r.track.ids).toEqual([1, 2])
++  })
++
++  it('同一幀舊單逾時、同菜新單補上：舊單消失，新單拿新 id', () => {
++    const r = feed(snap([o('v', 60)]), snap([o('v', 39_990)], { remainMs: 99_875 }))
++    expect(r.track.ids).toEqual([2])
++    expect(r.gone).toEqual([{ id: 1, ing: 'v', reason: 'expired', scoreDelta: 0 }])
++  })
++
++  it('新局（剩餘時間回升）重新編號、不算消失', () => {
++    const r = feed(snap([o('v', 30_000)], { remainMs: 1_000, score: 40, delivered: 2 }), snap([o('m', 40_000)], { remainMs: 120_000 }))
++    expect(r.gone).toEqual([])
++    expect(r.track.ids).toEqual([2])
++  })
++})
++
++describe('trackOrders：消失原因（host findIndex：同 ing 取最早那張）', () => {
++  it('同 ing 兩張單其中一張出餐：最早那張是 served，後面那張留著', () => {
++    const r = feed(
++      snap([o('v', 30_000), o('v', 38_000)]),
++      snap([o('v', 37_875)], { remainMs: 99_875, delivered: 1, score: SCORE_SERVE })
++    )
++    expect(r.gone).toEqual([{ id: 1, ing: 'v', reason: 'served', scoreDelta: SCORE_SERVE }])
++    expect(r.track.ids).toEqual([2])
++  })
++
++  it('出餐與逾時同一幀（先逾時再出餐）：快到期那張 expired、另一張同 ing 的 served', () => {
++    const r = feed(
++      snap([o('v', 60), o('m', 20_000), o('v', 30_000)], { score: 50 }),
++      snap([o('m', 19_875)], { remainMs: 99_875, delivered: 1, score: 50 + SCORE_SERVE + SCORE_EXPIRE })
++    )
++    expect(r.gone).toEqual([
++      { id: 1, ing: 'v', reason: 'expired', scoreDelta: SCORE_EXPIRE },
++      { id: 3, ing: 'v', reason: 'served', scoreDelta: SCORE_SERVE },
++    ])
++    expect(r.track.ids).toEqual([2])
++  })
++
++  it('快到期的單在同一幀被送出去：算 served', () => {
++    const r = feed(snap([o('v', 60), o('m', 20_000)]), snap([o('m', 19_875)], { remainMs: 99_875, delivered: 1, score: SCORE_SERVE }))
++    expect(r.gone).toEqual([{ id: 1, ing: 'v', reason: 'served', scoreDelta: SCORE_SERVE }])
++  })
++
++  it('分數為 0 時逾時：expired、實際扣分 0', () => {
++    const r = feed(snap([o('m', 50)]), snap([], { remainMs: 99_875 }))
++    expect(r.gone).toEqual([{ id: 1, ing: 'm', reason: 'expired', scoreDelta: 0 }])
++  })
++
++  it('分數有剩時逾時：扣實際的 SCORE_EXPIRE', () => {
++    const r = feed(snap([o('m', 50)], { score: 30 }), snap([], { remainMs: 99_875, score: 30 + SCORE_EXPIRE }))
++    expect(r.gone).toEqual([{ id: 1, ing: 'm', reason: 'expired', scoreDelta: SCORE_EXPIRE }])
++  })
++
++  it('兩張同時逾時但分數只剩 5：依序分攤成 -5 與 0', () => {
++    const r = feed(snap([o('v', 40), o('m', 60)], { score: 5 }), snap([], { remainMs: 99_875, score: 0 }))
++    expect(r.gone.map((g) => g.scoreDelta)).toEqual([-5, 0])
++    expect(r.gone.every((g) => g.reason === 'expired')).toBe(true)
++  })
++
++  it('同一張快照重送（內容相同）不會再報消失', () => {
++    const a = snap([o('v', 60), o('m', 20_000)])
++    const b = snap([o('m', 19_875)], { remainMs: 99_875, delivered: 1, score: SCORE_SERVE })
++    const r1 = trackOrders(trackOrders(null, a).track, b)
++    const r2 = trackOrders(r1.track, b)
++    expect(r1.gone).toHaveLength(1)
++    expect(r2.gone).toEqual([])
++    expect(r2.track.ids).toEqual(r1.track.ids)
++  })
++})
+diff --git a/src/babylon/games/kitchenFx/orders.ts b/src/babylon/games/kitchenFx/orders.ts
+new file mode 100644
+index 0000000..5b71b06
+--- /dev/null
++++ b/src/babylon/games/kitchenFx/orders.ts
+@@ -0,0 +1,109 @@
++/**
++ * 訂單 id 穩定化與消失原因判定（KitchenHud 共用契約；純函式，可在 node 單測）。
++ *
++ * 快照（KitchenView）的訂單沒有 id，這裡比對前後兩張推出來，不改快照：
++ * - host 補單只接在尾端、移除用 splice，所以留下來的單是上一張的子序列、順序不變；
++ * - 同一張單的剩餘時間只會變少，新單剩餘時間接近 ORDER_LIFE_MS，
++ *   而兩張單的建立時間至少差 ORDER_EVERY_MS，所以快照間隔在 8 秒內都不會認錯。
++ * 消失的單：delivered 增量 d 張照 host 的 findIndex（同 ing 取最早那張）算 served，其餘 expired；
++ * 「剩餘時間撐不到這一張」的單才可能逾時，撐得到卻不見了的一定是被送出去的。
++ */
++import { SCORE_EXPIRE, SCORE_SERVE, type Ing } from '@/babylon/games/overcookedKitchen'
++import type { KitchenHudGone } from '@/babylon/types'
++
++export interface SnapOrder {
++  recipeId: string
++  ing: Ing
++  remainMs: number
++}
++
++/** trackOrders 需要的快照欄位（KitchenView 的子集） */
++export interface OrderSnap {
++  orders: readonly SnapOrder[]
++  score: number
++  delivered: number
++  /** 本局剩餘毫秒（兩張快照的差＝經過時間；回升＝新局） */
++  remainMs: number
++}
++
++export interface OrderTrack {
++  snap: OrderSnap
++  /** 與 snap.orders 同序的穩定 id */
++  ids: number[]
++  nextId: number
++}
++
++/** 時間比對容差（ms） */
++const EPS = 50
++
++const sameSnap = (a: OrderSnap, b: OrderSnap): boolean =>
++  a.score === b.score &&
++  a.delivered === b.delivered &&
++  a.remainMs === b.remainMs &&
++  a.orders.length === b.orders.length &&
++  a.orders.every((o, i) => o.recipeId === b.orders[i].recipeId && o.ing === b.orders[i].ing && o.remainMs === b.orders[i].remainMs)
++
++const fresh = (snap: OrderSnap, nextId: number): OrderTrack => ({
++  snap,
++  ids: snap.orders.map((_, i) => nextId + i),
++  nextId: nextId + snap.orders.length,
++})
++
++export function trackOrders(prev: OrderTrack | null, snap: OrderSnap): { track: OrderTrack; gone: KitchenHudGone[] } {
++  if (!prev) return { track: fresh(snap, 1), gone: [] }
++  if (sameSnap(prev.snap, snap)) return { track: { ...prev, snap }, gone: [] }
++  const p = prev.snap
++  // 新局：剩餘時間回升或出餐數倒退（重建廚房）
++  if (snap.remainMs > p.remainMs + EPS || snap.delivered < p.delivered) return { track: fresh(snap, prev.nextId), gone: [] }
++
++  // 子序列比對：新單只接在尾端，比不上的從那裡起全是新單
++  const ids: number[] = []
++  const matched = new Set<number>()
++  let nextId = prev.nextId
++  let i = 0
++  let dt = Math.max(0, p.remainMs - snap.remainMs)
++  for (const n of snap.orders) {
++    let hit = -1
++    for (let j = i; j < p.orders.length; j++) {
++      const q = p.orders[j]
++      if (q.recipeId === n.recipeId && q.ing === n.ing && n.remainMs <= q.remainMs + EPS) {
++        hit = j
++        break
++      }
++    }
++    if (hit < 0) {
++      ids.push(nextId++)
++      i = p.orders.length
++      continue
++    }
++    ids.push(prev.ids[hit])
++    matched.add(hit)
++    dt = Math.max(dt, p.orders[hit].remainMs - n.remainMs)
++    i = hit + 1
++  }
++
++  const goneIdx = p.orders.map((_, j) => j).filter((j) => !matched.has(j))
++  const gone: KitchenHudGone[] = []
++  if (goneIdx.length > 0) {
++    const d = Math.max(0, Math.min(goneIdx.length, snap.delivered - p.delivered))
++    const canExpire = (j: number) => p.orders[j].remainMs - dt <= EPS
++    const served = new Set<number>()
++    // 撐得到這一張卻不見了：只可能是出餐
++    for (const j of goneIdx) if (served.size < d && !canExpire(j)) served.add(j)
++    // 還不夠：從快到期的單裡依序補（同 ing 最早那張先被 findIndex 挑中）
++    for (const j of goneIdx) if (served.size < d && !served.has(j)) served.add(j)
++    let rest = snap.score - p.score - served.size * SCORE_SERVE
++    for (const j of goneIdx) {
++      const q = p.orders[j]
++      if (served.has(j)) {
++        gone.push({ id: prev.ids[j], ing: q.ing, reason: 'served', scoreDelta: SCORE_SERVE })
++        continue
++      }
++      // 逾時依序扣分，分數下限 0 時扣不到的記 0
++      const delta = Math.min(0, Math.max(SCORE_EXPIRE, rest))
++      rest -= delta
++      gone.push({ id: prev.ids[j], ing: q.ing, reason: 'expired', scoreDelta: delta })
++    }
++  }
++  return { track: { snap, ids, nextId }, gone }
++}
+diff --git a/src/babylon/games/kitchenFx/palette.ts b/src/babylon/games/kitchenFx/palette.ts
+index 876e37f..8a64019 100644
+--- a/src/babylon/games/kitchenFx/palette.ts
++++ b/src/babylon/games/kitchenFx/palette.ts
+@@ -55,11 +55,14 @@ export const KITCHEN = {
+   soupV: '#9BD65A',
+   soupM: '#EE8A3A',
+   burnt: '#2E2424',
+   crack: '#FF6A2A',
+   // 廚師
+   hat: '#FFFFFF',
+   hatShade: '#C9C3DA',
+   face: '#FFF1E0',
+   eye: '#2B2440',
+   pants: '#3A3556',
++  // 場外（variant-A-gameplay 的深青底，中央 → 外圈）與清除色
++  yard: ['#21434B', '#0F2A31'],
++  clear: '#0F2A31',
+ } as const
+diff --git a/src/babylon/games/kitchenFx/textures.ts b/src/babylon/games/kitchenFx/textures.ts
+index b6d88c2..ace3aca 100644
+--- a/src/babylon/games/kitchenFx/textures.ts
++++ b/src/babylon/games/kitchenFx/textures.ts
+@@ -1,17 +1,17 @@
+ /**
+  * 廚房快手 A 方案的程式貼圖（DynamicTexture + Canvas 2D，不載入外部圖檔；kitchen spec §5）：
+  * 地面棋盤（含靠檯面一圈 AO）、檯面圖集（白鋼頂／櫃門側面）、背牆（磁磚、KITCHEN 牌、掛架、時鐘、出餐牌）、出餐暖光窗。
+  */
+ import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
+ import type { FaceUV } from '@/babylon/fx/geometry'
+-import { ctxOf, roundRect, type Ctx } from '@/babylon/fx/textures'
++import { ctxOf, roundRect, whenFontReady, type Ctx } from '@/babylon/fx/textures'
+ import { KITCHEN } from '@/babylon/games/kitchenFx/palette'
+ 
+ const FONT = 'Fredoka, "Noto Sans TC", sans-serif'
+ 
+ /** 地面：每格 PX 像素、NEAREST；A/B 交錯＋磚縫；可走區外圈（貼著檯面）烘一圈 AO。
+  *  canvas 上方 = 世界 +Z（CreateGround 的 v=1 在 +Z）；cy=0 在 +Z（見 kitchenFx/pose 的 kitchenZ），所以 cy 由上往下畫。 */
+ export function createKitchenGroundTexture(scene: Scene, gridW: number, gridH: number): DynamicTexture {
+   const PX = 32
+   const AO = 12
+   const tex = new DynamicTexture('kitchen-ground-tex', { width: gridW * PX, height: gridH * PX }, scene, false, Texture.NEAREST_SAMPLINGMODE)
+@@ -121,139 +121,281 @@ export interface WallTextureLayout {
+ export const WALL_WHITE_UV: FaceUV = [0.001, 0.996, 0.004, 0.999]
+ 
+ /** 背牆正面：薄荷磁磚＋縫、頂端牆帽色帶、左邊掛架、中間 KITCHEN 牌、出餐窗上方紅色「出餐」牌、右邊時鐘。
+  *  回傳貼圖與正面的 UV 範圍（其餘面取 WALL_WHITE_UV 的白格）。 */
+ export function createWallTexture(scene: Scene, L: WallTextureLayout): { tex: DynamicTexture; faceUV: FaceUV } {
+   const W = 2048
+   const H = 512
+   const faceH = Math.round((W * L.height) / L.width)
+   const tex = new DynamicTexture('kitchen-wall-tex', { width: W, height: H }, scene, true, Texture.TRILINEAR_SAMPLINGMODE)
+   const g = ctxOf(tex)
+-  g.fillStyle = '#FFFFFF'
+-  g.fillRect(0, 0, W, H)
+-  // 正面畫在 canvas 底部 faceH 高的區塊（canvas 下方 = v 小）
+-  const top = H - faceH
+   const px = W / L.width
+-  const wx = (x: number) => (x + L.width / 2) * px
+-  const wy = (y: number) => top + (L.height - y) * px
+-  // 磁磚：約 0.42 見方
+-  const tile = Math.max(8, Math.round(0.42 * px))
+-  g.fillStyle = KITCHEN.tile
+-  g.fillRect(0, top, W, faceH)
+-  g.fillStyle = KITCHEN.tileSeam
+-  for (let y = H; y > top; y -= tile) g.fillRect(0, y - 2, W, 3)
+-  let row = 0
+-  for (let y = H; y > top; y -= tile, row++) {
+-    for (let x = (row % 2) * (tile / 2); x < W; x += tile) g.fillRect(x - 1, Math.max(top, y - tile), 3, tile)
+-  }
+-  // 頂端色帶（牆帽下緣陰影）
+-  g.fillStyle = 'rgba(43,36,64,0.18)'
+-  g.fillRect(0, top, W, Math.round(0.12 * px))
++  // KITCHEN 牌用 Fredoka：第一次畫時字型多半還沒下載，載好再整張重畫（同 bomber 的 whenFontReady）
++  const paint = (): void => {
++    g.fillStyle = '#FFFFFF'
++    g.fillRect(0, 0, W, H)
++    // 正面畫在 canvas 底部 faceH 高的區塊（canvas 下方 = v 小）
++    const top = H - faceH
++    const wx = (x: number) => (x + L.width / 2) * px
++    const wy = (y: number) => top + (L.height - y) * px
++    // 磁磚：約 0.42 見方
++    const tile = Math.max(8, Math.round(0.42 * px))
++    g.fillStyle = KITCHEN.tile
++    g.fillRect(0, top, W, faceH)
++    g.fillStyle = KITCHEN.tileSeam
++    for (let y = H; y > top; y -= tile) g.fillRect(0, y - 2, W, 3)
++    let row = 0
++    for (let y = H; y > top; y -= tile, row++) {
++      for (let x = (row % 2) * (tile / 2); x < W; x += tile) g.fillRect(x - 1, Math.max(top, y - tile), 3, tile)
++    }
++    // 頂端色帶（牆帽下緣陰影）
++    g.fillStyle = 'rgba(43,36,64,0.18)'
++    g.fillRect(0, top, W, Math.round(0.12 * px))
+ 
+-  const line = (w: number) => {
+-    g.lineWidth = w
+-    g.strokeStyle = KITCHEN.outline
+-    g.lineJoin = 'round'
+-    g.lineCap = 'round'
+-  }
+-  // 掛架：木桿＋ 4 個器具剪影
+-  const rackY = wy(L.height - 0.55)
+-  line(10)
+-  g.strokeStyle = '#8F561D'
+-  g.beginPath()
+-  g.moveTo(wx(-8.6), rackY)
+-  g.lineTo(wx(-3.4), rackY)
+-  g.stroke()
+-  const icons = [-7.8, -6.4, -5.0, -3.9]
+-  icons.forEach((ix, i) => {
+-    const cx = wx(ix)
+-    const cy = rackY + 0.45 * px
+-    line(6)
+-    g.strokeStyle = '#6F6490'
++    const line = (w: number) => {
++      g.lineWidth = w
++      g.strokeStyle = KITCHEN.outline
++      g.lineJoin = 'round'
++      g.lineCap = 'round'
++    }
++    // 掛架：木桿＋ 4 個器具剪影
++    const rackY = wy(L.height - 0.55)
++    line(10)
++    g.strokeStyle = '#8F561D'
+     g.beginPath()
+-    if (i === 2) {
+-      // 叉子
+-      for (const dx of [-12, 0, 12]) {
+-        g.moveTo(cx + dx, cy - 26)
+-        g.lineTo(cx + dx, cy + 4)
++    g.moveTo(wx(-8.6), rackY)
++    g.lineTo(wx(-3.4), rackY)
++    g.stroke()
++    const icons = [-7.8, -6.4, -5.0, -3.9]
++    icons.forEach((ix, i) => {
++      const cx = wx(ix)
++      const cy = rackY + 0.45 * px
++      line(6)
++      g.strokeStyle = '#6F6490'
++      g.beginPath()
++      if (i === 2) {
++        // 叉子
++        for (const dx of [-12, 0, 12]) {
++          g.moveTo(cx + dx, cy - 26)
++          g.lineTo(cx + dx, cy + 4)
++        }
++        g.moveTo(cx - 12, cy + 4)
++        g.lineTo(cx + 12, cy + 4)
++        g.moveTo(cx, cy + 4)
++        g.lineTo(cx, cy + 30)
++      } else {
++        // 鍋子：碗形＋把手
++        g.moveTo(cx - 26, cy - 8)
++        g.lineTo(cx + 26, cy - 8)
++        g.moveTo(cx - 22, cy - 8)
++        g.quadraticCurveTo(cx - 22, cy + 24, cx, cy + 24)
++        g.quadraticCurveTo(cx + 22, cy + 24, cx + 22, cy - 8)
++        g.moveTo(cx - 8, cy - 18)
++        g.lineTo(cx + 8, cy - 18)
+       }
+-      g.moveTo(cx - 12, cy + 4)
+-      g.lineTo(cx + 12, cy + 4)
+-      g.moveTo(cx, cy + 4)
+-      g.lineTo(cx, cy + 30)
+-    } else {
+-      // 鍋子：碗形＋把手
+-      g.moveTo(cx - 26, cy - 8)
+-      g.lineTo(cx + 26, cy - 8)
+-      g.moveTo(cx - 22, cy - 8)
+-      g.quadraticCurveTo(cx - 22, cy + 24, cx, cy + 24)
+-      g.quadraticCurveTo(cx + 22, cy + 24, cx + 22, cy - 8)
+-      g.moveTo(cx - 8, cy - 18)
+-      g.lineTo(cx + 8, cy - 18)
+-    }
++      g.stroke()
++    })
++    // KITCHEN 牌
++    const plX = wx(L.plateX)
++    const plY = wy(L.height - 0.62)
++    roundRect(g, plX - 1.3 * px, plY - 0.28 * px, 2.6 * px, 0.56 * px, 0.14 * px)
++    g.fillStyle = '#6F6490'
++    g.fill()
++    line(6)
++    g.stroke()
++    g.fillStyle = '#FFFFFF'
++    g.font = `700 ${Math.round(0.34 * px)}px ${FONT}`
++    g.textAlign = 'center'
++    g.textBaseline = 'middle'
++    g.fillText('KITCHEN', plX, plY + 2)
++    // 出餐牌（窗上方）
++    const sX = wx(L.serveX)
++    const sY = wy(L.windowY1 + 0.26)
++    roundRect(g, sX - 0.62 * px, sY - 0.19 * px, 1.24 * px, 0.38 * px, 0.14 * px)
++    g.fillStyle = KITCHEN.serveSign
++    g.fill()
++    line(5)
++    g.stroke()
++    g.fillStyle = '#FFFFFF'
++    g.font = `900 ${Math.round(0.26 * px)}px ${FONT}`
++    g.fillText('出餐', sX, sY + 1)
++    // 窗框（窗本身是另一片發光 plane）
++    const wl = wx(L.serveX - 0.95)
++    const wr = wx(L.serveX + 0.95)
++    roundRect(g, wl - 8, wy(L.windowY1) - 8, wr - wl + 16, wy(L.windowY0) - wy(L.windowY1) + 16, 18)
++    g.fillStyle = KITCHEN.outline
++    g.fill()
++    // 時鐘
++    const cX = wx(L.serveX + 2.6)
++    const cY = wy(L.height - 0.95)
++    const r = 0.42 * px
++    g.beginPath()
++    g.arc(cX, cY, r, 0, Math.PI * 2)
++    g.fillStyle = '#FFFFFF'
++    g.fill()
++    line(8)
++    g.stroke()
++    line(7)
++    g.beginPath()
++    g.moveTo(cX, cY)
++    g.lineTo(cX, cY - r * 0.62)
++    g.moveTo(cX, cY)
++    g.lineTo(cX + r * 0.45, cY + r * 0.12)
+     g.stroke()
+-  })
+-  // KITCHEN 牌
+-  const plX = wx(L.plateX)
+-  const plY = wy(L.height - 0.62)
+-  roundRect(g, plX - 1.3 * px, plY - 0.28 * px, 2.6 * px, 0.56 * px, 0.14 * px)
+-  g.fillStyle = '#6F6490'
+-  g.fill()
+-  line(6)
+-  g.stroke()
+-  g.fillStyle = '#FFFFFF'
+-  g.font = `700 ${Math.round(0.34 * px)}px ${FONT}`
+-  g.textAlign = 'center'
+-  g.textBaseline = 'middle'
+-  g.fillText('KITCHEN', plX, plY + 2)
+-  // 出餐牌（窗上方）
+-  const sX = wx(L.serveX)
+-  const sY = wy(L.windowY1 + 0.26)
+-  roundRect(g, sX - 0.62 * px, sY - 0.19 * px, 1.24 * px, 0.38 * px, 0.14 * px)
+-  g.fillStyle = KITCHEN.serveSign
+-  g.fill()
+-  line(5)
+-  g.stroke()
+-  g.fillStyle = '#FFFFFF'
+-  g.font = `900 ${Math.round(0.26 * px)}px ${FONT}`
+-  g.fillText('出餐', sX, sY + 1)
+-  // 窗框（窗本身是另一片發光 plane）
+-  const wl = wx(L.serveX - 0.95)
+-  const wr = wx(L.serveX + 0.95)
+-  roundRect(g, wl - 8, wy(L.windowY1) - 8, wr - wl + 16, wy(L.windowY0) - wy(L.windowY1) + 16, 18)
+-  g.fillStyle = KITCHEN.outline
+-  g.fill()
+-  // 時鐘
+-  const cX = wx(L.serveX + 2.6)
+-  const cY = wy(L.height - 0.95)
+-  const r = 0.42 * px
+-  g.beginPath()
+-  g.arc(cX, cY, r, 0, Math.PI * 2)
+-  g.fillStyle = '#FFFFFF'
+-  g.fill()
+-  line(8)
+-  g.stroke()
+-  line(7)
+-  g.beginPath()
+-  g.moveTo(cX, cY)
+-  g.lineTo(cX, cY - r * 0.62)
+-  g.moveTo(cX, cY)
+-  g.lineTo(cX + r * 0.45, cY + r * 0.12)
+-  g.stroke()
+ 
+-  tex.update()
++    tex.update()
++  }
++  whenFontReady(`700 ${Math.round(0.34 * px)}px Fredoka`, tex, paint)
+   const faceUV: FaceUV = [0, 0, 1, faceH / H]
+   return { tex, faceUV }
+ }
+ 
+ /** 出餐暖光窗：上 #FFE9B0 → 下 #FFB84A 的漸層（emissive plane，進 Glow 白名單） */
+ export function createWindowTexture(scene: Scene): DynamicTexture {
+   const tex = new DynamicTexture('kitchen-window-tex', { width: 64, height: 64 }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+   const g: Ctx = ctxOf(tex)
+   const grad = g.createLinearGradient(0, 0, 0, 64)
+   grad.addColorStop(0, KITCHEN.windowTop)
+   grad.addColorStop(1, KITCHEN.windowBottom)
+   g.fillStyle = grad
+   g.fillRect(0, 0, 64, 64)
+   tex.update()
+   return tex
+ }
++
++// ---- 特效（kitchen spec §7） ----
++
++export type IndicatorMode = 'bar' | 'ring' | 'check'
++
++export const INDICATOR_PX = 128
++const GREEN = '#2FCF5E'
++const CREAM = '#FFF6E3'
++
++/**
++ * 站點上方的進度提示（畫在同一張 128×128 透明貼圖上，由 effects.ts 依量化後的進度重畫）：
++ * bar＝砧板進度條（中間一條）、ring＝鍋的進度環（從 12 點鐘順時針填）、check＝綠色圓形勾選章。
++ */
++export function paintIndicator(tex: DynamicTexture, mode: IndicatorMode, progress: number, color: string): void {
++  const S = INDICATOR_PX
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, S, S)
++  g.lineJoin = 'round'
++  g.lineCap = 'round'
++  if (mode === 'bar') {
++    const h = 30
++    const y = (S - h) / 2
++    roundRect(g, 6, y, S - 12, h, h / 2)
++    g.fillStyle = CREAM
++    g.fill()
++    g.lineWidth = 6
++    g.strokeStyle = KITCHEN.outline
++    g.stroke()
++    const w = Math.max(0, (S - 24) * progress)
++    if (w > 1) {
++      roundRect(g, 12, y + 6, Math.max(w, h - 12), h - 12, (h - 12) / 2)
++      g.fillStyle = color
++      g.fill()
++    }
++  } else if (mode === 'ring') {
++    const r = S * 0.36
++    g.beginPath()
++    g.arc(S / 2, S / 2, r, 0, Math.PI * 2)
++    g.lineWidth = 30
++    g.strokeStyle = KITCHEN.outline
++    g.stroke()
++    g.lineWidth = 18
++    g.strokeStyle = CREAM
++    g.stroke()
++    if (progress > 0) {
++      g.beginPath()
++      g.arc(S / 2, S / 2, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, progress))
++      g.strokeStyle = color
++      g.stroke()
++    }
++  } else {
++    const r = S * 0.4
++    g.beginPath()
++    g.arc(S / 2, S / 2, r, 0, Math.PI * 2)
++    g.fillStyle = GREEN
++    g.fill()
++    g.lineWidth = 8
++    g.strokeStyle = KITCHEN.outline
++    g.stroke()
++    g.beginPath()
++    g.moveTo(S * 0.3, S * 0.52)
++    g.lineTo(S * 0.44, S * 0.66)
++    g.lineTo(S * 0.7, S * 0.38)
++    g.lineWidth = 14
++    g.strokeStyle = '#FFFFFF'
++    g.stroke()
++  }
++  tex.update()
++}
++
++export function createIndicatorTexture(scene: Scene, name: string): DynamicTexture {
++  const tex = new DynamicTexture(name, { width: INDICATOR_PX, height: INDICATOR_PX }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = true
++  return tex
++}
++
++/** 快焦「!」警示章：紅圓、深紫描邊、白色驚嘆號（兩個鍋共用一張） */
++export function createAlertTexture(scene: Scene): DynamicTexture {
++  const S = INDICATOR_PX
++  const tex = createIndicatorTexture(scene, 'kitchen-alert-tex')
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, S, S)
++  g.beginPath()
++  g.arc(S / 2, S / 2, S * 0.4, 0, Math.PI * 2)
++  g.fillStyle = '#FF3B4E'
++  g.fill()
++  g.lineWidth = 8
++  g.strokeStyle = KITCHEN.outline
++  g.stroke()
++  g.fillStyle = '#FFFFFF'
++  roundRect(g, S / 2 - 8, S * 0.24, 16, S * 0.34, 8)
++  g.fill()
++  g.beginPath()
++  g.arc(S / 2, S * 0.72, 9, 0, Math.PI * 2)
++  g.fill()
++  tex.update()
++  return tex
++}
++
++/** 出餐浮字（「+20」）：金色字、深紫描邊、透明底；整局共用一張，Fredoka 載好後重畫 */
++export function createScoreTexture(scene: Scene, text: string): DynamicTexture {
++  const W = 192
++  const H = 96
++  const font = 'bold 72px Fredoka, sans-serif'
++  const tex = new DynamicTexture('kitchen-score-tex', { width: W, height: H }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = true
++  const g = ctxOf(tex)
++  whenFontReady(font, tex, () => {
++    g.clearRect(0, 0, W, H)
++    g.font = font
++    g.textAlign = 'center'
++    g.textBaseline = 'middle'
++    g.lineJoin = 'round'
++    g.lineWidth = 12
++    g.strokeStyle = KITCHEN.outline
++    g.strokeText(text, W / 2, H / 2 + 4)
++    g.fillStyle = '#FFD23F'
++    g.fillText(text, W / 2, H / 2 + 4)
++    tex.update()
++  })
++  return tex
++}
++
++/** 場外延伸地面：深青色，中央稍亮、往外壓暗（對齊 variant-A-gameplay 的場外底色） */
++export function createYardTexture(scene: Scene): DynamicTexture {
++  const S = 256
++  const tex = new DynamicTexture('kitchen-yard-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  const g = ctxOf(tex)
++  const grad = g.createRadialGradient(S / 2, S / 2, S * 0.08, S / 2, S / 2, S * 0.5)
++  grad.addColorStop(0, KITCHEN.yard[0])
++  grad.addColorStop(1, KITCHEN.yard[1])
++  g.fillStyle = grad
++  g.fillRect(0, 0, S, S)
++  tex.update()
++  tex.wrapU = Texture.CLAMP_ADDRESSMODE
++  tex.wrapV = Texture.CLAMP_ADDRESSMODE
++  return tex
++}
+diff --git a/src/babylon/games/overcooked.ts b/src/babylon/games/overcooked.ts
+index 1fd8fd4..a8b1e33 100644
+--- a/src/babylon/games/overcooked.ts
++++ b/src/babylon/games/overcooked.ts
+@@ -1,67 +1,70 @@
+-import {
+-  ArcRotateCamera,
+-  Color3,
+-  Color4,
+-  DynamicTexture,
+-  Mesh,
+-  MeshBuilder,
+-  ParticleSystem,
+-  Quaternion,
+-  SceneInstrumentation,
+-  StandardMaterial,
+-  Texture,
+-  Vector3,
+-} from '@/babylon/babylonCore'
+-import type { GameContext, GameModule } from '@/babylon/types'
++import { ArcRotateCamera, Color4, Quaternion, SceneInstrumentation, Vector3, type Mesh } from '@/babylon/babylonCore'
++import type { GameContext, GameModule, GameOverlay, KitchenHud } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+-import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
++import { createCountdownPanel, type TextPanel } from '@/babylon/hud'
+ import {
+   createFixedTicker,
+   createGameFlow,
+   createHostSnapshot,
+   createOwnershipSync,
+   createSnapshotReceiver,
+   isObj,
+   isStr,
+   type FixedTicker,
+   type GameFlow,
+   type HostSnapshotSender,
+   type OwnershipSync,
+   type SnapshotBuffer,
+ } from '@/babylon/net'
+ import {
+   GRID_H,
+   GRID_W,
++  SCORE_SERVE,
+   STATIONS,
+-  RECIPES,
+   applyUse,
+   buildView,
+   createKitchen,
+   isBorder,
+   stationById,
+   tickKitchen,
+   type Ing,
+   type Item,
+   type Kitchen,
+   type KitchenView,
++  type SlotView,
++  type StationDef,
+ } from '@/babylon/games/overcookedKitchen'
+-import { OUTLINE } from '@/babylon/fx/palette'
++import { hexToRgb, OUTLINE } from '@/babylon/fx/palette'
++import { COUNTDOWN_THEME } from '@/babylon/fx/countdown'
+ import { AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/fx/avatar'
+-import { ToyLook } from '@/babylon/fx/look'
++import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
+ import { perfLogLine } from '@/babylon/fx/perfLog'
+ import { uprightAxis } from '@/babylon/fx/upright'
+ import { colorIndexIn } from '@/babylon/games/kitchenFx/players'
+ import { KITCHEN_AVATAR } from '@/babylon/games/kitchenFx/chef'
+ import { KitchenBoard } from '@/babylon/games/kitchenFx/board'
+ import { chefArms, chopTarget, kitchenCellZ, kitchenZ, ITEM_KEYS, type BoardSpot } from '@/babylon/games/kitchenFx/pose'
++import { counterTop } from '@/babylon/games/kitchenFx/board'
++import { KitchenFx } from '@/babylon/games/kitchenFx/effects'
++import {
++  arcPoint,
++  boardPhase,
++  extrapolateProgress,
++  potPhase,
++  slotEvents,
++  type P3,
++} from '@/babylon/games/kitchenFx/effectsModel'
++import { trackOrders, type OrderTrack } from '@/babylon/games/kitchenFx/orders'
++import { buildKitchenHud, handFlights, idleKitchenHud } from '@/babylon/games/kitchenFx/hudModel'
++import { KITCHEN } from '@/babylon/games/kitchenFx/palette'
+ 
+ /**
+  * 廚房快手（Phase D，計畫見 .prompts/babylon-multiplayer-games.md §3.3）。
+  *
+  * 同步模型：Host Authority 全狀態制——
+  * - 位置：ownership 20Hz + 插值（同 race/bomber）
+  * - 廚房：host 持有 Kitchen，8Hz 廣播可序列化 view（snapshotSync），guest 取 latest 渲染
+  * - 互動：guest 廣播 use intent（站點 id）→ host 驗證距離 + 手持物 × 站點狀態 → 套用；
+  *   guest 永不直接改廚房狀態（兩人搶同格由 host 序列化天然解決）
+  * - 合作計分：時限 2 分鐘，出餐得分、訂單逾期扣分，結算顯示團隊成績
+@@ -73,56 +76,59 @@ interface PlayerState {
+ }
+ 
+ const SIM_HZ = 30
+ const CELL = 2
+ const MOVE_SPEED = 5.5
+ const PLAYER_R = 0.5
+ const USE_RANGE = 2.6 // 玩家中心到站點格中心
+ const USE_COOLDOWN_MS = 200
+ 
+ const PERF_LOG_MS = 2000
++/** 後製曝光：奶油地面＋白鋼檯面整片淺色，照 bomber 的 1.05 在 ACES 下會發灰，提高到接近稿的亮度（白色不爆） */
++const KITCHEN_EXPOSURE = 1.3
++const KITCHEN_CONTRAST = 1.2
+ const UPRIGHT_BACK_TILT = 0.35 // 角色往後仰（遠離相機）的弧度，同 bomber：高俯角下頭才不會整個蓋住身體
+ /** 手持物在身體座標（未乘 AVATAR_SCALE）的位置：胸前雙手之間（spec §4：y ≈ 1.0、往前 0.45） */
+ const HOLD_LOCAL = new Vector3(0, 0.52, 0.36)
+ 
+ // 渲染座標：cx 往 +x；cy=0（食材箱／出餐口排）在遠側 +z、靠背牆（kitchenFx/pose）。各端同一份函式，位置同步不受影響
+ const toX = (cx: number): number => (cx - (GRID_W - 1) / 2) * CELL
+ const toZ = (cy: number): number => kitchenZ(cy, GRID_H, CELL)
+ const cellX = (x: number): number => Math.round(x / CELL + (GRID_W - 1) / 2)
+ const cellZ = (z: number): number => kitchenCellZ(z, GRID_H, CELL)
+ 
+ /** 室內出生點（依玩家序四角錯開） */
+ const SPAWNS: ReadonlyArray<readonly [number, number]> = [
+   [2, 2],
+   [GRID_W - 3, GRID_H - 3],
+   [GRID_W - 3, 2],
+   [2, GRID_H - 3],
+ ]
+ 
+-const ING_NAME: Record<Ing, string> = { v: '蔬菜', m: '肉' }
+-const itemName = (it: Item): string =>
+-  it.kind === 'raw' ? `${ING_NAME[it.ing]}（生）` : it.kind === 'chop' ? `${ING_NAME[it.ing]}（已切）` : it.kind === 'burnt' ? `${ING_NAME[it.ing]}（焦了）` : `${ING_NAME[it.ing]}湯`
++/** 拾取／放下弧線（spec §7：180ms） */
++const FLIGHT_MS = 180
++const FLIGHT_ARC = 0.7
+ 
+ interface Avatar {
+   root: Mesh
+   toy: ToyAvatar
+   walkPhase: number
+   amp: number
+   yaw: number
+   prevX: number
+   prevZ: number
+ }
+ 
+-interface FloatingText {
+-  mesh: Mesh
+-  life: number
+-  vy: number
++/** 飛行中的物品：key 是目的地（hand:<pid> 或 slot:<站點 id>） */
++interface Flight {
++  from: P3
++  start: number
+ }
+ 
+ class OvercookedScene implements GameModule {
+   readonly gameId = 'overcooked'
+   private ctx!: GameContext
+   private keys = new Set<string>()
+   private ticker!: FixedTicker
+   private own!: OwnershipSync<PlayerState>
+   private flow!: GameFlow
+   private snapSender: HostSnapshotSender | null = null
+@@ -139,28 +145,32 @@ class OvercookedScene implements GameModule {
+   private selfAvatar?: Avatar
+   private peerAvatars = new Map<string, Avatar>()
+   private camera!: ArcRotateCamera
+   private look!: ToyLook
+   private board!: KitchenBoard
+   private avatarKit!: AvatarKit
+   private instr: SceneInstrumentation | null = null
+   private lastPerfLog = 0
+   /** ?kitchenPerfFill=1：只在畫面上把所有存放格與自己手上填滿物品（AC9 量 N1 用，不動廚房狀態） */
+   private perfFill = false
+-  private hud!: TextPanel
+   private banner!: TextPanel
+-  private ordersPanel!: TextPanel
+-  private recipePanel!: TextPanel
+-  private floatingTexts: FloatingText[] = []
+-
+-  private steamSystems: ParticleSystem[] = []
+-  private sparkSystem: ParticleSystem | null = null
++  private fx!: KitchenFx
++  private flights = new Map<string, Flight>()
++  /** 上一幀特效比對用的 view（與音效的 prevView 分開：非對局中也要追） */
++  private fxView: KitchenView | null = null
++  /** guest：最新快照與收到的時間（進度外插用） */
++  private snapSeen: KitchenView | null = null
++  private snapAt = 0
++  /** React HUD：訂單 id 追蹤、上一張 HUD（結算時凍結）、結算覆蓋層 */
++  private orderTrack: OrderTrack | null = null
++  private lastHud: KitchenHud | null = null
++  private overlayKey = ''
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const key = e.key.toLowerCase()
+     this.keys.add(key)
+     if (key === ' ' || key === 'enter' || key === 'e') this.requestUse()
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+ 
+ 
+   /** 建立廚師角色（fx/avatar 合併 mesh，廚師帽＋圍裙）；顏色依 ctx.players 序號 */
+@@ -213,30 +223,32 @@ class OvercookedScene implements GameModule {
+     if (!m) return
+     let base = this.billboardBase.get(m)
+     if (!base) {
+       base = m.position.clone()
+       this.billboardBase.set(m, base)
+     }
+     base.rotateByQuaternionToRef(q, m.position)
+   }
+   private billboardBase = new WeakMap<Mesh, Vector3>()
+ 
+-  /** 手持物：放在角色胸前雙手之間（跟著面向與俯角補償） */
+-  private placeHand(pid: string, av: Avatar, item: Item | null): void {
++  /** 手持物：放在角色胸前雙手之間；剛拾取的沿弧線從站點飛過來；焦掉的東西冒一縷細黑煙 */
++  private placeHand(pid: string, av: Avatar, item: Item | null, now: number, dtMs: number): void {
++    const key = `hand:${pid}`
+     if (!item) {
++      this.flights.delete(key)
+       this.board.removeHand(pid)
+       return
+     }
+-    av.root.computeWorldMatrix(true)
+-    const wm = av.toy.body.computeWorldMatrix(true)
+-    const p = Vector3.TransformCoordinates(HOLD_LOCAL, wm)
+-    this.board.setHand(pid, item, { x: p.x, y: p.y, z: p.z, yaw: av.yaw })
++    const p = this.holdPoint(av)
++    const fly = this.flightPose(key, p, now, false)
++    this.board.setHand(pid, item, { ...(fly ?? p), yaw: av.yaw })
++    if (item.kind === 'burnt') this.fx.wisp(key, p.x, p.y + 0.4, p.z, dtMs)
+   }
+ 
+   /** 玩家圓身 vs 外圈檯面碰撞 */
+   private hitBlocked(px: number, pz: number): boolean {
+     for (const ox of [-PLAYER_R, PLAYER_R]) {
+       for (const oz of [-PLAYER_R, PLAYER_R]) {
+         if (isBorder(cellX(px + ox), cellZ(pz + oz))) return true
+       }
+     }
+     return false
+@@ -277,26 +289,22 @@ class OvercookedScene implements GameModule {
+ 
+   /** host：驗證距離後套用互動 */
+   private hostUse(playerId: string, stationId: string): void {
+     if (this.flow.state.phase !== 'playing') return
+     const st = stationById(stationId)
+     if (!st) return
+     const pos = playerId === this.ctx.selfId ? this.state : this.own.latestRemote(playerId)
+     if (!pos) return
+     const d = Math.hypot(toX(st.cx) - pos.x, toZ(st.cy) - pos.z)
+     if (d > USE_RANGE + 0.6) return // 寬限：對端位置有傳輸延遲
+-    const changed = applyUse(this.kitchen, playerId, stationId, performance.now())
+-    if (changed && st.kind === 'serve') {
+-      const sparkPos = new Vector3(toX(st.cx), 1.5, toZ(st.cy))
+-      this.triggerServeSpark(sparkPos)
+-      this.triggerScoreFloat(sparkPos, '+20')
+-    }
++    // 出餐等特效改由前後 view 的差異觸發（host 與 guest 一致），這裡只套規則
++    applyUse(this.kitchen, playerId, stationId, performance.now())
+   }
+ 
+   onNetworkMessage(from: string, msg: GameNetMessage): void {
+     if (msg.game !== this.gameId) return
+     // 'use' 是 guest → host 的唯一上行請求：驗來源為本局玩家、payload 為合法字串
+     // （站點是否存在、距離是否夠近由 hostUse 再驗一次）。
+     // 廚房狀態（'snap'）只信任房主，由 createSnapshotReceiver 的 hostId 過濾。
+     if (msg.type !== 'use' || this.ctx.role !== 'host') return
+     if (!this.ctx.players.some((pl) => pl.id === from)) return
+     const p = msg.payload
+@@ -306,59 +314,88 @@ class OvercookedScene implements GameModule {
+ 
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.5, 26, Vector3.Zero(), scene)
+     // 光影與後製（AC5／AC8）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位；log 前綴與網址參數都是 kitchen
+     const halfDiag = Math.hypot(GRID_W * CELL, GRID_H * CELL) / 2
+-    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + 2, tag: 'kitchen', outline: OUTLINE })
++    this.look = new ToyLook(scene, this.camera, {
++      shadowRadius: halfDiag + 2,
++      tag: 'kitchen',
++      outline: OUTLINE,
++      exposure: KITCHEN_EXPOSURE,
++      contrast: KITCHEN_CONTRAST,
++    })
+ 
+     // 場景物件（A「Toy Kitchen」）：地面、牆、檯面、站點、物品（kitchenFx/board）
+     this.board = new KitchenBoard(scene, {
+       gridW: GRID_W,
+       gridH: GRID_H,
+       cell: CELL,
+       stations: STATIONS,
+       toWorld: (cx, cy) => ({ x: toX(cx), z: toZ(cy) }),
+     })
+     this.avatarKit = new AvatarKit(scene, KITCHEN_AVATAR)
+     const fx = this.board.fxTargets()
+     this.look.toon(...fx.toon, this.avatarKit.bodyMat)
+     this.look.receiver(...fx.receivers)
+     this.look.caster(...fx.casters)
+     this.look.outline(...fx.outlined)
+     for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
++    // 場外底色（variant-A-gameplay 的深青；延伸地面在 board）
++    const [cr, cg, cb] = hexToRgb(KITCHEN.clear)
++    scene.clearColor = new Color4(cr, cg, cb, 1)
++    // AC6：特效（粒子上限依檔位）
++    this.fx = new KitchenFx(
++      scene,
++      { cell: CELL, top: counterTop(CELL), cap: this.look.settings.particleCap, scoreText: `+${SCORE_SERVE}` },
++      {
++        squashBoard: (id, sy) => this.board.squashBoard(id, sy),
++        setPotAlarm: (id, on, level) => this.board.setPotAlarm(id, on, level),
++        potAlarmMesh: (id) => this.board.potAlarmMesh(id),
++        glow: (mesh, hex, strength) => this.look.setGlow(mesh, hex, strength),
++      }
++    )
++    for (const s of STATIONS) {
++      if (s.kind === 'board') this.fx.addBoard(s.id, toX(s.cx), toZ(s.cy))
++      else if (s.kind === 'pot') this.fx.addPot(s.id, toX(s.cx), toZ(s.cy))
++      else if (s.kind === 'serve') this.fx.setServe(toX(s.cx), toZ(s.cy), this.board.bellMesh)
++    }
+     // AC9：draw calls 量測（每 PERF_LOG_MS 印一次）
+     this.instr = new SceneInstrumentation(scene)
+     this.perfFill = typeof window !== 'undefined' && /[?&]kitchenPerfFill=1\b/.test(window.location.search + window.location.hash)
+ 
+-    this.initParticles()
+-
+     this.selfAvatar = this.makePlayer(ctx.selfId)
+-    this.hud = createTextPanel(scene, this.camera, 'hud', 5, 0.7, new Vector3(0, 2.6, 8))
+-    this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+-    this.ordersPanel = createTextPanel(scene, this.camera, 'orders', 3, 1.6, new Vector3(-3.4, 1.9, 8))
+-    this.recipePanel = createTextPanel(scene, this.camera, 'recipes', 3, 2.2, new Vector3(3.4, 1.9, 8))
++    // 狀態列、訂單、食譜改由 React HUD（ctx.setHud）；開局倒數用玩具系列配色，掛在不經後製的 UI 相機（同 bomber）
++    if (typeof document !== 'undefined') void document.fonts?.load('bold 64px Fredoka').catch(() => undefined)
++    this.banner = createCountdownPanel(scene, this.look.uiCamera, 'banner', 7, 4, new Vector3(0, 0.3, 8), {
++      theme: COUNTDOWN_THEME,
++      layerMask: UI_LAYER,
++    })
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+     window.addEventListener('keyup', this.onKeyUp)
+ 
+     this.kitchen = createKitchen(ctx.players.map((p) => p.id), performance.now())
+     this.respawn()
+ 
+     this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
+     attachFlowAudio(this.flow, 'overcooked', { resultSfx: () => 'round_end' })
+     this.flow.onChange((s) => {
+-      if (s.phase === 'countdown') this.respawn()
++      if (s.phase === 'countdown') {
++        this.respawn()
++        this.fx.clearRound()
++        this.flights.clear()
++      }
+       if (s.phase === 'playing' && ctx.role === 'host') {
+         // 開局重建廚房（roundEndAt 從現在起算）
+         this.kitchen = createKitchen(ctx.players.map((p) => p.id), performance.now())
+       }
+       ;(window as unknown as Record<string, unknown>).__BATTLE_PHASE = s.phase
+     })
+     ;(window as unknown as Record<string, unknown>).__BATTLE_PHASE = this.flow.state.phase
+ 
+     this.own = createOwnershipSync<PlayerState>({ net: ctx.net, game: this.gameId })
+     this.own.start(() => ({ ...this.state }))
+@@ -434,37 +471,38 @@ class OvercookedScene implements GameModule {
+   }
+ 
+   update(deltaMs: number): void {
+     const phase = this.flow.state.phase
+     const view = this.currentView()
+ 
+     if (phase === 'playing') this.diffViewAudio(view)
+     else this.prevView = view // 非對局中（重開新局等）只同步基準，不發音
+ 
+     const now = performance.now()
+-    const shown = this.perfFill && view ? this.fillView(view) : view
++    const filled = this.perfFill && view ? this.fillView(view) : view
++    // guest：8Hz 快照之間本地外插加工進度（host 每幀都是新的 view，不需要）
++    const shown = filled ? this.extrapolated(view, filled, now) : null
+     // 加工中的砧板（旁邊的人播砍菜動作）
+     const boards: BoardSpot[] = []
+     for (const sv of shown?.slots ?? []) {
+       const st = stationById(sv.id)
+       if (st?.kind === 'board') boards.push({ x: toX(st.cx), z: toZ(st.cy), chopping: sv.item?.kind === 'raw' && sv.progress < 1 })
+     }
+     const holding = (id: string): boolean => (shown?.hands[id] ?? null) !== null
+ 
+     // 自己
+     if (this.selfAvatar) {
+       this.selfAvatar.root.position.x = this.state.x
+       this.selfAvatar.root.position.z = this.state.z
+       this.animateAvatar(this.selfAvatar, deltaMs, now, holding(this.ctx.selfId), boards)
+     }
+ 
+-    this.updateSteam()
+     this.updateCamera()
+ 
+     // 遠端：增刪 + 插值
+     const ids = new Set(this.own.remoteIds())
+     for (const [id, a] of this.peerAvatars) {
+       if (ids.has(id)) continue
+       disposeAvatar(a.toy)
+       this.board.removeHand(id)
+       this.peerAvatars.delete(id)
+     }
+@@ -482,260 +520,258 @@ class OvercookedScene implements GameModule {
+       this.animateAvatar(a, deltaMs, now, holding(id), boards)
+     }
+ 
+     // 俯角透視補償：每隻角色依位置微傾
+     const camPos = this.camera.position
+     const camUp = this.camera.getDirection(Vector3.Up())
+     const holders: Array<[string, Avatar | undefined]> = [[this.ctx.selfId, this.selfAvatar], ...this.peerAvatars.entries()]
+     for (const [, av] of holders) if (av) this.leanUpright(av, camPos, camUp)
+ 
+     if (shown) {
+-      // 站點物品（檯面／砧板放實例、鍋換湯面）
++      // 事件特效（煮好、焦了、出餐、拾取／放下）：比對前後兩張 view，host 與 guest 一致
++      this.diffFx(shown, now)
++      // 站點物品與站點特效（進度條／環、爐火、煙、回彈）
+       for (const sv of shown.slots) {
+         const st = stationById(sv.id)
+-        if (st) this.board.setSlot(st, sv.item)
++        if (st) this.drawSlot(st, sv, now, deltaMs)
+       }
+-      // 手持物（胸前雙手之間）
+-      for (const [pid, av] of holders) if (av) this.placeHand(pid, av, shown.hands[pid] ?? null)
++      // 手持物（胸前雙手之間；剛拾取的沿弧線飛過來）
++      for (const [pid, av] of holders) if (av) this.placeHand(pid, av, shown.hands[pid] ?? null, now, deltaMs)
+     }
+     this.board.update()
++    this.fx.update(now)
+     this.look.update(deltaMs)
+ 
+     // AC9：每 2 秒印 draw calls 與 fps（讀上一幀的完整計數；還沒渲染過的首次取樣不印）
+     if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
+       this.lastPerfLog = now
+       const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps(), 'kitchen')
+       if (line) console.info(line)
+     }
+ 
+-    // 飄字效果
+-    this.updateFloatingTexts(deltaMs)
+-
+-    // HUD / 訂單 / 食譜 / 橫幅
+-    if (phase === 'playing' && view) {
+-      const myItem = view.hands[this.ctx.selfId]
+-      const handNote = myItem ? `・手持 ${itemName(myItem)}` : ''
+-      this.hud.draw(`分數 ${view.score}・剩 ${Math.ceil(view.remainMs / 1000)}s${handNote}`, 44)
+-      const lines = view.orders.map((o, i) => {
+-        const recipe = RECIPES.find((r) => r.id === o.recipeId)
+-        const name = recipe?.name ?? `${ING_NAME[o.ing]}湯`
+-        const remain = Math.ceil(o.remainMs / 1000)
+-        return `${i + 1}. ${name} ${remain}s`
+-      })
+-      this.ordersPanel.draw(lines.length ? ['📋 訂單', ...lines].join('\n') : '📋 訂單\n（暫無）', 36)
+-      // 食譜面板：顯示所有可用食譜
+-      const recipeLines = RECIPES.map((r) => {
+-        const steps = r.steps.map((st) => {
+-          if (st.type === 'chop' && st.ing) return `切${ING_NAME[st.ing]}`
+-          if (st.type === 'cook' && st.ing) return `煮${ING_NAME[st.ing]}`
+-          return `混合`
+-        }).join(' → ')
+-        return `${r.name}(${r.score})\n  ${steps}`
+-      })
+-      this.recipePanel.draw(['📖 食譜', ...recipeLines].join('\n'), 32)
+-    } else {
+-      this.hud.draw('')
+-      this.ordersPanel.draw('')
+-      this.recipePanel.draw('')
+-    }
+-
++    // React HUD 與結算覆蓋層；3D 只剩開局倒數
++    this.syncHud(phase, view)
++    this.syncOverlay(phase)
+     if (phase === 'countdown') {
+       const n = Math.ceil(this.flow.countdownRemaining() / 1000)
+       this.banner.draw(n > 0 ? String(n) : 'GO!', 200)
+-    } else if (phase === 'result') {
+-      const r = (this.flow.state.result as { score: number; delivered: number } | undefined) ?? {
+-        score: 0,
+-        delivered: 0,
+-      }
+-      this.banner.draw(`🍲 時間到！\n團隊分數 ${r.score}\n出餐 ${r.delivered} 份`, 56)
++    } else {
++      this.banner.draw('')
++    }
++    if (phase === 'result') {
+       if (this.ctx.role === 'host') {
+         this.resultElapsed += deltaMs
+         if (this.resultElapsed > 10000) {
+           this.resultElapsed = 0
+           this.flow.startCountdown(3)
+         }
+       }
+     } else {
+       this.resultElapsed = 0
+-      this.banner.draw('')
+     }
+ 
+     // 驗證用旗標
+     ;(window as unknown as Record<string, unknown>).__BATTLE_POS = {
+       x: this.state.x,
+       z: this.state.z,
+       score: view?.score ?? 0,
+     }
+   }
+ 
+-  /** ?kitchenPerfFill=1：畫面上把每個存放格都填上物品（8 種輪流）、自己手上拿湯（量 N1 的固定條件） */
+-  private fillView(view: KitchenView): KitchenView {
+-    let i = 0
++  /** guest：以收到最新快照後經過的時間外插進度（外插值只給畫面用，不回寫快照） */
++  private extrapolated(raw: KitchenView | null, view: KitchenView, now: number): KitchenView {
++    if (this.ctx.role === 'host') return view
++    if (raw !== this.snapSeen) {
++      this.snapSeen = raw
++      this.snapAt = now
++    }
++    const age = now - this.snapAt
++    if (age <= 0) return view
+     const slots = view.slots.map((sv) => {
+-      const [kind, ing] = ITEM_KEYS[i++ % ITEM_KEYS.length].split('-') as [Item['kind'], Ing]
+-      const st = stationById(sv.id)
+-      const item: Item = st?.kind === 'board' ? { kind: 'raw', ing } : st?.kind === 'pot' ? { kind: 'soup', ing } : { kind, ing }
+-      return { ...sv, item, progress: st?.kind === 'counter' ? 1 : 0.5 }
++      const kind = stationById(sv.id)?.kind ?? 'counter'
++      const progress = extrapolateProgress(kind, sv.item, sv.progress, age)
++      return progress === sv.progress ? sv : { ...sv, progress }
+     })
+-    return { ...view, slots, hands: { ...view.hands, [this.ctx.selfId]: { kind: 'soup', ing: 'v' } } }
++    return { ...view, slots }
+   }
+ 
+-  private initParticles(): void {
+-    const { scene } = this.ctx
++  /** 角色目前的位置（拾取／放下找最近的站點用） */
++  private avatarOf(pid: string): Avatar | undefined {
++    return pid === this.ctx.selfId ? this.selfAvatar : this.peerAvatars.get(pid)
++  }
+ 
+-    // 蒸汽粒子材質（共用）
+-    const steamTex = new Texture('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', scene)
++  /** 手持物在世界座標的位置：角色胸前雙手之間（跟著面向與俯角補償） */
++  private holdPoint(av: Avatar): P3 {
++    av.root.computeWorldMatrix(true)
++    const wm = av.toy.body.computeWorldMatrix(true)
++    const p = Vector3.TransformCoordinates(HOLD_LOCAL, wm)
++    return { x: p.x, y: p.y, z: p.z }
++  }
+ 
+-    // 為每個 pot 站點建立蒸汽系統
+-    for (const s of STATIONS) {
+-      if (s.kind !== 'pot') continue
+-      const ps = new ParticleSystem(`steam-${s.id}`, 15, scene)
+-      ps.particleTexture = steamTex
+-      ps.emitter = new Vector3(toX(s.cx), 2.1, toZ(s.cy))
+-      ps.minEmitBox = new Vector3(-0.3, 0, -0.3)
+-      ps.maxEmitBox = new Vector3(0.3, 0, 0.3)
+-      ps.color1 = new Color4(0.9, 0.9, 0.95, 1)
+-      ps.color2 = new Color4(0.8, 0.8, 0.85, 1)
+-      ps.colorDead = new Color4(0.7, 0.7, 0.75, 0)
+-      ps.minSize = 0.15
+-      ps.maxSize = 0.4
+-      ps.minLifeTime = 0.5
+-      ps.maxLifeTime = 1.2
+-      ps.emitRate = 0
+-      ps.direction1 = new Vector3(-0.2, 1, -0.2)
+-      ps.direction2 = new Vector3(0.2, 1.5, 0.2)
+-      ps.minEmitPower = 0.3
+-      ps.maxEmitPower = 0.6
+-      ps.updateSpeed = 0.01
+-      ps.gravity = new Vector3(0, 0.2, 0)
+-      ps.blendMode = ParticleSystem.BLENDMODE_STANDARD
+-      ps.start()
+-      this.steamSystems.push(ps)
++  /** 離 (x, z) 最近的站點 */
++  private nearestOf(list: readonly StationDef[], x: number, z: number): StationDef | null {
++    let best: StationDef | null = null
++    let bestD = Infinity
++    for (const s of list) {
++      const d = Math.hypot(toX(s.cx) - x, toZ(s.cy) - z)
++      if (d < bestD) {
++        bestD = d
++        best = s
++      }
+     }
++    return best
++  }
+ 
+-    // 出餐閃光
+-    this.sparkSystem = new ParticleSystem('spark', 30, scene)
+-    this.sparkSystem.particleTexture = steamTex
+-    this.sparkSystem.minEmitBox = new Vector3(-0.3, 0, -0.3)
+-    this.sparkSystem.maxEmitBox = new Vector3(0.3, 0, 0.3)
+-    this.sparkSystem.color1 = new Color4(1, 0.9, 0.2, 1)
+-    this.sparkSystem.color2 = new Color4(1, 0.7, 0.1, 1)
+-    this.sparkSystem.colorDead = new Color4(1, 0.5, 0, 0)
+-    this.sparkSystem.minSize = 0.1
+-    this.sparkSystem.maxSize = 0.25
+-    this.sparkSystem.minLifeTime = 0.3
+-    this.sparkSystem.maxLifeTime = 0.6
+-    this.sparkSystem.emitRate = 0
+-    this.sparkSystem.direction1 = new Vector3(-1, 2, -1)
+-    this.sparkSystem.direction2 = new Vector3(1, 3, 1)
+-    this.sparkSystem.minEmitPower = 1
+-    this.sparkSystem.maxEmitPower = 2
+-    this.sparkSystem.updateSpeed = 0.01
+-    this.sparkSystem.gravity = new Vector3(0, -3, 0)
+-    this.sparkSystem.blendMode = ParticleSystem.BLENDMODE_STANDARD
+-    this.sparkSystem.start()
++  /** 前後 view 差異 → 事件特效；非對局中與新局第一張只更新基準 */
++  private diffFx(view: KitchenView, now: number): void {
++    const prev = this.fxView
++    this.fxView = view
++    if (!prev || this.flow.state.phase !== 'playing' || view.remainMs > prev.remainMs + 1000) return
++    for (const e of slotEvents(prev.slots, view.slots)) {
++      if (e.type === 'cookDone') this.fx.cookDone(e.id)
++      else if (e.type === 'burnt') this.fx.burnt(e.id)
++    }
++    const served = view.delivered > prev.delivered
++    if (served) this.fx.served()
++
++    const before = new Map(prev.slots.map((s) => [s.id, s.item]))
++    const same = (a: Item | null | undefined, b: Item | null | undefined) => !!a && !!b && a.kind === b.kind && a.ing === b.ing
++    const stationsOf = (pred: (sv: SlotView) => boolean) =>
++      view.slots.filter(pred).map((sv) => stationById(sv.id)).filter((s): s is StationDef => !!s)
++    for (const f of handFlights(prev.hands, view.hands)) {
++      const av = this.avatarOf(f.pid)
++      if (!av) continue
++      const { x, z } = av.root.position
++      if (f.type === 'pickup') {
++        const item = view.hands[f.pid]
++        // 從哪裡拿的：這一張剛空出來、物品相同的格子；都不是就是食材箱
++        const src =
++          this.nearestOf(stationsOf((sv) => sv.item === null && same(before.get(sv.id), item)), x, z) ??
++          this.nearestOf(STATIONS.filter((s) => s.kind === 'crate' && s.ing === item?.ing), x, z)
++        if (!src) continue
++        const from = this.board.slotPoint(src)
++        this.flights.set(`hand:${f.pid}`, { from, start: now })
++        this.fx.landRing(from.x, from.y, from.z)
++      } else {
++        const item = prev.hands[f.pid]
++        const dst = this.nearestOf(stationsOf((sv) => before.get(sv.id) == null && same(sv.item, item)), x, z)
++        if (dst && dst.kind !== 'pot') this.flights.set(`slot:${dst.id}`, { from: this.holdPoint(av), start: now })
++        else if (dst) {
++          const p = this.board.slotPoint(dst)
++          this.fx.landRing(p.x, p.y, p.z)
++        }
++      }
++    }
+   }
+ 
+-  private updateSteam(): void {
+-    const view = this.currentView()
+-    if (!view) return
+-    let si = 0
+-    for (const s of STATIONS) {
+-      if (s.kind !== 'pot') continue
+-      const ps = this.steamSystems[si++]
+-      if (!ps) continue
+-      const sv = view.slots.find((sl) => sl.id === s.id)
+-      const cooking = sv?.item != null && sv.progress < 1
+-      ps.emitRate = cooking ? 12 : 0
++  /** 飛行中的物品位置；飛完回 null 並冒落點白環（ring 為 false 時不冒） */
++  private flightPose(key: string, to: P3, now: number, ring: boolean): P3 | null {
++    const f = this.flights.get(key)
++    if (!f) return null
++    const t = (now - f.start) / FLIGHT_MS
++    if (t >= 1) {
++      this.flights.delete(key)
++      if (ring) this.fx.landRing(to.x, to.y, to.z)
++      return null
+     }
++    return arcPoint(f.from, to, t, FLIGHT_ARC)
+   }
+ 
+-  private triggerServeSpark(pos: Vector3): void {
+-    if (!this.sparkSystem) return
+-    this.sparkSystem.emitter = pos.clone()
+-    this.sparkSystem.emitRate = 60
+-    setTimeout(() => { if (this.sparkSystem) this.sparkSystem.emitRate = 0 }, 300)
++  /** 一格站點：物品（放下時沿弧線飛到）＋該站的特效 */
++  private drawSlot(st: StationDef, sv: SlotView, now: number, dtMs: number): void {
++    const key = `slot:${st.id}`
++    if (!sv.item) this.flights.delete(key)
++    const to = this.board.slotPoint(st)
++    const pose = sv.item ? this.flightPose(key, to, now, true) : null
++    this.board.setSlot(st, sv.item, pose ?? undefined)
++    if (st.kind === 'board') this.fx.updateBoard(st.id, boardPhase(sv.item), sv.progress, sv.item?.ing ?? null, now)
++    else if (st.kind === 'pot') this.fx.updatePot(st.id, potPhase(sv.item, sv.progress), sv.progress, now, dtMs)
++    else if (sv.item?.kind === 'burnt') this.fx.wisp(st.id, to.x, to.y + 0.5, to.z, dtMs)
+   }
+ 
+-  private updateFloatingTexts(dt: number): void {
+-    const dtSec = dt * 0.001
+-    this.floatingTexts = this.floatingTexts.filter((ft) => {
+-      ft.life -= dtSec
+-      ft.mesh.position.y += ft.vy * dtSec
+-      ft.vy -= 2 * dtSec
+-      if (ft.life <= 0) {
+-        ft.mesh.dispose()
+-        return false
+-      }
+-      return true
+-    })
++  /** 組 React HUD（共用契約 KitchenHud）：對局中每幀一張新物件、結算凍結在最後一張、倒數時是新局的樣子 */
++  private syncHud(phase: string, view: KitchenView | null): void {
++    const setHud = this.ctx.setHud
++    if (!setHud) return
++    if (phase === 'playing' && view) {
++      const { track, gone } = trackOrders(this.orderTrack, view)
++      this.orderTrack = track
++      this.lastHud = buildKitchenHud({ view, ids: track.ids, gone, players: this.ctx.players, selfId: this.ctx.selfId })
++      setHud(this.lastHud)
++    } else if (phase === 'result' && this.lastHud) {
++      setHud({ ...this.lastHud, gone: [] })
++    } else {
++      this.lastHud = null
++      setHud(idleKitchenHud(this.ctx.players, this.ctx.selfId))
++    }
+   }
+ 
+-  private triggerScoreFloat(pos: Vector3, text: string): void {
+-    const scene = this.ctx.scene
+-    const plane = MeshBuilder.CreatePlane(`float-${Date.now()}`, { width: 2, height: 0.6 }, scene)
+-    plane.position = pos.add(new Vector3(0, 2.2, 0))
+-    plane.billboardMode = Mesh.BILLBOARDMODE_ALL
+-    const dt = new DynamicTexture(`float-tex-${Date.now()}`, { width: 256, height: 64 }, scene, false)
+-    const ctx2d = dt.getContext() as CanvasRenderingContext2D
+-    ctx2d.fillStyle = '#fbbf24'
+-    ctx2d.font = 'bold 40px sans-serif'
+-    ctx2d.textAlign = 'center'
+-    ctx2d.fillText(text, 128, 48)
+-    dt.update()
+-    const mat = new StandardMaterial(`float-mat-${Date.now()}`, scene)
+-    mat.diffuseTexture = dt
+-    mat.emissiveColor = new Color3(1, 0.85, 0.2)
+-    mat.disableLighting = true
+-    mat.backFaceCulling = false
+-    plane.material = mat
+-    this.floatingTexts.push({ mesh: plane, life: 1.2, vy: 1.5 })
++  /** 結算：沿用 setOverlay（不加星數，裁決⑧）；host 10 秒後自動再開一局 */
++  private syncOverlay(phase: string): void {
++    const setOverlay = this.ctx.setOverlay
++    if (!setOverlay) return
++    let overlay: GameOverlay | null = null
++    if (phase === 'result') {
++      const r = (this.flow.state.result as { score: number; delivered: number } | undefined) ?? { score: 0, delivered: 0 }
++      overlay = { title: '🍲 時間到！', subtitle: `團隊分數 ${r.score}\n出餐 ${r.delivered} 份`, actions: [] }
++    }
++    const key = overlay ? `${overlay.title}|${overlay.subtitle ?? ''}` : ''
++    if (key === this.overlayKey) return
++    this.overlayKey = key
++    setOverlay(overlay)
++  }
++
++  /** ?kitchenPerfFill=1：畫面上把每個存放格都填上物品（8 種輪流）、自己手上拿湯（量 N1 的固定條件） */
++  private fillView(view: KitchenView): KitchenView {
++    let i = 0
++    const slots = view.slots.map((sv) => {
++      const [kind, ing] = ITEM_KEYS[i++ % ITEM_KEYS.length].split('-') as [Item['kind'], Ing]
++      const st = stationById(sv.id)
++      const item: Item = st?.kind === 'board' ? { kind: 'raw', ing } : st?.kind === 'pot' ? { kind: 'soup', ing } : { kind, ing }
++      return { ...sv, item, progress: st?.kind === 'counter' ? 1 : 0.5 }
++    })
++    return { ...view, slots, hands: { ...view.hands, [this.ctx.selfId]: { kind: 'soup', ing: 'v' } } }
+   }
+ 
+   private updateCamera(): void {
+     let cx = this.state.x
+     let cz = this.state.z
+     let count = 1
+     for (const [, a] of this.peerAvatars) {
+       cx += a.root.position.x
+       cz += a.root.position.z
+       count++
+     }
+     cx /= count
+     cz /= count
+     const t = this.camera.target
+     const lerp = 0.03
+     t.x += (cx - t.x) * lerp
+     t.z += (cz - t.z) * lerp
+   }
+ 
+   dispose(): void {
++    this.ctx.setHud?.(null)
++    this.ctx.setOverlay?.(null)
+     window.removeEventListener('keydown', this.onKeyDown)
+     window.removeEventListener('keyup', this.onKeyUp)
+     stopAllAudio()
+     this.ticker.stop()
+     this.own.stop()
+     this.flow.dispose()
+     this.snapSender?.stop()
+     this.snapReceiver?.dispose()
+     if (this.selfAvatar) disposeAvatar(this.selfAvatar.toy)
+     for (const a of this.peerAvatars.values()) disposeAvatar(a.toy)
+     this.peerAvatars.clear()
++    this.flights.clear()
++    this.fx.dispose()
+     this.board.dispose()
+     this.avatarKit.dispose()
+     this.instr?.dispose()
+     this.instr = null
+-    for (const ft of this.floatingTexts) ft.mesh.dispose()
+-    this.floatingTexts = []
+-    this.hud.dispose()
+     this.banner.dispose()
+-    this.ordersPanel.dispose()
+-    this.recipePanel.dispose()
+-    for (const ps of this.steamSystems) ps.dispose()
+-    this.steamSystems = []
+-    this.sparkSystem?.dispose()
+-    this.sparkSystem = null
+     this.look.dispose()
+   }
+ }
+ 
+ export const createOvercookedScene = (): GameModule => new OvercookedScene()
+diff --git a/src/index.css b/src/index.css
+index 1ff2ebf..44016f4 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1383,32 +1383,38 @@ html {
+   .bomber-timer-urgent {
+     @apply animate-none;
+   }
+ }
+ 
+ /* ===== 廚房快手 HUD（A · Toy Kitchen，kitchen spec §8）：960×540 設計尺寸，--kitchen-scale 由 JS 依容器等比縮放；token 與 bomber 玩家卡同套 ===== */
+ .kitchen-hud {
+   @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--kitchen-ink) [--kitchen-ink:#2b2440] [--kitchen-paper:#fff6e3] [--kitchen-plate:#f3e6cb];
+ }
+ 
+-/* 左上訂單列：3 張 150×74、間距 10；離場卡以 --kitchen-slot 疊回原位 */
++/* 左上訂單列：3 張 150×74、間距 10；離場卡留在原槽位（flex 流內），動畫尾段收寬度與間距讓後面的單補位 */
+ .kitchen-orders {
+-  @apply absolute left-[calc(16px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex origin-top-left gap-[10px] [scale:var(--kitchen-scale)];
++  @apply absolute left-[calc(16px_*_var(--kitchen-scale)_+_env(safe-area-inset-left))] top-[calc(14px_*_var(--kitchen-scale)_+_env(safe-area-inset-top))] flex origin-top-left gap-(--kitchen-card-gap) [--kitchen-card-gap:10px] [--kitchen-card-w:150px] [scale:var(--kitchen-scale)];
+ }
+ .kitchen-order {
+   @apply relative flex h-[74px] w-[150px] shrink-0 items-center gap-1.5 rounded-[14px] border-[2.5px] border-(--kitchen-ink) bg-(--kitchen-paper) pl-1.5 pr-2 shadow-[0_4px_0_rgba(0,0,0,.4)] animate-[kitchen-slide-in_0.35s_cubic-bezier(.34,1.56,.64,1)_both];
+ }
+ .kitchen-order-danger {
+   @apply border-[#ff3b4e] shadow-[0_4px_0_rgba(0,0,0,.4),0_0_12px_rgba(255,59,78,.75)] animate-[kitchen-shake_0.25s_linear_infinite];
+ }
+ .kitchen-order-leaving {
+-  @apply absolute left-[calc(var(--kitchen-slot)_*_160px)] top-0 z-10;
++  @apply relative w-(--kitchen-card-w) shrink-0;
++}
++.kitchen-order-leaving-served {
++  @apply animate-[kitchen-collapse_0.6s_ease-in-out_both];
++}
++.kitchen-order-leaving-expired {
++  @apply animate-[kitchen-collapse_0.4s_ease-in-out_both];
+ }
+ .kitchen-order-leave-served {
+   @apply animate-[kitchen-fly-out_0.6s_ease-in_both];
+ }
+ .kitchen-order-leave-expired {
+   @apply animate-[kitchen-drop-out_0.4s_ease-in_both];
+ }
+ .kitchen-order-alert {
+   @apply absolute -top-3.5 left-0.5 z-20 size-[22px] fill-[#fff6e3] stroke-[2.5] text-[#ff3b4e];
+ }
+@@ -1448,21 +1454,21 @@ html {
+ .kitchen-order-danger .kitchen-order-sec {
+   @apply text-[#ff3b4e];
+ }
+ .kitchen-order-check {
+   @apply absolute inset-0 flex items-center justify-center rounded-[12px] bg-[#2fcf5e]/80;
+ }
+ .kitchen-order-check-icon {
+   @apply size-[40px] stroke-[4] text-white drop-shadow-[0_2px_0_#2b2440];
+ }
+ .kitchen-order-float {
+-  @apply absolute left-1/2 top-[40%] z-20 font-['Fredoka',_var(--font-sans)] font-bold text-[24px] leading-none text-[#ff3b4e] [text-shadow:0_2px_0_#2b2440] animate-[kitchen-float-up_0.4s_ease-out_both];
++  @apply absolute left-[calc(var(--kitchen-card-w)_/_2)] top-[40%] z-20 font-['Fredoka',_var(--font-sans)] font-bold text-[24px] leading-none text-[#ff3b4e] [text-shadow:0_2px_0_#2b2440] animate-[kitchen-float-up_0.4s_ease-out_both];
+ }
+ 
+ /* 步驟列：食材 › 切 › 煮 */
+ .kitchen-steps {
+   @apply flex items-center gap-px;
+ }
+ .kitchen-steps-ing {
+   @apply size-[15px] shrink-0;
+ }
+ .kitchen-steps-icon {
+@@ -1592,42 +1598,44 @@ html {
+ }
+ @keyframes kitchen-fly-out {
+   0% { transform: translate(0, 0) scale(1); opacity: 1; }
+   35% { transform: translate(0, -6px) scale(1.06); opacity: 1; }
+   100% { transform: translate(60px, -90px) scale(0.5); opacity: 0; }
+ }
+ @keyframes kitchen-drop-out {
+   from { transform: translateY(0) rotate(0); opacity: 1; }
+   to { transform: translateY(48px) rotate(6deg); opacity: 0; }
+ }
++/* 離場卡尾段收合：前 55% 維持原寬，之後寬度與右側間距收到 0，後面的單滑進空位 */
++@keyframes kitchen-collapse {
++  0%, 55% { width: var(--kitchen-card-w); margin-right: 0; }
++  100% { width: 0; margin-right: calc(-1 * var(--kitchen-card-gap)); }
++}
+ @keyframes kitchen-float-up {
+   0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+   25% { transform: translate(-50%, -8px) scale(1.15); opacity: 1; }
+   75% { transform: translate(-50%, -22px) scale(1); opacity: 1; }
+   100% { transform: translate(-50%, -30px) scale(1); opacity: 0; }
+ }
+ @keyframes kitchen-pulse {
+   0%, 100% { transform: scale(1); }
+   50% { transform: scale(1.1); }
+ }
+ 
+ /* 矮畫面（手機橫向）：訂單卡縮 64×40 膠囊、計時縮 140 寬、玩家卡隱藏、食譜固定收合 */
+ @media (max-height: 500px) {
+   .kitchen-orders {
+-    @apply left-[max(8px,env(safe-area-inset-left))] top-[max(6px,env(safe-area-inset-top))] gap-1.5 [scale:1];
++    @apply left-[max(8px,env(safe-area-inset-left))] top-[max(6px,env(safe-area-inset-top))] [--kitchen-card-gap:6px] [--kitchen-card-w:64px] [scale:1];
+   }
+   .kitchen-order {
+     @apply h-[40px] w-[64px] flex-col justify-center gap-0.5 rounded-[12px] border-2 px-1 py-0.5;
+   }
+-  .kitchen-order-leaving {
+-    @apply left-[calc(var(--kitchen-slot)_*_70px)];
+-  }
+   .kitchen-order-dish {
+     @apply size-[24px] border-0 bg-transparent;
+   }
+   .kitchen-order-dish-svg {
+     @apply size-[24px];
+   }
+   .kitchen-order-body {
+     @apply w-full flex-none;
+   }
+   .kitchen-order-name,
+diff --git a/src/pages/Battle/KitchenHud.tsx b/src/pages/Battle/KitchenHud.tsx
+index 08c34bc..0b9c210 100644
+--- a/src/pages/Battle/KitchenHud.tsx
++++ b/src/pages/Battle/KitchenHud.tsx
+@@ -4,20 +4,21 @@ import type { KitchenHud, KitchenHudOrder, KitchenHudPlayer, KitchenIng, Kitchen
+ import { hudScale, playerLabel } from '@/pages/Battle/bomberHud'
+ import {
+   KITCHEN_COLORS,
+   KITCHEN_DISHES,
+   clockView,
+   dishName,
+   goneFloatText,
+   isRecipeToggleKey,
+   orderLevel,
+   orderRatio,
++  orderRow,
+   orderSeconds,
+   sortKitchenPlayers,
+   type LeavingOrder,
+ } from '@/pages/Battle/kitchenHud'
+ 
+ const INK = '#2B2440'
+ /** 物品色票（spec 特寫表色票） */
+ const ITEM = {
+   veg: '#6FCF3F',
+   vegDark: '#3E9A1E',
+@@ -181,25 +182,25 @@ function OrderCard({ order, leave }: { order: KitchenHudOrder; leave?: LeavingOr
+       </div>
+       {leave === 'served' && (
+         <span className="kitchen-order-check" aria-label="出餐">
+           <Check className="kitchen-order-check-icon" />
+         </span>
+       )}
+     </div>
+   )
+ }
+ 
+-/** 離場卡：疊回原槽位播動畫（出餐打勾飛出、逾時掉落淡出）；浮字與卡片分開，不跟著淡出 */
++/** 離場卡：留在原槽位播動畫（出餐打勾飛出、逾時掉落淡出），尾段收寬度讓後面的單補位；浮字與卡片分開，不跟著淡出 */
+ function LeavingCard({ l }: { l: LeavingOrder }) {
+   const float = goneFloatText(l)
+   return (
+-    <div className="kitchen-order-leaving" data-leaving={l.reason} style={{ '--kitchen-slot': l.slot } as CSSProperties}>
++    <div className={`kitchen-order-leaving kitchen-order-leaving-${l.reason}`} data-leaving={l.reason}>
+       <OrderCard order={{ id: l.id, ing: l.ing, remainMs: l.remainMs }} leave={l.reason} />
+       {float && <span className="kitchen-order-float">{float}</span>}
+     </div>
+   )
+ }
+ 
+ function PlayerCard({ p }: { p: KitchenHudPlayer }) {
+   return (
+     <div
+       className="kitchen-player"
+@@ -241,26 +242,23 @@ interface KitchenHudViewProps {
+ export function KitchenHudView({ hud, leaving, scale = 1, recipeOpen = true, onToggleRecipe, rootRef }: KitchenHudViewProps) {
+   const clock = clockView(hud.remainSec)
+   return (
+     <div
+       ref={rootRef}
+       className="kitchen-hud"
+       style={{ '--kitchen-scale': scale } as CSSProperties}
+       data-kitchen-hud=""
+     >
+       <div className="kitchen-orders">
+-        {hud.orders.map((o) => (
+-          <OrderCard key={o.id} order={o} />
+-        ))}
+-        {leaving.map((l) => (
+-          <LeavingCard key={`leave-${l.key}`} l={l} />
+-        ))}
++        {orderRow(hud.orders, leaving).map((c) =>
++          c.leave ? <LeavingCard key={c.key} l={c.leave} /> : <OrderCard key={c.key} order={c.order} />,
++        )}
+       </div>
+ 
+       <div className="kitchen-clock" data-urgent={clock.urgent}>
+         <AlarmClock className="kitchen-clock-icon" />
+         <span className="kitchen-clock-text">{clock.text}</span>
+         <span className="kitchen-clock-sep" />
+         <Coins className="kitchen-clock-coins" />
+         <span className="kitchen-clock-score">
+           <span className="kitchen-clock-points">{hud.score}</span>
+           <span className="kitchen-clock-served">出餐 {hud.delivered}</span>
+diff --git a/src/pages/Battle/kitchenHud.test.ts b/src/pages/Battle/kitchenHud.test.ts
+index 36d60d5..52ce758 100644
+--- a/src/pages/Battle/kitchenHud.test.ts
++++ b/src/pages/Battle/kitchenHud.test.ts
+@@ -11,20 +11,21 @@ import {
+   KITCHEN_LEAVE_MS,
+   clockView,
+   collectLeaving,
+   dishName,
+   freshGone,
+   goneFloatText,
+   isKitchenHud,
+   isRecipeToggleKey,
+   orderLevel,
+   orderRatio,
++  orderRow,
+   orderSeconds,
+   sortKitchenPlayers,
+ } from '@/pages/Battle/kitchenHud'
+ import { KitchenHudView } from '@/pages/Battle/KitchenHud'
+ 
+ function player(colorIndex: 0 | 1 | 2 | 3, extra: Partial<KitchenHudPlayer> = {}): KitchenHudPlayer {
+   return { id: `p${colorIndex}`, name: `廚師${colorIndex + 1}`, colorIndex, isSelf: false, held: null, ...extra }
+ }
+ 
+ /** 假資料（照 KitchenHud 共用契約）：4 人、3 張單分落綠／黃／紅三段 */
+@@ -168,20 +169,54 @@ describe('消失訂單（gone）的離場動畫', () => {
+     const prev = kitchen().orders
+     const gone = [
+       { id: 8, ing: 'm' as const, reason: 'served' as const, scoreDelta: SCORE_SERVE },
+       { id: 3, ing: 'v' as const, reason: 'expired' as const, scoreDelta: SCORE_EXPIRE },
+     ]
+     expect(freshGone(prev, gone).map((g) => g.id)).toEqual([8])
+     const after = prev.filter((o) => o.id !== 8)
+     expect(freshGone(after, gone)).toEqual([])
+   })
+ 
++  it('離場卡排回原槽位：後面的單不會立刻左移、被離場卡蓋住', () => {
++    const prev = kitchen().orders
++    const leaving = collectLeaving(prev, [{ id: 7, ing: 'v', reason: 'expired', scoreDelta: 0 }], 0)
++    const now = [...prev.slice(1), { id: 10, ing: 'v' as const, remainMs: 40_000 }]
++    expect(orderRow(now, leaving).map((c) => (c.leave ? `x${c.leave.id}` : c.order.id))).toEqual(['x7', 8, 9, 10])
++  })
++
++  it('出餐與逾時同一幀：兩張離場卡各回各的槽位', () => {
++    const prev = kitchen().orders
++    const leaving = collectLeaving(
++      prev,
++      [
++        { id: 9, ing: 'm', reason: 'expired', scoreDelta: SCORE_EXPIRE },
++        { id: 7, ing: 'v', reason: 'served', scoreDelta: SCORE_SERVE },
++      ],
++      0,
++    )
++    expect(orderRow([prev[1]], leaving).map((c) => (c.leave ? `x${c.leave.id}` : c.order.id))).toEqual(['x7', 8, 'x9'])
++  })
++
++  it('槽位超出現有張數時接在尾端', () => {
++    const leaving = collectLeaving(kitchen().orders, [{ id: 9, ing: 'm', reason: 'served', scoreDelta: SCORE_SERVE }], 0)
++    expect(orderRow([], leaving).map((c) => c.leave?.id)).toEqual([9])
++  })
++
++  it('靜態渲染：離場卡在 DOM 順序上排在原槽位', () => {
++    const prev = kitchen().orders
++    const leaving = collectLeaving(prev, [{ id: 7, ing: 'v', reason: 'expired', scoreDelta: SCORE_EXPIRE }], 0)
++    const html = renderToStaticMarkup(createElement(KitchenHudView, { hud: kitchen({ orders: prev.slice(1) }), leaving }))
++    const at = (s: string) => html.indexOf(s)
++    expect(at('data-leaving="expired"')).toBeGreaterThan(-1)
++    expect(at('data-leaving="expired"')).toBeLessThan(at('data-kitchen-order="8"'))
++  })
++
+   it('離場動畫時長：出餐 600ms、逾時 400ms', () => {
+     expect(KITCHEN_LEAVE_MS).toEqual({ served: 600, expired: 400 })
+   })
+ })
+ 
+ describe('玩家卡', () => {
+   it('依 P 編號排序、只列實際人數', () => {
+     const sorted = sortKitchenPlayers([player(2), player(0)])
+     expect(sorted.map((p) => p.colorIndex)).toEqual([0, 2])
+   })
+diff --git a/src/pages/Battle/kitchenHud.ts b/src/pages/Battle/kitchenHud.ts
+index 8a51ad2..1d0d736 100644
+--- a/src/pages/Battle/kitchenHud.ts
++++ b/src/pages/Battle/kitchenHud.ts
+@@ -85,18 +85,41 @@ export function collectLeaving(prevOrders: KitchenHudOrder[], gone: KitchenHudGo
+     const slot = prevOrders.findIndex((o) => o.id === g.id)
+     return {
+       ...g,
+       key: String(seq + i),
+       slot: slot >= 0 ? slot : i,
+       remainMs: slot >= 0 ? prevOrders[slot].remainMs : 0,
+     }
+   })
+ }
+ 
++/** 訂單列的一格：在場的單，或正在播離場動畫的單（leave 有值） */
++export interface OrderRowCell {
++  key: string
++  order: KitchenHudOrder
++  leave?: LeavingOrder
++}
++
++/**
++ * 訂單列的顯示順序：離場卡依槽位由小到大插回原位（留在 flex 流裡，動畫尾段再收寬度），
++ * 後面的單不會在離場瞬間左移、被離場卡蓋住；槽位超出現有張數的接在尾端。
++ */
++export function orderRow(orders: KitchenHudOrder[], leaving: LeavingOrder[]): OrderRowCell[] {
++  const row: OrderRowCell[] = orders.map((o) => ({ key: String(o.id), order: o }))
++  for (const l of [...leaving].sort((a, b) => a.slot - b.slot)) {
++    row.splice(Math.min(l.slot, row.length), 0, {
++      key: `leave-${l.key}`,
++      order: { id: l.id, ing: l.ing, remainMs: l.remainMs },
++      leave: l,
++    })
++  }
++  return row
++}
++
+ export function sortKitchenPlayers(players: KitchenHudPlayer[]): KitchenHudPlayer[] {
+   return [...players].sort((a, b) => a.colorIndex - b.colorIndex)
+ }
+ 
+ /** 食譜收合鍵：R（不分大小寫），排除長按重複與 Ctrl／Cmd／Alt 組合（如 Ctrl+R 重新整理） */
+ export function isRecipeToggleKey(e: Pick<KeyboardEvent, 'key' | 'repeat' | 'ctrlKey' | 'metaKey' | 'altKey'>): boolean {
+   return e.key.toLowerCase() === 'r' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey
+ }
+
