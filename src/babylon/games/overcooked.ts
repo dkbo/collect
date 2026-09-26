@@ -3,10 +3,11 @@ import {
   Color3,
   Color4,
   DynamicTexture,
-  HemisphericLight,
   Mesh,
   MeshBuilder,
   ParticleSystem,
+  Quaternion,
+  SceneInstrumentation,
   StandardMaterial,
   Texture,
   Vector3,
@@ -45,8 +46,15 @@ import {
   type Kitchen,
   type KitchenView,
 } from '@/babylon/games/overcookedKitchen'
-import { PLAYER_PALETTE } from '@/babylon/fx/palette'
+import { OUTLINE } from '@/babylon/fx/palette'
+import { AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/fx/avatar'
+import { ToyLook } from '@/babylon/fx/look'
+import { perfLogLine } from '@/babylon/fx/perfLog'
+import { uprightAxis } from '@/babylon/fx/upright'
 import { colorIndexIn } from '@/babylon/games/kitchenFx/players'
+import { KITCHEN_AVATAR } from '@/babylon/games/kitchenFx/chef'
+import { KitchenBoard } from '@/babylon/games/kitchenFx/board'
+import { chefArms, chopTarget, kitchenCellZ, kitchenZ, ITEM_KEYS, type BoardSpot } from '@/babylon/games/kitchenFx/pose'
 
 /**
  * 廚房快手（Phase D，計畫見 .prompts/babylon-multiplayer-games.md §3.3）。
@@ -71,8 +79,16 @@ const PLAYER_R = 0.5
 const USE_RANGE = 2.6 // 玩家中心到站點格中心
 const USE_COOLDOWN_MS = 200
 
-const cellToWorld = (c: number, count: number): number => (c - (count - 1) / 2) * CELL
-const worldToCell = (w: number, count: number): number => Math.round(w / CELL + (count - 1) / 2)
+const PERF_LOG_MS = 2000
+const UPRIGHT_BACK_TILT = 0.35 // 角色往後仰（遠離相機）的弧度，同 bomber：高俯角下頭才不會整個蓋住身體
+/** 手持物在身體座標（未乘 AVATAR_SCALE）的位置：胸前雙手之間（spec §4：y ≈ 1.0、往前 0.45） */
+const HOLD_LOCAL = new Vector3(0, 0.52, 0.36)
+
+// 渲染座標：cx 往 +x；cy=0（食材箱／出餐口排）在遠側 +z、靠背牆（kitchenFx/pose）。各端同一份函式，位置同步不受影響
+const toX = (cx: number): number => (cx - (GRID_W - 1) / 2) * CELL
+const toZ = (cy: number): number => kitchenZ(cy, GRID_H, CELL)
+const cellX = (x: number): number => Math.round(x / CELL + (GRID_W - 1) / 2)
+const cellZ = (z: number): number => kitchenCellZ(z, GRID_H, CELL)
 
 /** 室內出生點（依玩家序四角錯開） */
 const SPAWNS: ReadonlyArray<readonly [number, number]> = [
@@ -88,10 +104,7 @@ const itemName = (it: Item): string =>
 
 interface Avatar {
   root: Mesh
-  legL: Mesh
-  legR: Mesh
-  armL: Mesh
-  armR: Mesh
+  toy: ToyAvatar
   walkPhase: number
   amp: number
   yaw: number
@@ -125,17 +138,20 @@ class OvercookedScene implements GameModule {
 
   private selfAvatar?: Avatar
   private peerAvatars = new Map<string, Avatar>()
-  private handMeshes = new Map<string, Mesh>() // playerId → 頭上手持物
-  private slotMeshes = new Map<string, Mesh>() // 站點 id → 檯面物品
-  private itemMats = new Map<string, StandardMaterial>()
   private camera!: ArcRotateCamera
+  private look!: ToyLook
+  private board!: KitchenBoard
+  private avatarKit!: AvatarKit
+  private instr: SceneInstrumentation | null = null
+  private lastPerfLog = 0
+  /** ?kitchenPerfFill=1：只在畫面上把所有存放格與自己手上填滿物品（AC9 量 N1 用，不動廚房狀態） */
+  private perfFill = false
   private hud!: TextPanel
   private banner!: TextPanel
   private ordersPanel!: TextPanel
   private recipePanel!: TextPanel
   private floatingTexts: FloatingText[] = []
 
-  private decorations: Mesh[] = []
   private steamSystems: ParticleSystem[] = []
   private sparkSystem: ParticleSystem | null = null
 
@@ -147,105 +163,80 @@ class OvercookedScene implements GameModule {
   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
 
 
-  private itemColor(it: Item): Color3 {
-    if (it.kind === 'burnt') return new Color3(0.2, 0.18, 0.15)
-    if (it.kind === 'soup') return it.ing === 'v' ? new Color3(0.3, 0.62, 0.95) : new Color3(0.95, 0.6, 0.2)
-    const base = it.ing === 'v' ? new Color3(0.2, 0.7, 0.3) : new Color3(0.85, 0.28, 0.28)
-    return it.kind === 'chop' ? Color3.Lerp(base, Color3.White(), 0.4) : base
-  }
-
-  private itemMat(it: Item): StandardMaterial {
-    const key = `${it.kind}-${it.ing}`
-    let mat = this.itemMats.get(key)
-    if (!mat) {
-      mat = new StandardMaterial(`item-${key}`, this.ctx.scene)
-      mat.diffuseColor = this.itemColor(it)
-      this.itemMats.set(key, mat)
-    }
-    return mat
-  }
-
+  /** 建立廚師角色（fx/avatar 合併 mesh，廚師帽＋圍裙）；顏色依 ctx.players 序號 */
   private makePlayer(id: string): Avatar {
-    const scene = this.ctx.scene
-    // 固定 4 色：依 ctx.players 序號（與 respawn 同序），各端一致
-    const pal = PLAYER_PALETTE[colorIndexIn(this.ctx.players, id)]
-
-    const bodyMat = new StandardMaterial(`pl-mat-${id}`, scene)
-    bodyMat.diffuseColor = Color3.FromHexString(pal.base)
-    const limbMat = new StandardMaterial(`pl-limb-${id}`, scene)
-    limbMat.diffuseColor = Color3.FromHexString(pal.dark)
-    const faceMat = new StandardMaterial(`pl-face-${id}`, scene)
-    faceMat.diffuseColor = new Color3(0.12, 0.13, 0.18)
-
-    const root = new Mesh(`pl-${id}`, scene)
-    root.position.y = 0
-
-    const body = MeshBuilder.CreateBox(`pl-body-${id}`, { width: 0.6, height: 0.55, depth: 0.45 }, scene)
-    body.material = bodyMat
-    body.parent = root
-    body.position.set(0, 0.78, 0)
-
-    const head = MeshBuilder.CreateSphere(`pl-head-${id}`, { diameter: 0.74 }, scene)
-    head.material = bodyMat
-    head.parent = root
-    head.position.set(0, 1.32, 0)
-
-    const face = MeshBuilder.CreateBox(`pl-face-${id}`, { width: 0.5, height: 0.22, depth: 0.1 }, scene)
-    face.material = faceMat
-    face.parent = root
-    face.position.set(0, 1.3, 0.33)
-
-    const mkLeg = (sx: number): Mesh => {
-      const leg = MeshBuilder.CreateBox(`pl-leg-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.26, height: 0.5, depth: 0.3 }, scene)
-      leg.material = limbMat
-      leg.parent = root
-      leg.position.set(sx * 0.16, 0.25, 0)
-      leg.setPivotPoint(new Vector3(0, 0.25, 0))
-      return leg
-    }
-    const legL = mkLeg(-1)
-    const legR = mkLeg(1)
-
-    const mkArm = (sx: number): Mesh => {
-      const arm = MeshBuilder.CreateBox(`pl-arm-${sx < 0 ? 'L' : 'R'}-${id}`, { width: 0.18, height: 0.46, depth: 0.2 }, scene)
-      arm.material = limbMat
-      arm.parent = root
-      arm.position.set(sx * 0.42, 0.78, 0)
-      arm.setPivotPoint(new Vector3(0, 0.23, 0))
-      return arm
-    }
-    const armL = mkArm(-1)
-    const armR = mkArm(1)
-
-    return { root, legL, legR, armL, armR, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
+    const toy = buildAvatar(this.ctx.scene, this.avatarKit, id, colorIndexIn(this.ctx.players, id), {
+      isAI: false,
+      isSelf: id === this.ctx.selfId,
+    })
+    // 光影登記：投影＋描邊
+    this.look.caster(toy.body)
+    this.look.outline(toy.body)
+    // 開局面向鏡頭（−Z），與方向稿一致；之後依移動方向更新
+    toy.body.rotation.y = Math.PI
+    return { root: toy.root, toy, walkPhase: 0, amp: 0, yaw: Math.PI, prevX: 0, prevZ: 0 }
   }
 
-  private animateAvatar(av: Avatar, dtMs: number): void {
+  /** 走路擺動與面向；站在加工中的砧板旁（且停著）時面向砧板砍菜，手上有東西時雙手捧在胸前 */
+  private animateAvatar(av: Avatar, dtMs: number, now: number, holding: boolean, boards: readonly BoardSpot[]): void {
     const dx = av.root.position.x - av.prevX
     const dz = av.root.position.z - av.prevZ
     av.prevX = av.root.position.x
     av.prevZ = av.root.position.z
+    // 一幀跨超過一格＝出生／重生瞬移，不當成走路
+    if (Math.hypot(dx, dz) > CELL) return
 
     const moving = Math.hypot(dx, dz) > dtMs * 0.0005
     if (moving) av.yaw = Math.atan2(dx, dz)
-    av.root.rotation.y = av.yaw
+    const chop = moving ? null : chopTarget(av.root.position.x, av.root.position.z, boards, USE_RANGE)
+    if (chop) av.yaw = Math.atan2(chop.x - av.root.position.x, chop.z - av.root.position.z)
+    av.toy.body.rotation.y = av.yaw
 
     const ease = Math.min(1, dtMs * 0.012)
     av.amp += ((moving ? 1 : 0) - av.amp) * ease
     if (av.amp > 0.01) av.walkPhase += dtMs * 0.013
 
     const swing = Math.sin(av.walkPhase) * 0.7 * av.amp
-    av.legL.rotation.x = swing
-    av.legR.rotation.x = -swing
-    av.armL.rotation.x = -swing
-    av.armR.rotation.x = swing
+    poseAvatar(av.toy, swing, chefArms({ swing, holding, chopping: chop !== null, tMs: now }))
+  }
+
+  /** 抵銷俯角透視：依角色位置微傾 root，讓身體在畫面上直立（同 bomber；相機不動）。
+   *  「你」標記是 billboard，父節點的旋轉不會套到它的位置上，這裡手動轉。 */
+  private leanUpright(av: Avatar, cam: Vector3, camUp: Vector3): void {
+    const p = av.root.position
+    const [x, y, z] = uprightAxis([p.x, 0, p.z], [cam.x, cam.y, cam.z], [camUp.x, camUp.y, camUp.z], {
+      backTilt: UPRIGHT_BACK_TILT,
+    })
+    const q = (av.root.rotationQuaternion ??= new Quaternion())
+    Quaternion.FromUnitVectorsToRef(Vector3.UpReadOnly, new Vector3(x, y, z), q)
+    const m = av.toy.marker
+    if (!m) return
+    let base = this.billboardBase.get(m)
+    if (!base) {
+      base = m.position.clone()
+      this.billboardBase.set(m, base)
+    }
+    base.rotateByQuaternionToRef(q, m.position)
+  }
+  private billboardBase = new WeakMap<Mesh, Vector3>()
+
+  /** 手持物：放在角色胸前雙手之間（跟著面向與俯角補償） */
+  private placeHand(pid: string, av: Avatar, item: Item | null): void {
+    if (!item) {
+      this.board.removeHand(pid)
+      return
+    }
+    av.root.computeWorldMatrix(true)
+    const wm = av.toy.body.computeWorldMatrix(true)
+    const p = Vector3.TransformCoordinates(HOLD_LOCAL, wm)
+    this.board.setHand(pid, item, { x: p.x, y: p.y, z: p.z, yaw: av.yaw })
   }
 
   /** 玩家圓身 vs 外圈檯面碰撞 */
   private hitBlocked(px: number, pz: number): boolean {
     for (const ox of [-PLAYER_R, PLAYER_R]) {
       for (const oz of [-PLAYER_R, PLAYER_R]) {
-        if (isBorder(worldToCell(px + ox, GRID_W), worldToCell(pz + oz, GRID_H))) return true
+        if (isBorder(cellX(px + ox), cellZ(pz + oz))) return true
       }
     }
     return false
@@ -264,10 +255,7 @@ class OvercookedScene implements GameModule {
     let best: string | null = null
     let bestD = USE_RANGE
     for (const s of STATIONS) {
-      const d = Math.hypot(
-        cellToWorld(s.cx, GRID_W) - this.state.x,
-        cellToWorld(s.cy, GRID_H) - this.state.z
-      )
+      const d = Math.hypot(toX(s.cx) - this.state.x, toZ(s.cy) - this.state.z)
       if (d < bestD) {
         bestD = d
         best = s.id
@@ -294,14 +282,11 @@ class OvercookedScene implements GameModule {
     if (!st) return
     const pos = playerId === this.ctx.selfId ? this.state : this.own.latestRemote(playerId)
     if (!pos) return
-    const d = Math.hypot(
-      cellToWorld(st.cx, GRID_W) - pos.x,
-      cellToWorld(st.cy, GRID_H) - pos.z
-    )
+    const d = Math.hypot(toX(st.cx) - pos.x, toZ(st.cy) - pos.z)
     if (d > USE_RANGE + 0.6) return // 寬限：對端位置有傳輸延遲
     const changed = applyUse(this.kitchen, playerId, stationId, performance.now())
     if (changed && st.kind === 'serve') {
-      const sparkPos = new Vector3(cellToWorld(st.cx, GRID_W), 1.5, cellToWorld(st.cy, GRID_H))
+      const sparkPos = new Vector3(toX(st.cx), 1.5, toZ(st.cy))
       this.triggerServeSpark(sparkPos)
       this.triggerScoreFloat(sparkPos, '+20')
     }
@@ -326,48 +311,29 @@ class OvercookedScene implements GameModule {
     const { scene } = ctx
 
     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.5, 26, Vector3.Zero(), scene)
-    new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
+    // 光影與後製（AC5／AC8）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位；log 前綴與網址參數都是 kitchen
+    const halfDiag = Math.hypot(GRID_W * CELL, GRID_H * CELL) / 2
+    this.look = new ToyLook(scene, this.camera, { shadowRadius: halfDiag + 2, tag: 'kitchen', outline: OUTLINE })
 
-    // 地板
-    const ground = MeshBuilder.CreateGround('ground', { width: GRID_W * CELL + 2, height: GRID_H * CELL + 2 }, scene)
-    const gmat = new StandardMaterial('gmat', scene)
-    gmat.diffuseColor = new Color3(0.75, 0.68, 0.55)
-    ground.material = gmat
+    // 場景物件（A「Toy Kitchen」）：地面、牆、檯面、站點、物品（kitchenFx/board）
+    this.board = new KitchenBoard(scene, {
+      gridW: GRID_W,
+      gridH: GRID_H,
+      cell: CELL,
+      stations: STATIONS,
+      toWorld: (cx, cy) => ({ x: toX(cx), z: toZ(cy) }),
+    })
+    this.avatarKit = new AvatarKit(scene, KITCHEN_AVATAR)
+    const fx = this.board.fxTargets()
+    this.look.toon(...fx.toon, this.avatarKit.bodyMat)
+    this.look.receiver(...fx.receivers)
+    this.look.caster(...fx.casters)
+    this.look.outline(...fx.outlined)
+    for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
+    // AC9：draw calls 量測（每 PERF_LOG_MS 印一次）
+    this.instr = new SceneInstrumentation(scene)
+    this.perfFill = typeof window !== 'undefined' && /[?&]kitchenPerfFill=1\b/.test(window.location.search + window.location.hash)
 
-    // 站點底座（一圈檯面，依類型上色）
-    const baseColors: Record<string, Color3> = {
-      crate: new Color3(0.5, 0.36, 0.2),
-      board: new Color3(0.85, 0.85, 0.8),
-      pot: new Color3(0.25, 0.25, 0.3),
-      serve: new Color3(0.9, 0.75, 0.2),
-      counter: new Color3(0.55, 0.57, 0.6),
-    }
-    const baseMats = new Map<string, StandardMaterial>()
-    for (const [kind, color] of Object.entries(baseColors)) {
-      const m = new StandardMaterial(`st-${kind}`, scene)
-      m.diffuseColor = color
-      baseMats.set(kind, m)
-    }
-    for (const s of STATIONS) {
-      const box = MeshBuilder.CreateBox(`st-${s.id}`, { width: CELL * 0.96, height: CELL * 0.6, depth: CELL * 0.96 }, scene)
-      box.position = new Vector3(cellToWorld(s.cx, GRID_W), CELL * 0.3, cellToWorld(s.cy, GRID_H))
-      box.material = baseMats.get(s.kind)!
-      // crate 上放一顆固定示意物（該食材原色）
-      if (s.kind === 'crate') {
-        const top = MeshBuilder.CreateBox(`st-${s.id}-top`, { size: 0.7 }, scene)
-        top.position = box.position.add(new Vector3(0, CELL * 0.45, 0))
-        top.material = this.itemMat({ kind: 'raw', ing: s.ing! })
-      }
-      // 有存放格的站點：物品指示方塊（依 view 顯示/上色）
-      if (s.kind === 'board' || s.kind === 'pot' || s.kind === 'counter') {
-        const item = MeshBuilder.CreateBox(`slot-${s.id}`, { size: 0.7 }, scene)
-        item.position = box.position.add(new Vector3(0, CELL * 0.45, 0))
-        item.setEnabled(false)
-        this.slotMeshes.set(s.id, item)
-      }
-    }
-
-    this.buildDecorations()
     this.initParticles()
 
     this.selfAvatar = this.makePlayer(ctx.selfId)
@@ -418,7 +384,7 @@ class OvercookedScene implements GameModule {
   private respawn(): void {
     const idx = Math.max(0, this.ctx.players.findIndex((p) => p.id === this.ctx.selfId))
     const [cx, cy] = SPAWNS[idx % SPAWNS.length]
-    this.state = { x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }
+    this.state = { x: toX(cx), z: toZ(cy) }
   }
 
   private simulate(dt: number): void {
@@ -444,18 +410,6 @@ class OvercookedScene implements GameModule {
         this.flow.endGame({ score: this.kitchen.score, delivered: this.kitchen.delivered })
       }
     }
-  }
-
-  /** 依 view 更新一個物品指示方塊 */
-  private updateItemMesh(mesh: Mesh, item: Item | null, progress: number): void {
-    if (!item) {
-      mesh.setEnabled(false)
-      return
-    }
-    mesh.setEnabled(true)
-    mesh.material = this.itemMat(item)
-    const s = 0.5 + 0.5 * progress // 加工中由小變大提示進度
-    mesh.scaling.set(s, s, s)
   }
 
   /** view diff → 音效：廚房事件不掛純邏輯層（guest 只有快照），改比對前後 view */
@@ -486,11 +440,21 @@ class OvercookedScene implements GameModule {
     if (phase === 'playing') this.diffViewAudio(view)
     else this.prevView = view // 非對局中（重開新局等）只同步基準，不發音
 
+    const now = performance.now()
+    const shown = this.perfFill && view ? this.fillView(view) : view
+    // 加工中的砧板（旁邊的人播砍菜動作）
+    const boards: BoardSpot[] = []
+    for (const sv of shown?.slots ?? []) {
+      const st = stationById(sv.id)
+      if (st?.kind === 'board') boards.push({ x: toX(st.cx), z: toZ(st.cy), chopping: sv.item?.kind === 'raw' && sv.progress < 1 })
+    }
+    const holding = (id: string): boolean => (shown?.hands[id] ?? null) !== null
+
     // 自己
     if (this.selfAvatar) {
       this.selfAvatar.root.position.x = this.state.x
       this.selfAvatar.root.position.z = this.state.z
-      this.animateAvatar(this.selfAvatar, deltaMs)
+      this.animateAvatar(this.selfAvatar, deltaMs, now, holding(this.ctx.selfId), boards)
     }
 
     this.updateSteam()
@@ -500,9 +464,8 @@ class OvercookedScene implements GameModule {
     const ids = new Set(this.own.remoteIds())
     for (const [id, a] of this.peerAvatars) {
       if (ids.has(id)) continue
-      a.root.dispose(false, true)
-      this.handMeshes.get(id)?.dispose()
-      this.handMeshes.delete(id)
+      disposeAvatar(a.toy)
+      this.board.removeHand(id)
       this.peerAvatars.delete(id)
     }
     for (const id of ids) {
@@ -516,36 +479,32 @@ class OvercookedScene implements GameModule {
         a.root.position.x = s.a.x + (s.b.x - s.a.x) * s.alpha
         a.root.position.z = s.a.z + (s.b.z - s.a.z) * s.alpha
       }
-      this.animateAvatar(a, deltaMs)
+      this.animateAvatar(a, deltaMs, now, holding(id), boards)
     }
 
-    if (view) {
-      // 站點物品
-      for (const sv of view.slots) {
-        const mesh = this.slotMeshes.get(sv.id)
-        if (mesh) this.updateItemMesh(mesh, sv.item, sv.progress)
+    // 俯角透視補償：每隻角色依位置微傾
+    const camPos = this.camera.position
+    const camUp = this.camera.getDirection(Vector3.Up())
+    const holders: Array<[string, Avatar | undefined]> = [[this.ctx.selfId, this.selfAvatar], ...this.peerAvatars.entries()]
+    for (const [, av] of holders) if (av) this.leanUpright(av, camPos, camUp)
+
+    if (shown) {
+      // 站點物品（檯面／砧板放實例、鍋換湯面）
+      for (const sv of shown.slots) {
+        const st = stationById(sv.id)
+        if (st) this.board.setSlot(st, sv.item)
       }
-      // 手持物（自己 + 遠端，浮在頭上）
-      const holders: Array<[string, Avatar | undefined]> = [
-        [this.ctx.selfId, this.selfAvatar],
-        ...[...this.peerAvatars.entries()],
-      ]
-      for (const [pid, av] of holders) {
-        if (!av) continue
-        let hm = this.handMeshes.get(pid)
-        if (!hm) {
-          hm = MeshBuilder.CreateBox(`hand-${pid}`, { size: 0.5 }, this.ctx.scene)
-          this.handMeshes.set(pid, hm)
-        }
-        const item = view.hands[pid] ?? null
-        if (item) {
-          hm.setEnabled(true)
-          hm.material = this.itemMat(item)
-          hm.position.set(av.root.position.x, 1.9, av.root.position.z)
-        } else {
-          hm.setEnabled(false)
-        }
-      }
+      // 手持物（胸前雙手之間）
+      for (const [pid, av] of holders) if (av) this.placeHand(pid, av, shown.hands[pid] ?? null)
+    }
+    this.board.update()
+    this.look.update(deltaMs)
+
+    // AC9：每 2 秒印 draw calls 與 fps（讀上一幀的完整計數；還沒渲染過的首次取樣不印）
+    if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
+      this.lastPerfLog = now
+      const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps(), 'kitchen')
+      if (line) console.info(line)
     }
 
     // 飄字效果
@@ -608,134 +567,16 @@ class OvercookedScene implements GameModule {
     }
   }
 
-  // ---- 場地裝飾 ----
-
-  private buildDecorations(): void {
-    const { scene } = this.ctx
-    const d = this.decorations
-    const add = (m: Mesh) => { d.push(m); return m }
-
-    // --- 地板磁磚 ---
-    const tileLight = new StandardMaterial('tile-light', scene)
-    tileLight.diffuseColor = new Color3(0.72, 0.7, 0.65)
-    const tileDark = new StandardMaterial('tile-dark', scene)
-    tileDark.diffuseColor = new Color3(0.65, 0.63, 0.58)
-    for (let cy = 0; cy < GRID_H; cy++) {
-      for (let cx = 0; cx < GRID_W; cx++) {
-        if (isBorder(cx, cy)) continue
-        const tile = add(MeshBuilder.CreateBox(`tile-${cx}-${cy}`, { width: CELL * 0.95, height: 0.02, depth: CELL * 0.95 }, scene))
-        tile.position.set(cellToWorld(cx, GRID_W), 0.01, cellToWorld(cy, GRID_H))
-        tile.material = (cx + cy) % 2 === 0 ? tileLight : tileDark
-      }
-    }
-
-    // --- 四面牆壁 ---
-    const wallMat = new StandardMaterial('wall-mat', scene)
-    wallMat.diffuseColor = new Color3(0.82, 0.78, 0.7)
-    const wallH = 2.5
-    const wallThick = 0.3
-    const gw = GRID_W * CELL
-    const gh = GRID_H * CELL
-    const walls = [
-      { w: gw + wallThick * 2, h: wallH, d: wallThick, x: 0, z: -gh / 2 - wallThick / 2 },
-      { w: gw + wallThick * 2, h: wallH, d: wallThick, x: 0, z: gh / 2 + wallThick / 2 },
-      { w: wallThick, h: wallH, d: gh, x: -gw / 2 - wallThick / 2, z: 0 },
-      { w: wallThick, h: wallH, d: gh, x: gw / 2 + wallThick / 2, z: 0 },
-    ]
-    for (let i = 0; i < walls.length; i++) {
-      const w = walls[i]
-      const wall = add(MeshBuilder.CreateBox(`wall-${i}`, { width: w.w, height: w.h, depth: w.d }, scene))
-      wall.position.set(w.x, w.h / 2, w.z)
-      wall.material = wallMat
-    }
-
-    // --- 踢腳線 ---
-    const baseMat = new StandardMaterial('base-mat', scene)
-    baseMat.diffuseColor = new Color3(0.4, 0.38, 0.35)
-    const baseH = 0.3
-    const bases = [
-      { w: gw + wallThick * 2, h: baseH, d: wallThick + 0.1, x: 0, z: -gh / 2 - wallThick / 2 },
-      { w: gw + wallThick * 2, h: baseH, d: wallThick + 0.1, x: 0, z: gh / 2 + wallThick / 2 },
-      { w: wallThick + 0.1, h: baseH, d: gh, x: -gw / 2 - wallThick / 2, z: 0 },
-      { w: wallThick + 0.1, h: baseH, d: gh, x: gw / 2 + wallThick / 2, z: 0 },
-    ]
-    for (let i = 0; i < bases.length; i++) {
-      const b = bases[i]
-      const base = add(MeshBuilder.CreateBox(`base-${i}`, { width: b.w, height: b.h, depth: b.d }, scene))
-      base.position.set(b.x, b.h / 2, b.z)
-      base.material = baseMat
-    }
-
-    // --- 站點裝飾 ---
-    const potMat = new StandardMaterial('pot-deco-mat', scene)
-    potMat.diffuseColor = new Color3(0.18, 0.18, 0.22)
-    const boardMat = new StandardMaterial('board-deco-mat', scene)
-    boardMat.diffuseColor = new Color3(0.75, 0.6, 0.35)
-    const bellMat = new StandardMaterial('bell-mat', scene)
-    bellMat.diffuseColor = new Color3(0.9, 0.8, 0.2)
-
-    for (const s of STATIONS) {
-      const bx = cellToWorld(s.cx, GRID_W)
-      const bz = cellToWorld(s.cy, GRID_H)
-      if (s.kind === 'pot') {
-        // 鍋子：扁圓柱
-        const pot = add(MeshBuilder.CreateCylinder(`pot-${s.id}`, { height: 0.4, diameter: 1.2 }, scene))
-        pot.position.set(bx, 1.2, bz)
-        pot.material = potMat
-        // 把手
-        const handle = add(MeshBuilder.CreateBox(`pot-handle-${s.id}`, { width: 0.6, height: 0.1, depth: 0.15 }, scene))
-        handle.position.set(bx + 0.8, 1.3, bz)
-        handle.material = potMat
-      } else if (s.kind === 'board') {
-        // 砧板：扁長方體
-        const board = add(MeshBuilder.CreateBox(`board-${s.id}`, { width: 1.2, height: 0.12, depth: 0.8 }, scene))
-        board.position.set(bx, 1.15, bz)
-        board.material = boardMat
-        // 刀
-        const knife = add(MeshBuilder.CreateBox(`knife-${s.id}`, { width: 0.08, height: 0.04, depth: 0.6 }, scene))
-        knife.position.set(bx + 0.5, 1.25, bz)
-        const knifeMat = new StandardMaterial(`knife-mat-${s.id}`, scene)
-        knifeMat.diffuseColor = new Color3(0.7, 0.7, 0.72)
-        knife.material = knifeMat
-      } else if (s.kind === 'serve') {
-        // 出餐口鈴鐺
-        const bell = add(MeshBuilder.CreateSphere(`bell-${s.id}`, { diameter: 0.5 }, scene))
-        bell.position.set(bx, 1.35, bz)
-        bell.material = bellMat
-        const bellBase = add(MeshBuilder.CreateBox(`bell-base-${s.id}`, { width: 0.6, height: 0.15, depth: 0.6 }, scene))
-        bellBase.position.set(bx, 1.1, bz)
-        bellBase.material = bellMat
-      }
-    }
-
-    // --- 掛鉤架（上牆） ---
-    const rackMat = new StandardMaterial('rack-mat', scene)
-    rackMat.diffuseColor = new Color3(0.35, 0.3, 0.25)
-    const rackY = 2.0
-    // 上牆掛架
-    const rack1 = add(MeshBuilder.CreateBox('rack-top', { width: 6, height: 0.1, depth: 0.15 }, scene))
-    rack1.position.set(0, rackY, -gh / 2 - 0.1)
-    rack1.material = rackMat
-    // 掛鉤
-    for (let i = -2; i <= 2; i++) {
-      const hook = add(MeshBuilder.CreateCylinder(`hook-${i}`, { height: 0.3, diameter: 0.06 }, scene))
-      hook.position.set(i * 1.2, rackY - 0.2, -gh / 2 - 0.1)
-      hook.material = rackMat
-    }
-
-    // --- 時鐘（左牆） ---
-    const clockMat = new StandardMaterial('clock-mat', scene)
-    clockMat.diffuseColor = new Color3(0.9, 0.88, 0.85)
-    const clock = add(MeshBuilder.CreateCylinder('clock', { height: 0.1, diameter: 1.0 }, scene))
-    clock.position.set(-gw / 2 - 0.2, 2.0, 0)
-    clock.rotation.z = Math.PI / 2
-    clock.material = clockMat
-    const clockRim = add(MeshBuilder.CreateTorus('clock-rim', { diameter: 1.0, thickness: 0.08, tessellation: 32 }, scene))
-    clockRim.position.set(-gw / 2 - 0.15, 2.0, 0)
-    clockRim.rotation.z = Math.PI / 2
-    const rimMat = new StandardMaterial('clock-rim-mat', scene)
-    rimMat.diffuseColor = new Color3(0.3, 0.3, 0.3)
-    clockRim.material = rimMat
+  /** ?kitchenPerfFill=1：畫面上把每個存放格都填上物品（8 種輪流）、自己手上拿湯（量 N1 的固定條件） */
+  private fillView(view: KitchenView): KitchenView {
+    let i = 0
+    const slots = view.slots.map((sv) => {
+      const [kind, ing] = ITEM_KEYS[i++ % ITEM_KEYS.length].split('-') as [Item['kind'], Ing]
+      const st = stationById(sv.id)
+      const item: Item = st?.kind === 'board' ? { kind: 'raw', ing } : st?.kind === 'pot' ? { kind: 'soup', ing } : { kind, ing }
+      return { ...sv, item, progress: st?.kind === 'counter' ? 1 : 0.5 }
+    })
+    return { ...view, slots, hands: { ...view.hands, [this.ctx.selfId]: { kind: 'soup', ing: 'v' } } }
   }
 
   private initParticles(): void {
@@ -749,7 +590,7 @@ class OvercookedScene implements GameModule {
       if (s.kind !== 'pot') continue
       const ps = new ParticleSystem(`steam-${s.id}`, 15, scene)
       ps.particleTexture = steamTex
-      ps.emitter = new Vector3(cellToWorld(s.cx, GRID_W), 1.6, cellToWorld(s.cy, GRID_H))
+      ps.emitter = new Vector3(toX(s.cx), 2.1, toZ(s.cy))
       ps.minEmitBox = new Vector3(-0.3, 0, -0.3)
       ps.maxEmitBox = new Vector3(0.3, 0, 0.3)
       ps.color1 = new Color4(0.9, 0.9, 0.95, 1)
@@ -876,25 +717,24 @@ class OvercookedScene implements GameModule {
     this.flow.dispose()
     this.snapSender?.stop()
     this.snapReceiver?.dispose()
-    this.selfAvatar?.root.dispose(false, true)
-    for (const a of this.peerAvatars.values()) a.root.dispose(false, true)
+    if (this.selfAvatar) disposeAvatar(this.selfAvatar.toy)
+    for (const a of this.peerAvatars.values()) disposeAvatar(a.toy)
     this.peerAvatars.clear()
-    for (const m of this.handMeshes.values()) m.dispose()
-    this.handMeshes.clear()
-    for (const m of this.slotMeshes.values()) m.dispose()
-    this.slotMeshes.clear()
+    this.board.dispose()
+    this.avatarKit.dispose()
+    this.instr?.dispose()
+    this.instr = null
     for (const ft of this.floatingTexts) ft.mesh.dispose()
     this.floatingTexts = []
     this.hud.dispose()
     this.banner.dispose()
     this.ordersPanel.dispose()
     this.recipePanel.dispose()
-    for (const m of this.decorations) m.dispose()
-    this.decorations = []
     for (const ps of this.steamSystems) ps.dispose()
     this.steamSystems = []
     this.sparkSystem?.dispose()
     this.sparkSystem = null
+    this.look.dispose()
   }
 }
 

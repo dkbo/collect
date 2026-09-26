@@ -29,6 +29,13 @@ export const sphere = (diameter: number, segments = 12): MeshData =>
 export const cylinder = (height: number, diameter: number, tessellation = 10): MeshData =>
   fromVD(VertexBuilders.CreateCylinderVertexData({ height, diameter, tessellation }))
 
+/** 上下口徑不同的圓柱（碗、鍋身）；open 為 true 時不封上下蓋（鍋口內壁） */
+export const frustum = (height: number, diameterTop: number, diameterBottom: number, tessellation = 16, open = false): MeshData =>
+  fromVD(VertexBuilders.CreateCylinderVertexData({ height, diameterTop, diameterBottom, tessellation, cap: open ? 0 : 3 }))
+
+export const torus = (diameter: number, thickness: number, tessellation = 20): MeshData =>
+  fromVD(VertexBuilders.CreateTorusVertexData({ diameter, thickness, tessellation }))
+
 export const solid = (d: MeshData, c: Rgba): MeshData => colorize(d, () => c)
 
 /** 三段徑向漸層（亮 → 本色 → 暗），以法線與高光方向的夾角決定；對應 spec 的 radial gradient */

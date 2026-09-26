@@ -38,6 +38,8 @@ export interface ToyAvatar {
   nrm: Float32Array
   limbs: LimbRange[]
   lastSwing: number
+  /** 上次的手臂姿勢鍵（給了 arms 時才用；角度沒變就不重傳頂點） */
+  lastArms: string
 }
 
 /** 遊戲決定的外觀：頭飾（頭心座標，組好後整顆頭一起仰）、服裝（身體座標）、褲子色 */
@@ -231,18 +233,36 @@ export function buildAvatar(scene: Scene, kit: AvatarKit, id: string, ci: ColorI
     nrm: new Float32Array(baseN),
     limbs,
     lastSwing: 0,
+    lastArms: '',
   }
 }
 
 const SWING_SIGN: Record<Limb, number> = { legL: 1, legR: -1, armL: -1, armR: 1 }
 
-/** 擺動四肢（角度沒變就不重傳頂點） */
-export function poseAvatar(av: ToyAvatar, swing: number): void {
-  if (Math.abs(swing - av.lastSwing) < 1e-3) return
+/** 手臂另給角度（胸前捧物、切菜）；inward 為雙手往身體中線內收的量 */
+export interface AvatarArms {
+  armL: number
+  armR: number
+  inward: number
+}
+
+/** 擺動四肢（角度沒變就不重傳頂點）；給了 arms 時手臂改用它，腿仍照 swing */
+export function poseAvatar(av: ToyAvatar, swing: number, arms?: AvatarArms): void {
+  const armKey = arms ? `${arms.armL.toFixed(3)}|${arms.armR.toFixed(3)}|${arms.inward.toFixed(3)}` : ''
+  if (Math.abs(swing - av.lastSwing) < 1e-3 && armKey === av.lastArms) return
   av.lastSwing = swing
+  av.lastArms = armKey
   for (const l of av.limbs) {
-    const a = swing * SWING_SIGN[l.limb]
-    swingRange(av.base, av.pos, l.start, l.count, l.pivot, a)
+    let a = swing * SWING_SIGN[l.limb]
+    let dx = 0
+    if (arms && l.limb === 'armL') {
+      a = arms.armL
+      dx = arms.inward
+    } else if (arms && l.limb === 'armR') {
+      a = arms.armR
+      dx = -arms.inward
+    }
+    swingRange(av.base, av.pos, l.start, l.count, l.pivot, a, dx)
     swingRange(av.baseN, av.nrm, l.start, l.count, null, a)
   }
   av.body.updateVerticesData('position', av.pos)

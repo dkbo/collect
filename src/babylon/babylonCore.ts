@@ -19,7 +19,7 @@ import { CreateDisc } from '@babylonjs/core/Meshes/Builders/discBuilder'
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder'
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder'
 import { CreateSphere, CreateSphereVertexData } from '@babylonjs/core/Meshes/Builders/sphereBuilder'
-import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder'
+import { CreateTorus, CreateTorusVertexData } from '@babylonjs/core/Meshes/Builders/torusBuilder'
 
 export { Engine } from '@babylonjs/core/Engines/engine'
 export { Scene } from '@babylonjs/core/scene'
@@ -61,4 +61,5 @@ export const MeshBuilder = {
 export const VertexBuilders = {
   CreateCylinderVertexData,
   CreateSphereVertexData,
+  CreateTorusVertexData,
 }
