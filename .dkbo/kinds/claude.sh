@@ -4,10 +4,15 @@
 KIND_MODEL_EFFORTS="opus:low,medium,high,xhigh,max sonnet:low,medium,high,xhigh,max"
 # 三檔全換 opus、只用 effort 分檔（2026-09-23，Opus 5.5 發布隔天）：Artificial Analysis 的
 # opus/medium 已追平 fable/high、成本約三分之一；Vals 的 Terminal-Bench 2.1 opus 87.6% 對 sonnet 74.5%。
-# S 的 opus/low 在 AA 每題成本與 sonnet/low 相當（$0.55 對 $0.51）、分數 42 對 24；Anthropic 的
-# 〈What a task costs on Opus 5.5〉也說機械式改動留在 Opus 5.5 low，Sonnet/Haiku 只給查找、不給寫碼。
-# 第三方還沒人把 opus/low 對 sonnet 做過實跑比較，第一次實跑 S 檔時留意品質與額度。
-# sonnet 留在 KIND_MODEL_EFFORTS 供 --model 手動指定；角色檔的 tiers 同步照 sonnet→同 effort 的 opus 改。
+# Anthropic 的〈What a task costs on Opus 5.5〉也說機械式改動留在 Opus 5.5 low，Sonnet/Haiku 只給查找、不給寫碼。
+# 2026-09-30 Sonnet 5.5 更新後的 AA（分數／每題成本／總回應時間）：
+#   S 段  opus/low 42 $0.55 20.4s  對  sonnet/medium 41 $0.59 6.8s —— 打平而快三倍，是 S 檔候選
+#        （舊的 sonnet/low 24 分已作廢，新 sonnet/low 尚無分數）
+#   M 段  opus/medium 51 $1.34 31s 仍優於 sonnet/high 47 $1.08、sonnet/xhigh 52 $2.74
+#   L 段  opus/high 54 $1.82 42s；opus/xhigh 56 $3.46 137s、opus/max 58 $5.98 691s 邊際太差
+# AA 指數不是寫碼專測、Terminal-Bench 是更新前的數字，所以 S 檔先不換：用
+# `dk-spawn … --tier S --model sonnet --effort medium` 實跑，照 run SKILL 記 trial: 行，累積兩三筆再改。
+# sonnet 留在 KIND_MODEL_EFFORTS 供 dk-spawn／dk-leader 的 --model 手動指定。
 KIND_DEFAULT_TIERS="S=opus/low M=opus/medium L=opus/high"
 KIND_PROMPT_QUEUES=unknown   # layer-3 smoke updates this: does a prompt sent while working queue?
 # auto 而非 acceptEdits：員工的 cwd 是 worktree，但切片、state、report 都在主樹的 .dkbo/ 下，

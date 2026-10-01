@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# dk-spawn <role> [alias] [--tier S|M|L] [--kind K] [--isolated] [--resume] [--split right|down]
+# dk-spawn <role> [alias] [--tier S|M|L] [--kind K] [--model M] [--effort E] [--isolated] [--resume] [--split right|down]
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/kinds.sh"; . "$DK_ROOT/lib/prompt.sh"; . "$DK_ROOT/lib/layout.sh"; . "$DK_ROOT/lib/herdr.sh"; . "$DK_ROOT/lib/repos.sh"
 dk_require_herdr
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
-role="${1:-}"; shift || true; [ -n "$role" ] || dk_die "usage: dk-spawn <role> [alias] [--tier T] [--kind K] [--isolated] [--resume] [--split right|down]"
-alias=""; tier=M; kind=""; isolated=0; resume=0; notes=""; split_override=""; handoff=""; kind_explicit=0
+role="${1:-}"; shift || true; [ -n "$role" ] || dk_die "usage: dk-spawn <role> [alias] [--tier T] [--kind K] [--model M] [--effort E] [--isolated] [--resume] [--split right|down]"
+alias=""; tier=M; kind=""; isolated=0; resume=0; notes=""; split_override=""; handoff=""; kind_explicit=0; model=""; effort=""
 while [ $# -gt 0 ]; do case "$1" in
   --tier) tier="$2"; shift 2;; --kind) kind="$2"; kind_explicit=1; notes="$notes override-kind"; shift 2;;
+  --model) model="${2:-}"; [ -n "$model" ] || dk_die "--model 要帶模型名，例：--model sonnet"; notes="$notes override-model $model"; shift 2;;
+  --effort) effort="${2:-}"; [ -n "$effort" ] || dk_die "--effort 要帶 effort，例：--effort medium"; notes="$notes override-effort $effort"; shift 2;;
   --isolated) isolated=1; notes="$notes isolated"; shift;; --resume) resume=1; notes="$notes resume"; shift;;
   --split) split_override="$2"; [[ "$split_override" =~ ^(right|down)$ ]] || dk_die "--split must be right or down"; shift 2;;
   --handoff) handoff="${2:-}"; [ -n "$handoff" ] || dk_die "--handoff 要帶原因：dk-spawn <role> [alias] --handoff \"<為什麼換人>\""
@@ -18,6 +20,11 @@ rf="$DK_ROOT/roles/$role.md"; [ -f "$rf" ] || dk_die "no role file $rf (use add-
 [ -n "$kind" ] || kind=$(dk_fm "$rf" kind)
 spec=$(dk_fm_tier "$rf" "$tier"); [ -n "$spec" ] || dk_die "role $role has no tier $tier"
 if [ "$kind" != "$(dk_fm "$rf" kind)" ]; then dk_kind_load "$kind"; spec=$(echo "$KIND_DEFAULT_TIERS" | tr ' ' '\n' | awk -F= -v t="$tier" '$1==t{print $2}'); fi
+# --model／--effort 各換 spec 的一半，沒給的那半照檔位（--tier S --model sonnet → sonnet/<S 的 effort>）。
+# 檔位照實記在 process.md，試跑別的組合時事後還看得出這原本是哪一檔的工作。
+# 該 kind 有沒有這個模型、這個模型收不收這個 effort，交給下面的 dk_kind_args 驗。
+[ -z "$model" ] || spec="$model/${spec##*/}"
+[ -z "$effort" ] || spec="${spec%%/*}/$effort"
 
 # AC3：派人前查專案層熔斷。--kind 明寫且未恢復 → 拒絕；用角色檔預設值命中 → 只警告，照派
 # （誤判的 claude 不能把下一個任務的每個角色都擋死；ruling 見 process.md）。
@@ -140,7 +147,7 @@ if [ -f "$state" ]; then cksum < "$state"; else printf ''; fi > "$dir/.blocked/$
 # 換腦袋這一步一定有 ruling，是結構保證不是事後驗:理由由呼叫端給，格式由腳本補完。
 # 落在 pane 與 agent 真的起來之後：早落盤的話，這裡上面任何一步 dk_die 都會留下
 # 一行「換人」的假裁定，而那次換手其實沒發生。
-[ -z "$handoff" ] || dk_process "ruling: 換 $kind/$tier 接手 $agent 的修復 — $handoff — 若換人也修不好，下一輪就是 ESCALATE，代價是多一輪 pane"
+[ -z "$handoff" ] || dk_process "ruling: 換 $kind/$tier${model:+ $model}${effort:+ $effort} 接手 $agent 的修復 — $handoff — 若換人也修不好，下一輪就是 ESCALATE，代價是多一輪 pane"
 
 dk_kind_load "$kind"; have=$(kind_mcp_list || true); missing=""
 for m in $(dk_fm_list "$rf" mcp); do echo "$have" | grep -qx "$m" || missing="$missing $m"; done
