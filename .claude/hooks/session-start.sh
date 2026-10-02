@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart：把接手時最常踩到的兩種「狀態過期」注入 context，只提示不阻擋。
 #   1. Godot 源碼比匯出產物新 → 提醒重新匯出（產物要進版控）
-#   2. .env.local 缺 VITE_FIREBASE_FIRESTORE_DB → /battle 會連到 Datastore-mode 的 (default) 必死
+#   2. .env.local 的 VITE_FIREBASE_FIRESTORE_DB=dkbo-collect →dkbo-collect 在 test-73ce3 不存在（NOT_FOUND），應留空連 (default)
 set -uo pipefail
 . "$(dirname "$0")/_common.sh"
 root=$(hook_root); cd "$root" || exit 0
@@ -27,8 +27,8 @@ stale godot-src public/godot/index.js "pnpm godot:export"
 stale godot-candy-src public/candy/index.js "pnpm candy:export"
 
 if [ -f .env.local ]; then
-  if ! grep -Eq '^VITE_FIREBASE_FIRESTORE_DB=.+' .env.local; then
-    notes+="- .env.local 缺 VITE_FIREBASE_FIRESTORE_DB（應為 dkbo-collect）：/battle 會連到 Datastore-mode 的 (default) 而報 client is offline。"$'\n'
+  if grep -Eq '^VITE_FIREBASE_FIRESTORE_DB=dkbo-collect' .env.local; then
+    notes+="- .env.local 的 VITE_FIREBASE_FIRESTORE_DB=dkbo-collect：該 DB 在 test-73ce3 不存在（NOT_FOUND），/battle 會報 client is offline；應留空連 (default)。"$'\n'
   fi
 else
   notes+="- 沒有 .env.local：/battle 的 Firebase 無法初始化，從 .env.example 複製並填值。"$'\n'

@@ -1,8 +1,8 @@
 rules_version = '2';
 
 // 多人對戰房間 Security Rules（Phase 1 控制平面）
-// 部署：`firebase deploy --only firestore:rules`（依 firebase.json 指向具名資料庫 dkbo-collect，
-// 非 (default)；部署後請於 Firebase Console → Firestore → dkbo-collect → Rules 再次確認生效）。
+// 部署：`firebase deploy --only firestore:rules`（依 firebase.json 指向 (default) 資料庫；
+// 部署後請於 Firebase Console → Firestore → Rules 再次確認生效）。
 // 原則：
 // - 須匿名登入。
 // - rooms：僅能以房號單筆讀取（get），不開放列出所有房間（list）；建立/更新/刪除欄位皆做 schema 驗證。
