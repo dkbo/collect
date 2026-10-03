@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { JUMP_S0, JUMP_S1, RACE_COURSE } from '@/babylon/games/raceRules/trackData'
 import { JUMP_H, MAX_SPEED, jumpY, launchVy } from '@/babylon/games/raceRules/drive'
-import { HOP_MS, bodyPose, remoteY, steerFromYaw } from '@/babylon/games/raceFx/carPose'
+import { HOP_MS, YAW_RELAX_MS, bodyPose, remoteY, steerFromYaw, yawToward } from '@/babylon/games/raceFx/carPose'
 
 const C = RACE_COURSE
 
@@ -57,5 +57,16 @@ describe('raceFx/carPose — 車身姿態（spec §4.1）', () => {
     expect(hop.dy).toBeCloseTo(0.25)
     const done = bodyPose({ steer: 0, speedRatio: 0, drifting: true, boosting: false, vy: 0, airborne: false, hopMs: 200, rampPitch: 0 })
     expect(done.dy).toBe(0)
+  })
+})
+
+describe('raceFx/carPose — 甩尾放開 120ms 回正（波 3 Minor M5）', () => {
+  it('目標偏航變小時以 120ms 走完全幅；變大（進甩尾）立即到位', () => {
+    expect(YAW_RELAX_MS).toBe(120)
+    expect(yawToward(0, 0.38, 16)).toBe(0.38)
+    expect(yawToward(0.38, 0, 60)).toBeCloseTo(0.19)
+    expect(yawToward(0.38, 0, 120)).toBe(0)
+    expect(yawToward(-0.38, 0, 60)).toBeCloseTo(-0.19)
+    expect(yawToward(0.1, 0, 200)).toBe(0)
   })
 })

@@ -36,9 +36,8 @@ export interface CarVisual {
   steer: number
   /** 由畫面位移估的速度（他車沒有速度欄位） */
   speedEst: number
-  /** 暫用火花左右交替 */
-  sparkSide: number
-  spinAngle: number
+  /** 甩尾偏航（放開時 120ms 回正，carPose.yawToward） */
+  driftYaw: number
   prevX: number
   prevZ: number
   prevRy: number
@@ -46,7 +45,11 @@ export interface CarVisual {
   /** 甩尾按下的時間（起跳動畫），-1 = 無 */
   hopAt: number
   wasDrifting: boolean
-  sparkAcc: number
+  /** 上一幀騰空（落地計數用） */
+  wasAirFx: boolean
+  /** 上一幀的 ghost 旗標（重生由 false→true 觸發） */
+  wasGhost: boolean
+  /** 重生閃爍暗的那半週期：輪胎、火花芯、blob 影收起來（thin instance 沒有逐筆透明度） */
   hidden: boolean
 }
 
@@ -169,15 +172,15 @@ export class CarKit {
       wheelSpin: 0,
       steer: 0,
       speedEst: 0,
-      sparkSide: 1,
-      spinAngle: 0,
+      driftYaw: 0,
       prevX: 0,
       prevZ: 0,
       prevRy: 0,
       prevY: 0,
       hopAt: -1,
       wasDrifting: false,
-      sparkAcc: 0,
+      wasGhost: false,
+      wasAirFx: false,
       hidden: false,
     }
   }

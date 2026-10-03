@@ -166,6 +166,23 @@ export function shellData(): MeshData {
   return mergeData(parts)
 }
 
+/** 加速菇（使用瞬間在車頂彈出）：橘傘＋5 白點、奶白柄、2 顆眼睛；原點在柄底 */
+export function mushroomData(): MeshData {
+  const { main, dark, accent } = ITEM_COLORS.mushroom
+  const CAP_Y = 0.34
+  const parts: MeshData[] = [
+    at(solid(cylinder(0.32, 0.36, 12), rgba(RACE.face)), { x: 0, y: 0.16, z: 0 }),
+    at(radial(sphere(0.7, 14), accent, main, dark), { x: 0, y: CAP_Y, z: 0, sy: 0.7 }),
+  ]
+  for (let i = 0; i < 5; i++) {
+    const a = (i * 2 * Math.PI) / 5
+    const r = i === 0 ? 0 : 0.24
+    parts.push(at(solid(sphere(0.14, 6), rgba(accent)), { x: Math.sin(a) * r, y: CAP_Y + (i === 0 ? 0.24 : 0.17), z: Math.cos(a) * r }))
+  }
+  for (const x of [-0.07, 0.07]) parts.push(at(solid(sphere(0.06, 6), rgba(OUTLINE)), { x, y: 0.17, z: 0.17 }))
+  return mergeData(parts)
+}
+
 // ---- 場景（§4.3） ----
 
 /** 凸點積木（2×2 或 2×4），原點在底面中心、高 1.2；頂點色只有明暗，顏色走 instance color */

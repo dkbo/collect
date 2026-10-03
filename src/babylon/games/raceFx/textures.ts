@@ -272,3 +272,74 @@ export function createBlobTexture(scene: Scene): DynamicTexture {
   tex.update()
   return tex
 }
+
+/** 浮字圖集（spec §8.1）：4×2 格、每格 128×128，白字＋OUTLINE 描邊；英數 Fredoka 700、中文站內字型 900 */
+export const FLOAT_TEXTS = ['LAP 2', 'LAP 3', 'GO!', '+1', '完賽', '1st', '2nd', '3rd'] as const
+export type FloatText = (typeof FLOAT_TEXTS)[number]
+const FLOAT_CELL = 128
+/** 字卡 plane 的長寬比（3.2×1.4）：格內只取中間這段高度 */
+export const FLOAT_ASPECT = 1.4 / 3.2
+
+/** 格 i 的 UV（u0, v0, u1, v1；v 往上），只取中間 FLOAT_ASPECT 高的一條 */
+export function floatCellUV(i: number): [number, number, number, number] {
+  const col = i % 4
+  const row = Math.floor(i / 4)
+  const u0 = col / 4
+  const band = FLOAT_ASPECT / 2
+  const vMid = 1 - (row + 0.5) / 2
+  return [u0, vMid - band / 2, u0 + 1 / 4, vMid + band / 2]
+}
+
+export function createFloatAtlas(scene: Scene): DynamicTexture {
+  const S = FLOAT_CELL
+  const tex = dyn(scene, 'race-float-atlas', S * 4, S * 2, true)
+  const draw = (): void => {
+    const g: Ctx = ctxOf(tex)
+    g.clearRect(0, 0, S * 4, S * 2)
+    FLOAT_TEXTS.forEach((text, i) => {
+      const cx = (i % 4) * S + S / 2
+      const cy = Math.floor(i / 4) * S + S / 2 + 2
+      const cjk = /[^\x20-\x7E]/.test(text)
+      g.font = cjk ? '900 40px "Noto Sans TC", sans-serif' : `700 ${text.length > 3 ? 36 : 44}px Fredoka, sans-serif`
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      g.lineJoin = 'round'
+      g.lineWidth = 6
+      g.strokeStyle = OUTLINE
+      g.strokeText(text, cx, cy)
+      g.fillStyle = '#FFFFFF'
+      g.fillText(text, cx, cy)
+    })
+    tex.update()
+  }
+  whenFontReady('700 44px Fredoka', tex, draw)
+  return tex
+}
+
+/** 速度線 512²（spec §8 #4）：放射狀細白線 36 條、中心 55% 鏤空、由外往內 alpha 0.45 → 0 */
+export function createSpeedLineTexture(scene: Scene): DynamicTexture {
+  const S = 512
+  const tex = dyn(scene, 'race-speedline-tex', S, S, true)
+  const g: Ctx = ctxOf(tex)
+  g.clearRect(0, 0, S, S)
+  const c = S / 2
+  const outer = Math.hypot(c, c)
+  const inner = c * 0.55
+  const gr = g.createRadialGradient(c, c, inner, c, c, outer)
+  gr.addColorStop(0, 'rgba(255,255,255,0)')
+  gr.addColorStop(1, 'rgba(255,255,255,0.45)')
+  g.strokeStyle = gr
+  g.lineCap = 'round'
+  for (let i = 0; i < 36; i++) {
+    // 角度與粗細微抖（固定值，不吃亂數）
+    const a = (i / 36) * Math.PI * 2 + ((i * 7) % 5) * 0.02
+    g.lineWidth = 2 + ((i * 11) % 3)
+    const r0 = inner + ((i * 13) % 4) * 12
+    g.beginPath()
+    g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0)
+    g.lineTo(c + Math.cos(a) * outer, c + Math.sin(a) * outer)
+    g.stroke()
+  }
+  tex.update()
+  return tex
+}

@@ -66,3 +66,13 @@ export function bodyPose(p: PoseInput): BodyPose {
   const dy = p.hopMs >= 0 && p.hopMs < HOP_MS ? HOP_H * Math.sin((Math.PI * p.hopMs) / HOP_MS) : 0
   return { rx, rz: -p.steer * LEAN * p.speedRatio, yaw: p.drifting ? DRIFT_YAW * p.steer : 0, dy }
 }
+
+/** 甩尾放開回正時長（波 3 Minor M5）：偏航變小時以這段時間走完全幅，變大（進甩尾）立即到位 */
+export const YAW_RELAX_MS = 120
+
+export function yawToward(cur: number, target: number, dtMs: number): number {
+  if (Math.abs(target) >= Math.abs(cur)) return target
+  const step = (DRIFT_YAW * Math.max(0, dtMs)) / YAW_RELAX_MS
+  const d = target - cur
+  return Math.abs(d) <= step ? target : cur + Math.sign(d) * step
+}

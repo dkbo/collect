@@ -12,6 +12,7 @@ import {
   crowdData,
   curbData,
   flagData,
+  mushroomData,
   rampData,
   shellData,
   standData,
@@ -151,5 +152,18 @@ describe('raceFx/models — 場景物件（spec §4.3）', () => {
     for (let i = 0; i < d.positions.length; i += 3) {
       if (d.positions[i + 2] < b.min[2] + 0.01) expect(d.positions[i + 1]).toBeLessThan(0.1)
     }
+  })
+})
+
+describe('raceFx/models — 加速菇（spec §4.2）', () => {
+  it('合法 mesh、原點在柄底、傘寬約 0.7、總高約 0.6', () => {
+    const d = mushroomData()
+    expectWellFormed(d)
+    const b = bounds(d)
+    expect(b.min[1]).toBeGreaterThanOrEqual(-0.01)
+    expect(b.max[0] - b.min[0]).toBeGreaterThan(0.65)
+    expect(b.max[0] - b.min[0]).toBeLessThan(0.8)
+    expect(b.max[1]).toBeGreaterThan(0.5)
+    expect(b.max[1]).toBeLessThan(0.75)
   })
 })
