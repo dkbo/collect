@@ -302,6 +302,16 @@ export class ToyLook {
     return c
   }
 
+  /**
+   * 陰影框中心移到 (x, z)（賽車：賽道太大、正交投影罩不住，陰影框跟著自己的車走）。
+   * 只移動主光位置，正交範圍（shadowRadius）不變；不呼叫＝建構時的原點中心（其他遊戲行為不變）。
+   * 呼叫端自己量化座標，避免每幀微移造成陰影抖動。
+   */
+  setShadowCenter(x: number, z: number): void {
+    const d = SUN_DIR.normalizeToNew()
+    this.sun.position.set(x - d.x * 40, -d.y * 40, z - d.z * 40)
+  }
+
   // ---- 每幀 ----
 
   /** 餵幀時間；連續 60 幀平均低於 45fps 就降一級 */

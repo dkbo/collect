@@ -9,15 +9,15 @@ describe('roadStrip（閉合路面帶）', () => {
   const g = roadStrip(T, T.width / 2, 0.02)
   const n = T.pts.length
 
-  it('每個取樣點左右各一個頂點、每段兩個三角形（閉合）', () => {
-    expect(g.positions).toHaveLength(n * 2 * 3)
+  it('每個取樣點左右各一個頂點，閉合處多一圈（uv 不共用）；每段兩個三角形', () => {
+    expect(g.positions).toHaveLength((n + 1) * 2 * 3)
     expect(g.indices).toHaveLength(n * 6)
-    expect(Math.max(...g.indices)).toBe(n * 2 - 1)
-    expect(g.uvs).toHaveLength(n * 2 * 2)
+    expect(Math.max(...g.indices)).toBe((n + 1) * 2 - 1)
+    expect(g.uvs).toHaveLength((n + 1) * 2 * 2)
   })
 
   it('頂點落在中心線兩側 ±半寬、高度為 y', () => {
-    for (let i = 0; i < n; i += 37) {
+    for (let i = 0; i <= n; i += 37) {
       for (const side of [0, 1]) {
         const k = (i * 2 + side) * 3
         expect(g.positions[k + 1]).toBe(0.02)
@@ -28,7 +28,17 @@ describe('roadStrip（閉合路面帶）', () => {
   })
 
   it('法線一律朝上（路面材質關背面剔除，繞向不影響光照）', () => {
-    expect(g.normals).toHaveLength(n * 2 * 3)
+    expect(g.normals).toHaveLength((n + 1) * 2 * 3)
     for (let i = 0; i < g.normals.length; i += 3) expect([g.normals[i], g.normals[i + 1], g.normals[i + 2]]).toEqual([0, 1, 0])
+  })
+
+  it('閉合處 uv 不反向拉伸：v 沿線單調遞增，最後一圈 v = len·vPerUnit、位置同第一圈（波 2 Minor）', () => {
+    const k = 1 / 8
+    const h = roadStrip(T, T.width / 2, 0.02, k)
+    const v = (ring: number) => h.uvs[ring * 4 + 1]
+    for (let i = 1; i <= n; i++) expect(v(i)).toBeGreaterThan(v(i - 1))
+    expect(v(n)).toBeCloseTo(T.len * k, 6)
+    expect(v(0)).toBe(0)
+    for (let c = 0; c < 6; c++) expect(h.positions[n * 6 + c]).toBeCloseTo(h.positions[c], 9)
   })
 })

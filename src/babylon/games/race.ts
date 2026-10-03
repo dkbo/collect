@@ -1,17 +1,12 @@
-import {
-  ArcRotateCamera,
-  Color3,
-  HemisphericLight,
-  Mesh,
-  MeshBuilder,
-  StandardMaterial,
-  Vector3,
-  VertexData,
-} from '@/babylon/babylonCore'
+import { ArcRotateCamera, Color3, Color4, Scene, SceneInstrumentation, Vector3 } from '@/babylon/babylonCore'
 import type { GameNetMessage } from '@/core/webrtc'
 import type { GameContext, GameModule, GameOverlay, GamePlayer } from '@/babylon/types'
 import { lerpAngle } from '@/babylon/math'
 import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
+import { COUNTDOWN_THEME } from '@/babylon/fx/countdown'
+import { perfLogLine } from '@/babylon/fx/perfLog'
+import { tierQuery } from '@/babylon/fx/quality'
 import { attachFlowAudio, engineStart, engineSet, engineStop, playSfx, stopAllAudio } from '@/babylon/audio'
 import {
   createFixedTicker,
@@ -23,16 +18,15 @@ import {
   type OwnershipSync,
   type SnapshotBuffer,
 } from '@/babylon/net'
-import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
-import { LAPS, pointAt, raceOver, sectorOf, trackProgress, normalizeProgress } from '@/babylon/games/raceRules/track'
+import { JUMP_S0, JUMP_S1, RACE_COURSE } from '@/babylon/games/raceRules/trackData'
+import { LAPS, raceOver, sectorOf, trackProgress, normalizeProgress, wrapAngle } from '@/babylon/games/raceRules/track'
 import {
   BOOST_SPEED,
+  JUMP_G,
   JUMP_H,
   MAX_SPEED,
-  PAD_HALF_LEN,
-  PAD_HALF_W,
-  RAMP_HALF_W,
   makeRacer,
+  rampY,
   stepRacer,
   type DriveInput,
   type RacerState,
@@ -82,11 +76,16 @@ import {
   type StandingCar,
 } from '@/babylon/games/raceFx/raceResult'
 import { emptyField, spawnField, stepField, type FieldEvent, type ItemField } from '@/babylon/games/raceFx/raceField'
-import { roadStrip } from '@/babylon/games/raceFx/raceGeom'
-import { disposeCarVisual, makeCarVisual, type CarVisual } from '@/babylon/games/raceFx/carVisual'
+import { CarKit, disposeCarVisual, type CarVisual } from '@/babylon/games/raceFx/carVisual'
+import { RaceWorld, type WorldItem } from '@/babylon/games/raceFx/world'
+import { CHASE, initChase, snapGrid, stepChase, type ChaseMode, type ChaseState } from '@/babylon/games/raceFx/chaseCam'
+import { bodyPose, remoteY, steerFromYaw } from '@/babylon/games/raceFx/carPose'
+import { benchEnabled, benchLayout } from '@/babylon/games/raceFx/bench'
+import { WHEEL_R } from '@/babylon/games/raceFx/models'
+import { DRIFT_COLORS, OUTLINE, RACE } from '@/babylon/games/raceFx/palette'
 
 /**
- * 極速賽車 v3 — A Toy Racer 玩法（波 2：玩法面；美術、特效、React HUD 在波 3／4）。
+ * 極速賽車 v3 — A Toy Racer（波 2 玩法、波 3 車輛／場景／光影／追尾相機；特效與 React HUD 在波 4）。
  *
  * 同步模型：分散式所有權——每人本機模擬自己的車（零輸入延遲），20Hz 廣播 own 快照
  * `{ x, z, ry, lap, cp, s, fin, ghost, drift, boost, spin, shield }`；他車插值。
@@ -108,10 +107,18 @@ const SHELL_CHASE_DIST = 15
 /** 衝線後自己的車交給 AI 巡航的油門倍率（spec §6） */
 const CRUISE_THROTTLE = 0.6
 const RESULT_RESTART_MS = 10000
-const GROUND_W = RACE_COURSE.bound.x * 2
-const GROUND_D = RACE_COURSE.bound.z * 2
-/** 甩尾段位火花色（白／藍／橘／紫，波 4 換 spec 色票） */
-const DRIFT_COLORS = [new Color3(1, 1, 1), new Color3(0.3, 0.6, 1), new Color3(1, 0.55, 0.1), new Color3(0.75, 0.3, 1)]
+/** 陰影正交範圍半徑（spec §5：跟著自己的車走） */
+const SHADOW_RADIUS = 22
+/** 陰影中心量化格（避免每幀微移造成 shimmering） */
+const SHADOW_SNAP = 4
+/** AC14：每 2 秒印一次 draw calls 與 fps */
+const PERF_LOG_MS = 2000
+/** 斜坡上的車身俯仰（spec §1.4：−atan(JUMP_H / 6)） */
+const RAMP_PITCH = -Math.atan(JUMP_H / 6)
+/** 前輪轉向擺角（spec §4.1；甩尾時 ×1.3 反打） */
+const FRONT_STEER = 0.42
+/** 暫用火花：加速中的焰色（波 4 換噴焰特效） */
+const FLAME = '#FFC53A'
 const ITEM_LABEL: Record<ItemKind, string> = { banana: '香蕉', shell: '龜殼', mushroom: '加速菇', shield: '護盾' }
 
 const COURSE = RACE_COURSE
@@ -130,17 +137,26 @@ interface CarPose {
   x: number
   z: number
   ry: number
-  y: number
+  /** 本機知道的高度；null = 他車／guest 的 bot，依 s 對照跳台推算 */
+  y: number | null
+  /** 沿線距離（推算跳台高度時先用它粗篩，免得每幀對每台車做投影） */
+  s: number
   drift: DriftTier
+  /** 正在蓄甩尾（含 0 段）；他車以 drift > 0 近似 */
+  drifting: boolean
   spin: boolean
   ghost: boolean
   shield: boolean
   boost: boolean
+  /** 本機輸入的轉向；他車沒有，以偏航角速度反推 */
+  steer?: number
+  /** 本機知道的騰空垂直速度與是否在坡上（自己與 host 的 bot） */
+  air?: { vy: number } | null
+  onRamp?: boolean
 }
 
 interface ItemView {
   kind: 'banana' | 'shell'
-  mesh: Mesh
   x: number
   z: number
   vx: number
@@ -192,15 +208,23 @@ class RaceScene implements GameModule {
   private selfVisual?: CarVisual
   private carVisuals = new Map<string, CarVisual>()
   private camera!: ArcRotateCamera
+  private chase!: ChaseState
+  private look!: ToyLook
+  private world!: RaceWorld
+  private kit!: CarKit
+  /** 陰影被自動降級關掉後，車改墊 blob 影 */
+  private blobShadows = false
+  private shadowKey = ''
+  private lastInput: DriveInput = { throttle: 0, steer: 0, drifting: false }
   private resultElapsed = 0
   private lastOverlayKey = ''
-  private statics: Mesh[] = []
-  private boxMeshes: Mesh[] = []
-  private boostPads: Mesh[] = []
-  private sparks: { mesh: Mesh; life: number }[] = []
   private hud!: TextPanel
   private banner!: TextPanel
-  private mats = new Map<string, StandardMaterial>()
+  // AC14：draw calls 量測；?raceBench=1（限 raceNoDegrade=1）擺固定量測場景
+  private instr: SceneInstrumentation | null = null
+  private lastPerfLog = 0
+  private bench = false
+  private benchItems: WorldItem[] = []
   /** 本端看到的道具事件計數（給 qa 從 __BATTLE_POS 判讀，波 4 隨文字 HUD 一起整理） */
   private seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
 
@@ -318,7 +342,6 @@ class RaceScene implements GameModule {
     this.respawnAt = BOXES.map(() => 0)
     this.hold.clear()
     this.field = emptyField()
-    for (const v of this.itemViews.values()) v.mesh.dispose()
     this.itemViews.clear()
     this.sentTakenKey = ''
     this.seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
@@ -338,6 +361,20 @@ class RaceScene implements GameModule {
           fin: null,
         })
       })
+    }
+    if (this.bench) this.applyBench()
+  }
+
+  /** ?raceBench=1：每台車各持一種道具（bot 不會用掉，量測條件固定） */
+  private applyBench(): void {
+    const held = benchLayout(COURSE).held
+    const kindOf = (id: string) => held[this.slotOf(id) % held.length]
+    this.item = kindOf(this.ctx.selfId)
+    if (this.ctx.role !== 'host') return
+    this.hold.set(this.ctx.selfId, this.item)
+    for (const [id, b] of this.botSims) {
+      b.item = kindOf(id)
+      this.hold.set(id, b.item)
     }
   }
 
@@ -408,19 +445,71 @@ class RaceScene implements GameModule {
     this.ctx = ctx
     const { scene } = ctx
 
-    this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 1.05, 12, Vector3.Zero(), scene)
-    this.camera.maxZ = 600
-    new HemisphericLight('light', new Vector3(0, 1, 0), scene)
+    // 追尾相機（spec §7）
+    this.camera = new ArcRotateCamera('cam', -Math.PI / 2, CHASE.beta, CHASE.radius[0], Vector3.Zero(), scene)
+    this.camera.minZ = CHASE.minZ
+    this.camera.maxZ = CHASE.maxZ
+    // 光影與後製（AC10）：雙光、陰影（跟車走）、Glow 白名單、描邊、後製、解析度與檔位（AC13）；陰影被降級關掉時車改墊 blob 影
+    this.look = new ToyLook(scene, this.camera, {
+      shadowRadius: SHADOW_RADIUS,
+      tag: 'race',
+      outline: OUTLINE,
+      exposure: 1.08,
+      contrast: 1.08,
+      onDegrade: (step) => {
+        if (step === 'shadow') this.blobShadows = true
+      },
+    })
+    // 天色＝霧色（同一個後製轉換，地平線才接得上）；用 skyClear 預先補償 ACES 壓掉的飽和度
+    scene.clearColor = Color4.FromHexString(`${RACE.skyClear}FF`)
+    scene.fogMode = Scene.FOGMODE_LINEAR
+    scene.fogStart = 110
+    scene.fogEnd = 230
+    scene.fogColor = Color3.FromHexString(RACE.skyClear)
 
-    this.buildTrack()
-    this.buildBoxes()
+    // 場景（AC9）：桌墊、路面、路緣、拱門、看台、積木、樹、錐、跳台、加速帶、道具箱、香蕉、龜殼
+    const mobile = this.look.tier === 'mobile'
+    this.world = new RaceWorld(scene, COURSE, BOXES, {
+      matSize: mobile ? 512 : 1024,
+      crowdHop: !mobile,
+      sparkCap: this.look.settings.particleCap,
+    })
+    const fx = this.world.fxTargets()
+    this.look.toon(...fx.toon)
+    this.look.receiver(...fx.receivers)
+    this.look.caster(...fx.casters)
+    this.look.outline(...fx.outlined)
+    for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
+    for (const g of fx.glowOwn) this.look.glowOwnMaterial(g.mesh, g.strength)
+    // 車：合併車身（投影＋描邊在 makeCar 登記）、共用輪胎 thin instance（投影、不描邊）、3 段火花芯（Glow）
+    this.kit = new CarKit(scene)
+    this.look.toon(...this.kit.litMaterials)
+    this.look.caster(this.kit.wheels.mesh)
+    this.look.glowMesh(this.kit.cores.mesh, DRIFT_COLORS[3], 1)
+
+    // AC14：draw calls 量測；量測場景只在 raceNoDegrade=1 下生效
+    this.instr = new SceneInstrumentation(scene)
+    this.bench = typeof window !== 'undefined' && benchEnabled(tierQuery(window.location.search, window.location.hash))
+    if (this.bench) {
+      const lay = benchLayout(COURSE)
+      this.benchItems = [
+        ...lay.bananas.map((p, i): WorldItem => ({ id: `bench-b${i}`, kind: 'banana', ...p })),
+        ...lay.shells.map((p, i): WorldItem => ({ id: `bench-s${i}`, kind: 'shell', ...p })),
+      ]
+    }
 
     if (ctx.role === 'host') this.bots = makeRaceBots(ctx.players.length)
     this.resetRace()
     this.selfVisual = this.makeCar(ctx.selfId)
+    this.chase = initChase(this.chaseInput('playing'))
 
     this.hud = createTextPanel(scene, this.camera, 'hud', 6, 0.8, new Vector3(0, 2.4, 8))
-    this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+    // 開局倒數：玩具系列配色，掛在不經後製的 UI 相機
+    if (typeof document !== 'undefined') void document.fonts?.load('bold 64px Fredoka').catch(() => undefined)
+    this.banner = createCountdownPanel(scene, this.look.uiCamera, 'banner', 7, 4, new Vector3(0, 0.3, 8), {
+      theme: COUNTDOWN_THEME,
+      layerMask: UI_LAYER,
+    })
 
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
@@ -458,108 +547,14 @@ class RaceScene implements GameModule {
     }
   }
 
-  // ---- 場景（波 2 暫用簡單 mesh，波 3 照 spec 換掉） ----
-
-  private mat(name: string, color: Color3, emissive?: Color3): StandardMaterial {
-    let m = this.mats.get(name)
-    if (!m) {
-      m = new StandardMaterial(`race-${name}`, this.ctx.scene)
-      m.diffuseColor = color
-      if (emissive) m.emissiveColor = emissive
-      this.mats.set(name, m)
-    }
-    return m
-  }
-
-  private buildTrack(): void {
-    const scene = this.ctx.scene
-    const ground = MeshBuilder.CreateGround('race-ground', { width: GROUND_W, height: GROUND_D }, scene)
-    ground.material = this.mat('ground', new Color3(0.36, 0.62, 0.4))
-    this.statics.push(ground)
-
-    const addStrip = (name: string, halfW: number, y: number, color: Color3) => {
-      const g = roadStrip(TRACK, halfW, y)
-      const mesh = new Mesh(name, scene)
-      const vd = new VertexData()
-      vd.positions = g.positions
-      vd.indices = g.indices
-      vd.normals = g.normals
-      vd.uvs = g.uvs
-      vd.applyToMesh(mesh)
-      const m = this.mat(name, color)
-      m.backFaceCulling = false
-      mesh.material = m
-      this.statics.push(mesh)
-    }
-    // 路緣（稍寬一圈紅色帶）＋路面
-    addStrip('curb', TRACK.width / 2 + 0.6, 0.01, new Color3(0.9, 0.25, 0.22))
-    addStrip('road', TRACK.width / 2, 0.02, new Color3(0.3, 0.32, 0.38))
-
-    // 起跑線（棋盤格）＋拱門
-    const start = pointAt(TRACK, 0)
-    const cells = 8
-    for (let i = 0; i < cells; i++) {
-      const lat = ((i + 0.5) / cells - 0.5) * TRACK.width
-      const cell = MeshBuilder.CreateBox(`race-start-${i}`, { width: TRACK.width / cells, height: 0.02, depth: 0.8 }, scene)
-      cell.position.set(start.x + Math.cos(start.heading) * lat, 0.035, start.z - Math.sin(start.heading) * lat)
-      cell.rotation.y = start.heading
-      cell.material = i % 2 === 0 ? this.mat('white', Color3.White()) : this.mat('black', new Color3(0.1, 0.1, 0.1))
-      this.statics.push(cell)
-    }
-    for (const side of [-1, 1]) {
-      const lat = side * (TRACK.width / 2 + 0.8)
-      const pillar = MeshBuilder.CreateBox(`race-arch-${side}`, { width: 0.5, height: 4, depth: 0.5 }, scene)
-      pillar.position.set(start.x + Math.cos(start.heading) * lat, 2, start.z - Math.sin(start.heading) * lat)
-      pillar.material = this.mat('arch', new Color3(0.85, 0.2, 0.15))
-      this.statics.push(pillar)
-    }
-    const beam = MeshBuilder.CreateBox('race-arch-beam', { width: TRACK.width + 2.2, height: 0.5, depth: 0.5 }, scene)
-    beam.position.set(start.x, 4, start.z)
-    beam.rotation.y = start.heading
-    beam.material = this.mat('arch', new Color3(0.85, 0.2, 0.15))
-    this.statics.push(beam)
-
-    // 固定加速帶
-    for (const [i, p] of COURSE.pads.entries()) {
-      const pad = MeshBuilder.CreateBox(`race-pad-${i}`, { width: PAD_HALF_W * 2, height: 0.04, depth: PAD_HALF_LEN * 2 }, scene)
-      pad.position.set(p.x, 0.04, p.z)
-      pad.rotation.y = p.heading
-      pad.material = this.mat('pad', new Color3(0.1, 0.6, 0.95), new Color3(0.05, 0.35, 0.7))
-      this.boostPads.push(pad)
-    }
-
-    // 跳台斜坡：從 s0 升到 s1（唇口 JUMP_H）
-    for (const [i, [s0, s1]] of COURSE.jumps.entries()) {
-      const a = pointAt(TRACK, s0)
-      const b = pointAt(TRACK, s1)
-      const run = Math.hypot(b.x - a.x, b.z - a.z)
-      const ramp = MeshBuilder.CreateBox(
-        `race-ramp-${i}`,
-        { width: RAMP_HALF_W * 2, height: 0.2, depth: Math.hypot(run, JUMP_H) },
-        scene
-      )
-      ramp.position.set((a.x + b.x) / 2, JUMP_H / 2, (a.z + b.z) / 2)
-      ramp.rotation.set(-Math.atan2(JUMP_H, run), Math.atan2(b.x - a.x, b.z - a.z), 0)
-      ramp.material = this.mat('ramp', new Color3(0.95, 0.75, 0.2))
-      this.statics.push(ramp)
-    }
-  }
-
-  private buildBoxes(): void {
-    const scene = this.ctx.scene
-    const m = this.mat('box', new Color3(1, 0.8, 0.2), new Color3(0.4, 0.25, 0))
-    for (const b of BOXES) {
-      const mesh = MeshBuilder.CreateBox(`race-box-${b.id}`, { size: 1.1 }, scene)
-      mesh.position.set(b.x, 1, b.z)
-      mesh.material = m
-      this.boxMeshes.push(mesh)
-    }
-  }
-
-  // ---- 車輛視覺（波 3 換成 spec 的 Q 版玩具車） ----
+  // ---- 車輛視覺（spec §4.1） ----
 
   private makeCar(id: string): CarVisual {
-    return makeCarVisual(this.ctx.scene, id, this.colorIndexOf(id), (name, color, emissive) => this.mat(name, color, emissive))
+    const v = this.kit.make(id, this.colorIndexOf(id), !this.isPlayer(id), id === this.ctx.selfId)
+    // 投影只限車與道具（AC10）；描邊車身（輪胎不描）
+    this.look.caster(v.body)
+    this.look.outline(v.body)
+    return v
   }
 
   private visualFor(id: string): CarVisual {
@@ -571,58 +566,97 @@ class RaceScene implements GameModule {
     return v
   }
 
+  private removeCar(v: CarVisual): void {
+    this.world.setCarBlob(v.id, 0, 0, false)
+    disposeCarVisual(this.kit, v)
+  }
+
   private applyPose(v: CarVisual, p: CarPose, dt: number, now: number): void {
-    const moved = Math.hypot(p.x - v.prevX, p.z - v.prevZ)
+    const dx = p.x - v.prevX
+    const dz = p.z - v.prevZ
+    // 起跑、重生是瞬移：不算輪胎轉動、不估轉向
+    const teleport = Math.hypot(dx, dz) > 5
+    const fwd = teleport ? 0 : dx * Math.sin(p.ry) + dz * Math.cos(p.ry)
+    const dRy = teleport ? 0 : wrapAngle(p.ry - v.prevRy)
     v.prevX = p.x
     v.prevZ = p.z
-    for (const w of v.wheels) w.rotation.x += moved * 3
+    v.prevRy = p.ry
+    v.wheelSpin += fwd / WHEEL_R
+    if (dt > 0) v.speedEst += (Math.abs(fwd) / dt - v.speedEst) * Math.min(1, dt * 8)
+    const steer = p.steer ?? steerFromYaw(dRy, dt, v.speedEst)
+    v.steer += (steer - v.steer) * Math.min(1, dt * 10)
+
+    // 高度：自己與 host 的 bot 用模擬值；他車／guest 的 bot 由 s 對照跳台推算（波 2 Minor）
+    let y = p.y
+    let onRamp = p.onRamp ?? false
+    if (y === null) {
+      y = 0
+      // 快照的 s 比插值後的位置新（最多一個快照間隔），只拿來粗篩；高度用插值位置投影出來的 s
+      if (p.s > JUMP_S0 - 3 && p.s < JUMP_S1 + 32) {
+        const prog = trackProgress(TRACK, p.x, p.z)
+        y = remoteY(COURSE, prog.s, prog.lateral, v.speedEst)
+        onRamp = rampY(COURSE, prog.s, prog.lateral) > 0
+      }
+    }
+    const vy = dt > 0 ? (y - v.prevY) / dt : 0
+    v.prevY = y
+    const airborne = p.air !== undefined ? p.air !== null : y > 0 && !onRamp
+    if (p.drifting && !v.wasDrifting) v.hopAt = now
+    v.wasDrifting = p.drifting
+    const pose = bodyPose({
+      steer: v.steer,
+      speedRatio: Math.min(1, v.speedEst / MAX_SPEED),
+      drifting: p.drifting,
+      boosting: p.boost,
+      vy: p.air ? p.air.vy : vy,
+      airborne,
+      hopMs: v.hopAt < 0 ? -1 : now - v.hopAt,
+      rampPitch: onRamp ? RAMP_PITCH : 0,
+    })
     v.spinAngle = p.spin ? v.spinAngle + dt * Math.PI * 5 : 0
-    v.root.position.set(p.x, p.y, p.z)
-    v.root.rotation.y = p.ry + v.spinAngle
-    v.root.setEnabled(!p.ghost || Math.floor(now / 100) % 2 === 0)
+    v.root.position.set(p.x, y, p.z)
+    v.root.rotation.y = p.ry
+    v.visual.position.y = pose.dy
+    v.visual.rotation.set(pose.rx, pose.yaw + v.spinAngle, pose.rz)
+    v.hidden = p.ghost && Math.floor(now / 100) % 2 === 1
+    v.root.setEnabled(!v.hidden)
     v.shield.setEnabled(p.shield)
-    if (p.drift > 0 || p.boost) {
+    if (p.shield) v.shield.rotation.y += dt * 0.6
+
+    this.kit.putWheels(v, v.steer * FRONT_STEER * (p.drifting ? -1.3 : 1))
+    const cam = this.camera.position
+    this.kit.putCore(v, p.drift === 3, cam.x, cam.z, now)
+    this.world.setCarBlob(v.id, p.x, p.z, this.blobShadows && !v.hidden)
+
+    // 暫用火花（波 4 換 spec 特效表）：兩後輪外側交替
+    if ((p.drift > 0 || p.boost) && !v.hidden) {
       v.sparkAcc += dt
       if (v.sparkAcc > 0.05) {
         v.sparkAcc = 0
-        this.spawnSpark(p, p.boost && p.drift === 0 ? DRIFT_COLORS[2] : DRIFT_COLORS[p.drift])
+        v.sparkSide = -v.sparkSide
+        const ry = p.ry + pose.yaw
+        const bx = p.x - Math.sin(ry) * 1.1 + Math.cos(ry) * 0.75 * v.sparkSide
+        const bz = p.z - Math.cos(ry) * 1.1 - Math.sin(ry) * 0.75 * v.sparkSide
+        this.world.spark(bx, y + 0.15, bz, p.boost && p.drift === 0 ? FLAME : DRIFT_COLORS[p.drift])
       }
     }
   }
 
-  private spawnSpark(p: CarPose, color: Color3): void {
-    if (this.sparks.length > 60) return
-    const scene = this.ctx.scene
-    const spark = MeshBuilder.CreateBox('race-spark', { size: 0.14 }, scene)
-    const back = 1.1
-    spark.position.set(p.x - Math.sin(p.ry) * back + (Math.random() - 0.5) * 0.8, p.y + 0.15, p.z - Math.cos(p.ry) * back)
-    const m = new StandardMaterial('race-spark-mat', scene)
-    m.emissiveColor = color
-    m.disableLighting = true
-    spark.material = m
-    this.sparks.push({ mesh: spark, life: 0.3 })
-  }
-
-  // ---- 道具畫面 ----
+  // ---- 道具畫面（香蕉、龜殼由 RaceWorld 的 thin instance 畫） ----
 
   private spawnItemView(id: string, kind: 'banana' | 'shell', x: number, z: number, vx: number, vz: number): void {
     if (this.itemViews.has(id)) return
     this.seen.spawn++
-    const scene = this.ctx.scene
-    const mesh =
-      kind === 'banana'
-        ? MeshBuilder.CreateCylinder(`race-banana-${id}`, { diameterTop: 0.3, diameterBottom: 0.9, height: 0.5 }, scene)
-        : MeshBuilder.CreateSphere(`race-shell-${id}`, { diameter: 0.9, segments: 8 }, scene)
-    mesh.material = kind === 'banana' ? this.mat('banana', new Color3(1, 0.9, 0.2)) : this.mat('shell', new Color3(0.9, 0.15, 0.15))
-    mesh.position.set(x, 0.4, z)
-    this.itemViews.set(id, { kind, mesh, x, z, vx, vz })
+    this.itemViews.set(id, { kind, x, z, vx, vz })
   }
 
   private removeItemView(id: string): void {
-    const v = this.itemViews.get(id)
-    if (!v) return
-    v.mesh.dispose()
     this.itemViews.delete(id)
+  }
+
+  private *worldItems(): Iterable<WorldItem> {
+    for (const [id, v] of this.itemViews) yield { id, kind: v.kind, x: v.x, z: v.z }
+    yield* this.benchItems
   }
 
   // ---- 網路 ----
@@ -837,7 +871,7 @@ class RaceScene implements GameModule {
       const step = stepRacer(r, input, { course: COURSE, others: this.positionsExcept(id) }, dt)
       b.racer = step.state
       if (step.events.includes('finish') && b.fin === null) b.fin = Math.min(OWN_FIN_MAX, Math.round(now - this.playStart))
-      if (out.useItem && b.item && b.fin === null) {
+      if (out.useItem && b.item && b.fin === null && !this.bench) {
         const kind = b.item
         b.item = null
         b.racer = applyItemSelf(b.racer, kind)
@@ -950,6 +984,7 @@ class RaceScene implements GameModule {
     const now = performance.now()
 
     const input = this.fin === null ? this.readInput() : this.cruiseInput(dt)
+    this.lastInput = input
     const step = stepRacer(this.racer, input, { course: COURSE, others: this.positionsExcept(this.ctx.selfId) }, dt)
     this.racer = step.state
     for (const ev of step.events) {
@@ -965,7 +1000,8 @@ class RaceScene implements GameModule {
       this.useQueued = false
       const kind = this.item
       // 過線後不撿不用道具，不干擾還在比賽的車
-      if (kind && this.fin === null) {
+      // bench 量測條件固定：自己手上的道具也不用掉（不然會再去撿箱子）
+      if (kind && this.fin === null && !this.bench) {
         this.item = null
         this.racer = applyItemSelf(this.racer, kind)
         if (this.ctx.role === 'host') this.hostUseItem(this.ctx.selfId, kind, this.racer.car)
@@ -992,34 +1028,69 @@ class RaceScene implements GameModule {
 
   // ---- 畫面更新 ----
 
+  private chaseMode(): ChaseMode {
+    if (this.fin !== null) return 'finished'
+    return this.flow?.state.phase === 'countdown' ? 'countdown' : 'playing'
+  }
+
+  private chaseInput(mode: ChaseMode) {
+    const r = this.racer
+    return {
+      x: r.car.x,
+      z: r.car.z,
+      y: r.y,
+      ry: r.car.ry,
+      speed: r.car.speed,
+      boosting: r.boostMs > 0,
+      mode,
+      countdownMs: mode === 'countdown' ? this.flow.countdownRemaining() : 0,
+    }
+  }
+
+  private selfPose(): CarPose {
+    const r = this.racer
+    return {
+      x: r.car.x,
+      z: r.car.z,
+      ry: r.car.ry,
+      y: r.y,
+      s: r.s,
+      drift: r.drift.tier,
+      drifting: r.drift.charge > 0,
+      spin: r.spinMs > 0,
+      ghost: r.ghostMs > 0,
+      shield: r.shieldMs > 0,
+      boost: r.boostMs > 0,
+      steer: this.lastInput.steer,
+      air: r.air ? { vy: r.air.vy - JUMP_G * r.air.t } : null,
+      onRamp: r.onRamp,
+    }
+  }
+
   update(deltaMs: number): void {
     const dt = deltaMs * 0.001
     const phase = this.flow.state.phase
     const now = performance.now()
     const r = this.racer
 
-    if (this.selfVisual) {
-      this.applyPose(
-        this.selfVisual,
-        {
-          x: r.car.x,
-          z: r.car.z,
-          ry: r.car.ry,
-          y: r.y,
-          drift: r.drift.tier,
-          spin: r.spinMs > 0,
-          ghost: r.ghostMs > 0,
-          shield: r.shieldMs > 0,
-          boost: r.boostMs > 0,
-        },
-        dt,
-        now
-      )
-    }
+    if (this.selfVisual) this.applyPose(this.selfVisual, this.selfPose(), dt, now)
 
-    // 追尾相機（波 3 照 spec §7 換掉）
-    this.camera.target.set(r.car.x, 0.5 + r.y, r.car.z)
-    this.camera.alpha = lerpAngle(this.camera.alpha, -r.car.ry - Math.PI / 2, Math.min(1, dt * 5))
+    // 追尾相機（spec §7）：甩尾時跟移動方向，不跟車身偏航
+    this.chase = stepChase(this.chase, this.chaseInput(this.chaseMode()), dt)
+    const c = this.chase
+    this.camera.alpha = c.alpha
+    this.camera.beta = c.beta
+    this.camera.radius = c.radius
+    this.camera.fov = c.fov
+    this.camera.target.set(c.target[0], c.target[1], c.target[2])
+    // 陰影框跟著自己的車走（4 單位量化）
+    const sx = snapGrid(r.car.x, SHADOW_SNAP)
+    const sz = snapGrid(r.car.z, SHADOW_SNAP)
+    const key = `${sx},${sz}`
+    if (key !== this.shadowKey) {
+      this.shadowKey = key
+      this.look.setShadowCenter(sx, sz)
+    }
 
     // 他車與 bot
     const live = new Set<string>()
@@ -1043,11 +1114,15 @@ class RaceScene implements GameModule {
             z: br.car.z,
             ry: br.car.ry,
             y: br.y,
+            s: br.s,
             drift: br.drift.tier,
+            drifting: br.drift.charge > 0,
             spin: br.spinMs > 0,
             ghost: br.ghostMs > 0,
             shield: br.shieldMs > 0,
             boost: br.boostMs > 0,
+            air: br.air ? { vy: br.air.vy - JUMP_G * br.air.t } : null,
+            onRamp: br.onRamp,
           }
         }
       } else {
@@ -1060,38 +1135,27 @@ class RaceScene implements GameModule {
     }
     for (const [id, v] of this.carVisuals) {
       if (live.has(id)) continue
-      disposeCarVisual(v)
+      this.removeCar(v)
       this.carVisuals.delete(id)
     }
 
-    // 道具箱、道具
-    const bob = Math.sin(now * 0.004) * 0.15
-    for (const [i, m] of this.boxMeshes.entries()) {
-      m.setEnabled(!this.taken.includes(i))
-      m.position.y = 1 + bob
-      m.rotation.y += dt * 1.5
-      m.rotation.x += dt * 0.7
-    }
-    for (const v of this.itemViews.values()) {
-      if (this.ctx.role !== 'host') {
+    // 香蕉／龜殼外插（guest）、場景動畫、thin instance 上傳、自動降級
+    if (this.ctx.role !== 'host') {
+      for (const v of this.itemViews.values()) {
         v.x += v.vx * dt
         v.z += v.vz * dt
       }
-      v.mesh.position.set(v.x, 0.4, v.z)
-      if (v.kind === 'shell') v.mesh.rotation.y += dt * 10
     }
-    for (const pad of this.boostPads) pad.position.y = 0.04 + Math.sin(now * 0.006) * 0.02
+    this.world.update(now, dt, this.taken, this.worldItems())
+    this.kit.sync()
+    this.look.update(deltaMs)
 
-    this.sparks = this.sparks.filter((s) => {
-      s.life -= dt
-      if (s.life <= 0) {
-        s.mesh.material?.dispose()
-        s.mesh.dispose()
-        return false
-      }
-      s.mesh.position.y += dt * 1.5
-      return true
-    })
+    // AC14：每 2 秒印 draw calls 與 fps（讀上一幀的完整計數；還沒渲染過的首次取樣不印）
+    if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
+      this.lastPerfLog = now
+      const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps(), 'race')
+      if (line) console.info(line)
+    }
 
     this.drawHud(phase)
 
@@ -1113,8 +1177,8 @@ class RaceScene implements GameModule {
   }
 
   private lerpPose(
-    a: { x: number; z: number; ry: number; drift: DriftTier; spin: boolean },
-    b: { x: number; z: number; ry: number; drift: DriftTier; spin: boolean },
+    a: { x: number; z: number; ry: number; s: number; drift: DriftTier; spin: boolean },
+    b: { x: number; z: number; ry: number; s: number; drift: DriftTier; spin: boolean },
     alpha: number,
     flags: RaceOwn | null
   ): CarPose {
@@ -1122,8 +1186,10 @@ class RaceScene implements GameModule {
       x: a.x + (b.x - a.x) * alpha,
       z: a.z + (b.z - a.z) * alpha,
       ry: lerpAngle(a.ry, b.ry, alpha),
-      y: 0,
+      y: null,
+      s: b.s,
       drift: b.drift,
+      drifting: b.drift > 0,
       spin: b.spin,
       ghost: flags?.ghost ?? false,
       shield: flags?.shield ?? false,
@@ -1191,24 +1257,18 @@ class RaceScene implements GameModule {
     this.own.stop()
     this.flow.dispose()
     this.offOpen?.()
-    if (this.selfVisual) disposeCarVisual(this.selfVisual)
-    for (const v of this.carVisuals.values()) disposeCarVisual(v)
+    if (this.selfVisual) this.removeCar(this.selfVisual)
+    for (const v of this.carVisuals.values()) this.removeCar(v)
     this.carVisuals.clear()
-    for (const v of this.itemViews.values()) v.mesh.dispose()
     this.itemViews.clear()
-    for (const s of this.sparks) {
-      s.mesh.material?.dispose()
-      s.mesh.dispose()
-    }
-    this.sparks = []
     this.hud.dispose()
     this.banner.dispose()
-    for (const m of [...this.statics, ...this.boxMeshes, ...this.boostPads]) m.dispose()
-    this.statics = []
-    this.boxMeshes = []
-    this.boostPads = []
-    for (const m of this.mats.values()) m.dispose()
-    this.mats.clear()
+    this.instr?.dispose()
+    this.instr = null
+    this.world.dispose()
+    this.kit.dispose()
+    this.look.dispose()
+    this.ctx.scene.fogMode = Scene.FOGMODE_NONE
   }
 }
 
