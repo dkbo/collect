@@ -25,6 +25,7 @@ import {
   SHIELD_BREAK_MS,
   SKID_SPACING,
   boostColor,
+  turboTier,
   driftSparkLook,
   SPARK_SIZE,
   sparkHot,
@@ -158,8 +159,6 @@ const MUSH_POOL = 4
 const MUSH_Y = 2.0
 const STAR_POOL = 12
 const SLIP_LINES = 6
-/** 加速 mini-turbo 判定：放開甩尾到加速開始之間的容許時間 */
-const TURBO_WINDOW_MS = 250
 const CONFETTI = [...PLAYER_PALETTE.map((p) => p.base), '#FFFFFF']
 const SKID_COLOR = '#2B2440'
 /** flame 三層預建（噴焰每幀換色不再 new Color3） */
@@ -464,10 +463,9 @@ export class RaceFx {
       s.lastTierAt = now
     }
 
-    // 噴焰（§8 #2）：加速剛開始時決定色（mini-turbo 段位色或 flame 三層）
+    // 噴焰（§8 #2）：加速剛開始時決定色（mini-turbo 段位色或 flame 三層；甩尾中壓加速帶算 flame）
     if (c.boost && !s.boosting) {
-      const prev: DriftTier = now - s.lastTierAt <= TURBO_WINDOW_MS ? s.lastTier : 0
-      const bc = boostColor(prev)
+      const bc = boostColor(turboTier({ drift: c.drift, lastTier: s.lastTier, lastTierAt: s.lastTierAt, now }))
       s.boostAt = now
       s.boostHex = bc.color
       s.boostColor.copyFrom(Color3.FromHexString(bc.color))

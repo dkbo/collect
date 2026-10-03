@@ -366,12 +366,12 @@ class RaceScene implements GameModule {
     return liveOrder(TRACK, this.liveCars())
   }
 
-  /** 其他車的位置（推擠、尾流用），排除 exclude */
-  private positionsExcept(exclude: string): { x: number; z: number }[] {
-    const out: { x: number; z: number }[] = []
-    if (exclude !== this.ctx.selfId) out.push({ x: this.racer.car.x, z: this.racer.car.z })
-    for (const { id, snap } of this.remotePlayers()) if (id !== exclude) out.push({ x: snap.x, z: snap.z })
-    for (const b of this.botStates()) if (b.id !== exclude) out.push({ x: b.x, z: b.z })
+  /** 其他車的位置與朝向（推擠、尾流用；尾流要 ry 判斷同向），排除 exclude */
+  private positionsExcept(exclude: string): { x: number; z: number; ry: number }[] {
+    const out: { x: number; z: number; ry: number }[] = []
+    if (exclude !== this.ctx.selfId) out.push({ x: this.racer.car.x, z: this.racer.car.z, ry: this.racer.car.ry })
+    for (const { id, snap } of this.remotePlayers()) if (id !== exclude) out.push({ x: snap.x, z: snap.z, ry: snap.ry })
+    for (const b of this.botStates()) if (b.id !== exclude) out.push({ x: b.x, z: b.z, ry: b.ry })
     return out
   }
 

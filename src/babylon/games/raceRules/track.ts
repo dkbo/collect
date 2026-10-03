@@ -160,36 +160,26 @@ export function advanceLap(prev: LapState, sector: number): LapState {
 
 /**
  * 名次用的 (lap, s)：以「最後通過的檢查點」為錨修正原始 s。
- * - 倒車越過起點線（cp 0、s 在上一圈末段）→ 算回上一圈；lap 0 時夾成 s = 0（起跑格）
- * - 抄捷徑跳到前方 → s 不超過下一個未通過的檢查點
+ * 連續行駛只可能在本區（往前 ≤ gap）或檢查點後方（倒車，距離不限）。
+ * - 本區內 → 原樣
+ * - 落在下一個檢查點區（cp 尚未推進）或下下個區（跳過一個檢查點的捷徑、路外投影跳段）→ s 夾在下一個未通過的檢查點
+ * - 其餘 → 倒車：從最後通過的檢查點往回算，越過起點線就算回上一圈；lap 0 時夾成 s = 0（起跑格）
+ *   （8 個檢查點時，倒車超過約 5/8 圈才進到這裡；再少就與跳過一個檢查點無法區分）
  * 各 client 對同一份快照算出相同結果；rankCars 前先套這個。
  */
 export function normalizeProgress(t: Track, c: { lap: number; cp: number; s: number }): { lap: number; s: number } {
   const cpS = t.checkpoints[c.cp] ?? 0
   const nextCp = (c.cp + 1) % CHECKPOINTS
-  const gap = nextCp === 0 ? t.len - cpS : t.checkpoints[nextCp] - cpS
-  let lap = c.lap
-  let s = c.s
-  const raw = s - cpS
-  let ds = raw
-  if (raw > t.len / 2) {
-    ds = raw - t.len
-    lap -= 1
-  } else if (raw <= -t.len / 2) {
-    ds = raw + t.len
-    lap += 1
+  const ahead = (k: number) => wrapS(t, (t.checkpoints[k] ?? 0) - cpS) || t.len
+  const gap = ahead(nextCp)
+  const fwd = wrapS(t, c.s - cpS)
+  if (fwd > gap && fwd <= ahead((c.cp + 3) % CHECKPOINTS)) {
+    return nextCp === 0 ? { lap: c.lap + 1, s: 0 } : { lap: c.lap, s: t.checkpoints[nextCp] }
   }
-  if (ds > gap) {
-    if (nextCp === 0) {
-      lap = c.lap + 1
-      s = 0
-    } else {
-      lap = c.lap
-      s = t.checkpoints[nextCp]
-    }
-  }
+  const at = cpS + (fwd <= gap ? fwd : fwd - t.len)
+  const lap = c.lap + (at >= t.len ? 1 : at < 0 ? -1 : 0)
   if (lap < 0) return { lap: 0, s: 0 }
-  return { lap, s }
+  return { lap, s: c.s }
 }
 
 /** 逆向累計：車的行進方向與賽道切線夾角 > WRONG_WAY_ANGLE 且在動才累計，否則歸零 */
@@ -225,10 +215,10 @@ export function rankCars(list: readonly RankEntry[]): string[] {
     .map((c) => c.id)
 }
 
-/** s 是否落在 [s0, s1)（s1 可大於 len 表示跨起點） */
+/** s 是否落在 [s0, s1)（跨起點時 s1 可大於 len，或 s0 為負） */
 export function inSpan(t: Track, s: number, span: readonly [number, number]): boolean {
   const w = wrapS(t, s)
-  return (w >= span[0] && w < span[1]) || (w + t.len >= span[0] && w + t.len < span[1])
+  return [w - t.len, w, w + t.len].some((v) => v >= span[0] && v < span[1])
 }
 
 /** 視窗曲率（rad / 單位），正 = 右彎 */

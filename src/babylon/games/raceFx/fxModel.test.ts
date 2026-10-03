@@ -10,6 +10,8 @@ import {
   SHAKE_AMP,
   SHAKE_MS,
   boostColor,
+  TURBO_WINDOW_MS,
+  turboTier,
   boxPopScale,
   chunkPose,
   clashKey,
@@ -272,5 +274,19 @@ describe('raceFx/fxModel — 甩尾火花可見度（波 4 qa BUG：紫段在深
 
   it('火花基準尺寸放大到 0.45 以上（fx_spark 只有約 11% 面積不透明，ADD 混色在深色路面上才看得到）', () => {
     expect(SPARK_SIZE).toBeGreaterThanOrEqual(0.45)
+  })
+})
+
+describe('raceFx/fxModel — 噴焰來源判定（mini-turbo 段位 vs 加速帶／菇 flame）', () => {
+  it('剛放開甩尾（本幀段位 0、窗內有段位）→ 該段位', () => {
+    expect(turboTier({ drift: 0, lastTier: 2, lastTierAt: 1000, now: 1000 + TURBO_WINDOW_MS })).toBe(2)
+  })
+  it('甩尾中（本幀段位 > 0）壓加速帶 → 0（flame），不是段位色', () => {
+    expect(turboTier({ drift: 2, lastTier: 2, lastTierAt: 1000, now: 1000 })).toBe(0)
+    expect(boostColor(turboTier({ drift: 3, lastTier: 3, lastTierAt: 5, now: 5 })).kind).toBe('flame')
+  })
+  it('放開超過窗口才加速 → 0', () => {
+    expect(turboTier({ drift: 0, lastTier: 1, lastTierAt: 1000, now: 1001 + TURBO_WINDOW_MS })).toBe(0)
+    expect(turboTier({ drift: 0, lastTier: 0, lastTierAt: -Infinity, now: 0 })).toBe(0)
   })
 })

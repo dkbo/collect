@@ -157,6 +157,26 @@ describe('normalizeProgress — 名次用的 (lap, s)', () => {
     expect(normalizeProgress(sq, { lap: 0, cp: 0, s: sq.len - 2 })).toEqual({ lap: 0, s: 0 })
   })
 
+  it('長距離倒車過起點（超過半圈）：算回上一圈、不夾成 CP1（名次不偏高）', () => {
+    expect(sq.checkpoints[0]).toBe(0)
+    const s = sq.len * 0.4 // 從起點倒車 0.6 圈
+    expect(normalizeProgress(sq, { lap: 2, cp: 0, s })).toEqual({ lap: 1, s })
+    // 在 cp 3 之後倒車越過起點、再倒過 cp 7 進到 cp 6 區：仍在上一圈
+    const s2 = sq.checkpoints[6] + 1
+    expect(normalizeProgress(sq, { lap: 1, cp: 3, s: s2 })).toEqual({ lap: 0, s: s2 })
+    // lap 0 倒車一大段仍夾在起跑格
+    expect(normalizeProgress(sq, { lap: 0, cp: 0, s })).toEqual({ lap: 0, s: 0 })
+  })
+
+  it('已進下一個檢查點區（cp 未推進）或跳過一個檢查點（身在下下個區）：夾在下一個未通過檢查點', () => {
+    // 下一個區（sector cp+1）
+    expect(normalizeProgress(sq, { lap: 1, cp: 1, s: sq.checkpoints[2] + 3 })).toEqual({ lap: 1, s: sq.checkpoints[2] })
+    expect(normalizeProgress(sq, { lap: 1, cp: 7, s: sq.checkpoints[1] - 1 })).toEqual({ lap: 2, s: 0 })
+    // 真的跳過一個檢查點（sector cp+2），含跨起點
+    expect(normalizeProgress(sq, { lap: 1, cp: 1, s: sq.checkpoints[3] + 2 })).toEqual({ lap: 1, s: sq.checkpoints[2] })
+    expect(normalizeProgress(sq, { lap: 1, cp: 7, s: sq.checkpoints[1] + 2 })).toEqual({ lap: 2, s: 0 })
+  })
+
   it('跳區抄到前方：s 不得超過下一個未通過檢查點', () => {
     const r = normalizeProgress(sq, { lap: 0, cp: 2, s: sq.checkpoints[5] })
     expect(r.lap).toBe(0)

@@ -9,7 +9,7 @@
  */
 import { DRIFT_MIN_SPEED, MAX_SPEED } from '@/babylon/games/raceRules/drive'
 import type { ItemKind } from '@/babylon/games/raceRules/items'
-import { LONG_CORNER_K, curvatureAt, placeAt, wrapAngle, type Course } from '@/babylon/games/raceRules/track'
+import { LONG_CORNER_K, curvatureAt, inSpan, placeAt, wrapAngle, type Course } from '@/babylon/games/raceRules/track'
 
 export const AI_LOOKAHEAD = 8
 export const AI_CORNER_K = 1.5
@@ -213,7 +213,7 @@ export function decideRaceBot(inp: BotInput): BotOutput {
     !offTrack &&
     !mind.skipDrift &&
     car.speed > DRIFT_MIN_SPEED &&
-    course.driftZones.some(([s0, s1]) => inp.s >= s0 - AI_DRIFT_IN && inp.s <= s1 - AI_DRIFT_OUT + release)
+    course.driftZones.some(([s0, s1]) => inSpan(track, inp.s, [s0 - AI_DRIFT_IN, s1 - AI_DRIFT_OUT + release]))
 
   return { throttle, steer, drift, useItem: wantsItem(inp) }
 }

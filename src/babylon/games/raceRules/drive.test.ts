@@ -120,6 +120,16 @@ describe('slipCharge — 尾流', () => {
     expect(run(at(26), 3000)).toBe(0)
   })
 
+  it('前車朝向與自己夾角 > 90°（迎面）不累計；≤ 90° 照常；沒給 ry 維持舊行為', () => {
+    const ahead = (ry?: number) => [{ x: 0, z: 5, ry }]
+    expect(run(ahead(Math.PI), 3000)).toBe(0)
+    expect(run(ahead(-Math.PI * 0.6), 3000)).toBe(0)
+    expect(run(ahead(0), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+    expect(run(ahead(Math.PI / 2), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+    expect(run(ahead(Math.PI * 2 - 0.3), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+    expect(run(ahead(), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+  })
+
   it('中途離開條件即歸零', () => {
     let st = slipCharge(0, self, [{ x: 0, z: 5 }], 1000)
     expect(st.ms).toBe(1000)
@@ -175,6 +185,25 @@ describe('stepCar — 基準運動學', () => {
     for (let i = 0; i < secs * 30; i++) c = stepCar(c, { throttle, steer: 0, drifting: false }, m, 1 / 30)
     return c
   }
+
+  it('ry 環繞到 (−π, π]：一直右轉多圈不累積大值，位置與不環繞時相同', () => {
+    let c: CarPhys = { x: 0, z: 0, ry: Math.PI - 0.01, speed: 10 }
+    const step = (p: CarPhys) => stepCar(p, { throttle: 0, steer: 1, drifting: false }, mods, 0.1)
+    const first = step(c)
+    expect(first.ry).toBeLessThanOrEqual(Math.PI)
+    expect(first.ry).toBeGreaterThan(-Math.PI)
+    for (let i = 0; i < 300; i++) {
+      c = step(c)
+      expect(c.ry).toBeLessThanOrEqual(Math.PI)
+      expect(c.ry).toBeGreaterThan(-Math.PI)
+    }
+    const left = stepCar({ x: 0, z: 0, ry: -Math.PI + 0.01, speed: 10 }, { throttle: 0, steer: -1, drifting: false }, mods, 0.1)
+    expect(left.ry).toBeGreaterThan(-Math.PI)
+    expect(left.ry).toBeLessThanOrEqual(Math.PI)
+    // 環繞只改表示法：位移仍依原本轉過的角度
+    expect(first.x).toBeCloseTo(Math.sin(first.ry) * first.speed * 0.1, 9)
+    expect(first.z).toBeCloseTo(Math.cos(first.ry) * first.speed * 0.1, 9)
+  })
 
   it('油門到底收斂到 MAX_SPEED，沿朝向前進', () => {
     const c = drive()

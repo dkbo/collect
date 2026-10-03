@@ -11,6 +11,7 @@ import {
   sectorOf,
   stepWrongWay,
   trackProgress,
+  wrapAngle,
   type Course,
   type LapState,
   type Track,
@@ -132,7 +133,7 @@ export function stepCar(c: CarPhys, input: DriveInput, mods: DriveMods, dt: numb
   const steer = Math.max(-1, Math.min(1, input.steer))
   if (!mods.spinning && steer !== 0 && Math.abs(speed) > 0.3) {
     const f = Math.min(1, Math.abs(speed) / (MAX_SPEED * 0.5)) * Math.sign(speed)
-    ry += steer * TURN_RATE * (input.drifting ? DRIFT_TURN_MULT : 1) * f * dt
+    ry = wrapAngle(ry + steer * TURN_RATE * (input.drifting ? DRIFT_TURN_MULT : 1) * f * dt)
   }
   if (!mods.spinning && input.drifting && Math.abs(speed) > 2) {
     speed -= Math.sign(speed) * Math.min(DRIFT_DRAG * 0.3 * dt, Math.abs(speed))
@@ -157,11 +158,14 @@ export function stepDrift(
   return { state: { charge, tier }, turboMs: 0 }
 }
 
-/** 尾流：前方 SLIP_DIST 內、夾角 ≤ SLIP_CONE_DEG 有車且自己夠快才累積；滿 SLIP_CHARGE_MS 給 SLIP_BOOST_MS 並歸零 */
+/**
+ * 尾流：前方 SLIP_DIST 內、夾角 ≤ SLIP_CONE_DEG 有車且自己夠快才累積；滿 SLIP_CHARGE_MS 給 SLIP_BOOST_MS 並歸零。
+ * 前車有給 ry 時，它的朝向與自己夾角須 ≤ 90°（迎面車不算）。
+ */
 export function slipCharge(
   ms: number,
   self: { x: number; z: number; ry: number; speed: number },
-  others: readonly { x: number; z: number }[],
+  others: readonly { x: number; z: number; ry?: number }[],
   dtMs: number
 ): { ms: number; slipMs: number } {
   const cosCone = Math.cos((SLIP_CONE_DEG * Math.PI) / 180)
@@ -173,7 +177,8 @@ export function slipCharge(
       const dx = o.x - self.x
       const dz = o.z - self.z
       const d = Math.hypot(dx, dz)
-      return d > 0.01 && d <= SLIP_DIST && (dx * fx + dz * fz) / d >= cosCone
+      const sameWay = o.ry === undefined || Math.cos(o.ry - self.ry) >= 0
+      return d > 0.01 && d <= SLIP_DIST && (dx * fx + dz * fz) / d >= cosCone && sameWay
     })
   if (!inCone) return { ms: 0, slipMs: 0 }
   const next = ms + dtMs
@@ -266,8 +271,8 @@ export interface RacerState {
 
 export interface RacerWorld {
   course: Course
-  /** 其他車的位置（推擠與尾流用） */
-  others: readonly { x: number; z: number }[]
+  /** 其他車的位置（推擠與尾流用）；ry 給了才做尾流的朝向判定 */
+  others: readonly { x: number; z: number; ry?: number }[]
 }
 
 /** 起跑格 slot 的初始狀態 */

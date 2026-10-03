@@ -59,6 +59,18 @@ export function boostColor(prevTier: DriftTier): { kind: 'turbo' | 'flame'; colo
   return prevTier > 0 ? { kind: 'turbo', color: DRIFT_COLORS[prevTier] } : { kind: 'flame', color: FLAME[1] }
 }
 
+/** 加速 mini-turbo 判定：放開甩尾到加速開始之間的容許時間 */
+export const TURBO_WINDOW_MS = 250
+
+/**
+ * 加速剛開始時算前一刻的甩尾段位（給 boostColor）：mini-turbo 只在放開甩尾那一刻給，
+ * 所以本幀仍在甩尾（段位 > 0）就是加速帶／菇 → 0；否則看放開是否在窗口內
+ */
+export function turboTier(o: { drift: DriftTier; lastTier: DriftTier; lastTierAt: number; now: number }): DriftTier {
+  if (o.drift > 0) return 0
+  return o.now - o.lastTierAt <= TURBO_WINDOW_MS ? o.lastTier : 0
+}
+
 // ---- 尾流風線（§8 #3）、速度線（§8 #4） ----
 
 export function slipLook(charging: boolean, active: boolean): { count: number; alpha: number } {

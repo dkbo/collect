@@ -82,6 +82,17 @@ describe('decideRaceBot — 開車', () => {
     expect(decideRaceBot(input(t1.s0, { mind: calm({ skipDrift: true }) }, 0, 15)).drift).toBe(false)
   })
 
+  it('跨起點的長彎 span（s1 > len、或進彎提前量使 s0 < 0）用 inSpan 判定', () => {
+    const L = track.len
+    const across: Course = { ...course, driftZones: [[L - 20, L + 30]] }
+    expect(decideRaceBot(input(5, { course: across }, 0, 15)).drift).toBe(true)
+    expect(decideRaceBot(input(L - 10, { course: across }, 0, 15)).drift).toBe(true)
+    expect(decideRaceBot(input(30, { course: across }, 0, 15)).drift).toBe(false)
+    const nearStart: Course = { ...course, driftZones: [[1, 40]] }
+    expect(decideRaceBot(input(L - 2, { course: nearStart }, 0, 15)).drift).toBe(true)
+    expect(decideRaceBot(input(L - 10, { course: nearStart }, 0, 15)).drift).toBe(false)
+  })
+
   it('不在長彎（T3）不甩尾', () => {
     expect(decideRaceBot(input(325, {}, 0, 12)).drift).toBe(false)
   })
