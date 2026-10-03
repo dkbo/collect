@@ -158,11 +158,20 @@ dk_epoch_to_local() { # EPOCH → 本地時間字串。拿「現在」的 epoch 
 }
 
 dk_kinds_down_file() { echo "$DK_ROOT/.sessions/kinds-down"; }
+# 額度是帳號層的（同一個 CLI 登入跑每一個專案），專案層的 kinds-down 只擋得住本專案：agy 在一個
+# 專案撞了額度，另一個專案 20 分鐘後照樣派 agy reviewer、空等到逾時（2026-10-03，第三次）。
+# 所以每次登記同時寫一份到帳號層，讀的時候兩份合併。DK_ACCOUNT_DIR 給測試隔離用。
+dk_kinds_down_account_file() { echo "${DK_ACCOUNT_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/dkbo}/kinds-down"; }
 
-dk_kinds_down_rows() { # 只印恢復時間未到的列；讀的人略過過期列，不必當場刪
-  local f; f=$(dk_kinds_down_file)
-  [ -f "$f" ] || return 0
-  awk -v now="$(date +%s)" '$2+0 > now' "$f"
+dk_kinds_down_rows() { # 只印恢復時間未到的列；讀的人略過過期列，不必當場刪。每個 kind 至多一列
+  local f fs=()
+  for f in "$(dk_kinds_down_file)" "$(dk_kinds_down_account_file)"; do [ -f "$f" ] && fs+=("$f"); done
+  [ "${#fs[@]}" -gt 0 ] || return 0
+  # 專案層在前、照檔內順序；帳號層補本專案沒有的 kind，或恢復得比本專案那一列晚就取代它
+  awk -v now="$(date +%s)" '$2+0 > now {
+      if (!($1 in e)) { o[++n] = $1; e[$1] = $2 + 0; r[$1] = $0 }
+      else if ($2 + 0 > e[$1]) { e[$1] = $2 + 0; r[$1] = $0 } }
+    END { for (i = 1; i <= n; i++) print r[o[i]] }' "${fs[@]}"
 }
 
 dk_kinds_down_get() { dk_kinds_down_rows | awk -v k="$1" '$1==k{print; exit}'; } # KIND → 未過期的那一列（至多一列）
@@ -174,9 +183,15 @@ dk_kind_down_notice() { # KIND → 共用契約「kind 在專案層熔斷到 …
   printf 'kind %s 在專案層熔斷到 %s（%s），跳過' "$k" "$(dk_epoch_to_local "$e")" "$tn"
 }
 
-dk_kinds_down_set() { # KIND EPOCH exact|guess TASKNAME AGENT HIT — flock 序列化，同 kind 已有未過期列就取較晚的
+dk_kinds_down_set() { # KIND EPOCH exact|guess TASKNAME AGENT HIT — 專案層與帳號層各寫一列（帳號層的任務名帶專案名）
+  dk__kinds_down_set_in "$(dk_kinds_down_file)" "$@"
+  dk__kinds_down_set_in "$(dk_kinds_down_account_file)" "$1" "$2" "$3" "$(basename "${DK_PROJECT_ROOT:-$PWD}")/$4" "$5" "$6"
+}
+
+dk__kinds_down_set_in() { # FILE KIND EPOCH exact|guess TASKNAME AGENT HIT — flock 序列化，同 kind 已有未過期列就取較晚的
+  local f="$1"; shift
   local kind="$1" epoch="$2" exact="$3" taskname="$4" agent="$5" hit="$6"
-  local f lock; f=$(dk_kinds_down_file); lock="$DK_ROOT/.sessions/kinds-down.lock"
+  local lock="$f.lock"
   mkdir -p "$(dirname "$f")"
   (
     flock -w 5 9 || echo "dk_kinds_down_set: lock timeout on $lock; writing anyway" >&2
@@ -203,9 +218,16 @@ dk_kinds_down_set() { # KIND EPOCH exact|guess TASKNAME AGENT HIT — flock 序�
   ) 9>"$lock"
 }
 
-dk_kinds_down_remove() { # KIND → 0 表示真的拿掉了至少一列；沒有檔或沒命中回 1
-  local kind="$1" f lock rc dropped
-  f=$(dk_kinds_down_file); lock="$DK_ROOT/.sessions/kinds-down.lock"
+dk_kinds_down_remove() { # KIND → 0 表示專案層或帳號層真的拿掉了至少一列；兩邊都沒有回 1
+  local rc=1
+  dk__kinds_down_remove_in "$(dk_kinds_down_file)" "$1" && rc=0
+  dk__kinds_down_remove_in "$(dk_kinds_down_account_file)" "$1" && rc=0
+  return "$rc"
+}
+
+dk__kinds_down_remove_in() { # FILE KIND → 0 表示真的拿掉了至少一列；沒有檔或沒命中回 1
+  local f="$1" kind="$2" lock rc dropped
+  lock="$f.lock"
   [ -f "$f" ] || return 1
   mkdir -p "$(dirname "$lock")"
   (

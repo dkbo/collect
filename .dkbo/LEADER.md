@@ -21,7 +21,7 @@
 唯一格式：`dk-process "ruling: <決定> — <原因> — <若錯代價>"`。只影響本任務者只記 process；會影響其他任務者另複製一行進 `decisions.md`。結案 report.md 的「重要決策」列出本任務所有 ruling（`grep ' ruling: ' process.md`）。reviewer 意見矛盾：以 brief 為準裁定並記 ruling。`/dkbo-run` 開跑後 brief 判不了的也自己裁定、不問人，ruling 寫成 `ruling: [自主] <決定> — <原因> — <若錯代價>`，結案時全部列進 report.md 的「自主裁定（待你複核）」（規則見 run SKILL.md 的「不停車」）。
 
 ## 額度
-派 reviewer 或員工前先 `dk-kind`（看專案層熔斷）。任何來源確認某 kind 額度耗盡（畫面、CLI 狀態列、前一個任務的 ruling、人告知），當下 `dk-kind down <k> [--until …]`，不能只寫在 ruling 裡：只寫 ruling 的話下一次派工照樣派它、白燒一個 pane 才重新撞出來。知道恢復時間就給 `--until YYYY-MM-DDTHH:MM`（本地時間，標 exact），不知道就省略（現在＋5 小時，標 guess）；誤登記用 `dk-kind up <k>` 解除。
+派 reviewer 或員工前先 `dk-kind`（看專案層熔斷）。任何來源確認某 kind 額度耗盡（畫面、CLI 狀態列、前一個任務的 ruling、人告知），當下 `dk-kind down <k> [--until …]`，不能只寫在 ruling 裡：只寫 ruling 的話下一次派工照樣派它、白燒一個 pane 才重新撞出來。知道恢復時間就給 `--until YYYY-MM-DDTHH:MM`（本地時間，標 exact），不知道就省略（現在＋5 小時，標 guess）；誤登記用 `dk-kind up <k>` 解除。額度跟著 CLI 帳號走：登記同時寫進帳號層（`$XDG_STATE_HOME/dkbo/kinds-down`），同一台機器的其他專案也會跳過它，`dk-kind up` 兩層一起清。
 
 ## 自己上下文吃緊
 清掉自己的上下文（Claude Code 是 `/clear`，其他 CLI 用它自己的清法），然後重新叫你原本那個 skill。執行階段是 `/dkbo-run`，它第一步就是 `dk-resume`，會告訴你本波做到哪。

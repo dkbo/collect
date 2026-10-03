@@ -40,6 +40,10 @@ dk_brief_ncols() { # [COL]... ← dk_brief_* 的列（stdin）→ 每個非空�
   awk -v cols="$*" "$DK__BRIEF_SPLIT"'NF { k = split(cols, q, " "); out = nf; for (i = 1; i <= k; i++) out = out "\t" c[q[i]]; print out }'
 }
 dk_brief_wave_members() { dk_brief_waves "$1" | awk -v n="$2" "$DK__BRIEF_SPLIT"'c[1]==n {print c[3] "(" c[5] ")"}'; }
+# 型態欄寫「待命」的成員：只在 qa 回報 BUG 時才動手（例：HUD 只修 qa 找到的問題）。它要等 qa 驗完
+# 才交得了件，算進 dev 聚合的話整波的「dev 全員完成」會等到 qa 結束才發，領導只能靠整波逾時
+# 才被叫醒去派審查（下游專案 B 的 tankart 波 3 空等 19 分鐘）。dk-watch 的聚合與閒置提醒都跳過它。
+dk_brief_wave_standby() { dk_brief_waves "$1" | awk -v n="$2" "$DK__BRIEF_SPLIT"'c[1]==n && c[2]=="待命" {print c[3]}'; }
 dk_brief_wave_review()  { dk_brief_waves "$1" | awk -v n="$2" "$DK__BRIEF_SPLIT"'c[1]==n && c[7]!="" {print c[7]; exit}'; }
 dk_brief_acceptance()   { [ -f "$1" ] || { echo "dk: no brief at $1" >&2; return 1; }; dk_brief_section "$1" "## 驗收標準" | grep -E '^- \[.\] ' || true; }
 # 橫切所有波的硬要求（版本下限、命名規則、平台要求）。段落不存在＝0.9.0 之前建立的 brief。

@@ -24,7 +24,7 @@
 | （範例）login API | backend | frontend, qa | `POST /login {user,pw} → {token,exp}` | 動它要先 ESCALATE |
 
 ## 波次表
-一列一位成員；同一波的列相鄰、波號從 1 連續。審查欄只填在該波第一列：`預設`（用 settings.env 的 kind）、`skip: <理由>`（純文件波）、`kinds: <k1> [k2] [k3]`。
+一列一位成員；同一波的列相鄰、波號從 1 連續。型態：`實作`、`驗收`，或 `待命`（只修 qa 回報的 BUG，不算進 dev 聚合）。審查欄只填在該波第一列：`預設`（用 settings.env 的 kind）、`skip: <理由>`（純文件波）、`kinds: <k1> [k2] [k3]`。
 | 波 | 型態 | 成員 | 做什麼 | 難度 | 完成條件 | 審查 |
 |---|---|---|---|---|---|---|
 | （範例）1 | 實作 | backend | POST /login | M | 測試過 | 預設 |

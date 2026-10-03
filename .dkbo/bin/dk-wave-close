@@ -2,7 +2,7 @@
 # dk-wave-close [--force] [-m "<commit msg>"] | dk-wave-close --agent <agent>
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/ownership.sh"; . "$DK_ROOT/lib/layout.sh"; . "$DK_ROOT/lib/herdr.sh"
-. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
+. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/procs.sh"
 dk_require_herdr
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
 if [ "${1:-}" = --agent ]; then   # close one employee (e.g. a timed-out reviewer) and re-balance its tab
@@ -108,6 +108,22 @@ if [ "$legacy" = 0 ]; then
   fi
 fi
 if [ -n "$problems" ] && [ "$force" = 0 ]; then printf 'dk-wave-close: refused (use --force to close anyway):%b\n' "$problems"; exit 1; fi
+# reviewer 看的是 dk-review-pack 那一刻的快照，qa 與 dev 的修正可能在那之後才落地。比對最後一份
+# 差異包（N.diff.sums）與現在的 diff：一樣就記 review-covered，不一樣就把審後才改的檔列出來記
+# review-drift —— 只記不擋，結案報告與整枝評議據此判斷要不要補看（下游專案 A 的 cuteui：快照其實
+# 就是最終版，reviewer 卻以為 qa 還在改而跳過 e2e，報告又寫成「沒有未經審查的波」）。
+if [ "$legacy" = 0 ] && [ -n "$n" ] && [ -f "$dir/waves/$n.diff.sums" ]; then
+  if now_sums=$("$DK_ROOT/bin/dk-review-pack" "$n" --sums 2>/dev/null); then
+    drift=$(awk -F'\t' 'NR==FNR {old[$1 FS $2] = $3; next}
+      { k = $1 FS $2; if (old[k] != $3) print $2; delete old[k] }
+      END { for (k in old) { split(k, p, FS); print p[2] } }' "$dir/waves/$n.diff.sums" <(printf '%s\n' "$now_sums" | grep . || true) | sort -u | tr '\n' ' ' | sed 's/ *$//')
+    if [ -z "$drift" ]; then dk_process "review-covered $n"
+    else
+      echo "dk-wave-close: 審查之後又改過、reviewer 沒看過最終版的檔：$drift（要補看就 dk-review-pack $n 再派複看；不補就寫進 report 的遺留）"
+      dk_process "review-drift $n: $drift"
+    fi
+  fi
+fi
 tests="skipped (no DK_TEST_CMD)"
 if [ "$legacy" = 0 ]; then   # gate c
   mkdir -p "$dir/waves"
@@ -179,6 +195,18 @@ while read -r agent pane _epoch _group tab _; do
   if [ -n "${tab:-}" ] && [[ " $tabs " != *" $tab "* ]]; then tabs="$tabs $tab"; fi
 done < "$dir/.panes"
 mkdir -p "$dir/.blocked"; ( flock -w 5 9 || true; : > "$dir/.panes" ) 9>"$dir/.blocked/panes.lock"
+# pane 關了，員工用 nohup／& 起的 listen 行程（qa 的 vite preview、dev server）還活著，會一直
+# 佔著埠到下一個任務（lib/procs.sh）。只收綁在本任務 worktree 上的；--no-worktree 的任務 worktree
+# 就是主樹，領導的東西也在那裡，不收。
+wts=$(printf '%s\n' "$repo_rows" | awk '$3!="" && $3!="-" && $3!=$2 {print $3}')
+if [ -n "$wts" ]; then
+  # shellcheck disable=SC2086  # worktree 路徑不含空白（同 .repos 的格式），一個路徑一個參數
+  while read -r rpid rport rcmd; do
+    [ -n "$rpid" ] || continue
+    echo "dk-wave-close: 收掉 worktree 裡的背景行程 pid $rpid（port $rport）：${rcmd:0:80}"
+    dk_process "reap $rpid port $rport"
+  done <<< "$(dk_reap_tied $wts)"
+fi
 if [ "$legacy" = 1 ]; then dk_process "wave-close: $closed agents closed"
 else
   dk_env_set DK_WAVE ""; dk_env_set DK_WAVE_STARTED ""

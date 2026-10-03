@@ -27,7 +27,7 @@ DK_SETUP_CMD="pnpm install --frozen-lockfile --prefer-offline"
 > herdr --version && command -v jq git claude >/dev/null || { echo "缺少 herdr/jq/git/claude"; exit 1; }
 > git status --porcelain | grep -q . && { echo "工作樹不乾淨，請先 commit 或 stash"; exit 1; }
 > REPO=https://github.com/dkbo/dkbo-team.git   # fork 的話改這裡
-> VER=v0.18.1   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
+> VER=v0.19.0   # 要裝的版本；看 https://github.com/dkbo/dkbo-team/tags
 > tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" "$REPO" "$tmp" && (cd "$tmp/.dkbo" && rm -rf tasks decisions.md PROJECT.md settings.env .sessions) && cp -r "$tmp/.dkbo" ./.dkbo && rm -rf "$tmp"
 > .dkbo/install.sh
 > git add -A && git commit -m "chore: add dkbo"
@@ -38,7 +38,7 @@ DK_SETUP_CMD="pnpm install --frozen-lockfile --prefer-offline"
 
 預期輸出的最後兩行：
 ```
-dkbo 0.18.1 installed into /path/to/project
+dkbo 0.19.0 installed into /path/to/project
 leader
 ```
 
@@ -51,7 +51,7 @@ leader
 ## 驗證
 ```bash
 .dkbo/bin/dk-whoami            # leader
-.dkbo/bin/dk-version           # dkbo 0.18.1
+.dkbo/bin/dk-version           # dkbo 0.19.0
 ls -l .claude/skills .agents/skills | grep dkbo   # 十個 symlink
 tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 ```
@@ -69,7 +69,7 @@ tail -1 AGENTS.md CLAUDE.md     # 分別是入口行與 @AGENTS.md
 - 第二位領導：在任何 herdr shell 執行 `.dkbo/bin/dk-leader pay "金流"`。它的 kind 取 `DK_LEADER_KIND`，model/effort 取該 kind `KIND_DEFAULT_TIERS` 的 L 檔；`--kind` / `--model` / `--effort` 可逐次覆寫。
 - 每波自動附審查：dev DONE 後領導派 1–3 位 reviewer（kind 依 `.dkbo/settings.env` 的 `DK_REVIEW_KINDS`，檔位依 `DK_REVIEW_TIER`，預設 L）與 qa 並行；wave-close 會檢查裁定、每位 dev 的 report、`DK_TEST_CMD`，以及拿 worktree 的真實 git diff 比對本波的檔案所有權（沒人擁有的檔一律不放行），四道全過才關 pane 並在 worktree 內 commit 這一波。純文件波在 brief 審查欄寫 `skip: <理由>`。
 - 波中改 brief：`dk-wave-open <N> --refresh` 依當下 brief 重產第 N 波所有成員的切片並重算整波逾時，不動 base、不重派；改完再 `dk-msg <員工> "[TASK] 重讀切片"`。
-- 專案層熔斷：`dk-kind` 看跨任務仍在熔斷的 kind 與恢復時間，`dk-kind up <k>` 解除；從畫面、CLI 狀態列、前一個任務的 ruling 或別人口中確認某 kind 額度耗盡，當下 `dk-kind down <k> [--until YYYY-MM-DDTHH:MM] [--note <文字>]` 登記（沒給 `--until` 就猜現在＋5 小時），下一次派 reviewer 或員工就會跳過它。
+- 專案層熔斷：`dk-kind` 看跨任務仍在熔斷的 kind 與恢復時間，`dk-kind up <k>` 解除；從畫面、CLI 狀態列、前一個任務的 ruling 或別人口中確認某 kind 額度耗盡，當下 `dk-kind down <k> [--until YYYY-MM-DDTHH:MM] [--note <文字>]` 登記（沒給 `--until` 就猜現在＋5 小時），下一次派 reviewer 或員工就會跳過它。登記同時寫進帳號層（`$XDG_STATE_HOME/dkbo/kinds-down`，預設 `~/.local/state/dkbo/`），同一台機器上裝了 dkbo 的其他專案一樣會跳過。
 - 結案：`dk-task-close` 合併回主分支；任務 tab 不自動關（最後一行印 `herdr tab close <id>`），看完 report 自己關。
 - 人多時的版面：領導在 tab 1 左欄，員工填右側 2×2（或 3×2）；第 5 位起自動開 `<short>-2` 等 tab，每 tab 6 位。
 
@@ -99,7 +99,7 @@ stdout 是單行 JSON，exit 0；找不到任務 exit 1，用法錯 exit 2。它
 只更新核心，保留你的 `tasks/`、`PROJECT.md`、`decisions.md` 與自訂角色：
 先用 .dkbo/bin/dk-version 看目前版本，再到 tags 頁挑要升的版本。
 ```bash
-VER=v0.18.1 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
+VER=v0.19.0 && tmp=$(mktemp -d) && git clone -q --depth 1 --branch "$VER" https://github.com/dkbo/dkbo-team.git "$tmp"
 rsync -a --exclude=tasks --exclude=PROJECT.md --exclude=decisions.md --exclude='roles/*' --exclude=.sessions --exclude=settings.env "$tmp/.dkbo/" ./.dkbo/
 rsync -a --ignore-existing "$tmp/.dkbo/roles/" ./.dkbo/roles/   # 只補新角色，不覆蓋既有
 rm -rf "$tmp" && .dkbo/install.sh && git add -A && git commit -m "chore: update dkbo"

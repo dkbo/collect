@@ -17,6 +17,11 @@ while [ $# -gt 0 ]; do case "$1" in
              resume=1; notes="$notes handoff"; shift 2;;
   --*) dk_die "unknown flag $1";; *) alias="$1"; shift;; esac; done
 rf="$DK_ROOT/roles/$role.md"; [ -f "$rf" ] || dk_die "no role file $rf (use add-role skill first)"
+# 別名是角色的後綴：dk-spawn babylon hud → babylon-hud。寫成 babylon-hud 的話 state 名變成
+# babylon-babylon-hud，對不上切片與波次表（下游專案 B 的 tankart 波 2 因此關掉重派）。
+case "$alias" in "$role"-?*)
+  echo "dk-spawn: 別名是角色的後綴，'$alias' 改成 '${alias#"$role"-}'（state 名 $role-${alias#"$role"-}）" >&2
+  alias="${alias#"$role"-}";; esac
 [ -n "$kind" ] || kind=$(dk_fm "$rf" kind)
 spec=$(dk_fm_tier "$rf" "$tier"); [ -n "$spec" ] || dk_die "role $role has no tier $tier"
 if [ "$kind" != "$(dk_fm "$rf" kind)" ]; then dk_kind_load "$kind"; spec=$(echo "$KIND_DEFAULT_TIERS" | tr ' ' '\n' | awk -F= -v t="$tier" '$1==t{print $2}'); fi
@@ -51,6 +56,18 @@ args=$(dk_kind_args "$kind" "$spec")
 group=$(dk_fm "$rf" group); group="${group:-dev}"
 agent=$(dk_agent_name "$role" "$alias"); sname=$(dk_state_name "$role" "$alias"); state="$dir/state/$sname.md"
 [[ "$agent" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || dk_die "agent name '$agent' must match [a-z][a-z0-9_-]{0,31} (shorten the alias)"
+# 切片要是這一波的。開波失敗（上一位 reviewer 的 pane 還沒關）時，同一行接著的 dk-spawn 照跑，
+# 員工拿上一波留下的切片開工（下游專案 B 的 tankart 波 4，兩人一分鐘內關掉重派）。
+# 只管波次表裡的成員：reviewer、計畫審查、雜務員工不吃波次切片。
+if [ -f "$dir/briefs/$sname.md" ] && [ -f "$dir/brief.md" ] \
+   && dk_brief_waves "$dir/brief.md" | awk -v s="$sname" "$DK__BRIEF_SPLIT"'c[3]==s{f=1} END{exit !f}'; then
+  sw=$(head -1 "$dir/briefs/$sname.md" | sed -n 's/.*（波 \([0-9][0-9]*\)）$/\1/p')
+  if [ -z "${DK_WAVE:-}" ]; then
+    dk_die "沒有開著的波（DK_WAVE 是空的），$sname 手上的切片是第 ${sw:-?} 波留下的：先 dk-wave-open <N>，成功了再派"
+  elif [ -n "$sw" ] && [ "$sw" != "$DK_WAVE" ]; then
+    dk_die "$sname 的切片是第 $sw 波的，現在開的是第 $DK_WAVE 波：它在本波就先 dk-wave-open $DK_WAVE --refresh 重產切片，不在本波就別派它"
+  fi
+fi
 # CLI 那側的 session 顯示名：pane 上看到的是 <任務>-<角色>，不是 CLI 自己取的標題（領導已經是 dk/<short>）。
 # 名字合 [a-z0-9_-]、不含空白，可以跟 $args 一起不加引號展開。codex、agy 沒有對應旗標，回空字串。
 dk_kind_load "$kind"; sess=$(kind_session_args "$agent"); [ -z "$sess" ] || args="$args $sess"

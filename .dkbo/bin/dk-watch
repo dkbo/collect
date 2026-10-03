@@ -4,6 +4,7 @@
 # dk-watch --chores [--once] [--interval SEC] [--ensure]  — blocked watcher for the running chores (no task binding)
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/herdr.sh"; . "$DK_ROOT/lib/kinds.sh"
+. "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"
 once=0; interval=""; ensure=0; chores=0; events=0
 while [ $# -gt 0 ]; do case "$1" in
   --once) once=1; shift;; --interval) interval="$2"; shift 2;;
@@ -270,6 +271,10 @@ dev_delivered() { # AGENT SNAME — 這一波真的交了嗎
 # 計時起點：dev＝最後一次送達指派的 epoch；qa＝max(它的 epoch, 本波聚合的 at=)，還沒聚合不計時
 # ——qa 與 dev 同時開工，等 dev 的 [DONE] 是它的正常閒置。畫面已說話（.blocked／.limit 標記在）的
 # 不重複吵：領導已經收過 [BLOCKED]／[LIMIT]。
+standby_list() { # → 本波型態「待命」的成員短名，前後與之間各一個空白（brief 讀不到就是「 」）
+  printf ' %s ' "$(dk_brief_wave_standby "$dir/brief.md" "${DK_WAVE:-0}" 2>/dev/null | tr '\n' ' ')"
+}
+
 idle_check() { # NOW LIST
   local now="$1" list="$2" agent epoch group st start at sf rd m mins
   while read -r agent _pane epoch group _; do
@@ -284,6 +289,7 @@ idle_check() { # NOW LIST
     [ -f "$dir/.blocked/$agent" ] || [ -f "$dir/.blocked/$agent.limit" ] && continue
     sf="$dir/state/${agent#"$DK_SHORT"-}.md"
     if [ "$group" = dev ]; then
+      case "$(standby_list)" in *" ${agent#"$DK_SHORT"-} "*) continue;; esac   # 待命成員閒著是在等 qa，不吵
       dev_delivered "$agent" "${agent#"$DK_SHORT"-}" && continue
       start="$epoch"
     else
@@ -372,10 +378,13 @@ tick() {
   # 的 gate 0 同一個：各自的 state 檔，不是員工自報的訊息 —— 員工那側的 [DONE] 只落盤。
   # qa 與 reviewer 是 group review，不在這裡等：領導收到聚合就能去打差異包，qa 仍並行跑著。
   if [ -n "${DK_WAVE:-}" ]; then
-    local devs="" cnt=0 all=1
+    local devs="" cnt=0 all=1 sb waiting=""
+    sb=$(standby_list)
     while read -r agent _pane _epoch group _; do
       [ "${group:-}" = dev ] || continue
-      cnt=$((cnt+1)); sname="${agent#"$DK_SHORT"-}"
+      sname="${agent#"$DK_SHORT"-}"
+      case "$sb" in *" $sname "*) waiting="${waiting:+$waiting, }$sname"; continue;; esac
+      cnt=$((cnt+1))
       if dev_delivered "$agent" "$sname"; then devs="${devs:+$devs, }$sname"
       else all=0; break; fi
     done < "$dir/.panes"
@@ -383,9 +392,9 @@ tick() {
       m="$dir/.blocked/wave-$DK_WAVE.devdone"
       if ! { [ -f "$m" ] && grep -q '^delivered$' "$m"; }; then
         # at= 是 qa 閒置計時的起點（AC2）；不用 mtime，delivered 行的追加會改掉它
-        if [ ! -f "$m" ]; then dk_process "dev-done wave $DK_WAVE ($cnt: $devs)"; printf 'notified\nat=%s\n' "$now" > "$m"; fi
+        if [ ! -f "$m" ]; then dk_process "dev-done wave $DK_WAVE ($cnt: $devs)${waiting:+ standby: $waiting}"; printf 'notified\nat=%s\n' "$now" > "$m"; fi
         if notify_leader "$(dk_leader_name)" "${DK_LEADER_PANE:-${DK_ROOT_PANE:-}}" \
-             "[DONE] from dk-watch: wave $DK_WAVE dev 全員完成（$cnt 位：$devs）→ dk-review-pack $DK_WAVE"; then
+             "[DONE] from dk-watch: wave $DK_WAVE dev 全員完成（$cnt 位：$devs${waiting:+；待命 $waiting 不等}）→ dk-review-pack $DK_WAVE"; then
           echo delivered >> "$m"; fi
       fi
     fi

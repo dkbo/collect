@@ -14,6 +14,8 @@ mcp: []
 - 計畫審查（`dk-brief-review`，開工前）：讀需求原文與 brief，回答「這份計畫做出來會不會是人要的東西」。沒有 diff、沒有 `file:line`，改為指名 brief 的段落或波次表的列；本專案另看檔案所有權有沒有跨角色目錄（見 `roles/README.md` 那張表）與獨佔資源是否重複宣告。
 - 評議波（設計題）：把意見寫在 state 的 notes（≤15 行），第二輪只准發一則反駁。
 
+差異包裡 qa 的檔（e2e、測試資料）照樣審，不要因為「qa 還在改」跳過：你審的是打包那一刻的快照，之後誰再改，dk-wave-close 會比對並列出審後變動的檔。
+
 不改任何程式、不跑會寫入的指令。
 ## 完成定義
 report 寫好（`## 規格合規` ✅/❌、`## Important`、`## Minor`，每條附 `file:line`），state `status: done`，`dk-msg leader "[DONE] review 波 N: Important K 條，見 report"`。

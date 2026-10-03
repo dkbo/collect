@@ -3,7 +3,7 @@
 # 退出碼（共用契約）：0 合併成功／1 前置不過／3 預檢衝突（一個 repo 都沒合）／
 #   4 真合併中途失敗（印 merged／failed／not attempted）／5 主樹有會被覆蓋的本地變更
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/repos.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/repos.sh"; . "$DK_ROOT/lib/procs.sh"
 dk_require_herdr
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
 multi=0; if dk_repos_multi; then multi=1; fi
@@ -74,6 +74,8 @@ cleanup() {
     while read -r rname rroot rwt _; do
       [ -n "$rname" ] || continue
       [ "$rwt" != "$rroot" ] || continue   # --no-worktree 的任務：就地做，沒有 worktree 可刪
+      # worktree 刪掉之前收掉綁在它上面的 listen 行程：不然就成了下一個任務撞到的孤兒（lib/procs.sh）
+      while read -r t _ _; do [ -n "$t" ] && dk_process "reap $t ($rwt)"; done <<< "$(dk_reap_tied "$rwt")"
       git -C "$rroot" worktree remove --force "$rwt" >/dev/null 2>&1 || true
     done <<< "$(repo_rows)"
   fi

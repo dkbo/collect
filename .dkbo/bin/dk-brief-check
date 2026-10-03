@@ -26,7 +26,23 @@ while IFS='|' read -r m globs ro _res; do
   dk_member_role "$m" >/dev/null 2>&1 || fail "所有權 $m" "找不到角色檔（用 add-role skill 建立）"
   [[ "$members" == *" $m "* ]] && fail "所有權 $m" "成員重複"
   members="$members$m "
-  [ -n "$globs" ] && [ "$globs" != "—" ] || fail "所有權 $m" "可改欄為空"
+  # qa 這類 group: review 的成員可以沒有要改的檔（探測腳本與截圖放 scratchpad），可改欄寫 —；
+  # 不准它們為了填欄位而劃一個「占位、不得寫入」的 glob：所有權閘只看 glob，擋不住照 glob 寫進
+  # worktree 的人（下游專案 B 的 tankart，qa 兩次把腳本寫進 scripts/qa/<任務>/）。
+  if [ -z "$globs" ] || { [ "$globs" = "—" ] && [ "$(dk_member_group "$m" 2>/dev/null || true)" != review ]; }; then
+    fail "所有權 $m" "可改欄為空（只有 qa 這類 group: review 的成員可以寫 —）"
+  fi
+  while IFS= read -r g; do
+    [ -n "$g" ] || continue
+    # 只看 glob 後面緊接的一小段：同一行常常一口氣交代好幾個人的規矩，整行比對會誤傷別人的可改檔
+    hit=""
+    while IFS= read -r ln; do
+      [ -n "$ln" ] || continue
+      rest="${ln#*:}"; rest="${rest#*"$g"}"
+      case "${rest:0:20}" in *占位*|*不得寫*|*禁寫*|*不准寫*|*不可寫*|*不要寫*) hit="${ln%%:*}"; break;; esac
+    done <<< "$(grep -nF -- "$g" "$brief" | grep -v '^[0-9]*:|' || true)"
+    [ -z "$hit" ] || fail "所有權 $m" "可改欄的 $g 在第 $hit 行被寫成占位／不得寫入：可改欄只放真的要改的檔，沒有就寫 —（qa 的腳本與截圖放 scratchpad）"
+  done <<< "$(printf '%s\n' "$globs" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true)"
   # repo 前綴：多 repo 每個 glob 都要帶 `<名>:` 且名字在 DK_REPOS 內，單 repo 一律不得帶。
   # 可改與只讀兩欄都驗 —— 只讀欄是給員工看的路標，寫錯 repo 名字一樣會把人帶到不存在的樹。
   # while read 而不是 `for g in $(…)`：未加引號的命令替換先做 word splitting、再對每個字做
@@ -152,6 +168,47 @@ for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -u
 "; fi
     done <<< "$(printf '%s\n' "$owners" | awk -v mm="$m" "$DK__BRIEF_SPLIT"'c[1]==mm{print c[4]}' \
                | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -vE '^(|—)$' || true)"
+  done
+done
+
+# ── 同一波 dev 的負載（只 WARN）：一波的長度由最重的那位決定，其他人早交就空等。
+# 量法是粗的：難度欄的檔位，加上「做什麼」與「完成條件」兩欄提到的 AC 編號（AC4–AC8 算 5 條、重複不計）。
+# 同波有 L 也有 S，或檔位不同且 AC 數差 1.5 倍以上，就提醒考慮拆人或分波（下游專案的六個任務裡，
+# 同波最快與最慢差 5–29 分鐘，差 10 分鐘以上的都是 L 檔扛最多 AC、旁邊是 M 的那一波；全是 L
+# 的波 AC 數差兩倍也只差 5–10 分鐘，不算進來）。型態「待命」的成員不算。
+ac_count() { # 文字 → 提到的 AC 編號個數（範圍展開、去重）
+  printf '%s\n' "$1" | { grep -oE 'AC[0-9]+([–~～-]+(AC)?[0-9]+)?' || true; } | sed -E 's/[–~～-]+(AC)?/ /; s/AC//' \
+    | awk '{a = $1; b = ($2 == "" ? $1 : $2); if (b < a || b - a > 50) b = a; for (i = a; i <= b; i++) print i}' | sort -un | wc -l | tr -d ' '
+}
+for w in $(printf '%s\n' "$waves" | cut -d'|' -f1 | grep -E '^[0-9]+$' | sort -un); do
+  load=""; tiers=" "
+  while IFS=$'\t' read -r typ m what tier done_; do
+    [ -n "$m" ] || continue
+    [ "$typ" != 待命 ] || continue
+    [ "$(dk_member_group "$m" 2>/dev/null || true)" = dev ] || continue
+    load="$load$m $tier $(ac_count "$what $done_")"$'\n'
+    tiers="$tiers$tier "
+  done <<< "$(printf '%s\n' "$waves" | awk -v n="$w" "$DK__BRIEF_SPLIT"'c[1]==n {print c[2] "\t" c[3] "\t" c[4] "\t" c[5] "\t" c[6]}')"
+  [ "$(printf '%s' "$load" | grep -c .)" -ge 2 ] || continue
+  if printf '%s' "$load" | awk -v ts="$tiers" '
+      { if ($3 > max) max = $3; if (min == "" || $3 < min) min = $3 }
+      END { mixed = (ts ~ / L / && ts ~ / [SM] /) || (ts ~ / M / && ts ~ / S /)
+            r = (min > 0) ? max / min : (max > 0 ? 99 : 0)
+            exit !((ts ~ / L / && ts ~ / S /) || (mixed && r >= 1.5 && max >= 3)) }'; then
+    desc=$(printf '%s' "$load" | awk 'NF {printf "%s%s %s AC×%s", (n++ ? "、" : ""), $1, $2, $3}')
+    warn "波次表 $w" "dev 工作量不均（$desc）：一波的長度由最重的那位決定。檔案切得開、接口寫得進共用契約就拆人；主題這類全站打底、其他工作疊在上面的改成分波"
+  fi
+  # 同一個角色在同一波拆成兩位以上（frontend-shell、frontend-detail）：它們之間要有共用契約，
+  # 不然兩人對接口各有各的理解，只有 qa 合起來看才發現。
+  for pair in $(printf '%s' "$load" | awk 'NF {print $1}' | while read -r a; do
+                  r=$(dk_member_role "$a" 2>/dev/null | cut -d' ' -f1); echo "$r:$a"; done | sort | awk -F: '
+                  { if ($1 == pr) print pm "," $2; pr = $1; pm = $2 }'); do
+    a="${pair%,*}"; b="${pair#*,}"
+    dk_brief_interfaces "$brief" | awk -v a="$a" -v b="$b" "$DK__BRIEF_SPLIT"'
+      { o = c[2]; sub(/@.*/, "", o); n = split(c[3], cs, ","); for (i = 1; i <= n; i++) { x = cs[i]; gsub(/^ +| +$/, "", x); sub(/@.*/, "", x)
+        if ((o == a && x == b) || (o == b && x == a)) f = 1 } }
+      END { exit !f }' \
+      || warn "波次表 $w" "$a 與 $b 是同一個角色拆成的兩位，共用契約裡沒有它們之間的契約：拆人要先把接口（元件、hook、token 名稱）寫進共用契約"
   done
 done
 

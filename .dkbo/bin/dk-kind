@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dk-kind [status]     — 列出專案層熔斷未恢復的 kind
+# dk-kind [status]     — 列出熔斷未恢復的 kind（專案層，加上別的專案寫進帳號層的）
 # dk-kind up <kind>    — 解除一個 kind 的熔斷（kinds-down 的所有該 kind 列，與綁著任務時的 DK_KIND_DOWN）
 # dk-kind down <kind> [--until YYYY-MM-DDTHH:MM] [--note <文字>]
 #                      — 領導手動登記額度耗盡（畫面以外的來源：CLI 狀態列、前任務 ruling、人告知）；up 的對稱

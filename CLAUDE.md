@@ -4,7 +4,7 @@ Read AGENTS.md first.
 
 # 團隊流程 = dkbo（2026-09-10 起）
 
-派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.18.1，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`；印 `leader` **不代表你就是領導**（0.7.0 起領導不自動接管），照使用者原本的要求做事，要用團隊流程時請他叫其中一個 skill。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
+派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.19.0，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`；印 `leader` **不代表你就是領導**（0.7.0 起領導不自動接管），照使用者原本的要求做事，要用團隊流程時請他叫其中一個 skill。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
 
 - **領導拆成三個階段**（各自先讀 `.dkbo/LEADER.md` 共同規範）：`/dkbo-brain`（諮詢、分流、雜務 `dk-chore`、評議波）、`/dkbo-plan`（`dk-task-new`＋`request.md` 逐字落檔、寫 brief、`dk-brief-check` 機械閘、`dk-brief-review` 派 2–3 個不同 kind 審計畫並裁定、關卡①後停）、`/dkbo-run`（`dk-wave-open`／`dk-spawn`／`dk-review`／裁定／`dk-wave-close`／結案）。三者不互相自動跳轉，該換階段就告訴使用者叫哪一個並結束 turn。`dk-resume` 是唯讀看板，隨時可跑，看了不等於接管。
 
@@ -15,6 +15,7 @@ Read AGENTS.md first.
 - **審查 kinds `claude codex agy`、法定人數 `DK_REVIEW_MIN="2"`**（`settings.env` 八鍵，領導自己也是 `DK_LEADER_KIND="claude"`、整波逾時 `DK_WAVE_TIMEOUT_MIN="60"`）：MIN=2 表示**至少兩個不同 kind 的意見進裁定**才算審查完成 —— 換一個模型抓到的錯誤類別，跟同一個模型想得更久抓到的不是同一批；agy 免費額度、只做意見。`[BLOCKED]`（按一下審批就活）與 `[LIMIT]`（額度用完，按審批救不回來、該 kind 當場熔斷）是兩件事，處置不同；`[TIMEOUT]`／熔斷照 `.dkbo/skills/run/SKILL.md` 補位（`dk-review --kinds "<未熔斷者>"`）或 `review N skipped`，不重試不替補。
 - **審查檔位 `DK_REVIEW_TIER="L"`**（0.4.0 新增的第八鍵；本專案早設 L，0.14.0 起出廠預設也改 L）：`dk-review` 從它取檔位，claude 主審拿 `opus/high`、codex `gpt-5.5/high`、agy `gemini-3.1-pro/high`，`--tier` 仍可逐次覆寫。**不要改 `roles/reviewer.md` 的 tier 定義**去達成同一件事（tier 在別處一律是「切片難度」，改了會讓 `--tier M|L` 變成靜默 no-op）。另：碰 `src/babylon/net/`／`src/core/`／`firestore.rules`／bridge 四檔的波，波次表的成員難度標 `L`（讓 babylon／godot／netcore 吃到 `opus/high`），不要留預設 M。
 - **修復迴圈兩輪，第二輪換腦袋**（0.9.0）：BUG →（dev）FIXED，內文要附一句根因 → qa 再驗仍失敗 → 領導 `dk-spawn <成員> --handoff "<原因>"`（隱含 `--resume`，自己落 `ruling:`，首輪提示叫接手的人讀上一位的 state／report、不要照它的路再走一次）→ 再驗仍失敗才 ESCALATE。角色檔與 `PROTOCOL.md` 都已改成兩輪。
+- **只修 qa 回報 BUG 的成員，波次表型態寫 `待命`**（0.19.0）：dk-watch 的「dev 全員完成」聚合不等它（tankart 波 3 為此空等 19 分鐘），wave-close 仍要它 `status: done`。qa 的可改欄改寫 `—`，不要再劃 `scripts/qa/<任務>/**` 這種占位 glob（brief-check 會 FAIL）；殘留的 listen 行程由 wave-open／wave-close／task-close 自動收（記 `reap …`），熔斷另有帳號層（`~/.local/state/dkbo/kinds-down`，跨專案共用）。
 - **Minor 要領導自己落盤才活得過這一波**：`dk-review` 收到 reviewer 的 `## Minor` 後，領導逐條 `dk-process "minor N: <一句> <file:line>"`；整枝評議（`dk-review --task`）的切片會帶上本任務累積的 Minor 請 reviewer triage，逐波審查不帶。`dk-task-close` 對「有 minor 但結案 report 沒提」只警告不擋。
 - **時間看得見**（0.9.2）：`dk-resume` 的「本波」段印 `任務已進行 Xh Ym`／`本波已進行 Ym`、每位在線員工附 `等了 N min`，用來判斷該不該催或熔斷，不再憑感覺；`dk-wave-close` 成功關波時記一行 `wave N 耗時 Mm（dev Am、審查 Rm）`；`dk-timeline [<任務>]` 只讀 `process.md` 印一張表（零 token、不寫檔），`dk-task-close` 會把它填進 report 的 `## 時間` 段。全部從既有時間戳算出來，員工與領導都不用多填欄位。
 - **任務改開 tab、交棒才實體化**（0.11.0）：`dk-task-new` 只建 `.dkbo/tasks/<t>/`，不切 worktree；叫 `/dkbo-run` 時 `dk-leader <short> --run` 才切 `dk/<short>` worktree、在原 workspace 開 label `dk/<short>` 的 tab 並交棒給那裡的執行領導，原 session 就可以空出來開下一個 `/dkbo-plan`。失敗整組 rollback，重跑冪等。**專案層熔斷**（0.12.0）：某 kind 撞額度後在 `dk-resume` 兩波之間也看得到，恢復用 `dk-kind up <kind>`；`dk-wave-open N --refresh` 只清逾時標記。`settings.env` 的 `DK_REPOS`／`DK_SETUP_CMD` 本專案留空（單 repo、hooks 已 symlink `node_modules`）。

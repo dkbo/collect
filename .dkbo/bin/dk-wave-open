@@ -3,7 +3,7 @@
 #   --refresh: 只能在第 N 波正開著時用。依當下的 brief.md 重產第 N 波所有成員的切片（含新加入的成員），
 #   不改 base、不動 .panes、不 spawn；把整波逾時從這一刻重新起算。
 set -euo pipefail
-. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/repos.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/repos.sh"; . "$DK_ROOT/lib/procs.sh"
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
 n="${1:-}"; flag="${2:-}"
 [[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-wave-open <N> [--refresh]"
@@ -53,6 +53,25 @@ for m in $members; do m="${m%%(*}"
   dk_render "$DK_ROOT/templates/brief-member.md" "DISPLAY=$DK_DISPLAY" "MEMBER=$m" "WAVE=$n" "BRIEF=$brief" "GOAL=$goal" \
     "CONSTRAINTS=$constraints" \
     "WAVE_ROWS=$rows" "OWNER_ROWS=$own" "CONTRACT=$contract" "ACCEPTANCE=$acc" "PEERS=$peers" "REPOS=$repos_list" > "$dir/briefs/$m.md"
+done
+# 開波前清場（lib/procs.sh）：先收綁在本專案已刪除 worktree 上的 listen 行程（前一個任務的 qa
+# 留下的 vite preview 之類，它們的 worktree 早就沒了），再看本波成員宣告的 port:N 有沒有被佔。
+# 被佔只 WARN 不擋：佔著的可能是人自己開的東西，殺不殺由領導決定（run 開跑後不停車）。
+reaped=" "
+while read -r rpid rport rwt rcmd; do
+  [ -n "$rpid" ] || continue
+  reaped="$reaped$rpid "
+  echo "dk-wave-open: 收掉孤兒行程 pid $rpid（port $rport，綁著已刪除的 $rwt）：${rcmd:0:80}"
+  dk_process "reap orphan $rpid port $rport ($rwt)"
+done <<< "$(dk_reap_orphans "$DK_PROJECT_ROOT")"
+for m in $members; do m="${m%%(*}"
+  for port in $(dk_brief_owners "$brief" | awk -v mm="$m" "$DK__BRIEF_SPLIT"'c[1]==mm{print c[4]}' | tr ',' '\n' \
+                | sed -n 's/^[[:space:]]*port:\([0-9][0-9]*\)[[:space:]]*$/\1/p'); do
+    occ=$(dk_port_owner "$port") || continue
+    case "$reaped" in *" ${occ%% *} "*) continue;; esac
+    echo "dk-wave-open: WARN $m 的 port:$port 已被 pid ${occ%% *} 佔用（${occ#* }）：換一個空的埠、同步 brief 獨佔資源欄後 dk-wave-open $n --refresh；確認是沒人要的殘留就 kill ${occ%% *}" >&2
+    dk_process "port-busy $port ($m) pid ${occ%% *}"
+  done
 done
 if [ "$refresh" = 1 ]; then
   # 不改 DK_WAVE、不改 base、不動 .panes、不 spawn —— 只是切片重產與逾時重新起算。

@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # dk-review-pack [N] | dk-review-pack --task — write tasks/<t>/waves/N.diff (or task.diff) for reviewers; prints the path.
+# 另寫 N.diff.sums（每個變更檔一行「repo<TAB>檔名<TAB>cksum」）；dk-review-pack N --sums 只印當下的 sums、
+# 不寫檔 —— dk-wave-close 拿它比對 reviewer 最後看到的版本與最終 diff。
 # Includes uncommitted and untracked work in the worktree via a throwaway index (the employees' real index is untouched).
 # 多 repo：一份檔、每個有變更的 repo 一段「## repo <名>」（決策⑩）——reviewer 仍然只讀一個檔。
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/repos.sh"
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
-mode=wave; n=""
+mode=wave; n=""; sums_only=0
+if [ "${2:-}" = --sums ]; then sums_only=1; set -- "$1"; fi
 if [ "${1:-}" = --task ]; then
   [ -n "${DK_BASE:-}" ] || dk_die "no DK_BASE in .task.env (legacy task); pass a wave number instead"
   mode=task; base="$DK_BASE"; out="$dir/waves/task.diff"; label="task $DK_SHORT, whole branch since ${base:0:7}"
@@ -16,7 +19,7 @@ else
   out="$dir/waves/$n.diff"; label="wave $n since ${base:0:7}"
 fi
 mkdir -p "$dir/waves"
-idx=$(mktemp); body=$(mktemp); trap 'rm -f "$idx" "$body"' EXIT
+idx=$(mktemp); body=$(mktemp); sums=$(mktemp); trap 'rm -f "$idx" "$body" "$sums"' EXIT
 # 沒有 .repos 的是 0.9.2 之前建立的任務：退回單列（名字 main、路徑 DK_WORKTREE、base 就是上面算好的那個）
 rows=$(dk_repos_rows "$dir" 2>/dev/null || true)
 [ -n "$rows" ] || rows="main $DK_PROJECT_ROOT $DK_WORKTREE $base"
@@ -40,6 +43,12 @@ while read -r rname _rroot rwt rbase; do
   c=$(GIT_INDEX_FILE="$idx" git -C "$rwt" diff --cached --name-only "$b" | wc -l)
   total=$((total + c))
   [ "$c" -gt 0 ] || continue
+  # 逐檔的 cksum 用跟下面一樣的 -U10：dk-wave-close 重算時才比得到同一件事
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    printf '%s\t%s\t%s\n' "$rname" "$f" "$(GIT_INDEX_FILE="$idx" git -C "$rwt" diff --cached -U10 "$b" -- "$f" | cksum | tr -d ' ')"
+  done <<< "$(GIT_INDEX_FILE="$idx" git -C "$rwt" -c core.quotePath=false diff --cached --name-only "$b")" >> "$sums"
+  [ "$sums_only" = 0 ] || continue
   {
     [ "$multi" = 0 ] || { echo "## repo $rname"; echo; }
     echo "## commits"; git -C "$rwt" log --oneline "$b..HEAD"; echo
@@ -47,9 +56,11 @@ while read -r rname _rroot rwt rbase; do
     echo "## diff (-U10)"; GIT_INDEX_FILE="$idx" git -C "$rwt" -c core.quotePath=false diff --cached -U10 "$b"; echo
   } >> "$body"
 done <<< "$rows"
+if [ "$sums_only" = 1 ]; then cat "$sums"; exit 0; fi
 {
   echo "# $DK_DISPLAY — $label — $(dk_now)"; echo "# files changed: $total (working tree included)"; echo
   cat "$body"
 } > "$out"
+cp "$sums" "$out.sums"
 [ "$total" -gt 0 ] || echo "dk-review-pack: no changes since ${base:0:7}; $out holds only the header" >&2
 echo "$out"
