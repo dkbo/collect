@@ -46,6 +46,8 @@ export interface LookOptions {
   /** 後製曝光與對比（不給＝bomber 定案的 1.05／1.08）；淺色場景在 ACES 下會發灰，可調高曝光 */
   exposure?: number
   contrast?: number
+  /** 自動降級關掉一項後呼叫（不給＝不通知；坦克用來在陰影關掉時改墊 blob 影） */
+  onDegrade?: (step: DegradeStep) => void
 }
 
 /** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
@@ -75,6 +77,7 @@ export class ToyLook {
   private readonly active: Record<DegradeStep, boolean>
   private watch: FpsWatch | null
   private readonly prevScaling: number
+  private readonly onDegrade: ((step: DegradeStep) => void) | undefined
   /** 畫 3D UI（開局倒數）的第二台相機：只看 UI_LAYER、不掛後製，顏色不被 ACES／bloom 改掉 */
   readonly uiCamera: TargetCamera
 
@@ -85,6 +88,7 @@ export class ToyLook {
     this.mainCamera = camera
     const tag = opts.tag
     this.tag = tag
+    this.onDegrade = opts.onDegrade
     this.outlineColor = Color3.FromHexString(opts.outline)
     const { tier, noDegrade } = detectTier(tag)
     this.tier = tier
@@ -278,6 +282,7 @@ export class ToyLook {
       this.glow = null
     } else this.sun.shadowEnabled = false
     console.info(`[${this.tag}] degrade ${step}`)
+    this.onDegrade?.(step)
   }
 
   dispose(): void {

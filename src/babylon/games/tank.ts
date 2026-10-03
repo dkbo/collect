@@ -1,9 +1,10 @@
 import {
   ArcRotateCamera,
   Color3,
-  HemisphericLight,
+  Color4,
   Mesh,
   MeshBuilder,
+  SceneInstrumentation,
   StandardMaterial,
   Vector3,
 } from '@/babylon/babylonCore'
@@ -25,7 +26,9 @@ import {
   type GameFlow,
   type OwnershipSync,
 } from '@/babylon/net'
-import { PLAYER_PALETTE } from '@/babylon/fx/palette'
+import { ToyLook } from '@/babylon/fx/look'
+import { perfLogLine } from '@/babylon/fx/perfLog'
+import { tierQuery } from '@/babylon/fx/quality'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
 import { validateShootReq } from '@/babylon/games/tankNet'
 import { stepBullet } from '@/babylon/games/tankFx/bounce'
@@ -58,6 +61,10 @@ import {
 import { paceTick } from '@/babylon/games/tankFx/pacing'
 import { entityIds, makeBots, rankStandings, tankColorIndex, type RosterEntry, type Standing } from '@/babylon/games/tankFx/roster'
 import { createAIMemory, decideTankBot, type TankAIMemory } from '@/babylon/games/tankFx/tankAI'
+import { benchEnabled, benchLayout } from '@/babylon/games/tankFx/bench'
+import { TankBoard } from '@/babylon/games/tankFx/board'
+import { OUTLINE, TANK, type ColorIndex } from '@/babylon/games/tankFx/palette'
+import { TankKit, disposeTank, poseTank, type TankRig } from '@/babylon/games/tankFx/tankModel'
 
 /**
  * 坦克對戰（Host Authority 事件制）。
@@ -83,27 +90,21 @@ interface BulletInfo {
   vx: number
   vz: number
   bounces: number
-  mesh: Mesh
   createdAt: number
 }
 
 interface TankVisual {
+  rig: TankRig
   root: Mesh
   turret: Mesh
-  barrel: Mesh
   hpBars: Mesh[]
   /** 無敵閃爍時要一起隱藏的部件 */
   parts: Mesh[]
   shield: Mesh
-  bodyMat: StandardMaterial
-  darkMat: StandardMaterial
-  colorIndex: number
-  alive: boolean
 }
 
 interface ItemInfo {
   kind: ItemKind
-  mesh: Mesh
 }
 
 interface PlayerStat {
@@ -139,8 +140,15 @@ const LIMITS = { worldLimit: WORLD_LIMIT, velLimit: VEL_LIMIT }
 const BOT_BROADCAST_MS = 50
 /** 子彈命中坦克的判定距離 */
 const HIT_RADIUS = 0.7
-/** 落牆由高處落下的動畫時間 */
-const CLOSE_DROP_MS = 250
+/** 陰影正交範圍半徑（spec §5：hypot(18, 18) × CELL / 2 ≈ 25.5） */
+const SHADOW_RADIUS = 26
+/** draw calls／fps 量測間隔（AC10） */
+const PERF_LOG_MS = 2000
+/** 落牆預告格脈動頻率（spec §8 #15：6Hz） */
+const WARN_PULSE_HZ = 6
+/** blob 影尺寸（陰影被降級關掉時） */
+const BLOB_TANK = 1.9
+const BLOB_ITEM = 1.1
 
 const SPAWN_CORNERS: [number, number][] = [
   [1, 1],
@@ -181,8 +189,8 @@ class TankScene implements GameModule {
   private baseWalls = new Set<number>()
   /** 目前所有不可破牆（柱牆＋突然死亡落下的牆） */
   private walls = new Set<number>()
-  private closedWalls = new Map<number, { mesh: Mesh; born: number }>()
-  private crates = new Map<number, Mesh>()
+  private closedWalls = new Set<number>()
+  private crates = new Set<number>()
   private flames: { mesh: Mesh; until: number }[] = []
   private currentSeed = 1
   private lastFireInput = 0
@@ -212,14 +220,17 @@ class TankScene implements GameModule {
   private hud!: TextPanel
   private banner!: TextPanel
 
-  private crateMat!: StandardMaterial
-  private wallMat!: StandardMaterial
-  private closeWallMat!: StandardMaterial
-  private flameMat!: StandardMaterial
-  private itemMats!: Record<ItemKind, StandardMaterial>
-  private bulletMat!: StandardMaterial
+  // A「Toy Army」美術（AC5／AC6／AC9）：場景物件、坦克化身、光影與檔位
+  private look!: ToyLook
+  private board!: TankBoard
+  private kit!: TankKit
   private shieldMat!: StandardMaterial
-  private warnMesh!: Mesh
+  /** 陰影被自動降級關掉後，坦克與道具改墊 blob 影 */
+  private blobShadows = false
+  // AC10：draw calls 量測；?tankBench=1（限 tankNoDegrade=1）擺固定量測場景
+  private instr: SceneInstrumentation | null = null
+  private lastPerfLog = 0
+  private bench = false
 
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase()
@@ -288,48 +299,12 @@ class TankScene implements GameModule {
 
   private makeTank(id: string, x: number, z: number): TankVisual {
     const scene = this.ctx.scene
+    const rig = this.kit.build(id, this.colorIndex(id) as ColorIndex, this.isBot(id), id === this.ctx.selfId, x, z)
+    // 光影登記（AC6）：坦克 3 個 mesh 投影＋描邊（mobile 檔描邊關著，ToyLook 依檔位決定）
+    this.look.caster(...rig.parts)
+    this.look.outline(...rig.parts)
 
-    const bodyMat = new StandardMaterial(`tank-body-${id}`, scene)
-    const darkMat = new StandardMaterial(`tank-dark-${id}`, scene)
-    const barrelMat = new StandardMaterial(`tank-barrel-${id}`, scene)
-    barrelMat.diffuseColor = new Color3(0.25, 0.25, 0.28)
-
-    const root = new Mesh(`tank-${id}`, scene)
-    root.position = new Vector3(x, 0, z)
-    const parts: Mesh[] = []
-
-    // 車體
-    const body = MeshBuilder.CreateBox(`tank-body-${id}`, { width: 1.2, height: 0.35, depth: 0.8 }, scene)
-    body.material = bodyMat
-    body.parent = root
-    body.position.y = 0.25
-    parts.push(body)
-
-    // 履帶（兩側深色薄片）
-    for (const side of [-1, 1]) {
-      const track = MeshBuilder.CreateBox(`tank-track-${side}-${id}`, { width: 0.22, height: 0.2, depth: 0.9 }, scene)
-      track.material = darkMat
-      track.parent = root
-      track.position.set(side * 0.58, 0.12, 0)
-      parts.push(track)
-    }
-
-    // 砲塔
-    const turret = MeshBuilder.CreateCylinder(`tank-turret-${id}`, { diameter: 0.7, height: 0.25 }, scene)
-    turret.material = bodyMat
-    turret.parent = root
-    turret.position.y = 0.5
-    parts.push(turret)
-
-    // 砲管
-    const barrel = MeshBuilder.CreateCylinder(`tank-barrel-${id}`, { diameter: 0.12, height: 0.65 }, scene)
-    barrel.material = barrelMat
-    barrel.parent = turret
-    barrel.position.set(0, 0, 0.4)
-    barrel.rotation.x = Math.PI / 2
-    parts.push(barrel)
-
-    // HP 條（3 個小方塊在頭頂）
+    // HP 條（3 個小方塊在頭頂；波 3 換 React HUD 後刪除）
     const hpBars: Mesh[] = []
     const hpMat = new StandardMaterial(`hp-${id}`, scene)
     hpMat.diffuseColor = new Color3(0.2, 0.85, 0.3)
@@ -337,31 +312,33 @@ class TankScene implements GameModule {
     for (let i = 0; i < 3; i++) {
       const bar = MeshBuilder.CreateBox(`hp-bar-${i}-${id}`, { width: 0.22, height: 0.08, depth: 0.08 }, scene)
       bar.material = hpMat
-      bar.parent = root
-      bar.position.set((i - 1) * 0.26, 0.78, 0)
+      bar.parent = rig.root
+      bar.position.set((i - 1) * 0.26, 1.6, 0)
+      bar.isPickable = false
       hpBars.push(bar)
     }
 
     // 護盾泡泡（暫用半透明球，波 3 換美術）
-    const shield = MeshBuilder.CreateSphere(`tank-shield-${id}`, { diameter: 1.7, segments: 12 }, scene)
+    const shield = MeshBuilder.CreateSphere(`tank-shield-${id}`, { diameter: 2.1, segments: 16 }, scene)
     shield.material = this.shieldMat
-    shield.parent = root
-    shield.position.y = 0.35
+    shield.parent = rig.root
+    shield.position.y = 0.6
     shield.isPickable = false
     shield.setEnabled(false)
 
-    const v: TankVisual = { root, turret, barrel, hpBars, parts, shield, bodyMat, darkMat, colorIndex: -1, alive: true }
-    this.paintTank(v, this.colorIndex(id))
-    return v
+    const parts = rig.label ? [...rig.parts, rig.label] : rig.parts
+    return { rig, root: rig.root, turret: rig.turret, hpBars, parts, shield }
+  }
+
+  /** 拆一台坦克化身（每台自己的履帶貼圖、HP 材質一起清） */
+  private disposeVisual(v: TankVisual): void {
+    v.hpBars[0]?.material?.dispose()
+    disposeTank(v.rig)
   }
 
   /** 固定 4 色：名冊變動（bot 補位、有人離房）時顏色跟著改 */
   private paintTank(v: TankVisual, ci: number): void {
-    if (v.colorIndex === ci) return
-    v.colorIndex = ci
-    const pal = PLAYER_PALETTE[ci]
-    v.bodyMat.diffuseColor = Color3.FromHexString(pal.base)
-    v.darkMat.diffuseColor = Color3.FromHexString(pal.dark)
+    this.kit.repaint(v.rig, ci as ColorIndex)
   }
 
   private updateHpBars(visual: TankVisual, hp: number): void {
@@ -414,18 +391,17 @@ class TankScene implements GameModule {
   private isCrate = (cx: number, cy: number): boolean => this.crates.has(cellIdx(cx, cy))
 
   private applySeed(seed: number): void {
-    const scene = this.ctx.scene
-    // 清理舊箱子、道具、子彈、碎片與落牆
-    for (const m of this.crates.values()) m.dispose()
+    // 清理舊箱子、道具、子彈、碎片與落牆（thin instance 只清 buffer，不 dispose mesh）
     this.crates.clear()
-    for (const it of this.items.values()) it.mesh.dispose()
+    this.board.clearCrates()
     this.items.clear()
-    for (const b of this.bullets.values()) b.mesh.dispose()
+    this.board.clearItems()
     this.bullets.clear()
-    for (const f of this.flames) f.mesh.dispose()
+    this.board.clearBullets()
+    for (const f of this.flames) f.mesh.dispose(false, true)
     this.flames = []
-    for (const w of this.closedWalls.values()) w.mesh.dispose()
     this.closedWalls.clear()
+    this.board.clearClosingWalls()
     this.walls = new Set(this.baseWalls)
     this.lastClose = 0
     this.closeIndex = 0
@@ -451,10 +427,8 @@ class TankScene implements GameModule {
         const nearSpawn = SPAWN_CORNERS.some(([sx, sy]) => Math.abs(cx - sx) <= 1 && Math.abs(cy - sy) <= 1)
         if (nearSpawn) continue
         if (nextRng() < 0.3) {
-          const crate = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: CELL * 0.85 }, scene)
-          crate.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.42, cellToWorld(cy, GRID_H))
-          crate.material = this.crateMat
-          this.crates.set(idx, crate)
+          this.crates.add(idx)
+          this.board.setCrate(idx, true)
         }
       }
     }
@@ -465,7 +439,7 @@ class TankScene implements GameModule {
     // bot 位置與化身：依名冊重建
     for (const [id, v] of this.botVisuals) {
       if (this.bots.some((b) => b.id === id)) continue
-      v.root.dispose(false, true)
+      this.disposeVisual(v)
       this.botVisuals.delete(id)
     }
     this.botState.clear()
@@ -481,6 +455,16 @@ class TankScene implements GameModule {
 
     this.selfVisual?.root.setEnabled(true)
     for (const v of this.peerVisuals.values()) v.root.setEnabled(true)
+    if (this.bench) this.placeBench()
+  }
+
+  /** AC10 N1 量測場景：5 種道具各一、10 顆靜止子彈（純視覺，不進遊戲邏輯） */
+  private placeBench(): void {
+    const lay = benchLayout((cx, cy) => this.isWall(cx, cy) || this.isCrate(cx, cy))
+    lay.items.forEach((it, i) => this.board.addItem(`bench-${i}`, it.kind, it.cx, it.cy))
+    lay.bullets.forEach((b, i) =>
+      this.board.putBullet(`bench-${i}`, cellToWorld(b.cx, GRID_W), cellToWorld(b.cy, GRID_H), false)
+    )
   }
 
   /** 從 (fx,fz) 移到 (tx,tz) 是否被擋：只擋新碰到或更深入的牆／木箱（落牆擦到的坦克仍能脫困） */
@@ -530,18 +514,23 @@ class TankScene implements GameModule {
   }
 
   private spawnBullet(id: string, owner: string, x: number, z: number, vx: number, vz: number): void {
-    const mesh = MeshBuilder.CreateSphere(`bullet-${id}`, { diameter: 0.2 }, this.ctx.scene)
-    mesh.position = new Vector3(x, 0.35, z)
-    mesh.material = this.bulletMat
-    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, mesh, createdAt: performance.now() })
+    const now = performance.now()
+    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, createdAt: now })
+    this.board.putBullet(id, x, z, false)
+    // 開砲後座＋車身擠壓回彈（三連發同一刻的三發共用一次）
+    const v = this.visualOf(owner)
+    if (v) v.rig.fireAt = now
     playSfx('tank_fire')
   }
 
   private removeBullet(id: string): void {
-    const b = this.bullets.get(id)
-    if (!b) return
-    b.mesh.dispose()
-    this.bullets.delete(id)
+    if (!this.bullets.delete(id)) return
+    this.board.removeBullet(id)
+  }
+
+  private visualOf(id: string): TankVisual | undefined {
+    if (id === this.ctx.selfId) return this.selfVisual
+    return this.peerVisuals.get(id) ?? this.botVisuals.get(id)
   }
 
   /** 各端推進子彈（同一支 stepBullet）；host 另判反彈廣播、木箱、命中 */
@@ -574,8 +563,7 @@ class TankScene implements GameModule {
       b.vx = r.vx
       b.vz = r.vz
       b.bounces = r.bounces
-      b.mesh.position.x = b.x
-      b.mesh.position.z = b.z
+      this.board.putBullet(id, b.x, b.z, b.bounces > 0)
       if (r.kind === 'bounce' && host) {
         this.ctx.net.broadcast({
           game: this.gameId,
@@ -639,6 +627,8 @@ class TankScene implements GameModule {
       }
     }
     if (h.invuln) return
+    const v = this.visualOf(h.targetId)
+    if (v) v.rig.hitAt = now
     playSfx('tank_hit')
     this.spawnExplosion(h.targetId)
   }
@@ -647,11 +637,8 @@ class TankScene implements GameModule {
 
   private spawnItem(cx: number, cy: number, kind: ItemKind): void {
     const ci = cellIdx(cx, cy)
-    this.items.get(ci)?.mesh.dispose()
-    const mesh = MeshBuilder.CreateBox(`item-${ci}`, { size: 0.5 }, this.ctx.scene)
-    mesh.position = new Vector3(cellToWorld(cx, GRID_W), 0.4, cellToWorld(cy, GRID_H))
-    mesh.material = this.itemMats[kind]
-    this.items.set(ci, { kind, mesh })
+    this.items.set(ci, { kind })
+    this.board.addItem(ci, kind, cx, cy, performance.now())
   }
 
   private detectPickups(): void {
@@ -672,8 +659,8 @@ class TankScene implements GameModule {
     const kind = p.kind ?? it?.kind
     if (!kind) return
     if (it) {
-      it.mesh.dispose()
       this.items.delete(p.ci)
+      this.board.removeItem(p.ci)
     }
     playSfx('pickup')
     const s = this.statOf(p.who)
@@ -717,17 +704,15 @@ class TankScene implements GameModule {
     this.closeIndex = SPIRAL.findIndex(([x, y]) => x === cx && y === cy) + 1
     if (this.walls.has(ci)) return
     this.walls.add(ci)
-    this.crates.get(ci)?.dispose()
     this.crates.delete(ci)
-    this.items.get(ci)?.mesh.dispose()
+    this.board.setCrate(ci, false)
     this.items.delete(ci)
+    this.board.removeItem(ci)
     for (const b of [...this.bullets.values()]) {
       if (worldToCell(b.x, GRID_W) === cx && worldToCell(b.z, GRID_H) === cy) this.removeBullet(b.id)
     }
-    const mesh = MeshBuilder.CreateBox(`close-${cx}-${cy}`, { size: CELL * 0.95 }, this.ctx.scene)
-    mesh.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 4, cellToWorld(cy, GRID_H))
-    mesh.material = this.closeWallMat
-    this.closedWalls.set(ci, { mesh, born: now })
+    this.closedWalls.add(ci)
+    this.board.addClosingWall(ci, now)
   }
 
   /** 各端：落牆前 CLOSE_WARN_MS 算出下一面的預告格 */
@@ -932,8 +917,7 @@ class TankScene implements GameModule {
       const s = this.statOf(p.targetId)
       s.alive = false
       playSfx(p.targetId === this.ctx.selfId ? 'death' : 'kill')
-      if (p.targetId === this.ctx.selfId) this.selfVisual?.root.setEnabled(false)
-      else (this.peerVisuals.get(p.targetId) ?? this.botVisuals.get(p.targetId))?.root.setEnabled(false)
+      this.visualOf(p.targetId)?.root.setEnabled(false)
       // 給擊殺者加分（killerId 為 null＝落牆或自己反彈打死自己）
       if (isStr(p.killerId)) {
         const ks = this.statOf(p.killerId)
@@ -942,8 +926,8 @@ class TankScene implements GameModule {
     } else if (type === 'crate') {
       const d = decodeCrate(p)
       if (!d) return
-      this.crates.get(d.ci)?.dispose()
       this.crates.delete(d.ci)
+      this.board.setCrate(d.ci, false)
       // 打掉木箱的那發：guest 端的副本還在半路，木箱先刪會讓它穿過去（幽靈子彈）
       if (d.bulletId) this.removeBullet(d.bulletId)
     } else if (type === 'item') {
@@ -1037,66 +1021,47 @@ class TankScene implements GameModule {
     const { scene } = ctx
 
     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 38, new Vector3(0, 0, -2), scene)
-    new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
+    // 光影與後製（AC6／AC9）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位；陰影被降級關掉時改墊 blob 影
+    this.look = new ToyLook(scene, this.camera, {
+      shadowRadius: SHADOW_RADIUS,
+      tag: 'tank',
+      outline: OUTLINE,
+      onDegrade: (step) => {
+        if (step === 'shadow') this.blobShadows = true
+      },
+    })
+    scene.clearColor = Color4.FromHexString(`${TANK.void}FF`)
 
-    // 共用材質
-    this.crateMat = new StandardMaterial('crate-mat', scene)
-    this.crateMat.diffuseColor = new Color3(0.62, 0.45, 0.22)
-    this.wallMat = new StandardMaterial('wall-mat', scene)
-    this.wallMat.diffuseColor = new Color3(0.42, 0.45, 0.5)
-    this.closeWallMat = new StandardMaterial('close-wall-mat', scene)
-    this.closeWallMat.diffuseColor = new Color3(0.62, 0.3, 0.3)
-    this.flameMat = new StandardMaterial('flame-mat', scene)
-    this.flameMat.emissiveColor = new Color3(1, 0.45, 0.1)
-    this.flameMat.disableLighting = true
-    this.bulletMat = new StandardMaterial('bullet-mat', scene)
-    this.bulletMat.emissiveColor = new Color3(1, 0.85, 0.2)
-    this.bulletMat.disableLighting = true
+    // 場景物件（AC5，A「Toy Army」）：地面單 mesh＋程式貼圖，積木牆／外框／落牆／木箱／子彈／道具走 thin instance
+    this.board = new TankBoard(scene, {
+      gridW: GRID_W,
+      gridH: GRID_H,
+      cell: CELL,
+      toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
+    })
+    const fx = this.board.fxTargets()
+    this.look.toon(...fx.toon)
+    this.look.receiver(...fx.receivers)
+    this.look.caster(...fx.casters)
+    this.look.outline(...fx.outlined)
+    for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
+    this.kit = new TankKit(scene)
+    this.kit.onMaterial = (m) => this.look.toon(m)
+    this.look.toon(this.kit.turretMat)
+
     this.shieldMat = new StandardMaterial('shield-mat', scene)
-    this.shieldMat.diffuseColor = new Color3(0.3, 0.8, 1)
-    this.shieldMat.emissiveColor = new Color3(0.15, 0.45, 0.6)
-    this.shieldMat.alpha = 0.3
+    this.shieldMat.diffuseColor = Color3.FromHexString(TANK.shieldFill)
+    this.shieldMat.emissiveColor = Color3.FromHexString(TANK.shield).scale(0.45)
+    this.shieldMat.alpha = 0.22
 
-    const itemMat = (name: string, diffuse: Color3, emissive: Color3) => {
-      const m = new StandardMaterial(name, scene)
-      m.diffuseColor = diffuse
-      m.emissiveColor = emissive
-      return m
-    }
-    this.itemMats = {
-      hp: itemMat('item-hp', new Color3(0.2, 0.85, 0.3), new Color3(0.1, 0.4, 0.15)),
-      speed: itemMat('item-speed', new Color3(0.2, 0.5, 0.95), new Color3(0.1, 0.3, 0.8)),
-      rapid: itemMat('item-rapid', new Color3(0.95, 0.55, 0.1), new Color3(0.8, 0.4, 0.05)),
-      shield: itemMat('item-shield', new Color3(0.3, 0.85, 1), new Color3(0.15, 0.55, 0.7)),
-      triple: itemMat('item-triple', new Color3(0.75, 0.4, 1), new Color3(0.5, 0.2, 0.75)),
-    }
-
-    // 地板
-    const ground = MeshBuilder.CreateGround('ground', { width: GRID_W * CELL + 2, height: GRID_H * CELL + 2 }, scene)
-    const gmat = new StandardMaterial('gmat', scene)
-    gmat.diffuseColor = new Color3(0.18, 0.28, 0.18)
-    ground.material = gmat
-
-    // 落牆預告格（地上紅色薄片，波 3 換美術）
-    this.warnMesh = MeshBuilder.CreateGround('close-warn', { width: CELL * 0.95, height: CELL * 0.95 }, scene)
-    const warnMat = new StandardMaterial('close-warn-mat', scene)
-    warnMat.emissiveColor = new Color3(1, 0.2, 0.15)
-    warnMat.disableLighting = true
-    warnMat.alpha = 0.7
-    this.warnMesh.material = warnMat
-    this.warnMesh.position.y = 0.02
-    this.warnMesh.setEnabled(false)
-
-    // 水泥牆
+    // 柱牆（固定）：地面貼圖同時烘牆根陰影
     this.generateWalls()
     this.walls = new Set(this.baseWalls)
-    for (const idx of this.baseWalls) {
-      const cx = idx % GRID_W
-      const cy = Math.floor(idx / GRID_W)
-      const w = MeshBuilder.CreateBox(`wall-${cx}-${cy}`, { size: CELL * 0.95 }, scene)
-      w.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.47, cellToWorld(cy, GRID_H))
-      w.material = this.wallMat
-    }
+    this.board.setWalls(this.baseWalls, this.isWall)
+
+    // AC10：draw calls 量測；偵錯量測場景只在 tankNoDegrade=1 下生效
+    this.instr = new SceneInstrumentation(scene)
+    this.bench = typeof window !== 'undefined' && benchEnabled(tierQuery(window.location.search, window.location.hash))
 
     this.selfVisual = this.makeTank(ctx.selfId, 0, 0)
     this.hud = createTextPanel(scene, this.camera, 'hud', 4, 1.1, new Vector3(0, 2.45, 8))
@@ -1222,13 +1187,14 @@ class TankScene implements GameModule {
       this.selfVisual.root.rotation.y = this.state.ry
       this.selfVisual.turret.rotation.y = this.state.turretAngle - this.state.ry
       this.syncTankVisual(this.selfVisual, this.ctx.selfId, now)
+      poseTank(this.selfVisual.rig, now)
     }
 
     // 遠端
     const ids = new Set(this.own.remoteIds())
     for (const [id, v] of this.peerVisuals) {
       if (ids.has(id)) continue
-      v.root.dispose(false, true)
+      this.disposeVisual(v)
       this.peerVisuals.delete(id)
     }
     for (const id of ids) {
@@ -1246,6 +1212,7 @@ class TankScene implements GameModule {
         v.turret.rotation.y = s.a.turretAngle + (s.b.turretAngle - s.a.turretAngle) * s.alpha - v.root.rotation.y
       }
       this.syncTankVisual(v, id, now)
+      poseTank(v.rig, now)
     }
 
     // bot：host 直接用模擬位置；guest 平滑追 host 廣播的目標
@@ -1267,25 +1234,14 @@ class TankScene implements GameModule {
       v.root.rotation.y = draw.ry
       v.turret.rotation.y = draw.turretAngle - draw.ry
       this.syncTankVisual(v, id, now)
+      poseTank(v.rig, now)
     }
 
-    // 道具浮動旋轉
-    for (const it of this.items.values()) {
-      it.mesh.rotation.y += deltaMs * 0.003
-      it.mesh.position.y = 0.4 + Math.sin(now * 0.004 + it.mesh.position.x) * 0.1
-    }
-
-    // 落牆落下 + 預告格
-    for (const w of this.closedWalls.values()) {
-      const t = Math.min(1, (now - w.born) / CLOSE_DROP_MS)
-      w.mesh.position.y = CELL * 0.47 + (CELL * 4 - CELL * 0.47) * (1 - t * t)
-    }
-    const warn = this.warnCell
-    this.warnMesh.setEnabled(warn !== null)
-    if (warn) {
-      this.warnMesh.position.x = cellToWorld(warn.cx, GRID_W)
-      this.warnMesh.position.z = cellToWorld(warn.cy, GRID_H)
-    }
+    // 預告格脈動、blob 影、道具浮動、落牆落下回彈、所有 thin instance 上傳（每幀一次）
+    this.board.setWarning(this.warnCell, 0.5 + 0.5 * Math.sin((now / 1000) * WARN_PULSE_HZ * Math.PI * 2))
+    if (this.blobShadows) this.syncBlobs()
+    this.board.update(now)
+    this.look.update(deltaMs)
 
     // 爆炸碎片動畫
     this.flames = this.flames.filter((f) => {
@@ -1300,7 +1256,7 @@ class TankScene implements GameModule {
         f.mesh.scaling.scaleInPlace(0.97)
         return true
       }
-      f.mesh.dispose()
+      f.mesh.dispose(false, true)
       return false
     })
 
@@ -1314,6 +1270,13 @@ class TankScene implements GameModule {
       phase === 'playing' ? `存活 ${aliveCount} / ${ents.length}${hpNote}${deadNote}\n${this.debugLine(now)}` : '',
       44
     )
+
+    // AC10：每 2 秒印 draw calls 與 fps（讀上一幀的完整計數；還沒渲染過的首次取樣不印）
+    if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
+      this.lastPerfLog = now
+      const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps(), 'tank')
+      if (line) console.info(line)
+    }
 
     this.syncOverlay()
 
@@ -1344,6 +1307,21 @@ class TankScene implements GameModule {
   }
 
   private lastDebugAt = 0
+
+  /** 陰影被降級關掉後：存活坦克與場上道具底下墊 blob 影 */
+  private syncBlobs(): void {
+    this.board.clearBlobs()
+    const all: [string, TankVisual | undefined][] = [
+      [this.ctx.selfId, this.selfVisual],
+      ...[...this.peerVisuals].map(([id, v]): [string, TankVisual] => [id, v]),
+      ...[...this.botVisuals].map(([id, v]): [string, TankVisual] => [id, v]),
+    ]
+    for (const [id, v] of all) {
+      if (!v || !this.isAlive(id)) continue
+      this.board.putBlob(`t-${id}`, v.root.position.x, v.root.position.z, BLOB_TANK)
+    }
+    for (const it of this.board.itemSpots()) this.board.putBlob(it.key, it.x, it.z, BLOB_ITEM)
+  }
 
   /** 驗證用快照（qa 腳本取樣 window.__TANK_*）：名冊、配色、存活、buff、子彈、縮圈 */
   private debugState(now: number) {
@@ -1382,26 +1360,28 @@ class TankScene implements GameModule {
     this.own.stop()
     this.flow.dispose()
     this.offOpen?.()
-    this.selfVisual?.root.dispose(false, true)
-    for (const v of this.peerVisuals.values()) v.root.dispose(false, true)
+    if (this.selfVisual) this.disposeVisual(this.selfVisual)
+    for (const v of this.peerVisuals.values()) this.disposeVisual(v)
     this.peerVisuals.clear()
-    for (const v of this.botVisuals.values()) v.root.dispose(false, true)
+    for (const v of this.botVisuals.values()) this.disposeVisual(v)
     this.botVisuals.clear()
     this.botState.clear()
     this.botDraw.clear()
     this.bots = []
-    for (const b of this.bullets.values()) b.mesh.dispose()
     this.bullets.clear()
-    for (const m of this.crates.values()) m.dispose()
     this.crates.clear()
-    for (const it of this.items.values()) it.mesh.dispose()
     this.items.clear()
-    for (const w of this.closedWalls.values()) w.mesh.dispose()
     this.closedWalls.clear()
-    for (const f of this.flames) f.mesh.dispose()
+    for (const f of this.flames) f.mesh.dispose(false, true)
     this.flames = []
     this.hud.dispose()
     this.banner.dispose()
+    this.board.dispose()
+    this.kit.dispose()
+    this.shieldMat.dispose()
+    this.instr?.dispose()
+    this.instr = null
+    this.look.dispose()
   }
 }
 

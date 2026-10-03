@@ -1698,3 +1698,241 @@ html {
     @apply animate-none;
   }
 }
+
+/* ===== 坦克對戰 HUD（A · Toy Army，tank spec §9）：960×540 設計尺寸，--tank-scale 由 JS 依容器等比縮放；token 與 bomber 玩家卡同套 ===== */
+.tank-hud {
+  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--tank-ink) [--tank-ink:#2b2440] [--tank-paper:#fff6e3] [--tank-plate:#f3e6cc];
+}
+
+.tank-num {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold leading-none tabular-nums;
+}
+
+/* 計時膠囊：頂部中央，到突然死亡的倒數＋存活數 */
+.tank-timer {
+  @apply absolute left-1/2 top-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top))] flex h-[44px] min-w-[200px] -translate-x-1/2 origin-top items-center justify-center gap-2.5 whitespace-nowrap rounded-full border-[2.5px] border-(--tank-ink) bg-(--tank-paper) px-4 text-(--tank-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--tank-scale)];
+}
+.tank-timer-icon {
+  @apply size-5 shrink-0 text-[#ff6a3d];
+}
+.tank-timer-text {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[28px] leading-none tabular-nums;
+}
+.tank-timer-sudden-text {
+  @apply text-[17px] font-black leading-none;
+}
+.tank-timer-sep {
+  @apply h-6 w-[2px] rounded-full bg-[#e4d6bc];
+}
+.tank-timer-alive {
+  @apply text-[14px] font-extrabold text-[#8a7a66];
+}
+.tank-timer-urgent {
+  @apply animate-[tank-pulse_0.5s_ease-in-out_infinite] text-[#ff3b4e];
+}
+.tank-timer-urgent .tank-timer-icon {
+  @apply text-[#ff3b4e];
+}
+.tank-timer-sudden {
+  @apply bg-[#ff3b4e] text-white;
+}
+.tank-timer-sudden .tank-timer-icon,
+.tank-timer-sudden .tank-timer-alive {
+  @apply text-white;
+}
+.tank-timer-sudden .tank-timer-sep {
+  @apply bg-white/50;
+}
+
+/* 兩側玩家卡欄：左 P1／P3、右 P2／P4（同 .bomber-col*；右欄讓出 Battle 的浮動全螢幕鈕） */
+.tank-col {
+  @apply absolute top-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top))] flex flex-col gap-[14px] [scale:calc(var(--tank-scale)_*_0.75)];
+}
+.tank-col-left {
+  @apply left-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-left))] origin-top-left;
+}
+.tank-col-right {
+  @apply top-[max(calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top)),calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px))] right-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-right))] origin-top-right;
+}
+
+.tank-card {
+  @apply relative flex h-[168px] w-[118px] flex-col overflow-hidden rounded-2xl border-[2.5px] border-(--tank-ink) bg-(--tank-paper) text-(--tank-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] transition-[filter,opacity] duration-300;
+}
+.tank-card-dead {
+  @apply opacity-60 grayscale;
+}
+.tank-card-head {
+  @apply flex h-[34px] shrink-0 items-center justify-between gap-1 border-b-[2.5px] border-(--tank-ink) bg-linear-to-b from-(--tc-light) to-(--tc-base) px-2;
+}
+.tank-card-name {
+  @apply min-w-0 truncate text-[15px] font-black text-white [text-shadow:0_1.5px_0_var(--tank-ink)];
+}
+.tank-card-tags {
+  @apply flex shrink-0 items-center;
+}
+.tank-card-no {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[16px] leading-none text-white [text-shadow:0_1.5px_0_var(--tank-ink)];
+}
+.tank-ai-tag {
+  @apply mr-0.5 rounded-[4px] bg-[#39e6ff] px-1 font-['Fredoka',_var(--font-sans)] font-bold text-[10px] leading-[14px] text-(--tank-ink);
+}
+.tank-card-skull {
+  @apply absolute right-1 top-[38px] text-[18px] leading-none;
+}
+.tank-card-avatar {
+  @apply flex h-[66px] shrink-0 items-center justify-center bg-[radial-gradient(circle_at_50%_62%,#efe3cc_0,#efe3cc_30px,transparent_31px)];
+}
+.tank-card-avatar-svg {
+  @apply size-[64px] shrink-0;
+}
+.tank-card-shield {
+  @apply absolute right-1.5 top-[40px] flex size-[26px] items-center justify-center rounded-full border-2 border-(--tank-ink) bg-[#39d5ff];
+}
+.tank-card-shield-icon {
+  @apply size-4 stroke-[2.5] text-white;
+}
+.tank-card-hp {
+  @apply flex h-[22px] shrink-0 items-center justify-center gap-[3px];
+}
+.tank-heart {
+  @apply size-[15px] shrink-0 stroke-[2.5];
+}
+.tank-heart-on {
+  @apply fill-[#ff5c8a] text-[#ff3b6a];
+}
+.tank-heart-off {
+  @apply fill-none text-[#cdbfa6];
+}
+.tank-card-hp-text {
+  @apply text-[14px];
+}
+.tank-card-kills {
+  @apply mx-2 flex h-[22px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--tank-plate) text-[15px];
+}
+.tank-card-kills-icon {
+  @apply size-[14px] stroke-[2.5] text-[#ff3b4e];
+}
+.tank-card-buffs {
+  @apply flex h-[20px] shrink-0 justify-center gap-[3px] pt-1;
+}
+.tank-buff {
+  @apply flex h-[15px] min-w-[34px] items-center justify-center gap-0.5 rounded-full border-[1.5px] border-(--tank-ink) px-1 text-[10px];
+}
+.tank-buff-icon {
+  @apply size-[10px] shrink-0 stroke-[2.5];
+}
+
+/* 擊殺通知：貼右欄左側，最多 3 則往下排，3 秒後淡出 */
+.tank-feed {
+  @apply absolute top-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top))] right-[calc(118.5px_*_var(--tank-scale)_+_env(safe-area-inset-right))] flex origin-top-right flex-col items-end gap-1.5 [scale:var(--tank-scale)];
+}
+.tank-feed-item {
+  @apply flex h-[26px] items-center gap-1 whitespace-nowrap rounded-full border-2 border-(--tank-ink) bg-(--tank-paper) px-2 text-[12px] font-black text-(--tank-ink) shadow-[0_3px_0_rgba(0,0,0,.4)] transition-opacity duration-300 animate-[tank-feed-in_0.25s_ease-out];
+}
+.tank-feed-leave {
+  @apply opacity-0;
+}
+.tank-feed-dot {
+  @apply size-[10px] shrink-0 rounded-full border-[1.5px] border-(--tank-ink) bg-[var(--tc-base,#cdbfa6)];
+}
+.tank-feed-name {
+  @apply max-w-[96px] truncate;
+}
+.tank-feed-icon {
+  @apply size-[15px] shrink-0 stroke-[2.5];
+}
+.tank-feed-kill {
+  @apply text-[#ff3b4e];
+}
+.tank-feed-wall {
+  @apply text-[#c23a33];
+}
+.tank-feed-chevron {
+  @apply size-[13px] shrink-0 stroke-[3] text-[#8a7a66];
+}
+
+/* 矮畫面用的頂部頭像膠囊（預設隱藏） */
+.tank-pills {
+  @apply absolute left-1/2 top-[max(6px,env(safe-area-inset-top))] hidden -translate-x-1/2 gap-1.5;
+}
+.tank-pill {
+  @apply relative flex h-[30px] items-center gap-1.5 rounded-full border-2 border-(--tank-ink) bg-(--tank-paper) pr-2 text-(--tank-ink) shadow-[0_3px_0_rgba(0,0,0,.4),inset_0_0_0_2px_var(--tc-base)];
+}
+.tank-pill-avatar {
+  @apply -my-1 size-[34px] shrink-0;
+}
+.tank-pill-stat {
+  @apply flex items-center gap-px font-['Fredoka',_var(--font-sans)] font-bold text-[12px] leading-none;
+}
+.tank-pill-icon {
+  @apply size-[11px] stroke-[2.5];
+}
+.tank-pill-hp {
+  @apply fill-[#ff5c8a] text-[#ff3b6a];
+}
+.tank-pill-kills {
+  @apply text-[#ff3b4e];
+}
+.tank-pill-buff {
+  @apply flex size-[13px] shrink-0 items-center justify-center rounded-full border border-(--tank-ink);
+}
+.tank-pill-buff-icon {
+  @apply size-[8px] stroke-[3];
+}
+.tank-pill-skull {
+  @apply absolute -right-1 -top-1 text-[13px] leading-none;
+}
+/* 護盾：青色外圈＋左上小盾 */
+.tank-pill-shield {
+  @apply outline-2 outline-offset-1 outline-[#39d5ff];
+}
+.tank-pill-shield-icon {
+  @apply absolute -left-1 -top-1 z-10 size-[14px] rounded-full bg-[#39d5ff] p-0.5 stroke-[2.5] text-white;
+}
+
+@keyframes tank-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+@keyframes tank-feed-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* 矮畫面（手機橫向）：玩家卡改成頂部頭像膠囊，計時膠囊移到下方中央，擊殺通知移到全螢幕鈕下方 */
+@media (max-height: 500px) {
+  .tank-col {
+    @apply hidden;
+  }
+  .tank-pills {
+    @apply flex;
+  }
+  .tank-timer {
+    @apply top-auto bottom-[max(8px,env(safe-area-inset-bottom))] h-[34px] min-w-0 origin-bottom gap-2 px-3 [scale:1];
+  }
+  .tank-timer-text {
+    @apply text-[20px];
+  }
+  .tank-timer-sudden-text {
+    @apply text-[14px];
+  }
+  .tank-timer-icon {
+    @apply size-4;
+  }
+  .tank-timer-sep {
+    @apply h-4;
+  }
+  .tank-timer-alive {
+    @apply text-[12px];
+  }
+  .tank-feed {
+    @apply top-[calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px)] right-[max(0.5rem,env(safe-area-inset-right))] [scale:0.85];
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tank-timer-urgent,
+  .tank-feed-item {
+    @apply animate-none;
+  }
+}
