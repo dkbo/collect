@@ -7,6 +7,7 @@ import { Color3, MeshBuilder, StandardMaterial, type DynamicTexture, type Mesh, 
 import { easeOut, itemHop } from '@/babylon/fx/curves'
 import { toMesh } from '@/babylon/fx/models'
 import { ThinGroup } from '@/babylon/fx/thin'
+import { alignIconSlots } from '@/babylon/games/tankFx/itemSlots'
 import { ThinSlots } from '@/babylon/fx/thinSlots'
 import { crateData } from '@/babylon/games/bomberFx/models'
 import { createBlockAtlas } from '@/babylon/games/bomberFx/textures'
@@ -28,6 +29,7 @@ import { ITEM_ORDER, TANK } from '@/babylon/games/tankFx/palette'
 import {
   createBlobTexture,
   createGroundTexture,
+  drawGroundTexture,
   createItemAtlas,
   createWarnTexture,
   tokenUV,
@@ -91,6 +93,9 @@ export class TankBoard {
   private toonMats: StandardMaterial[] = []
   private ground!: Mesh
   private groundTex: DynamicTexture | null = null
+  /** 木箱增減後要重畫地面的箱底陰影（每幀最多重畫一次） */
+  private groundDirty = false
+  private isWallPred: CellPred = () => false
   private groundMat!: StandardMaterial
   private pillars!: ThinGroup<number>
   private border!: ThinGroup<number>
@@ -99,7 +104,7 @@ export class TankBoard {
   private crates!: ThinGroup<number>
   private bullets!: ThinGroup<string>
   private bounced!: ThinGroup<string>
-  /** 5 種道具共用一組 thin instance；iconSlots 與 items.slots 以同樣的操作順序維護，slot 一一對應 */
+  /** 5 種道具共用一組 thin instance；iconSlots 與 items.slots 以同樣的操作順序維護，每幀再以 alignIconSlots 核對 */
   private items!: ThinGroup<number | string>
   private iconSlots = new ThinSlots<number | string>(8, 1)
   private iconVersion = -1
@@ -275,7 +280,7 @@ export class TankBoard {
 
   // ---- 牆 ----
 
-  /** 固定柱牆（init 一次）；地面貼圖同時烘牆根陰影 */
+  /** 固定柱牆（init 一次）；地面貼圖同時烘牆根與箱底陰影（之後木箱增減時重畫） */
   setWalls(walls: Iterable<number>, isWall: CellPred): void {
     const { gridW, gridH } = this.cfg
     this.pillars.clear()
@@ -283,14 +288,20 @@ export class TankBoard {
       const { x, z } = this.cfg.toWorld(ci % gridW, Math.floor(ci / gridW))
       this.pillars.put(ci, { x, y: 0, z })
     }
+    this.isWallPred = isWall
     this.groundTex?.dispose()
-    this.groundTex = createGroundTexture(this.scene, gridW, gridH, isWall)
+    this.groundTex = createGroundTexture(this.scene, gridW, gridH, this.shadowed)
     this.groundMat.diffuseTexture = this.groundTex
+    this.groundDirty = false
   }
+
+  /** 接地陰影：牆（含已落下的牆）與木箱 */
+  private shadowed: CellPred = (cx, cy) => this.isWallPred(cx, cy) || this.crates.has(cy * this.cfg.gridW + cx)
 
   // ---- 木箱 ----
 
   setCrate(ci: number, on: boolean): void {
+    if (on !== this.crates.has(ci)) this.groundDirty = true
     if (!on) {
       this.crates.remove(ci)
       return
@@ -300,6 +311,7 @@ export class TankBoard {
   }
 
   clearCrates(): void {
+    if (this.crates.count > 0) this.groundDirty = true
     this.crates.clear()
   }
 
@@ -308,6 +320,7 @@ export class TankBoard {
   addClosingWall(ci: number, now: number): void {
     const { x, z } = this.cfg.toWorld(ci % this.cfg.gridW, Math.floor(ci / this.cfg.gridW))
     this.closing.set(ci, { x, z, born: now, done: false })
+    this.groundDirty = true
     this.sudden.put(ci, { x, y: DROP_FROM, z })
   }
 
@@ -400,6 +413,7 @@ export class TankBoard {
         this.iconSlots.write(key, (buf, o) => (buf[o] = icon))
       }
     }
+    alignIconSlots(this.items.slots, this.iconSlots, (k) => ITEM_ORDER.indexOf(this.itemRecs.get(k)?.kind ?? 'hp'))
     for (const [ci, w] of this.closing) {
       if (w.done) continue
       const t = (now - w.born) / DROP_MS
@@ -416,6 +430,10 @@ export class TankBoard {
       // 落地回彈：0.85 → 1.04 → 1
       const s = u < 0.5 ? 0.85 + 0.19 * easeOut(u / 0.5) : 1.04 - 0.04 * ((u - 0.5) / 0.5)
       this.sudden.put(ci, { x: w.x, y: 0, z: w.z, sy: s })
+    }
+    if (this.groundDirty && this.groundTex) {
+      drawGroundTexture(this.groundTex, this.cfg.gridW, this.cfg.gridH, this.shadowed)
+      this.groundDirty = false
     }
     this.syncAll()
   }

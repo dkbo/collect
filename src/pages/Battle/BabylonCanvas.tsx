@@ -17,6 +17,7 @@ import {
   TANK_FEED_MAX,
   TANK_FEED_SHOW_MS,
   TANK_TOUCH_ACTIONS,
+  feedRestarted,
   freshFeed,
   isTankHud,
   type TankFeedItem,
@@ -122,10 +123,8 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
     // 坦克擊殺通知：只收沒看過的 id；feed 清空（新的一局）時重置已看過的集合
     const tankSeen = new Set<number>()
     const queueTankFeed = (next: TankHud) => {
-      if (next.feed.length === 0) {
-        tankSeen.clear()
-        return
-      }
+      if (next.feed.length === 0 || feedRestarted(tankSeen, next.feed)) tankSeen.clear()
+      if (next.feed.length === 0) return
       const fresh = freshFeed(tankSeen, next.feed)
       if (fresh.length === 0) return
       for (const f of fresh) tankSeen.add(f.id)

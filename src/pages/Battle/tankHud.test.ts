@@ -13,6 +13,7 @@ import {
   TANK_FEED_SHOW_MS,
   TANK_TOUCH_ACTIONS,
   feedView,
+  feedRestarted,
   freshFeed,
   hpView,
   isTankHud,
@@ -166,6 +167,19 @@ describe('擊殺通知', () => {
       name: '離房的人',
       colorIndex: null,
     })
+  })
+  it('帶實體 id 時依 id 找色點：同名玩家不取錯', () => {
+    const players = [player(0, { id: 'a', name: '同名' }), player(2, { id: 'b', name: '同名' })]
+    const v = feedView({ id: 4, killer: '同名', victim: '同名', killerId: 'b', victimId: 'a' }, players)
+    expect(v.killer?.colorIndex).toBe(2)
+    expect(v.victim.colorIndex).toBe(0)
+  })
+  it('id 倒退（新 game 實例重新編號）才判定重置', () => {
+    const f = (...ids: number[]) => ids.map((id) => ({ id, killer: null, victim: 'x' }))
+    expect(feedRestarted(new Set([5, 6]), f(1))).toBe(true)
+    expect(feedRestarted(new Set([5, 6]), f(6, 7))).toBe(false)
+    expect(feedRestarted(new Set(), f(1))).toBe(false)
+    expect(feedRestarted(new Set([5]), [])).toBe(false)
   })
 })
 

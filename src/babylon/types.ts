@@ -124,6 +124,9 @@ export interface TankHudFeed {
   id: number
   killer: string | null
   victim: string
+  /** 擊殺者／陣亡者的實體 id（可選）：色點依 id 找，同名玩家才不會取錯；沒有時退回依名字找 */
+  killerId?: string | null
+  victimId?: string
 }
 
 /**

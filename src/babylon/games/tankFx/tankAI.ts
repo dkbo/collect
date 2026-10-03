@@ -33,6 +33,10 @@ const ENGAGE_DIST = 10
 const MAX_AIM_ERR = (AI_AIM_ERR_DEG * Math.PI) / 180
 /** 換軸前先對齊格中心的容許偏差 */
 const ALIGN_EPS = 0.15
+/** 閃避時檢查「往那側走會不會進預告格」的前瞻距離 */
+const DODGE_LOOKAHEAD = 1.2
+/** 去掉浮點尾數，讓同輸入在各端得到完全相同的移動向量 */
+const round = (v: number) => Math.round(v * 1e6) / 1e6
 
 export interface AiTank {
   id: string
@@ -75,7 +79,7 @@ export interface TankAIMemory {
 }
 
 export interface TankAIAction {
-  /** 移動方向（軸向單位向量或 0） */
+  /** 移動方向：尋路時為軸向單位向量，閃避時為垂直彈道的單位向量（可非軸向）；不動為 0 */
   moveX: number
   moveZ: number
   /** 砲塔目標角；null 表示維持現狀 */
@@ -266,7 +270,3 @@ export function decideTankBot(input: TankAIInput, memory: TankAIMemory): { actio
 
   return { action: { moveX, moveZ, aim, fire }, memory: mem }
 }
-
-/** 閃避時檢查「往那側走會不會進預告格」的前瞻距離 */
-const DODGE_LOOKAHEAD = 1.2
-const round = (v: number) => Math.round(v * 1e6) / 1e6

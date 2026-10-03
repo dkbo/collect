@@ -49,8 +49,9 @@ export class KillFeed {
   private seq = 0
   private list: TankHudFeed[] = []
 
-  push(killer: string | null, victim: string): void {
-    this.list = [...this.list, { id: ++this.seq, killer, victim }].slice(-FEED_MAX)
+  /** ids 可選：帶上實體 id，HUD 依 id 找色點（同名玩家不混淆） */
+  push(killer: string | null, victim: string, ids?: { killerId: string | null; victimId: string }): void {
+    this.list = [...this.list, { id: ++this.seq, killer, victim, ...ids }].slice(-FEED_MAX)
   }
 
   clear(): void {

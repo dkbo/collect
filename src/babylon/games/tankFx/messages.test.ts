@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   decodeBotState,
+  decodeBullet,
   decodeBounce,
   decodeClose,
   decodeCrate,
   decodeHit,
+  decodeItem,
   decodePickup,
   decodeSeed,
 } from '@/babylon/games/tankFx/messages'
@@ -114,5 +116,27 @@ describe('decodePickup — kind 可選', () => {
 
   it('未知 kind 拒收', () => {
     expect(decodePickup({ ci: 3, who: 'p0', kind: 'nuke' })).toBeNull()
+  })
+})
+
+describe('decodeBullet／decodeItem', () => {
+  it('合法 bullet 照收', () => {
+    const b = { id: 'b1', owner: 'p1', x: 1, z: -2, vx: 12, vz: 0 }
+    expect(decodeBullet(b, LIMITS)).toEqual({ ...b, side: false })
+    expect(decodeBullet({ ...b, side: true }, LIMITS)).toEqual({ ...b, side: true })
+    expect(decodeBullet({ ...b, side: 1 }, LIMITS)).toBeNull()
+  })
+
+  it('bullet 座標／速度出界、id 過長或缺欄位整則丟棄', () => {
+    expect(decodeBullet({ id: 'b1', owner: 'p1', x: 99, z: 0, vx: 0, vz: 0 }, LIMITS)).toBeNull()
+    expect(decodeBullet({ id: 'b1', owner: 'p1', x: 0, z: 0, vx: 99, vz: 0 }, LIMITS)).toBeNull()
+    expect(decodeBullet({ id: 'x'.repeat(65), owner: 'p1', x: 0, z: 0, vx: 0, vz: 0 }, LIMITS)).toBeNull()
+    expect(decodeBullet({ owner: 'p1', x: 0, z: 0, vx: 0, vz: 0 }, LIMITS)).toBeNull()
+  })
+
+  it('合法 item 照收；格座標出界或未知 kind 丟棄', () => {
+    expect(decodeItem({ cx: 3, cy: 4, kind: 'shield' })).toEqual({ cx: 3, cy: 4, kind: 'shield' })
+    expect(decodeItem({ cx: 16, cy: 4, kind: 'hp' })).toBeNull()
+    expect(decodeItem({ cx: 3, cy: 4, kind: 'bouncy' })).toBeNull()
   })
 })

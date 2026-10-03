@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { advanceBullet, type AgedBullet } from '@/babylon/games/tankFx/bulletLife'
+import { SIM_HZ, advanceBullet, type AgedBullet } from '@/babylon/games/tankFx/bulletLife'
 import { GRID_H, GRID_W, cellToWorld } from '@/babylon/games/tankFx/grid'
 
-const DT = 1000 / 30 / 1000 // 與 createFixedTicker(30) 的 stepMs / 1000 同算法
+const DT = 1000 / SIM_HZ / 1000 // 與 createFixedTicker(SIM_HZ) 的 stepMs / 1000 同算法
 const SPEED = 12
 const LIFE = 2000
 const wx = (c: number) => cellToWorld(c, GRID_W)

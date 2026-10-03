@@ -86,3 +86,35 @@ export function stepBullet(b: BulletKin, dt: number, isWall: CellPred, isCrate: 
     hitZ,
   }
 }
+
+/** 拉回後與牆面保留的距離（避免落在格線上被 round 判回牆格） */
+export const MUZZLE_EPS = 0.01
+
+/**
+ * 開火點校正：砲口偏移（0.6）大於坦克半徑（0.5），貼牆開火時砲口會落進牆格，
+ * stepBullet 從牆內起步只能判消失。落在不可破牆或場外時，沿彈道反方向拉回到撞擊面前，
+ * 下一步就照常撞面反彈。木箱不拉回（照舊由 stepBullet 判打掉）。
+ */
+export function clampMuzzle(x: number, z: number, vx: number, vz: number, isWall: CellPred): { x: number; z: number } {
+  const solid = (cx: number, cy: number) => !inGrid(cx, cy) || isWall(cx, cy)
+  const sp = Math.hypot(vx, vz)
+  if (sp === 0) return { x, z }
+  const bx = -vx / sp
+  const bz = -vz / sp
+  let px = x
+  let pz = z
+  // 砲口偏移遠小於一格，最多跨回一兩格；設上限防呆
+  for (let i = 0; i < 4; i++) {
+    const cx = worldToCell(px, GRID_W)
+    const cy = worldToCell(pz, GRID_H)
+    if (!solid(cx, cy)) return { x: px, z: pz }
+    const gx = cellToWorld(cx, GRID_W)
+    const gz = cellToWorld(cy, GRID_H)
+    const tx = bx > 0 ? (gx + CELL / 2 - px) / bx : bx < 0 ? (gx - CELL / 2 - px) / bx : Infinity
+    const tz = bz > 0 ? (gz + CELL / 2 - pz) / bz : bz < 0 ? (gz - CELL / 2 - pz) / bz : Infinity
+    const t = Math.min(tx, tz) + MUZZLE_EPS
+    px += bx * t
+    pz += bz * t
+  }
+  return { x: px, z: pz }
+}

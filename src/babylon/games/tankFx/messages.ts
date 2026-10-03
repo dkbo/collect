@@ -74,7 +74,7 @@ export function decodeBotState(p: unknown, botIds: readonly string[], l: Limits)
     MAX_TANKS
   )
   if (!ok) return null
-  return { states: states.map((s) =>({ id: s.id, x: s.x, z: s.z, ry: s.ry, ta: s.ta })) }
+  return { states: states.map((s) => ({ id: s.id, x: s.x, z: s.z, ry: s.ry, ta: s.ta })) }
 }
 
 export interface HitPayload {
@@ -113,4 +113,29 @@ export function decodePickup(p: unknown): { ci: number; who: string; kind: ItemK
   if (p.kind === undefined) return { ci: p.ci, who: p.who, kind: null }
   if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return null
   return { ci: p.ci, who: p.who, kind: p.kind }
+}
+
+export interface BulletPayload {
+  id: string
+  owner: string
+  x: number
+  z: number
+  vx: number
+  vz: number
+  /** 三連發的左右兩發（可選，舊格式為 false）：不重播砲口焰 */
+  side: boolean
+}
+
+export function decodeBullet(p: unknown, l: Limits): BulletPayload | null {
+  if (!isObj(p) || !isStr(p.id) || !isStr(p.owner)) return null
+  if (!isNumIn(p.x, -l.worldLimit, l.worldLimit) || !isNumIn(p.z, -l.worldLimit, l.worldLimit)) return null
+  if (!isNumIn(p.vx, -l.velLimit, l.velLimit) || !isNumIn(p.vz, -l.velLimit, l.velLimit)) return null
+  if (!optBool(p.side)) return null
+  return { id: p.id, owner: p.owner, x: p.x, z: p.z, vx: p.vx, vz: p.vz, side: p.side ?? false }
+}
+
+export function decodeItem(p: unknown): { cx: number; cy: number; kind: ItemKind } | null {
+  if (!isObj(p) || !isIntIn(p.cx, 0, GRID_W - 1) || !isIntIn(p.cy, 0, GRID_H - 1)) return null
+  if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return null
+  return { cx: p.cx, cy: p.cy, kind: p.kind }
 }

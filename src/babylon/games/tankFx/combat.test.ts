@@ -7,7 +7,6 @@ import {
   TRIPLE_MS,
   TRIPLE_SPREAD_DEG,
   buffRemainSec,
-  invulnBlinkOn,
   knockback,
   pickItemKind,
   resolveHit,
@@ -105,18 +104,11 @@ describe('pickItemKind — 五種等機率', () => {
   })
 })
 
-describe('buffRemainSec／invulnBlinkOn', () => {
+describe('buffRemainSec', () => {
   it('剩餘秒數無條件進位、到期為 0', () => {
     expect(buffRemainSec(NOW + 7001, NOW)).toBe(8)
     expect(buffRemainSec(NOW + 1000, NOW)).toBe(1)
     expect(buffRemainSec(NOW, NOW)).toBe(0)
     expect(buffRemainSec(0, NOW)).toBe(0)
-  })
-
-  it('無敵到期後不閃、期間會亮暗交替', () => {
-    expect(invulnBlinkOn(NOW, NOW)).toBe(true)
-    const states = new Set<boolean>()
-    for (let t = 0; t < INVULN_MS; t += 25) states.add(invulnBlinkOn(NOW + t, NOW + INVULN_MS))
-    expect(states).toEqual(new Set([true, false]))
   })
 })

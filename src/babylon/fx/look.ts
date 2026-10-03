@@ -246,6 +246,7 @@ export class ToyLook {
     mesh.onDisposeObservable.addOnce(() => {
       this.glowOwn.delete(mesh.uniqueId)
       this.glowColors.delete(mesh.uniqueId)
+      this.glowOff.delete(mesh.uniqueId)
       this.syncGlowEnabled()
     })
     this.glow?.addIncludedOnlyMesh(mesh)

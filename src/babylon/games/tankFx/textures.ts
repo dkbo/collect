@@ -21,13 +21,28 @@ const rand = (seed: number): (() => number) => {
 /** 地面每格像素（16 格 × 32 = 512²） */
 const GROUND_PX = 32
 
-/** 玩具沙盤：A／B 棋盤、1px 格縫、每 4×4 格 1–2 塊迷彩斑點；isWall 的格子四周烘 3px 接地陰影 */
-export function createGroundTexture(scene: Scene, gridW: number, gridH: number, isWall: CellPred): DynamicTexture {
+/** 玩具沙盤：A／B 棋盤、1px 格縫、每 4×4 格 1–2 塊迷彩斑點；shadowed 的格子（牆、木箱）四周烘 3px 接地陰影 */
+export function createGroundTexture(scene: Scene, gridW: number, gridH: number, shadowed: CellPred): DynamicTexture {
+  const tex = new DynamicTexture(
+    'tank-ground-tex',
+    { width: gridW * GROUND_PX, height: gridH * GROUND_PX },
+    scene,
+    false,
+    Texture.BILINEAR_SAMPLINGMODE,
+  )
+  drawGroundTexture(tex, gridW, gridH, shadowed)
+  tex.wrapU = Texture.CLAMP_ADDRESSMODE
+  tex.wrapV = Texture.CLAMP_ADDRESSMODE
+  return tex
+}
+
+/** 重畫地面（木箱被打掉、落牆後陰影跟著變）：整張重畫後上傳，不重建貼圖 */
+export function drawGroundTexture(tex: DynamicTexture, gridW: number, gridH: number, shadowed: CellPred): void {
   const PX = GROUND_PX
   const W = gridW * PX
   const H = gridH * PX
-  const tex = new DynamicTexture('tank-ground-tex', { width: W, height: H }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
   const g = ctxOf(tex)
+  g.globalAlpha = 1
   const yOf = (cy: number) => (gridH - 1 - cy) * PX
   for (let cy = 0; cy < gridH; cy++) {
     for (let cx = 0; cx < gridW; cx++) {
@@ -59,12 +74,12 @@ export function createGroundTexture(scene: Scene, gridW: number, gridH: number, 
   for (let i = 0; i <= gridW; i++) g.fillRect(i * PX, 0, 1, H)
   for (let i = 0; i <= gridH; i++) g.fillRect(0, i * PX, W, 1)
   g.globalAlpha = 1
-  // 牆根接地陰影（牆不投即時影，靠烘焙）：牆格四周外擴 3px
+  // 牆根／箱底接地陰影（牆與木箱不投即時影，靠烘焙）：格子四周外擴 3px
   g.fillStyle = 'rgba(43,36,64,0.18)'
   const SH = 3
   for (let cy = 0; cy < gridH; cy++) {
     for (let cx = 0; cx < gridW; cx++) {
-      if (!isWall(cx, cy)) continue
+      if (!shadowed(cx, cy)) continue
       const inset = PX * 0.025
       roundRect(g, cx * PX + inset - SH, yOf(cy) + inset - SH, PX - inset * 2 + SH * 2, PX - inset * 2 + SH * 2, 6)
       g.fill()
@@ -77,9 +92,6 @@ export function createGroundTexture(scene: Scene, gridW: number, gridH: number, 
   g.fillRect(0, 0, SH, H)
   g.fillRect(W - SH, 0, SH, H)
   tex.update()
-  tex.wrapU = Texture.CLAMP_ADDRESSMODE
-  tex.wrapV = Texture.CLAMP_ADDRESSMODE
-  return tex
 }
 
 /** 履帶貼圖 64×32：上半全白（車身部件取這裡），下半 trackTop 底＋每 8px 一條 cleat 亮紋；u 方向 WRAP 捲動 */

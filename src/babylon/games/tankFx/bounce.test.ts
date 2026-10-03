@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { BULLET_MAX_BOUNCE, stepBullet, type BulletKin } from '@/babylon/games/tankFx/bounce'
-import { GRID_H, GRID_W, cellToWorld } from '@/babylon/games/tankFx/grid'
+import { BULLET_MAX_BOUNCE, clampMuzzle, stepBullet, type BulletKin } from '@/babylon/games/tankFx/bounce'
+import { GRID_H, GRID_W, TANK_RADIUS, cellToWorld, worldToCell } from '@/babylon/games/tankFx/grid'
 
 const DT = 1 / 30
 const SPEED = 12
@@ -100,5 +100,48 @@ describe('stepBullet — guest 預測與 host 一致', () => {
     const guest = firstBounce(structuredClone(spawn), wall)
     expect(host).not.toBeNull()
     expect(guest).toEqual(host)
+  })
+})
+
+describe('clampMuzzle — 貼牆開火', () => {
+  const MUZZLE = 0.6
+  // 格 7 右緣 x=0、格 8 為牆；坦克貼牆時中心在 -TANK_RADIUS，砲口 0.6 落進牆格
+  const tankX = -TANK_RADIUS
+  const tz = wz(4)
+
+  it('重現：砲口在牆格內直接起步，子彈不反彈而消失', () => {
+    const b: BulletKin = { x: tankX + MUZZLE, z: tz, vx: SPEED, vz: 0, bounces: 0 }
+    expect(stepBullet(b, DT, only([8, 4]), none).kind).toBe('expire')
+  })
+
+  it('砲口在牆格內：沿彈道拉回到牆面前，下一步即反彈', () => {
+    const m = clampMuzzle(tankX + MUZZLE, tz, SPEED, 0, only([8, 4]))
+    expect(worldToCell(m.x, GRID_W)).toBe(7)
+    expect(m.x).toBeLessThan(0)
+    expect(m.x).toBeGreaterThan(-0.05)
+    expect(m.z).toBeCloseTo(tz)
+    const r = stepBullet({ x: m.x, z: m.z, vx: SPEED, vz: 0, bounces: 0 }, DT, only([8, 4]), none)
+    expect(r.kind).toBe('bounce')
+    if (r.kind !== 'bounce') return
+    expect(r.vx).toBe(-SPEED)
+  })
+
+  it('斜向貼牆：沿彈道反方向拉回，z 依同比例退回', () => {
+    const vx = SPEED * Math.SQRT1_2
+    const vz = SPEED * Math.SQRT1_2
+    const sx = tankX + MUZZLE * Math.SQRT1_2 + 0.2 // 確保落進牆格
+    const m = clampMuzzle(sx, tz, vx, vz, only([8, 4]))
+    expect(worldToCell(m.x, GRID_W)).toBe(7)
+    expect(m.x - sx).toBeCloseTo(m.z - tz) // 45° 反方向：兩軸退回量相同
+  })
+
+  it('場外視同牆（外圈貼邊開火）', () => {
+    const edge = wx(GRID_W - 1) + 1 // 場地右緣
+    const m = clampMuzzle(edge + 0.1, tz, SPEED, 0, none)
+    expect(worldToCell(m.x, GRID_W)).toBe(GRID_W - 1)
+  })
+
+  it('砲口在空地：原樣不動', () => {
+    expect(clampMuzzle(wx(4), wz(4), SPEED, 0, only([8, 4]))).toEqual({ x: wx(4), z: wz(4) })
   })
 })

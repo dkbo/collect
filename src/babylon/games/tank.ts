@@ -10,10 +10,7 @@ import {
   createFixedTicker,
   createGameFlow,
   createOwnershipSync,
-  isIntIn,
-  isNumIn,
   isObj,
-  isOneOf,
   isStr,
   type FixedTicker,
   type GameFlow,
@@ -24,11 +21,11 @@ import { perfLogLine } from '@/babylon/fx/perfLog'
 import { tierQuery } from '@/babylon/fx/quality'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
 import { validateShootReq } from '@/babylon/games/tankNet'
-import { advanceBullet } from '@/babylon/games/tankFx/bulletLife'
+import { SIM_HZ, advanceBullet } from '@/babylon/games/tankFx/bulletLife'
+import { clampMuzzle } from '@/babylon/games/tankFx/bounce'
 import { CLOSE_INTERVAL_MS, CLOSE_WARN_MS, SUDDEN_DEATH_MS, closeDue, crushedIds, spiralCells } from '@/babylon/games/tankFx/closing'
 import {
   INVULN_MS,
-  ITEM_KINDS,
   KNOCKBACK,
   SHIELD_MS,
   TRIPLE_MS,
@@ -42,16 +39,18 @@ import {
 import { CELL, GRID_H, GRID_W, cellIdx, cellToWorld, tankMoveBlocked, worldToCell } from '@/babylon/games/tankFx/grid'
 import {
   decodeBotState,
+  decodeBullet,
   decodeBounce,
   decodeClose,
   decodeCrate,
   decodeHit,
+  decodeItem,
   decodePickup,
   decodeSeed,
   type BotStateEntry,
 } from '@/babylon/games/tankFx/messages'
 import { paceTick } from '@/babylon/games/tankFx/pacing'
-import { entityIds, makeBots, rankStandings, tankColorIndex, type RosterEntry, type Standing } from '@/babylon/games/tankFx/roster'
+import { entityIds, makeBots, rankStandings, roundDecided, tankColorIndex, type RosterEntry, type Standing } from '@/babylon/games/tankFx/roster'
 import { createAIMemory, decideTankBot, type TankAIMemory } from '@/babylon/games/tankFx/tankAI'
 import { benchEnabled, benchLayout } from '@/babylon/games/tankFx/bench'
 import { BULLET_Y, DROP_MS, TankBoard } from '@/babylon/games/tankFx/board'
@@ -68,6 +67,7 @@ import {
 } from '@/babylon/games/tankFx/fxModel'
 import { KillFeed, buildTankHud, tankTimer, type TankTimer } from '@/babylon/games/tankFx/hudModel'
 import { ITEM_COLORS, OUTLINE, PLAYER_PALETTE, TANK, type ColorIndex } from '@/babylon/games/tankFx/palette'
+import { BARREL_Y, MUZZLE_Z, TURRET_PIVOT_Z } from '@/babylon/games/tankFx/models'
 import { TankKit, disposeTank, poseTank, type TankRig } from '@/babylon/games/tankFx/tankModel'
 
 /**
@@ -125,7 +125,6 @@ interface PlayerStat {
   invulnUntil: number
 }
 
-const SIM_HZ = 30
 const MOVE_SPEED = 4.5
 const TURRET_SPEED = 3.5
 const BULLET_SPEED = 12
@@ -157,9 +156,9 @@ const BLOB_TANK = 1.9
 const BLOB_ITEM = 1.1
 /** 相機注視點（spec §1 裁定）；鏡頭微震在附近抖、結束歸位 */
 const CAM_TARGET = new Vector3(0, 0, -2)
-/** 砲口離車心的水平距離與高度（砲口焰、火花位置） */
-const MUZZLE_DIST = 1.0
-const MUZZLE_Y = 0.68
+/** 砲口離車心的水平距離與高度（砲口焰、火花位置），取自砲管模型 */
+const MUZZLE_DIST = TURRET_PIVOT_Z + MUZZLE_Z
+const MUZZLE_Y = BARREL_Y
 /** 履帶痕池（spec §8 #11：桌機 120、手機 60） */
 const TREAD_CAP = { desktop: 120, mobile: 60 } as const
 
@@ -249,6 +248,9 @@ class TankScene implements GameModule {
   private instr: SceneInstrumentation | null = null
   private lastPerfLog = 0
   private bench = false
+  /** `__TANK_STATE` 偵錯快照：開發環境或 `?tankDebug=1` 才產生（qa 對正式版產物驗收時帶參數） */
+  private debugSnapshots = false
+  private lastDebugAt = 0
 
   private onKeyDown = (e: KeyboardEvent) => {
     const key = e.key.toLowerCase()
@@ -506,18 +508,22 @@ class TankScene implements GameModule {
   private hostFire(owner: string, x: number, z: number, vx: number, vz: number): void {
     const s = this.statOf(owner)
     const vels: [number, number][] = s.tripleUntil > performance.now() ? tripleVelocities(vx, vz) : [[vx, vz]]
-    for (const [bvx, bvz] of vels) {
-      this.hostBroadcast('bullet', { id: `b${this.bulletSeq++}`, owner, x, z, vx: bvx, vz: bvz })
-    }
+    vels.forEach(([bvx, bvz], i) => {
+      // 貼牆開火時砲口在牆格內：拉回牆面前，讓第一步照常撞面反彈（每發方向不同，各自校正）
+      const m = clampMuzzle(x, z, bvx, bvz, this.isWall)
+      // side：三連發的左右兩發，各端不重播砲口焰（不靠收到時刻去重，guest 網路抖動也不會多播）
+      const side = i > 0 ? { side: true } : {}
+      this.hostBroadcast('bullet', { id: `b${this.bulletSeq++}`, owner, x: m.x, z: m.z, vx: bvx, vz: bvz, ...side })
+    })
   }
 
-  private spawnBullet(id: string, owner: string, x: number, z: number, vx: number, vz: number): void {
+  private spawnBullet(id: string, owner: string, x: number, z: number, vx: number, vz: number, side: boolean): void {
     const now = performance.now()
     this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, age: 0 })
     this.board.putBullet(id, x, z, false)
-    // 開砲後座＋車身擠壓回彈＋砲口焰（三連發同一刻的三發共用一次；第一發是中央那發）
+    // 開砲後座＋車身擠壓回彈＋砲口焰（三連發只由中央那發觸發，左右兩發帶 side）
     const v = this.visualOf(owner)
-    if (v && now - v.rig.fireAt > 40) {
+    if (v && !side) {
       v.rig.fireAt = now
       const len = Math.hypot(vx, vz) || 1
       const dx = vx / len
@@ -932,10 +938,8 @@ class TankScene implements GameModule {
       this.bots = d.bots
       this.applySeed(d.seed)
     } else if (type === 'bullet') {
-      if (!isStr(p.id) || !isStr(p.owner)) return
-      if (!isNumIn(p.x, -WORLD_LIMIT, WORLD_LIMIT) || !isNumIn(p.z, -WORLD_LIMIT, WORLD_LIMIT)) return
-      if (!isNumIn(p.vx, -VEL_LIMIT, VEL_LIMIT) || !isNumIn(p.vz, -VEL_LIMIT, VEL_LIMIT)) return
-      if (!this.bullets.has(p.id)) this.spawnBullet(p.id, p.owner, p.x, p.z, p.vx, p.vz)
+      const d = decodeBullet(p, LIMITS)
+      if (d && !this.bullets.has(d.id)) this.spawnBullet(d.id, d.owner, d.x, d.z, d.vx, d.vz, d.side)
     } else if (type === 'bounce') {
       const d = decodeBounce(p, LIMITS)
       const b = d && this.bullets.get(d.bulletId)
@@ -972,9 +976,8 @@ class TankScene implements GameModule {
       // 打掉木箱的那發：guest 端的副本還在半路，木箱先刪會讓它穿過去（幽靈子彈）
       if (d.bulletId) this.removeBullet(d.bulletId)
     } else if (type === 'item') {
-      if (!isIntIn(p.cx, 0, GRID_W - 1) || !isIntIn(p.cy, 0, GRID_H - 1)) return
-      if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return
-      this.spawnItem(p.cx, p.cy, p.kind)
+      const d = decodeItem(p)
+      if (d) this.spawnItem(d.cx, d.cy, d.kind)
     } else if (type === 'pickup') {
       const d = decodePickup(p)
       if (d) this.applyPickup(d)
@@ -1039,7 +1042,8 @@ class TankScene implements GameModule {
     const now = performance.now()
     this.streaks.delete(victim)
     if (killer) this.statOf(killer).kills++
-    this.feed.push(killer ? this.nameFor(killer) : selfKill ? this.nameFor(victim) : null, this.nameFor(victim))
+    const killerId = killer ?? (selfKill ? victim : null)
+    this.feed.push(killerId ? this.nameFor(killerId) : null, this.nameFor(victim), { killerId, victimId: victim })
     const v = this.visualOf(victim)
     if (v) {
       const p = v.root.position
@@ -1106,6 +1110,10 @@ class TankScene implements GameModule {
     // AC10：draw calls 量測；偵錯量測場景只在 tankNoDegrade=1 下生效
     this.instr = new SceneInstrumentation(scene)
     this.bench = typeof window !== 'undefined' && benchEnabled(tierQuery(window.location.search, window.location.hash))
+    this.debugSnapshots =
+      import.meta.env.DEV ||
+      (typeof window !== 'undefined' &&
+        new URLSearchParams(tierQuery(window.location.search, window.location.hash)).get('tankDebug') === '1')
 
     this.selfVisual = this.makeTank(ctx.selfId, 0, 0)
     // 狀態列改由 React HUD（ctx.setHud）顯示；開局倒數用玩具系列配色，掛在不經後製的 UI 相機
@@ -1180,6 +1188,16 @@ class TankScene implements GameModule {
 
     if (!playing) return
 
+    // 勝負已定（guest 已收到最後一則 destroyed、結算訊息還在路上）：清掉場上子彈，不再多預測一次反彈
+    const ents = this.entities()
+    if (roundDecided(ents.length, ents.filter((e) => this.isAlive(e.id)).length)) {
+      if (this.bullets.size > 0) {
+        this.bullets.clear()
+        this.board.clearBullets()
+      }
+      if (this.ctx.role !== 'host') return
+    }
+
     // 子彈：各端同一支純函式推進（guest 為預測，host 為裁決）
     this.stepBullets(dt, now)
     this.updateWarnCell(now)
@@ -1190,9 +1208,8 @@ class TankScene implements GameModule {
     this.tickSuddenDeath(now)
     this.simulateBots(dt, now)
 
-    // 勝負：2 實體以上（含 bot）、存活 ≤ 1 → 結算
-    const ents = this.entities()
-    if (ents.length >= 2 && ents.filter((e) => this.isAlive(e.id)).length <= 1) {
+    // 勝負：2 實體以上（含 bot）、存活 ≤ 1 → 結算（本 tick 的命中可能剛改變存活，重新數）
+    if (roundDecided(ents.length, ents.filter((e) => this.isAlive(e.id)).length)) {
       const standings = rankStandings(
         ents.map((e) => ({
           id: e.id,
@@ -1312,13 +1329,11 @@ class TankScene implements GameModule {
       z: this.state.z,
       alive: this.isAlive(this.ctx.selfId),
     }
-    if (now - this.lastDebugAt > 250) {
+    if (this.debugSnapshots && now - this.lastDebugAt > 250) {
       this.lastDebugAt = now
       ;(window as unknown as Record<string, unknown>).__TANK_STATE = this.debugState(now)
     }
   }
-
-  private lastDebugAt = 0
 
   /** 鏡頭微震（spec §8 #17）：注視點在 (0, 0, −2) 附近抖，振幅線性衰減，結束歸位 */
   private updateShake(now: number): void {

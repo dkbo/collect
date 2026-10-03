@@ -15,7 +15,8 @@ export const worldToCell = (w: number, count: number): number => Math.round(w / 
 export const cellIdx = (cx: number, cy: number): number => cy * GRID_W + cx
 export const inGrid = (cx: number, cy: number): boolean => cx >= 0 && cx < GRID_W && cy >= 0 && cy < GRID_H
 
-/** 坦克中心在 (x, z) 時是否會卡進 blocked 格或出場 */
+/** 坦克中心在 (x, z) 時是否會卡進 blocked 格或出場。
+ *  正式碼移動一律走 tankMoveBlocked（落牆擦到的坦克要能脫困）；這支只留作單測的佔位基準。 */
 export const tankBlocked = (x: number, z: number, blocked: CellPred): boolean => {
   for (const ox of [-TANK_RADIUS, TANK_RADIUS]) {
     for (const oz of [-TANK_RADIUS, TANK_RADIUS]) {

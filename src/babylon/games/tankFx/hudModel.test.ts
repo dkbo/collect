@@ -59,6 +59,11 @@ describe('KillFeed（最近 3 則、id 單調遞增跨局不歸零）', () => {
     expect(f.items()[0].killer).toBeNull()
     expect(f.items()).not.toBe(f.items())
   })
+  it('可帶實體 id 供 HUD 依 id 找色點', () => {
+    const f = new KillFeed()
+    f.push('小藍', '小紅', { killerId: 'p1', victimId: 'p0' })
+    expect(f.items()[0]).toMatchObject({ killer: '小藍', killerId: 'p1', victimId: 'p0' })
+  })
 })
 
 describe('buildTankHud', () => {

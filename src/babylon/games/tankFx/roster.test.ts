@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { entityIds, makeBots, rankStandings, tankColorIndex } from '@/babylon/games/tankFx/roster'
+import { entityIds, makeBots, rankStandings, roundDecided, tankColorIndex } from '@/babylon/games/tankFx/roster'
 
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `玩家${i}` }))
 
@@ -62,5 +62,16 @@ describe('rankStandings — 結算含 bot', () => {
     ]
     rankStandings(input)
     expect(input[0].id).toBe('a')
+  })
+})
+
+describe('roundDecided — 勝負已定', () => {
+  it('2 台以上且存活 ≤ 1 即定', () => {
+    expect(roundDecided(4, 1)).toBe(true)
+    expect(roundDecided(2, 0)).toBe(true)
+  })
+  it('存活 ≥ 2 或只有 1 台（不結算）未定', () => {
+    expect(roundDecided(4, 2)).toBe(false)
+    expect(roundDecided(1, 1)).toBe(false)
   })
 })

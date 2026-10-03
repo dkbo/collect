@@ -41,3 +41,6 @@ export interface Standing {
 /** 存活優先、再比擊殺；同分保持輸入（名冊）順序。不改動輸入 */
 export const rankStandings = (list: readonly Standing[]): Standing[] =>
   [...list].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kills - a.kills)
+
+/** 勝負已定：2 實體以上（含 bot）且存活 ≤ 1。host 用來結算；guest 收到最後一則 destroyed 即凍結子彈，不再多預測反彈 */
+export const roundDecided = (total: number, alive: number): boolean => total >= 2 && alive <= 1

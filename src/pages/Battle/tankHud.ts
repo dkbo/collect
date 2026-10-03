@@ -65,6 +65,12 @@ export function sortTankPlayers(players: TankHudPlayer[]): TankHudPlayer[] {
 }
 
 /** 還沒顯示過的擊殺通知，依 id 由舊到新 */
+/** 擊殺通知 id 倒退（新的 game 實例從 1 重新編號）：已看過的集合要重置，否則新通知會被當成看過而吞掉 */
+export function feedRestarted(seen: ReadonlySet<number>, feed: TankHudFeed[]): boolean {
+  if (feed.length === 0 || seen.size === 0) return false
+  return Math.max(...feed.map((f) => f.id)) < Math.max(...seen)
+}
+
 export function freshFeed(seen: ReadonlySet<number>, feed: TankHudFeed[]): TankHudFeed[] {
   return feed.filter((f) => !seen.has(f.id)).sort((a, b) => a.id - b.id)
 }
@@ -79,11 +85,11 @@ export interface FeedSide {
   colorIndex: number | null
 }
 
-/** 擊殺通知的顯示資料：依名字從名冊找色點，找不到（如已離房）色點留空 */
+/** 擊殺通知的顯示資料：有實體 id 就依 id 找色點（同名不混淆），否則依名字；找不到（如已離房）色點留空 */
 export function feedView(f: TankHudFeed, players: TankHudPlayer[]): { killer: FeedSide | null; victim: FeedSide } {
-  const side = (name: string): FeedSide => ({
+  const side = (name: string, id: string | null | undefined): FeedSide => ({
     name,
-    colorIndex: players.find((p) => p.name === name)?.colorIndex ?? null,
+    colorIndex: (id ? players.find((p) => p.id === id) : players.find((p) => p.name === name))?.colorIndex ?? null,
   })
-  return { killer: f.killer === null ? null : side(f.killer), victim: side(f.victim) }
+  return { killer: f.killer === null ? null : side(f.killer, f.killerId), victim: side(f.victim, f.victimId) }
 }

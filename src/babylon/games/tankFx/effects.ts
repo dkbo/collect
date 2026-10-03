@@ -3,7 +3,7 @@
  *
  * - 粒子：fx_spark／fx_smoke／fx_circle／fx_star 共 4 組 ParticleSystem（上限＝檔位 particleCap），
  *   同一幀在很多位置噴時排進 BurstQueue（fx/emitter）。
- * - 碎片與木板共用 1 組 thin instance（實例色），焦痕、履帶痕各 1 組 thin instance。
+ * - 碎片與木板共用 1 組 thin instance（實例色，見 chips.ts），焦痕、履帶痕各 1 組 thin instance；色票與粒子樣式在 effectsStyle.ts。
  * - 砲口焰、地面／牆面 ring、火球、拾取光柱、浮字、連殺字卡：小物件池，平常收起來不畫。
  * - 護盾泡泡與三連發光環每台各一份，材質共用（makeShield／makeAura）。
  */
@@ -19,12 +19,11 @@ import {
   type Scene,
 } from '@/babylon/babylonCore'
 import { emitCount, ringPose } from '@/babylon/fx/curves'
-import { FxEmitter, fxRandom, style, type FxStyle } from '@/babylon/fx/emitter'
-import { mergeData, roundedBox } from '@/babylon/fx/geometry'
+import { FxEmitter, fxRandom, style } from '@/babylon/fx/emitter'
+import { mergeData } from '@/babylon/fx/geometry'
 import type { ToyLook } from '@/babylon/fx/look'
 import { at, rgba, solid, sphere, toMesh } from '@/babylon/fx/models'
 import { ThinGroup } from '@/babylon/fx/thin'
-import { ThinSlots } from '@/babylon/fx/thinSlots'
 import { bomberAssetUrl, createRingTexture } from '@/babylon/games/bomberFx/textures'
 import {
   CARD_CELL_FROM,
@@ -37,46 +36,21 @@ import {
   floatLabelIndex,
   muzzlePose,
 } from '@/babylon/games/tankFx/fxModel'
+import {
+  bounceSparkStyle,
+  cached,
+  FLASH,
+  FLASH_C,
+  muzzleSparkStyle,
+  STYLE,
+  WOOD,
+} from '@/babylon/games/tankFx/effectsStyle'
+import { cardQuads, setCardLook, setQuadUV } from '@/babylon/games/tankFx/effectsMesh'
+import { ChipField } from '@/babylon/games/tankFx/chips'
 import { groundQuadData } from '@/babylon/games/tankFx/models'
 import { OUTLINE, TANK } from '@/babylon/games/tankFx/palette'
-import { CARD_BAND, createBeamTexture, createFloatAtlas, createScorchTexture } from '@/babylon/games/tankFx/textures'
+import { createBeamTexture, createFloatAtlas, createScorchTexture } from '@/babylon/games/tankFx/textures'
 
-
-const CREAM = '#FFF6E3'
-const WOOD = ['#F0B866', '#C07E33'] as const
-const FLASH = ['#FFF6C8', '#FFC53A', '#FF7A1A'] as const
-const SMOKE_DARK = '#5D627A'
-const SMOKE = '#C4C8D6'
-const SPARK_HOT = '#FFE38A'
-const BOOST_DUST = '#FFE9A0'
-const DEG = Math.PI / 180
-
-const STYLE = {
-  hitStar: style('#FFFFFF', '#FFFFFF', '#FFE38A', { size: [0.8, 0.8], life: [0.16, 0.2], power: [0, 0], dir: 'up' }),
-  bounceStar: style('#FFFFFF', SPARK_HOT, '#FFE38A', { size: [0.6, 0.6], life: [0.12, 0.16], power: [0, 0], dir: 'up' }),
-  boomStar: style('#FFFFFF', FLASH[0], FLASH[1], { size: [2.4, 2.4], life: [0.1, 0.14], power: [0, 0], dir: 'up' }),
-  boomSpark: style('#FFFFFF', '#FFC53A', FLASH[2], { size: [0.14, 0.3], life: [0.25, 0.45], power: [5, 9], dir: 'burst' }),
-  boomSmoke: style(SMOKE_DARK, SMOKE, SMOKE, { size: [0.8, 1.3], life: [0.8, 1.2], power: [0.6, 1.4], dir: 'up' }, 0.85),
-  shard: style(TANK.shieldFill, TANK.shield, TANK.shieldFill, { size: [0.2, 0.34], life: [0.18, 0.26], power: [4, 6.5], dir: 'radial' }),
-  crateSmoke: style(CREAM, '#F3E6CC', CREAM, { size: [0.9, 1.3], life: [0.45, 0.6], power: [0.4, 0.9], dir: 'up' }, 0.9),
-  landDust: style(TANK.dust, '#D8C8A6', TANK.dust, { size: [0.6, 1.0], life: [0.4, 0.6], power: [2.5, 4], dir: 'radial' }, 0.85),
-  dust: style(TANK.dust, TANK.dust, TANK.dust, { size: [0.3, 0.6], life: [0.4, 0.5], power: [0.3, 0.6], dir: 'up' }, 0.5),
-  boostDust: style(BOOST_DUST, BOOST_DUST, BOOST_DUST, { size: [0.3, 0.6], life: [0.4, 0.5], power: [0.3, 0.6], dir: 'up' }, 0.6),
-  bounceTrail: style('#FFFFFF', TANK.bounce, TANK.bounce, { size: [0.16, 0.22], life: [0.18, 0.26], power: [0.02, 0.06], dir: 'up' }),
-} as const
-
-const muzzleSparkStyle = (dx: number, dz: number): FxStyle =>
-  style('#FFFFFF', SPARK_HOT, FLASH[2], { size: [0.1, 0.18], life: [0.1, 0.18], power: [4, 7], dir: 'aim', aim: [dx, 0.12, dz], cone: 25 * DEG })
-const bounceSparkStyle = (dx: number, dz: number): FxStyle =>
-  style('#FFFFFF', SPARK_HOT, SPARK_HOT, { size: [0.1, 0.2], life: [0.12, 0.18], power: [3, 6], dir: 'aim', aim: [dx, 0.35, dz], cone: 70 * DEG })
-
-/** 每種色票只建一次樣式（拖尾、命中、拾取依玩家／道具換色） */
-const styleCache = new Map<string, FxStyle>()
-const cached = (key: string, make: () => FxStyle): FxStyle => {
-  let s = styleCache.get(key)
-  if (!s) styleCache.set(key, (s = make()))
-  return s
-}
 
 // ---- 池化小物件 ----
 
@@ -94,25 +68,6 @@ interface Pooled {
   follow?: () => { x: number; z: number } | null
 }
 
-interface Chip {
-  key: number
-  x: number
-  y: number
-  z: number
-  vx: number
-  vy: number
-  vz: number
-  yaw: number
-  pitch: number
-  spin: number
-  sx: number
-  sy: number
-  sz: number
-  rgba: readonly [number, number, number, number]
-  born: number
-  life: number
-}
-
 interface Mark {
   x: number
   z: number
@@ -121,10 +76,8 @@ interface Mark {
 }
 
 /** 碎片／木板拋射 */
-const CHIP_GRAVITY = -20
 const DEBRIS_MS = 900
 const PLANK_MS = 600
-const CHIP_CAP = 48
 /** 焦痕留到回合結束（池 4，滿了換最舊） */
 const SCORCH_POOL = 4
 const SCORCH_SIZE = 3
@@ -148,8 +101,6 @@ const BEAM_POOL = 4
 const FLOAT_POOL = 4
 const FLOAT_MS = 700
 const CARD_POOL = 2
-const CARD_W = 2.2
-const CARD_H = 0.95
 const CARD_Y = 2.4
 export interface TankFxOptions {
   /** 每組粒子上限（檔位 particleCap） */
@@ -180,11 +131,7 @@ export class TankFx {
   private readonly floats: Pooled[] = []
   private readonly cards: Pooled[] = []
 
-  private readonly chipGroup: ThinGroup<number>
-  private readonly chipColors = new ThinSlots<number>(CHIP_CAP, 4)
-  private chipColorVersion = -1
-  private chips: Chip[] = []
-  private chipSeq = 0
+  private readonly chips: ChipField
 
   private readonly scorch: ThinGroup<number>
   private scorchSeq = 0
@@ -321,10 +268,7 @@ export class TankFx {
       m.diffuseColor = Color3.White()
     })
     look.toon(chipMat)
-    const chipMesh = toMesh('tank-chips', roundedBox({ width: 0.3, height: 0.3, depth: 0.3, radius: 0.05, segments: 1 }), scene)
-    chipMesh.material = chipMat
-    chipMesh.isPickable = false
-    this.chipGroup = new ThinGroup<number>(chipMesh, CHIP_CAP)
+    this.chips = new ChipField(scene, chipMat)
 
     // 焦痕
     const scorchTex = createScorchTexture(scene)
@@ -511,7 +455,7 @@ export class TankFx {
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + fxRandom() * 0.6
       const sp = 2.5 + fxRandom() * 3
-      this.addChip({
+      this.chips.add({
         x: x + Math.cos(a) * 0.3,
         y: 0.5,
         z: z + Math.sin(a) * 0.3,
@@ -538,7 +482,7 @@ export class TankFx {
     for (let i = 0; i < n; i++) {
       const a = fxRandom() * Math.PI * 2
       const sp = 2 + fxRandom() * 2.5
-      this.addChip({
+      this.chips.add({
         x: x + Math.cos(a) * 0.3,
         y: 0.6 + fxRandom() * 0.6,
         z: z + Math.sin(a) * 0.3,
@@ -620,46 +564,11 @@ export class TankFx {
     if (this.marks.length > this.treadCap) this.marks.shift()
   }
 
-  private addChip(c: {
-    x: number
-    y: number
-    z: number
-    vx: number
-    vy: number
-    vz: number
-    sx: number
-    sy: number
-    sz: number
-    hex: string
-    life: number
-    now: number
-  }): void {
-    if (this.chips.length >= CHIP_CAP) this.chips.shift()
-    this.chips.push({
-      key: this.chipSeq++,
-      x: c.x,
-      y: c.y,
-      z: c.z,
-      vx: c.vx,
-      vy: c.vy,
-      vz: c.vz,
-      yaw: fxRandom() * Math.PI * 2,
-      pitch: fxRandom() * Math.PI,
-      spin: (fxRandom() * 2 - 1) * 14,
-      sx: c.sx,
-      sy: c.sy,
-      sz: c.sz,
-      rgba: rgba(c.hex),
-      born: c.now,
-      life: c.life,
-    })
-  }
-
   // ---- 每幀 ----
 
   update(now: number, dtMs: number): void {
     const dt = Math.min(dtMs, 50) / 1000
-    this.updateChips(now, dt)
+    this.chips.update(now, dt)
     this.updateMarks(now)
     this.scorch.sync()
 
@@ -680,8 +589,7 @@ export class TankFx {
         continue
       }
       p.mesh.scaling.setAll(m.scale * (0.6 + 0.4 * m.alpha))
-      const c = Color3.FromHexString(m.alpha > 0.7 ? FLASH[0] : FLASH[1])
-      p.mat.emissiveColor = c.scale(0.4 + 0.6 * m.alpha)
+      FLASH_C[m.alpha > 0.7 ? 0 : 1].scaleToRef(0.4 + 0.6 * m.alpha, p.mat.emissiveColor)
       this.look.setGlow(p.mesh, FLASH[2], 0.9 * m.alpha)
     }
 
@@ -705,7 +613,7 @@ export class TankFx {
         continue
       }
       p.mesh.scaling.setAll(f.scale * p.size)
-      p.mat.emissiveColor = Color3.FromHexString(FLASH[f.stage])
+      p.mat.emissiveColor.copyFrom(FLASH_C[f.stage])
       p.mesh.visibility = f.alpha
     }
 
@@ -750,45 +658,6 @@ export class TankFx {
     }
   }
 
-  /** 碎片與木板：重力拋射、落地彈一下、最後 150ms 縮小（每幀整批重寫，實例色與矩陣同序） */
-  private updateChips(now: number, dt: number): void {
-    if (this.chips.length === 0 && this.chipGroup.count === 0) return
-    this.chipGroup.clear()
-    this.chipColors.clear()
-    this.chips = this.chips.filter((c) => {
-      const age = now - c.born
-      if (age >= c.life) return false
-      c.vy += CHIP_GRAVITY * dt
-      c.x += c.vx * dt
-      c.y += c.vy * dt
-      c.z += c.vz * dt
-      if (c.y < 0.06) {
-        c.y = 0.06
-        c.vy = Math.abs(c.vy) * 0.3
-        c.vx *= 0.55
-        c.vz *= 0.55
-        c.spin *= 0.5
-      }
-      c.yaw += c.spin * dt
-      c.pitch += c.spin * 0.7 * dt
-      const k = Math.min(1, (c.life - age) / 150)
-      this.chipGroup.put(c.key, { x: c.x, y: c.y, z: c.z, yaw: c.yaw, pitch: c.pitch, sx: c.sx * k, sy: c.sy * k, sz: c.sz * k })
-      this.chipColors.add(c.key)
-      this.chipColors.write(c.key, (buf, o) => buf.set(c.rgba, o))
-      return true
-    })
-    this.chipGroup.sync()
-    const cs = this.chipColors
-    if (!cs.dirty) return
-    if (this.chipColorVersion !== cs.bufferVersion) {
-      this.chipGroup.mesh.thinInstanceSetBuffer('color', cs.buffer, 4, false)
-      this.chipColorVersion = cs.bufferVersion
-    } else {
-      this.chipGroup.mesh.thinInstanceBufferUpdated('color')
-    }
-    cs.dirty = false
-  }
-
   /** 履帶痕：2.5 秒後消失，最後 0.6 秒縮小代替淡出（thin instance 沒有逐筆 alpha） */
   private updateMarks(now: number): void {
     if (this.marks.length === 0 && this.treads.count === 0) return
@@ -803,9 +672,7 @@ export class TankFx {
 
   /** 新回合：清掉焦痕、碎片、履帶痕、粒子與所有池中物件 */
   clearRound(): void {
-    this.chips = []
-    this.chipGroup.clear()
-    this.chipGroup.sync()
+    this.chips.clear()
     this.scorch.clear()
     this.scorchKeys.length = 0
     this.scorch.sync()
@@ -831,7 +698,7 @@ export class TankFx {
   dispose(): void {
     for (const e of this.emitters) e.dispose()
     this.emitters.length = 0
-    this.chipGroup.dispose()
+    this.chips.dispose()
     this.scorch.dispose()
     this.treads.dispose()
     for (const m of this.meshes) m.dispose()
@@ -840,40 +707,6 @@ export class TankFx {
     for (const t of this.textures) t.dispose()
     this.mats.length = 0
     this.textures.length = 0
-    this.chips = []
     this.marks = []
   }
-}
-
-/** 把 CreatePlane 的 0..1 UV 換成圖集裡的一格 */
-function setQuadUV(mesh: Mesh, [u0, v0, u1, v1]: [number, number, number, number]): void {
-  mesh.setVerticesData('uv', [u0, v0, u1, v0, u1, v1, u0, v1], true)
-}
-
-/**
- * 字卡 = 兩片 quad：下方本體（白頂點色）＋上方色帶（擊殺者 base 色），UV 都取同一格，
- * 色帶片對到圖集格上方那條白帶，乘上頂點色就成了擊殺者顏色。
- */
-function cardQuads() {
-  const w = CARD_W / 2
-  const top = CARD_H / 2
-  const bot = -CARD_H / 2
-  const cut = top - CARD_H * CARD_BAND
-  const quad = (y0: number, y1: number) => [-w, y0, 0, w, y0, 0, w, y1, 0, -w, y1, 0]
-  return {
-    positions: [...quad(bot, cut), ...quad(cut, top)],
-    normals: new Array(24).fill(0).map((_, i) => (i % 3 === 2 ? -1 : 0)),
-    uvs: new Array(16).fill(0),
-    indices: [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7],
-    colors: new Array(32).fill(1),
-  }
-}
-
-function setCardLook(mesh: Mesh, [u0, v0, u1, v1]: [number, number, number, number], base: string): void {
-  const vc = v1 - (v1 - v0) * CARD_BAND
-  mesh.setVerticesData('uv', [u0, v0, u1, v0, u1, vc, u0, vc, u0, vc, u1, vc, u1, v1, u0, v1], true)
-  const [r, g, b] = rgba(base)
-  const white = [1, 1, 1, 1]
-  const band = [r, g, b, 1]
-  mesh.setVerticesData('color', [...white, ...white, ...white, ...white, ...band, ...band, ...band, ...band], true)
 }

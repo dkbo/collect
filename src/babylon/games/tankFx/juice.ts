@@ -12,7 +12,7 @@ export const HIT_SQUASH = { amp: 0.22, ms: 260 } as const
 export const RECOIL_DIST = 0.14
 export const RECOIL_MS = 180
 
-/** 回彈段係數：spec 公式寫 0.45，但它的關鍵幀「t≈0.6 時 sy≈1+0.3·amp」要 0.8 才對得上，以關鍵幀為準 */
+/** 回彈段係數 0.8（spec §7 已回寫；原公式 0.45 對不上「t≈0.6 時 sy≈1+0.3·amp」的關鍵幀） */
 const REBOUND = 0.8
 const PRESS_END = 0.35
 
