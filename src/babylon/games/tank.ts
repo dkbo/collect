@@ -24,7 +24,7 @@ import { perfLogLine } from '@/babylon/fx/perfLog'
 import { tierQuery } from '@/babylon/fx/quality'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
 import { validateShootReq } from '@/babylon/games/tankNet'
-import { stepBullet } from '@/babylon/games/tankFx/bounce'
+import { advanceBullet } from '@/babylon/games/tankFx/bulletLife'
 import { CLOSE_INTERVAL_MS, CLOSE_WARN_MS, SUDDEN_DEATH_MS, closeDue, crushedIds, spiralCells } from '@/babylon/games/tankFx/closing'
 import {
   INVULN_MS,
@@ -94,7 +94,8 @@ interface BulletInfo {
   vx: number
   vz: number
   bounces: number
-  createdAt: number
+  /** 已飛行的模擬時間（ms），各端以 tick 累計，見 tankFx/bulletLife */
+  age: number
 }
 
 interface TankVisual {
@@ -512,7 +513,7 @@ class TankScene implements GameModule {
 
   private spawnBullet(id: string, owner: string, x: number, z: number, vx: number, vz: number): void {
     const now = performance.now()
-    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, createdAt: now })
+    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, age: 0 })
     this.board.putBullet(id, x, z, false)
     // 開砲後座＋車身擠壓回彈＋砲口焰（三連發同一刻的三發共用一次；第一發是中央那發）
     const v = this.visualOf(owner)
@@ -546,17 +547,15 @@ class TankScene implements GameModule {
     return this.peerVisuals.get(id) ?? this.botVisuals.get(id)
   }
 
-  /** 各端推進子彈（同一支 stepBullet）；host 另判反彈廣播、木箱、命中 */
+  /** 各端推進子彈（同一支 advanceBullet）；host 另判反彈廣播、木箱、命中 */
   private stepBullets(dt: number, now: number): void {
     const host = this.ctx.role === 'host'
     for (const [id, b] of [...this.bullets]) {
       if (!this.bullets.has(id)) continue
-      if (now - b.createdAt > BULLET_LIFETIME_MS) {
-        this.removeBullet(id)
-        continue
-      }
-      const r = stepBullet(b, dt, this.isWall, this.isCrate)
-      if (r.kind === 'expire') {
+      // 壽命以模擬時間計（補步被截斷時不提早到期，host 與 guest 同 tick 數同壽命）
+      const { age, step: r } = advanceBullet(b, dt, BULLET_LIFETIME_MS, this.isWall, this.isCrate)
+      b.age = age
+      if (r.kind === 'timeout' || r.kind === 'expire') {
         this.removeBullet(id)
         continue
       }
