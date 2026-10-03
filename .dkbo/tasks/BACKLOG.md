@@ -8,3 +8,7 @@
 | 2026-09-25 | bomberart 波 2 qa | qa 曾在 `(default)` DB 建過測試房間文件（15:25–15:56，id 未記） | 人決定是否清理 |
 | 2026-09-25 | bomberart 整枝評議 | bomber 美術 Minor 13 條不修（字型 fallback、dispose 順序、每幀 Vector3、卡片不對稱等） | 見 tasks/2026-09-25-bomberart/report.md 遺留段 |
 | 2026-09-25 | bomberart 整枝評議 | 木箱煙幾乎看不見；觸控筆電走 mobile 檔 | 人在實機看後決定；後者可改 `(pointer: coarse)` |
+| 2026-10-03 | tankart 波 1 qa | pid 2300650：kitchenart（已刪 worktree）遺留的 vite preview 一直佔著 5177 | 人確認後 `kill 2300650` |
+| 2026-10-03 | tankart 整枝評議 | 坦克貼牆往牆開火子彈生在牆格內直接消失、不反彈（tank.ts:489、bounce.ts:76） | babylon 把生成點夾在牆面內或從車心起算第一步 |
+| 2026-10-03 | tankart 整枝評議 | 坦克 Minor 可留 19 條（Color3 每幀新建、effects.ts 879 行、feed 同名色點等） | 見 tasks/2026-10-03-tankart/report.md 遺留段 |
+| 2026-10-03 | tankart 波 4 qa | 多人局末 guest 在收到結算前多預測一次子彈反彈（純視覺） | guest 收到最後一則 destroyed 即凍結子彈，或 host 結算時清彈並廣播 |
