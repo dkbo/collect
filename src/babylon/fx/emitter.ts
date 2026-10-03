@@ -4,9 +4,11 @@
  */
 import { Color4, ParticleSystem, Vector3, type Scene, type Texture } from '@/babylon/babylonCore'
 import { BurstQueue, type BurstParticle } from '@/babylon/fx/burstQueue'
+import { coneDirection } from '@/babylon/fx/curves'
 import { hexToRgb } from '@/babylon/fx/palette'
 
-export type Dir = 'fountain' | 'up' | 'burst' | 'radial'
+/** aim：沿 FxStyle.aim 方向、半角 FxStyle.cone 內噴出（砲口、反彈火花） */
+export type Dir = 'fountain' | 'up' | 'burst' | 'radial' | 'aim'
 
 export interface FxStyle {
   c1: Color4
@@ -17,6 +19,9 @@ export interface FxStyle {
   /** 初速（方向向量的長度倍率） */
   power: readonly [number, number]
   dir: Dir
+  /** dir 為 aim 時的噴射軸（不必是單位向量）與半角（弧度，預設 0.4） */
+  aim?: readonly [number, number, number]
+  cone?: number
 }
 
 export const c4 = (hex: string, a = 1): Color4 => {
@@ -90,7 +95,10 @@ export class FxEmitter {
       }
       const k = between(p.style.power)
       const r = () => fxRandom() * 2 - 1
-      if (p.style.dir === 'up') dir.set(r() * 0.25, 1, r() * 0.25)
+      if (p.style.dir === 'aim') {
+        const [x, y, z] = coneDirection(p.style.aim ?? [0, 1, 0], p.style.cone ?? 0.4, fxRandom(), fxRandom())
+        dir.set(x, y, z)
+      } else if (p.style.dir === 'up') dir.set(r() * 0.25, 1, r() * 0.25)
       else if (p.style.dir === 'burst') dir.set(r(), 0.2 + fxRandom() * 1.4, r())
       else if (p.style.dir === 'radial') {
         let dx = p.x - p.cx

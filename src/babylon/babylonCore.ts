@@ -44,6 +44,7 @@ export { Texture } from '@babylonjs/core/Materials/Textures/texture'
 export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture'
 export { ParticleSystem } from '@babylonjs/core/Particles/particleSystem'
 export { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData'
+export { FresnelParameters } from '@babylonjs/core/Materials/fresnelParameters'
 export { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation'
 
 /** 只收專案用到的 builder；官方 MeshBuilder 會把所有形狀一起帶進來 */

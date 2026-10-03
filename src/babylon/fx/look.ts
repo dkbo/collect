@@ -11,6 +11,7 @@ import {
   HemisphericLight,
   ImageProcessingConfiguration,
   ShadowGenerator,
+  StandardMaterial,
   TargetCamera,
   Vector3,
   type Camera,
@@ -71,6 +72,8 @@ export class ToyLook {
   private readonly glowColors = new Map<number, Color3>()
   /** 已登記發光色、但目前不在白名單的 mesh（setGlow 關掉的） */
   private readonly glowOff = new Set<number>()
+  /** 用自己材質畫進發光貼圖的 mesh → 亮度倍率（glowOwnMaterial） */
+  private readonly glowOwn = new Map<number, number>()
   private readonly outlined = new Set<Mesh>()
   private readonly outlineColor: Color3
   private readonly tag: string
@@ -162,6 +165,27 @@ export class ToyLook {
   private makeGlow(): GlowLayer {
     const glow = new GlowLayer(`${this.tag}-glow`, this.scene, { blurKernelSize: 32, mainTextureRatio: 0.5, camera: this.mainCamera })
     glow.intensity = 0.7
+    // glowOwnMaterial 的 mesh：畫進發光貼圖前把材質壓暗、拿掉描邊，畫完還原（材質快取要重設才會重綁）
+    let saved: { outline: boolean; diffuse: Color3; specular: Color3 } | null = null
+    glow.onBeforeRenderMeshToEffect.add((mesh) => {
+      const k = this.glowOwn.get(mesh.uniqueId)
+      const mat = mesh.material
+      if (k === undefined || !(mat instanceof StandardMaterial)) return
+      saved = { outline: mesh.renderOutline, diffuse: mat.diffuseColor.clone(), specular: mat.specularColor.clone() }
+      mesh.renderOutline = false
+      mat.diffuseColor.scaleToRef(k, mat.diffuseColor)
+      mat.specularColor.set(0, 0, 0)
+      this.scene.resetCachedMaterial()
+    })
+    glow.onAfterRenderMeshToEffect.add((mesh) => {
+      const mat = mesh.material
+      if (!saved || !(mat instanceof StandardMaterial)) return
+      mesh.renderOutline = saved.outline
+      mat.diffuseColor.copyFrom(saved.diffuse)
+      mat.specularColor.copyFrom(saved.specular)
+      saved = null
+      this.scene.resetCachedMaterial()
+    })
     // 白名單內每個 mesh 用登記的發光色（炸彈、道具材質本身沒有 emissive）
     glow.customEmissiveColorSelector = (mesh, _subMesh, _material, result) => {
       const c = this.glowColors.get(mesh.uniqueId)
@@ -208,6 +232,24 @@ export class ToyLook {
       this.syncGlowEnabled()
     })
     this.glow?.addIncludedOnlyMesh(mesh)
+    this.syncGlowEnabled()
+  }
+
+  /**
+   * 發光色取自 mesh 自己的材質（例如 thin instance 依實例換圖集欄、各實例不同色）：
+   * 發光貼圖裡畫的是材質本身的顏色 × strength，不是單一登記色。draw call 與 glowMesh 相同（發光 pass 各 1 次）。
+   */
+  glowOwnMaterial(mesh: Mesh, strength: number): void {
+    this.glowOwn.set(mesh.uniqueId, strength)
+    this.glowColors.set(mesh.uniqueId, Color3.White())
+    this.glowOff.delete(mesh.uniqueId)
+    mesh.onDisposeObservable.addOnce(() => {
+      this.glowOwn.delete(mesh.uniqueId)
+      this.glowColors.delete(mesh.uniqueId)
+      this.syncGlowEnabled()
+    })
+    this.glow?.addIncludedOnlyMesh(mesh)
+    this.glow?.referenceMeshToUseItsOwnMaterial(mesh)
     this.syncGlowEnabled()
   }
 
@@ -294,6 +336,7 @@ export class ToyLook {
     this.hemi.dispose()
     this.glowColors.clear()
     this.glowOff.clear()
+    this.glowOwn.clear()
     this.outlined.clear()
     this.scene.activeCameras = []
     this.scene.activeCamera = this.mainCamera

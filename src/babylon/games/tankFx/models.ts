@@ -90,17 +90,30 @@ function trackData(side: number): MeshData {
 /** 砲塔樞紐在車身座標的 z（spec §3：(0, 0, −0.05)） */
 export const TURRET_PIVOT_Z = -0.05
 
-/** 砲塔＋砲管合併；barrelStart／barrelCount 為砲管那一段頂點（後座時沿 z 平移） */
+/**
+ * 砲塔＋砲管合併；barrelStart／barrelCount 為砲管那一段頂點（後座時沿 z 平移），
+ * ringStart／ringCount 為砲口環那一段（連射 buff 時換色）。
+ */
 export interface TurretMesh {
   data: MeshData
   barrelStart: number
   barrelCount: number
+  ringStart: number
+  ringCount: number
 }
 
 export function turretMeshData(ci: ColorIndex, isBot: boolean): TurretMesh {
   const body = turretData(ci, isBot)
-  const barrel = at(barrelData(), { x: 0, y: BARREL_Y, z: 0 })
-  return { data: mergeData([body, barrel]), barrelStart: body.positions.length / 3, barrelCount: barrel.positions.length / 3 }
+  const b = barrelData()
+  const barrel = at(b.data, { x: 0, y: BARREL_Y, z: 0 })
+  const barrelStart = body.positions.length / 3
+  return {
+    data: mergeData([body, barrel]),
+    barrelStart,
+    barrelCount: barrel.positions.length / 3,
+    ringStart: barrelStart + b.ringStart,
+    ringCount: b.ringCount,
+  }
 }
 
 /** 砲塔（座圈＋圓頂＋臉板＋眼睛＋艙蓋＋旗或天線），座標以樞紐為原點 */
@@ -153,13 +166,13 @@ function antennaData(): MeshData[] {
 /** 砲管在砲塔座標的高度（mesh 擺在這個 y，後座改 position.z） */
 export const BARREL_Y = 0.68
 
-/** 砲管＋砲口環＋砲口黑洞，座標以 (0, BARREL_Y, 0) 為原點、沿 +Z */
-function barrelData(): MeshData {
+/** 砲管＋砲口環＋砲口黑洞，座標以 (0, BARREL_Y, 0) 為原點、沿 +Z；ringStart 為砲口環在其中的頂點起點 */
+function barrelData(): { data: MeshData; ringStart: number; ringCount: number } {
   const z0 = 0.6 - TURRET_PIVOT_Z
   const tube = at(radial(whiteUV(cylinder(0.62, 0.16, 12)), '#B4BBD6', TANK.barrel, TANK.barrelDark), { x: 0, y: 0, z: z0, ...AXIS_Z })
   const ring = at(solid(whiteUV(cylinder(0.1, 0.22, 14)), rgba(TANK.barrelDark)), { x: 0, y: 0, z: z0 + 0.32, ...AXIS_Z })
   const hole = at(solid(whiteUV(cylinder(0.02, 0.12, 10)), rgba(TANK.muzzle)), { x: 0, y: 0, z: z0 + 0.372, ...AXIS_Z })
-  return mergeData([tube, ring, hole])
+  return { data: mergeData([tube, ring, hole]), ringStart: tube.positions.length / 3, ringCount: ring.positions.length / 3 }
 }
 
 /** 砲口在砲塔座標的 z（之後特效對位用） */

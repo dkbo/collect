@@ -38,6 +38,29 @@ export function floatTextPose(t: number): { rise: number; alpha: number } {
   return { rise: 0.9 * easeOut(u), alpha: u < 0.4 ? 1 : 1 - (u - 0.4) / 0.6 }
 }
 
+/**
+ * 以 aim 為軸、半角 cone 內取一個方向（r1 決定偏離角、r2 決定繞軸角，皆 ∈ [0,1)），回傳單位向量；
+ * aim 長度為 0 時往上。砲口火花、反彈火花用。
+ */
+export function coneDirection(aim: readonly [number, number, number], cone: number, r1: number, r2: number): [number, number, number] {
+  const len = Math.hypot(aim[0], aim[1], aim[2])
+  if (len < 1e-9) return [0, 1, 0]
+  const a = [aim[0] / len, aim[1] / len, aim[2] / len]
+  // 與 aim 不平行的輔助軸 → 兩條正交基底 u、v
+  const h = Math.abs(a[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]
+  let u = [a[1] * h[2] - a[2] * h[1], a[2] * h[0] - a[0] * h[2], a[0] * h[1] - a[1] * h[0]]
+  const ul = Math.hypot(u[0], u[1], u[2])
+  u = [u[0] / ul, u[1] / ul, u[2] / ul]
+  const v = [a[1] * u[2] - a[2] * u[1], a[2] * u[0] - a[0] * u[2], a[0] * u[1] - a[1] * u[0]]
+  const th = cone * r1
+  const ph = Math.PI * 2 * r2
+  const c = Math.cos(th)
+  const s = Math.sin(th)
+  const out: [number, number, number] = [0, 0, 0]
+  for (let i = 0; i < 3; i++) out[i] = a[i] * c + (u[i] * Math.cos(ph) + v[i] * Math.sin(ph)) * s
+  return out
+}
+
 /** 連續發射：每秒 rate 顆，小數累積到下一幀；單幀最多算 100ms（切分頁回來不會一次噴爆） */
 export function emitCount(acc: number, rate: number, dtMs: number): { count: number; acc: number } {
   const total = acc + (rate * Math.min(dtMs, 100)) / 1000

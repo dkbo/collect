@@ -1,6 +1,7 @@
 /**
  * 坦克受擊、道具與 buff 規則（純函式）。host 用來裁決，各端用來算顯示。
  */
+import { invulnVisibility } from '@/babylon/games/tankFx/fxModel'
 
 /** 被命中後的無敵時間：期間 host 不再扣血（子彈照樣消失） */
 export const INVULN_MS = 1000
@@ -90,9 +91,5 @@ export function tripleVelocities(vx: number, vz: number): [number, number][] {
 /** buff 剩餘秒數（無條件進位到整秒，到期為 0） */
 export const buffRemainSec = (until: number, now: number): number => (until > now ? Math.ceil((until - now) / 1000) : 0)
 
-/** 無敵閃爍：12Hz 方波，以剩餘時間算相位，各端一致；到期後恆亮 */
-export function invulnBlinkOn(now: number, until: number): boolean {
-  const left = until - now
-  if (left <= 0) return true
-  return Math.floor((left / 1000) * 12 * 2) % 2 === 0
-}
+/** 無敵閃爍是否在亮相（spec §6：10Hz，暗相 visibility 0.35，見 fxModel.invulnVisibility）；到期後恆亮 */
+export const invulnBlinkOn = (now: number, until: number): boolean => invulnVisibility(now, until) === 1

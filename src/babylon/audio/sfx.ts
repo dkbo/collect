@@ -92,6 +92,9 @@ export type SfxName =
   | 'order_fail'
   | 'tank_fire'
   | 'tank_hit'
+  | 'tank_bounce'
+  | 'tank_shield_break'
+  | 'tank_wall_drop'
 
 /** 配方：d 為基準延遲秒數（attachFlowAudio 用來對齊倒數嗶聲） */
 const RECIPES: Record<SfxName, (d: number) => void> = {
@@ -146,6 +149,15 @@ const RECIPES: Record<SfxName, (d: number) => void> = {
     noise({ dur: 0.15, vol: 0.3, filter: 'lowpass', freq: 2000, freqEnd: 300, delay: d })
   },
   tank_hit: (d) => noise({ dur: 0.25, vol: 0.4, filter: 'bandpass', freq: 400, delay: d }),
+  tank_bounce: (d) => tone({ type: 'triangle', freq: 1320, freqEnd: 1760, dur: 0.08, vol: 0.18, delay: d }),
+  tank_shield_break: (d) => {
+    noise({ dur: 0.2, vol: 0.3, filter: 'highpass', freq: 3000, freqEnd: 800, delay: d })
+    tone({ type: 'sine', freq: 1568, freqEnd: 523.25, dur: 0.22, vol: 0.18, delay: d })
+  },
+  tank_wall_drop: (d) => {
+    tone({ type: 'sine', freq: 120, freqEnd: 50, dur: 0.18, vol: 0.4, delay: d })
+    noise({ dur: 0.15, vol: 0.25, filter: 'lowpass', freq: 600, delay: d })
+  },
 }
 
 export const playSfx = (name: SfxName, delay = 0): void => {

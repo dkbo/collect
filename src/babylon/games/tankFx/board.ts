@@ -47,6 +47,8 @@ export interface BoardFxTargets {
   casters: Mesh[]
   outlined: Mesh[]
   glow: { mesh: Mesh; color: string; strength: number }[]
+  /** 用自己材質發光（顏色隨實例）的 mesh：道具代幣各帶自己的底色 */
+  glowOwn: { mesh: Mesh; strength: number }[]
 }
 
 interface ItemRec {
@@ -71,7 +73,9 @@ const ITEM_BOB = 0.12
 const ITEM_HOP_MS = 300
 /** 代幣往鏡頭仰的角度（同 bomber 代幣） */
 const ITEM_PITCH = -0.55
-const BULLET_Y = 0.35
+export const BULLET_Y = 0.35
+/** 道具色暈強度（代幣材質顏色 × 這個倍率畫進發光貼圖） */
+const ITEM_GLOW = 0.35
 /** 落牆：從 y +6 以 easeIn 落下 260ms，落地回彈 scaleY 0.85→1.04→1 120ms（spec §8 #15） */
 const DROP_FROM = 6
 export const DROP_MS = 260
@@ -261,11 +265,11 @@ export class TankBoard {
       glow: [
         { mesh: this.bullets.mesh, color: TANK.bulletHot, strength: 0.9 },
         { mesh: this.bounced.mesh, color: TANK.bounce, strength: 1 },
-        // 代幣本身不發光又疊 bloom，全強度會糊成一團；壓低只留色暈
-        // 5 種共用一個 mesh，Glow 色只能一種：暖白
-        { mesh: this.items.mesh, color: '#FFE9A0', strength: 0.12 },
         { mesh: this.warn, color: TANK.warn, strength: 0.6 },
       ],
+      // 5 種道具共用一個 mesh：發光貼圖改用代幣自己的材質（含圖集欄平移），各自帶底色的暈；
+      // 代幣本身不發光又疊 bloom，全強度會糊成一團，壓暗只留色暈
+      glowOwn: [{ mesh: this.items.mesh, strength: ITEM_GLOW }],
     }
   }
 

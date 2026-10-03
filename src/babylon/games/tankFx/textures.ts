@@ -5,7 +5,7 @@
  */
 import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
 import type { FaceUV } from '@/babylon/fx/geometry'
-import { ctxOf, roundRect } from '@/babylon/fx/textures'
+import { ctxOf, roundRect, whenFontReady } from '@/babylon/fx/textures'
 import { ITEM_COLORS, ITEM_ORDER, OUTLINE, TANK } from '@/babylon/games/tankFx/palette'
 import type { CellPred } from '@/babylon/games/tankFx/grid'
 
@@ -249,5 +249,97 @@ export function createBlobTexture(scene: Scene): DynamicTexture {
   g.fillStyle = gr
   g.fillRect(0, 0, S, S)
   tex.update()
+  return tex
+}
+
+// ---- 特效貼圖（spec §8） ----
+
+/** 焦痕 64²：深紫徑向漸層 70% → 0（爆炸後留到回合結束） */
+export function createScorchTexture(scene: Scene): DynamicTexture {
+  const S = 64
+  const tex = new DynamicTexture('tank-scorch-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+  tex.hasAlpha = true
+  const g = ctxOf(tex)
+  g.clearRect(0, 0, S, S)
+  const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2)
+  gr.addColorStop(0, 'rgba(43,36,64,0.7)')
+  gr.addColorStop(0.55, 'rgba(43,36,64,0.45)')
+  gr.addColorStop(1, 'rgba(43,36,64,0)')
+  g.fillStyle = gr
+  g.fillRect(0, 0, S, S)
+  tex.update()
+  return tex
+}
+
+/** 拾取光柱 8×64：白色、底部不透明往上淡到 0（顏色由材質 tint） */
+export function createBeamTexture(scene: Scene): DynamicTexture {
+  const W = 8
+  const H = 64
+  const tex = new DynamicTexture('tank-beam-tex', { width: W, height: H }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+  tex.hasAlpha = true
+  const g = ctxOf(tex)
+  g.clearRect(0, 0, W, H)
+  // canvas 上方 = v 1 = 圓柱頂
+  const gr = g.createLinearGradient(0, 0, 0, H)
+  gr.addColorStop(0, 'rgba(255,255,255,0)')
+  gr.addColorStop(0.6, 'rgba(255,255,255,0.55)')
+  gr.addColorStop(1, 'rgba(255,255,255,0.95)')
+  g.fillStyle = gr
+  g.fillRect(0, 0, W, H)
+  tex.update()
+  return tex
+}
+
+/** 浮字圖集一格的像素 */
+export const FLOAT_CELL_W = 128
+export const FLOAT_CELL_H = 64
+/** 字卡上方色帶佔一格高度的比例（mesh 分兩片：色帶片乘擊殺者顏色） */
+export const CARD_BAND = 0.3
+
+/**
+ * 浮字／連殺字卡圖集 512×256（spec §8.1）：4 欄 × 4 列、每格 128×64，格序同 fxModel 的 FLOAT_TEXTS。
+ * 浮字：白字＋深紫 6px 描邊；字卡：奶油底＋深紫邊，上方留一條白色色帶（由頂點色染成擊殺者顏色）。
+ */
+export function createFloatAtlas(scene: Scene, texts: readonly string[], cardFrom: number): DynamicTexture {
+  const W = FLOAT_CELL_W
+  const H = FLOAT_CELL_H
+  const tex = new DynamicTexture('tank-float-atlas', { width: W * 4, height: H * 4 }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
+  tex.hasAlpha = true
+  const draw = (): void => {
+    const g = ctxOf(tex)
+    g.clearRect(0, 0, W * 4, H * 4)
+    texts.forEach((text, i) => {
+      const x0 = (i % 4) * W
+      const y0 = Math.floor(i / 4) * H
+      const card = i >= cardFrom
+      let cy = y0 + H / 2 + 2
+      if (card) {
+        roundRect(g, x0 + 3, y0 + 3, W - 6, H - 6, 12)
+        g.fillStyle = '#FFF6E3'
+        g.fill()
+        g.save()
+        g.clip()
+        g.fillStyle = '#FFFFFF'
+        g.fillRect(x0, y0, W, H * CARD_BAND)
+        g.restore()
+        g.lineWidth = 4
+        g.strokeStyle = OUTLINE
+        g.stroke()
+        cy = y0 + H * (CARD_BAND + (1 - CARD_BAND) / 2) + 1
+      }
+      const size = card ? 30 : /^[+×\d]/.test(text) ? 44 : 34
+      g.font = `900 ${size}px Fredoka, "Noto Sans TC", sans-serif`
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      g.lineJoin = 'round'
+      g.lineWidth = 6
+      g.strokeStyle = OUTLINE
+      g.strokeText(text, x0 + W / 2, cy)
+      g.fillStyle = '#FFFFFF'
+      g.fillText(text, x0 + W / 2, cy)
+    })
+    tex.update()
+  }
+  whenFontReady('900 44px Fredoka', tex, draw)
   return tex
 }
