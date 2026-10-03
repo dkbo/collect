@@ -1,0 +1,3830 @@
+# 坦克美術＋可玩度（A Toy Army） — wave 2 since 3de69e4 — 2026-10-03T10:32
+# files changed: 20 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/fx/look.ts                   |   5 +
+ src/babylon/games/tank.ts                | 368 ++++++++++++-------------
+ src/babylon/games/tankFx/bench.test.ts   |  44 +++
+ src/babylon/games/tankFx/bench.ts        |  40 +++
+ src/babylon/games/tankFx/board.ts        | 448 +++++++++++++++++++++++++++++++
+ src/babylon/games/tankFx/itemIcon.ts     |  49 ++++
+ src/babylon/games/tankFx/juice.test.ts   |  48 ++++
+ src/babylon/games/tankFx/juice.ts        |  33 +++
+ src/babylon/games/tankFx/models.ts       | 279 +++++++++++++++++++
+ src/babylon/games/tankFx/palette.test.ts |  23 ++
+ src/babylon/games/tankFx/palette.ts      |  67 +++++
+ src/babylon/games/tankFx/tankModel.ts    | 209 ++++++++++++++
+ src/babylon/games/tankFx/textures.ts     | 253 +++++++++++++++++
+ src/babylon/types.ts                     |  47 +++-
+ src/index.css                            | 238 ++++++++++++++++
+ src/pages/Battle/BabylonCanvas.tsx       |  56 +++-
+ src/pages/Battle/TankHud.tsx             | 291 ++++++++++++++++++++
+ src/pages/Battle/kitchenHud.ts           |   4 +-
+ src/pages/Battle/tankHud.test.ts         | 250 +++++++++++++++++
+ src/pages/Battle/tankHud.ts              |  89 ++++++
+ 20 files changed, 2637 insertions(+), 204 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/fx/look.ts b/src/babylon/fx/look.ts
+index 110b0fb..7510ee1 100644
+--- a/src/babylon/fx/look.ts
++++ b/src/babylon/fx/look.ts
+@@ -39,20 +39,22 @@ export const UI_LAYER = 0x10000000
+ export interface LookOptions {
+   /** 陰影正交投影要涵蓋的半徑（場地半對角線加餘裕） */
+   shadowRadius: number
+   /** 遊戲代號：log 前綴 `[tag]`、網址參數 `${tag}Tier`／`${tag}NoDegrade`、Babylon 物件名前綴 */
+   tag: string
+   /** 描邊色 hex */
+   outline: string
+   /** 後製曝光與對比（不給＝bomber 定案的 1.05／1.08）；淺色場景在 ACES 下會發灰，可調高曝光 */
+   exposure?: number
+   contrast?: number
++  /** 自動降級關掉一項後呼叫（不給＝不通知；坦克用來在陰影關掉時改墊 blob 影） */
++  onDegrade?: (step: DegradeStep) => void
+ }
+ 
+ /** 讀瀏覽器環境決定檔位（非瀏覽器環境一律 desktop） */
+ function detectTier(key: string): { tier: Tier; noDegrade: boolean } {
+   if (typeof window === 'undefined') return { tier: 'desktop', noDegrade: true }
+   const search = tierQuery(window.location.search, window.location.hash)
+   const touch = 'ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0
+   const cores = navigator.hardwareConcurrency || undefined
+   return { tier: pickTier({ search, touch, cores }, key), noDegrade: noDegradeFlag(search, key) }
+ }
+@@ -68,30 +70,32 @@ export class ToyLook {
+   private readonly pipeline: DefaultRenderingPipeline
+   private readonly glowColors = new Map<number, Color3>()
+   /** 已登記發光色、但目前不在白名單的 mesh（setGlow 關掉的） */
+   private readonly glowOff = new Set<number>()
+   private readonly outlined = new Set<Mesh>()
+   private readonly outlineColor: Color3
+   private readonly tag: string
+   private readonly active: Record<DegradeStep, boolean>
+   private watch: FpsWatch | null
+   private readonly prevScaling: number
++  private readonly onDegrade: ((step: DegradeStep) => void) | undefined
+   /** 畫 3D UI（開局倒數）的第二台相機：只看 UI_LAYER、不掛後製，顏色不被 ACES／bloom 改掉 */
+   readonly uiCamera: TargetCamera
+ 
+   private readonly mainCamera: Camera
+ 
+   constructor(scene: Scene, camera: Camera, opts: LookOptions) {
+     this.scene = scene
+     this.mainCamera = camera
+     const tag = opts.tag
+     this.tag = tag
++    this.onDegrade = opts.onDegrade
+     this.outlineColor = Color3.FromHexString(opts.outline)
+     const { tier, noDegrade } = detectTier(tag)
+     this.tier = tier
+     this.settings = tierSettings(tier, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1)
+     const s = this.settings
+     console.info(`[${tag}] tier ${tier}`)
+ 
+     const engine = scene.getEngine()
+     this.prevScaling = engine.getHardwareScalingLevel()
+     engine.setHardwareScalingLevel(s.hardwareScaling)
+@@ -271,20 +275,21 @@ export class ToyLook {
+   }
+ 
+   private degrade(step: DegradeStep): void {
+     this.active[step] = false
+     if (step === 'outline') for (const m of this.outlined) m.renderOutline = false
+     else if (step === 'glow') {
+       this.glow?.dispose()
+       this.glow = null
+     } else this.sun.shadowEnabled = false
+     console.info(`[${this.tag}] degrade ${step}`)
++    this.onDegrade?.(step)
+   }
+ 
+   dispose(): void {
+     this.pipeline.dispose()
+     this.glow?.dispose()
+     this.glow = null
+     this.shadow.dispose()
+     this.sun.dispose()
+     this.hemi.dispose()
+     this.glowColors.clear()
+diff --git a/src/babylon/games/tank.ts b/src/babylon/games/tank.ts
+index fb67af4..e3dade0 100644
+--- a/src/babylon/games/tank.ts
++++ b/src/babylon/games/tank.ts
+@@ -1,16 +1,17 @@
+ import {
+   ArcRotateCamera,
+   Color3,
+-  HemisphericLight,
++  Color4,
+   Mesh,
+   MeshBuilder,
++  SceneInstrumentation,
+   StandardMaterial,
+   Vector3,
+ } from '@/babylon/babylonCore'
+ import type { GameContext, GameModule, GameOverlay } from '@/babylon/types'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import { attachFlowAudio, playSfx, stopAllAudio } from '@/babylon/audio'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+ import {
+   canAdvanceMidRound,
+   createFixedTicker,
+@@ -18,21 +19,23 @@ import {
+   createOwnershipSync,
+   isIntIn,
+   isNumIn,
+   isObj,
+   isOneOf,
+   isStr,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
+ } from '@/babylon/net'
+-import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import { ToyLook } from '@/babylon/fx/look'
++import { perfLogLine } from '@/babylon/fx/perfLog'
++import { tierQuery } from '@/babylon/fx/quality'
+ import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
+ import { validateShootReq } from '@/babylon/games/tankNet'
+ import { stepBullet } from '@/babylon/games/tankFx/bounce'
+ import { CLOSE_INTERVAL_MS, CLOSE_WARN_MS, SUDDEN_DEATH_MS, closeDue, crushedIds, spiralCells } from '@/babylon/games/tankFx/closing'
+ import {
+   INVULN_MS,
+   ITEM_KINDS,
+   KNOCKBACK,
+   SHIELD_MS,
+   TRIPLE_MS,
+@@ -51,20 +54,24 @@ import {
+   decodeClose,
+   decodeCrate,
+   decodeHit,
+   decodePickup,
+   decodeSeed,
+   type BotStateEntry,
+ } from '@/babylon/games/tankFx/messages'
+ import { paceTick } from '@/babylon/games/tankFx/pacing'
+ import { entityIds, makeBots, rankStandings, tankColorIndex, type RosterEntry, type Standing } from '@/babylon/games/tankFx/roster'
+ import { createAIMemory, decideTankBot, type TankAIMemory } from '@/babylon/games/tankFx/tankAI'
++import { benchEnabled, benchLayout } from '@/babylon/games/tankFx/bench'
++import { TankBoard } from '@/babylon/games/tankFx/board'
++import { OUTLINE, TANK, type ColorIndex } from '@/babylon/games/tankFx/palette'
++import { TankKit, disposeTank, poseTank, type TankRig } from '@/babylon/games/tankFx/tankModel'
+ 
+ /**
+  * 坦克對戰（Host Authority 事件制）。
+  *
+  * - 位置/砲塔：真人 ownership 20Hz 廣播、遠端插值；bot 由 host 模擬並以 botState 20Hz 廣播
+  * - 射擊：guest 廣播 shootReq → host 驗證 → 廣播 bullet（三連發由 host 依 buff 補兩發）
+  * - 子彈：各端以 tankFx/bounce 同一支純函式推進；host 判定反彈後廣播 bounce 供 guest 校正
+  * - 碰撞/HP/道具/縮圈/勝負：host 裁決 → 廣播 hit/destroyed/crate/item/pickup/close
+  */
+ 
+@@ -76,41 +83,35 @@ interface TankState {
+ }
+ 
+ interface BulletInfo {
+   id: string
+   owner: string
+   x: number
+   z: number
+   vx: number
+   vz: number
+   bounces: number
+-  mesh: Mesh
+   createdAt: number
+ }
+ 
+ interface TankVisual {
++  rig: TankRig
+   root: Mesh
+   turret: Mesh
+-  barrel: Mesh
+   hpBars: Mesh[]
+   /** 無敵閃爍時要一起隱藏的部件 */
+   parts: Mesh[]
+   shield: Mesh
+-  bodyMat: StandardMaterial
+-  darkMat: StandardMaterial
+-  colorIndex: number
+-  alive: boolean
+ }
+ 
+ interface ItemInfo {
+   kind: ItemKind
+-  mesh: Mesh
+ }
+ 
+ interface PlayerStat {
+   alive: boolean
+   hp: number
+   maxHp: number
+   kills: number
+   speedUntil: number
+   rapidUntil: number
+   shieldUntil: number
+@@ -132,22 +133,29 @@ const RAPID_MUL = 0.5
+ const BUFF_MS = 5000
+ /** 世界座標容許範圍（場地半徑再放寬一格，擋掉離譜座標） */
+ const WORLD_LIMIT = (GRID_W * CELL) / 2 + CELL
+ /** 子彈速度上限（擋掉超速外掛封包） */
+ const VEL_LIMIT = BULLET_SPEED * 2
+ const LIMITS = { worldLimit: WORLD_LIMIT, velLimit: VEL_LIMIT }
+ /** bot 位置廣播間隔（20Hz） */
+ const BOT_BROADCAST_MS = 50
+ /** 子彈命中坦克的判定距離 */
+ const HIT_RADIUS = 0.7
+-/** 落牆由高處落下的動畫時間 */
+-const CLOSE_DROP_MS = 250
++/** 陰影正交範圍半徑（spec §5：hypot(18, 18) × CELL / 2 ≈ 25.5） */
++const SHADOW_RADIUS = 26
++/** draw calls／fps 量測間隔（AC10） */
++const PERF_LOG_MS = 2000
++/** 落牆預告格脈動頻率（spec §8 #15：6Hz） */
++const WARN_PULSE_HZ = 6
++/** blob 影尺寸（陰影被降級關掉時） */
++const BLOB_TANK = 1.9
++const BLOB_ITEM = 1.1
+ 
+ const SPAWN_CORNERS: [number, number][] = [
+   [1, 1],
+   [GRID_W - 2, GRID_H - 2],
+   [1, GRID_H - 2],
+   [GRID_W - 2, 1],
+ ]
+ 
+ const SPIRAL = spiralCells(GRID_W, GRID_H)
+ 
+@@ -174,22 +182,22 @@ class TankScene implements GameModule {
+   private state: TankState = { x: 0, z: 0, ry: 0, turretAngle: 0 }
+   private stats = new Map<string, PlayerStat>()
+   /** host：各實體上次開火時刻（shootReq／bot 冷卻驗證用；每局重置） */
+   private lastShotAt = new Map<string, number>()
+   private bullets = new Map<string, BulletInfo>()
+   private items = new Map<number, ItemInfo>()
+   /** 固定柱牆（init 時決定） */
+   private baseWalls = new Set<number>()
+   /** 目前所有不可破牆（柱牆＋突然死亡落下的牆） */
+   private walls = new Set<number>()
+-  private closedWalls = new Map<number, { mesh: Mesh; born: number }>()
+-  private crates = new Map<number, Mesh>()
++  private closedWalls = new Set<number>()
++  private crates = new Set<number>()
+   private flames: { mesh: Mesh; until: number }[] = []
+   private currentSeed = 1
+   private lastFireInput = 0
+   private bulletSeq = 0
+   private resultElapsed = 0
+   private lastOverlayKey = ''
+ 
+   // 縮圈：playingSince 為本端進 playing 的時刻；closeIndex 為下一面的螺旋起點
+   private playingSince = 0
+   private lastClose = 0
+@@ -205,28 +213,31 @@ class TankScene implements GameModule {
+   private botMem = new Map<string, TankAIMemory>()
+   private lastBotBroadcast = 0
+ 
+   private selfVisual?: TankVisual
+   private peerVisuals = new Map<string, TankVisual>()
+   private botVisuals = new Map<string, TankVisual>()
+   private camera!: ArcRotateCamera
+   private hud!: TextPanel
+   private banner!: TextPanel
+ 
+-  private crateMat!: StandardMaterial
+-  private wallMat!: StandardMaterial
+-  private closeWallMat!: StandardMaterial
+-  private flameMat!: StandardMaterial
+-  private itemMats!: Record<ItemKind, StandardMaterial>
+-  private bulletMat!: StandardMaterial
++  // A「Toy Army」美術（AC5／AC6／AC9）：場景物件、坦克化身、光影與檔位
++  private look!: ToyLook
++  private board!: TankBoard
++  private kit!: TankKit
+   private shieldMat!: StandardMaterial
+-  private warnMesh!: Mesh
++  /** 陰影被自動降級關掉後，坦克與道具改墊 blob 影 */
++  private blobShadows = false
++  // AC10：draw calls 量測；?tankBench=1（限 tankNoDegrade=1）擺固定量測場景
++  private instr: SceneInstrumentation | null = null
++  private lastPerfLog = 0
++  private bench = false
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const key = e.key.toLowerCase()
+     this.keys.add(key)
+     if (key === ' ' || key === 'enter') this.requestFire()
+     if (key === 'r') this.requestRestart()
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+ 
+   /** 所有實體（真人 players 在前、bots 在後） */
+@@ -281,94 +292,60 @@ class TankScene implements GameModule {
+   }
+ 
+   private spawnOf(id: string): TankState {
+     const idx = Math.max(0, entityIds(this.ctx.players, this.bots).indexOf(id))
+     const [cx, cy] = SPAWN_CORNERS[idx % SPAWN_CORNERS.length]
+     return { x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H), ry: 0, turretAngle: 0 }
+   }
+ 
+   private makeTank(id: string, x: number, z: number): TankVisual {
+     const scene = this.ctx.scene
++    const rig = this.kit.build(id, this.colorIndex(id) as ColorIndex, this.isBot(id), id === this.ctx.selfId, x, z)
++    // 光影登記（AC6）：坦克 3 個 mesh 投影＋描邊（mobile 檔描邊關著，ToyLook 依檔位決定）
++    this.look.caster(...rig.parts)
++    this.look.outline(...rig.parts)
+ 
+-    const bodyMat = new StandardMaterial(`tank-body-${id}`, scene)
+-    const darkMat = new StandardMaterial(`tank-dark-${id}`, scene)
+-    const barrelMat = new StandardMaterial(`tank-barrel-${id}`, scene)
+-    barrelMat.diffuseColor = new Color3(0.25, 0.25, 0.28)
+-
+-    const root = new Mesh(`tank-${id}`, scene)
+-    root.position = new Vector3(x, 0, z)
+-    const parts: Mesh[] = []
+-
+-    // 車體
+-    const body = MeshBuilder.CreateBox(`tank-body-${id}`, { width: 1.2, height: 0.35, depth: 0.8 }, scene)
+-    body.material = bodyMat
+-    body.parent = root
+-    body.position.y = 0.25
+-    parts.push(body)
+-
+-    // 履帶（兩側深色薄片）
+-    for (const side of [-1, 1]) {
+-      const track = MeshBuilder.CreateBox(`tank-track-${side}-${id}`, { width: 0.22, height: 0.2, depth: 0.9 }, scene)
+-      track.material = darkMat
+-      track.parent = root
+-      track.position.set(side * 0.58, 0.12, 0)
+-      parts.push(track)
+-    }
+-
+-    // 砲塔
+-    const turret = MeshBuilder.CreateCylinder(`tank-turret-${id}`, { diameter: 0.7, height: 0.25 }, scene)
+-    turret.material = bodyMat
+-    turret.parent = root
+-    turret.position.y = 0.5
+-    parts.push(turret)
+-
+-    // 砲管
+-    const barrel = MeshBuilder.CreateCylinder(`tank-barrel-${id}`, { diameter: 0.12, height: 0.65 }, scene)
+-    barrel.material = barrelMat
+-    barrel.parent = turret
+-    barrel.position.set(0, 0, 0.4)
+-    barrel.rotation.x = Math.PI / 2
+-    parts.push(barrel)
+-
+-    // HP 條（3 個小方塊在頭頂）
++    // HP 條（3 個小方塊在頭頂；波 3 換 React HUD 後刪除）
+     const hpBars: Mesh[] = []
+     const hpMat = new StandardMaterial(`hp-${id}`, scene)
+     hpMat.diffuseColor = new Color3(0.2, 0.85, 0.3)
+     hpMat.emissiveColor = new Color3(0.1, 0.4, 0.15)
+     for (let i = 0; i < 3; i++) {
+       const bar = MeshBuilder.CreateBox(`hp-bar-${i}-${id}`, { width: 0.22, height: 0.08, depth: 0.08 }, scene)
+       bar.material = hpMat
+-      bar.parent = root
+-      bar.position.set((i - 1) * 0.26, 0.78, 0)
++      bar.parent = rig.root
++      bar.position.set((i - 1) * 0.26, 1.6, 0)
++      bar.isPickable = false
+       hpBars.push(bar)
+     }
+ 
+     // 護盾泡泡（暫用半透明球，波 3 換美術）
+-    const shield = MeshBuilder.CreateSphere(`tank-shield-${id}`, { diameter: 1.7, segments: 12 }, scene)
++    const shield = MeshBuilder.CreateSphere(`tank-shield-${id}`, { diameter: 2.1, segments: 16 }, scene)
+     shield.material = this.shieldMat
+-    shield.parent = root
+-    shield.position.y = 0.35
++    shield.parent = rig.root
++    shield.position.y = 0.6
+     shield.isPickable = false
+     shield.setEnabled(false)
+ 
+-    const v: TankVisual = { root, turret, barrel, hpBars, parts, shield, bodyMat, darkMat, colorIndex: -1, alive: true }
+-    this.paintTank(v, this.colorIndex(id))
+-    return v
++    const parts = rig.label ? [...rig.parts, rig.label] : rig.parts
++    return { rig, root: rig.root, turret: rig.turret, hpBars, parts, shield }
++  }
++
++  /** 拆一台坦克化身（每台自己的履帶貼圖、HP 材質一起清） */
++  private disposeVisual(v: TankVisual): void {
++    v.hpBars[0]?.material?.dispose()
++    disposeTank(v.rig)
+   }
+ 
+   /** 固定 4 色：名冊變動（bot 補位、有人離房）時顏色跟著改 */
+   private paintTank(v: TankVisual, ci: number): void {
+-    if (v.colorIndex === ci) return
+-    v.colorIndex = ci
+-    const pal = PLAYER_PALETTE[ci]
+-    v.bodyMat.diffuseColor = Color3.FromHexString(pal.base)
+-    v.darkMat.diffuseColor = Color3.FromHexString(pal.dark)
++    this.kit.repaint(v.rig, ci as ColorIndex)
+   }
+ 
+   private updateHpBars(visual: TankVisual, hp: number): void {
+     for (let i = 0; i < visual.hpBars.length; i++) {
+       const bar = visual.hpBars[i]
+       if (i < hp) {
+         bar.setEnabled(true)
+         const mat = bar.material as StandardMaterial
+         if (hp <= 1) {
+           mat.diffuseColor = new Color3(0.9, 0.2, 0.15)
+@@ -407,32 +384,31 @@ class TankScene implements GameModule {
+         if (SPAWN_CORNERS.some(([sx, sy]) => sx === cx && sy === cy)) continue
+         this.baseWalls.add(cellIdx(cx, cy))
+       }
+     }
+   }
+ 
+   private isWall = (cx: number, cy: number): boolean => this.walls.has(cellIdx(cx, cy))
+   private isCrate = (cx: number, cy: number): boolean => this.crates.has(cellIdx(cx, cy))
+ 
+   private applySeed(seed: number): void {
+-    const scene = this.ctx.scene
+-    // 清理舊箱子、道具、子彈、碎片與落牆
+-    for (const m of this.crates.values()) m.dispose()
++    // 清理舊箱子、道具、子彈、碎片與落牆（thin instance 只清 buffer，不 dispose mesh）
+     this.crates.clear()
+-    for (const it of this.items.values()) it.mesh.dispose()
++    this.board.clearCrates()
+     this.items.clear()
+-    for (const b of this.bullets.values()) b.mesh.dispose()
++    this.board.clearItems()
+     this.bullets.clear()
+-    for (const f of this.flames) f.mesh.dispose()
++    this.board.clearBullets()
++    for (const f of this.flames) f.mesh.dispose(false, true)
+     this.flames = []
+-    for (const w of this.closedWalls.values()) w.mesh.dispose()
+     this.closedWalls.clear()
++    this.board.clearClosingWalls()
+     this.walls = new Set(this.baseWalls)
+     this.lastClose = 0
+     this.closeIndex = 0
+     this.warnCell = null
+ 
+     // 初始化所有實體 stats（含 bot）
+     this.lastShotAt.clear()
+     this.stats.clear()
+     for (const e of this.entities()) this.stats.set(e.id, this.freshStat())
+ 
+@@ -444,50 +420,58 @@ class TankScene implements GameModule {
+     }
+ 
+     for (let cy = 0; cy < GRID_H; cy++) {
+       for (let cx = 0; cx < GRID_W; cx++) {
+         const idx = cellIdx(cx, cy)
+         if (this.walls.has(idx)) continue
+         // 出生點附近不放箱子
+         const nearSpawn = SPAWN_CORNERS.some(([sx, sy]) => Math.abs(cx - sx) <= 1 && Math.abs(cy - sy) <= 1)
+         if (nearSpawn) continue
+         if (nextRng() < 0.3) {
+-          const crate = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: CELL * 0.85 }, scene)
+-          crate.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.42, cellToWorld(cy, GRID_H))
+-          crate.material = this.crateMat
+-          this.crates.set(idx, crate)
++          this.crates.add(idx)
++          this.board.setCrate(idx, true)
+         }
+       }
+     }
+ 
+     // 自己回出生角（依「真人＋bot」合併名冊的序）
+     this.state = this.spawnOf(this.ctx.selfId)
+ 
+     // bot 位置與化身：依名冊重建
+     for (const [id, v] of this.botVisuals) {
+       if (this.bots.some((b) => b.id === id)) continue
+-      v.root.dispose(false, true)
++      this.disposeVisual(v)
+       this.botVisuals.delete(id)
+     }
+     this.botState.clear()
+     this.botDraw.clear()
+     this.botMem.clear()
+     for (const b of this.bots) {
+       const sp = this.spawnOf(b.id)
+       this.botState.set(b.id, { ...sp })
+       this.botDraw.set(b.id, { ...sp })
+       this.botMem.set(b.id, createAIMemory())
+       if (!this.botVisuals.has(b.id)) this.botVisuals.set(b.id, this.makeTank(b.id, sp.x, sp.z))
+     }
+ 
+     this.selfVisual?.root.setEnabled(true)
+     for (const v of this.peerVisuals.values()) v.root.setEnabled(true)
++    if (this.bench) this.placeBench()
++  }
++
++  /** AC10 N1 量測場景：5 種道具各一、10 顆靜止子彈（純視覺，不進遊戲邏輯） */
++  private placeBench(): void {
++    const lay = benchLayout((cx, cy) => this.isWall(cx, cy) || this.isCrate(cx, cy))
++    lay.items.forEach((it, i) => this.board.addItem(`bench-${i}`, it.kind, it.cx, it.cy))
++    lay.bullets.forEach((b, i) =>
++      this.board.putBullet(`bench-${i}`, cellToWorld(b.cx, GRID_W), cellToWorld(b.cy, GRID_H), false)
++    )
+   }
+ 
+   /** 從 (fx,fz) 移到 (tx,tz) 是否被擋：只擋新碰到或更深入的牆／木箱（落牆擦到的坦克仍能脫困） */
+   private moveBlocked(fx: number, fz: number, tx: number, tz: number): boolean {
+     return tankMoveBlocked(fx, fz, tx, tz, (cx, cy) => this.isWall(cx, cy) || this.isCrate(cx, cy))
+   }
+ 
+   // ---- 射擊 ----
+ 
+   private hostBroadcast(type: string, payload: unknown): void {
+@@ -523,32 +507,37 @@ class TankScene implements GameModule {
+   /** host：開火（真人、guest 請求、bot 共用）。三連發 buff 中由 host 補左右兩發，各自廣播 bullet */
+   private hostFire(owner: string, x: number, z: number, vx: number, vz: number): void {
+     const s = this.statOf(owner)
+     const vels: [number, number][] = s.tripleUntil > performance.now() ? tripleVelocities(vx, vz) : [[vx, vz]]
+     for (const [bvx, bvz] of vels) {
+       this.hostBroadcast('bullet', { id: `b${this.bulletSeq++}`, owner, x, z, vx: bvx, vz: bvz })
+     }
+   }
+ 
+   private spawnBullet(id: string, owner: string, x: number, z: number, vx: number, vz: number): void {
+-    const mesh = MeshBuilder.CreateSphere(`bullet-${id}`, { diameter: 0.2 }, this.ctx.scene)
+-    mesh.position = new Vector3(x, 0.35, z)
+-    mesh.material = this.bulletMat
+-    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, mesh, createdAt: performance.now() })
++    const now = performance.now()
++    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, createdAt: now })
++    this.board.putBullet(id, x, z, false)
++    // 開砲後座＋車身擠壓回彈（三連發同一刻的三發共用一次）
++    const v = this.visualOf(owner)
++    if (v) v.rig.fireAt = now
+     playSfx('tank_fire')
+   }
+ 
+   private removeBullet(id: string): void {
+-    const b = this.bullets.get(id)
+-    if (!b) return
+-    b.mesh.dispose()
+-    this.bullets.delete(id)
++    if (!this.bullets.delete(id)) return
++    this.board.removeBullet(id)
++  }
++
++  private visualOf(id: string): TankVisual | undefined {
++    if (id === this.ctx.selfId) return this.selfVisual
++    return this.peerVisuals.get(id) ?? this.botVisuals.get(id)
+   }
+ 
+   /** 各端推進子彈（同一支 stepBullet）；host 另判反彈廣播、木箱、命中 */
+   private stepBullets(dt: number, now: number): void {
+     const host = this.ctx.role === 'host'
+     for (const [id, b] of [...this.bullets]) {
+       if (!this.bullets.has(id)) continue
+       if (now - b.createdAt > BULLET_LIFETIME_MS) {
+         this.removeBullet(id)
+         continue
+@@ -567,22 +556,21 @@ class TankScene implements GameModule {
+             this.hostBroadcast('item', { cx: r.cx, cy: r.cy, kind: pickItemKind(Math.random()) })
+           }
+         }
+         continue
+       }
+       b.x = r.x
+       b.z = r.z
+       b.vx = r.vx
+       b.vz = r.vz
+       b.bounces = r.bounces
+-      b.mesh.position.x = b.x
+-      b.mesh.position.z = b.z
++      this.board.putBullet(id, b.x, b.z, b.bounces > 0)
+       if (r.kind === 'bounce' && host) {
+         this.ctx.net.broadcast({
+           game: this.gameId,
+           type: 'bounce',
+           payload: { bulletId: id, x: b.x, z: b.z, vx: b.vx, vz: b.vz },
+         })
+       }
+       if (host) this.hostBulletHits(b, now)
+     }
+   }
+@@ -632,55 +620,54 @@ class TankScene implements GameModule {
+             ? this.botState.get(h.targetId)
+             : undefined
+       if (target) {
+         const { x: fx, z: fz } = target
+         const p = knockback(fx, fz, h.dirX, h.dirZ, KNOCKBACK, (x, z) => this.moveBlocked(fx, fz, x, z))
+         target.x = p.x
+         target.z = p.z
+       }
+     }
+     if (h.invuln) return
++    const v = this.visualOf(h.targetId)
++    if (v) v.rig.hitAt = now
+     playSfx('tank_hit')
+     this.spawnExplosion(h.targetId)
+   }
+ 
+   // ---- 道具 ----
+ 
+   private spawnItem(cx: number, cy: number, kind: ItemKind): void {
+     const ci = cellIdx(cx, cy)
+-    this.items.get(ci)?.mesh.dispose()
+-    const mesh = MeshBuilder.CreateBox(`item-${ci}`, { size: 0.5 }, this.ctx.scene)
+-    mesh.position = new Vector3(cellToWorld(cx, GRID_W), 0.4, cellToWorld(cy, GRID_H))
+-    mesh.material = this.itemMats[kind]
+-    this.items.set(ci, { kind, mesh })
++    this.items.set(ci, { kind })
++    this.board.addItem(ci, kind, cx, cy, performance.now())
+   }
+ 
+   private detectPickups(): void {
+     if (this.items.size === 0) return
+     for (const e of this.entities()) {
+       if (!this.isAlive(e.id)) continue
+       const pos = this.posOf(e.id)
+       if (!pos) continue
+       const ci = cellIdx(worldToCell(pos.x, GRID_W), worldToCell(pos.z, GRID_H))
+       const it = this.items.get(ci)
+       if (it) this.hostBroadcast('pickup', { ci, who: e.id, kind: it.kind })
+     }
+   }
+ 
+   /** buff／護盾到期時刻由本端收到 pickup 的時刻自算 */
+   private applyPickup(p: { ci: number; who: string; kind: ItemKind | null }): void {
+     const it = this.items.get(p.ci)
+     const kind = p.kind ?? it?.kind
+     if (!kind) return
+     if (it) {
+-      it.mesh.dispose()
+       this.items.delete(p.ci)
++      this.board.removeItem(p.ci)
+     }
+     playSfx('pickup')
+     const s = this.statOf(p.who)
+     const now = performance.now()
+     if (kind === 'hp') {
+       s.hp = Math.min(s.maxHp + 1, s.hp + 1)
+       s.maxHp = Math.max(s.maxHp, s.hp)
+     } else if (kind === 'speed') {
+       s.speedUntil = now + BUFF_MS
+     } else if (kind === 'rapid') {
+@@ -710,31 +697,29 @@ class TankScene implements GameModule {
+   }
+ 
+   /** 套用落牆（host 本地 + guest）：該格成牆、清木箱／道具／子彈、建落牆 mesh */
+   private applyClose(cx: number, cy: number): void {
+     const ci = cellIdx(cx, cy)
+     const now = performance.now()
+     this.lastClose = now
+     this.closeIndex = SPIRAL.findIndex(([x, y]) => x === cx && y === cy) + 1
+     if (this.walls.has(ci)) return
+     this.walls.add(ci)
+-    this.crates.get(ci)?.dispose()
+     this.crates.delete(ci)
+-    this.items.get(ci)?.mesh.dispose()
++    this.board.setCrate(ci, false)
+     this.items.delete(ci)
++    this.board.removeItem(ci)
+     for (const b of [...this.bullets.values()]) {
+       if (worldToCell(b.x, GRID_W) === cx && worldToCell(b.z, GRID_H) === cy) this.removeBullet(b.id)
+     }
+-    const mesh = MeshBuilder.CreateBox(`close-${cx}-${cy}`, { size: CELL * 0.95 }, this.ctx.scene)
+-    mesh.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 4, cellToWorld(cy, GRID_H))
+-    mesh.material = this.closeWallMat
+-    this.closedWalls.set(ci, { mesh, born: now })
++    this.closedWalls.add(ci)
++    this.board.addClosingWall(ci, now)
+   }
+ 
+   /** 各端：落牆前 CLOSE_WARN_MS 算出下一面的預告格 */
+   private updateWarnCell(now: number): void {
+     const active =
+       this.flow.state.phase === 'playing' &&
+       closeWarningActive({
+         now,
+         playingSince: this.playingSince,
+         lastClose: this.lastClose,
+@@ -925,32 +910,31 @@ class TankScene implements GameModule {
+       b.vx = d.vx
+       b.vz = d.vz
+     } else if (type === 'hit') {
+       const d = decodeHit(p)
+       if (d) this.applyHit(d)
+     } else if (type === 'destroyed') {
+       if (!isStr(p.targetId)) return
+       const s = this.statOf(p.targetId)
+       s.alive = false
+       playSfx(p.targetId === this.ctx.selfId ? 'death' : 'kill')
+-      if (p.targetId === this.ctx.selfId) this.selfVisual?.root.setEnabled(false)
+-      else (this.peerVisuals.get(p.targetId) ?? this.botVisuals.get(p.targetId))?.root.setEnabled(false)
++      this.visualOf(p.targetId)?.root.setEnabled(false)
+       // 給擊殺者加分（killerId 為 null＝落牆或自己反彈打死自己）
+       if (isStr(p.killerId)) {
+         const ks = this.statOf(p.killerId)
+         ks.kills++
+       }
+     } else if (type === 'crate') {
+       const d = decodeCrate(p)
+       if (!d) return
+-      this.crates.get(d.ci)?.dispose()
+       this.crates.delete(d.ci)
++      this.board.setCrate(d.ci, false)
+       // 打掉木箱的那發：guest 端的副本還在半路，木箱先刪會讓它穿過去（幽靈子彈）
+       if (d.bulletId) this.removeBullet(d.bulletId)
+     } else if (type === 'item') {
+       if (!isIntIn(p.cx, 0, GRID_W - 1) || !isIntIn(p.cy, 0, GRID_H - 1)) return
+       if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return
+       this.spawnItem(p.cx, p.cy, p.kind)
+     } else if (type === 'pickup') {
+       const d = decodePickup(p)
+       if (d) this.applyPickup(d)
+     } else if (type === 'close') {
+@@ -1030,80 +1014,61 @@ class TankScene implements GameModule {
+     }
+   }
+ 
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 38, new Vector3(0, 0, -2), scene)
+-    new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
+-
+-    // 共用材質
+-    this.crateMat = new StandardMaterial('crate-mat', scene)
+-    this.crateMat.diffuseColor = new Color3(0.62, 0.45, 0.22)
+-    this.wallMat = new StandardMaterial('wall-mat', scene)
+-    this.wallMat.diffuseColor = new Color3(0.42, 0.45, 0.5)
+-    this.closeWallMat = new StandardMaterial('close-wall-mat', scene)
+-    this.closeWallMat.diffuseColor = new Color3(0.62, 0.3, 0.3)
+-    this.flameMat = new StandardMaterial('flame-mat', scene)
+-    this.flameMat.emissiveColor = new Color3(1, 0.45, 0.1)
+-    this.flameMat.disableLighting = true
+-    this.bulletMat = new StandardMaterial('bullet-mat', scene)
+-    this.bulletMat.emissiveColor = new Color3(1, 0.85, 0.2)
+-    this.bulletMat.disableLighting = true
++    // 光影與後製（AC6／AC9）：雙光、陰影、Glow 白名單、描邊、後製、解析度與檔位；陰影被降級關掉時改墊 blob 影
++    this.look = new ToyLook(scene, this.camera, {
++      shadowRadius: SHADOW_RADIUS,
++      tag: 'tank',
++      outline: OUTLINE,
++      onDegrade: (step) => {
++        if (step === 'shadow') this.blobShadows = true
++      },
++    })
++    scene.clearColor = Color4.FromHexString(`${TANK.void}FF`)
++
++    // 場景物件（AC5，A「Toy Army」）：地面單 mesh＋程式貼圖，積木牆／外框／落牆／木箱／子彈／道具走 thin instance
++    this.board = new TankBoard(scene, {
++      gridW: GRID_W,
++      gridH: GRID_H,
++      cell: CELL,
++      toWorld: (cx, cy) => ({ x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H) }),
++    })
++    const fx = this.board.fxTargets()
++    this.look.toon(...fx.toon)
++    this.look.receiver(...fx.receivers)
++    this.look.caster(...fx.casters)
++    this.look.outline(...fx.outlined)
++    for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
++    this.kit = new TankKit(scene)
++    this.kit.onMaterial = (m) => this.look.toon(m)
++    this.look.toon(this.kit.turretMat)
++
+     this.shieldMat = new StandardMaterial('shield-mat', scene)
+-    this.shieldMat.diffuseColor = new Color3(0.3, 0.8, 1)
+-    this.shieldMat.emissiveColor = new Color3(0.15, 0.45, 0.6)
+-    this.shieldMat.alpha = 0.3
+-
+-    const itemMat = (name: string, diffuse: Color3, emissive: Color3) => {
+-      const m = new StandardMaterial(name, scene)
+-      m.diffuseColor = diffuse
+-      m.emissiveColor = emissive
+-      return m
+-    }
+-    this.itemMats = {
+-      hp: itemMat('item-hp', new Color3(0.2, 0.85, 0.3), new Color3(0.1, 0.4, 0.15)),
+-      speed: itemMat('item-speed', new Color3(0.2, 0.5, 0.95), new Color3(0.1, 0.3, 0.8)),
+-      rapid: itemMat('item-rapid', new Color3(0.95, 0.55, 0.1), new Color3(0.8, 0.4, 0.05)),
+-      shield: itemMat('item-shield', new Color3(0.3, 0.85, 1), new Color3(0.15, 0.55, 0.7)),
+-      triple: itemMat('item-triple', new Color3(0.75, 0.4, 1), new Color3(0.5, 0.2, 0.75)),
+-    }
++    this.shieldMat.diffuseColor = Color3.FromHexString(TANK.shieldFill)
++    this.shieldMat.emissiveColor = Color3.FromHexString(TANK.shield).scale(0.45)
++    this.shieldMat.alpha = 0.22
+ 
+-    // 地板
+-    const ground = MeshBuilder.CreateGround('ground', { width: GRID_W * CELL + 2, height: GRID_H * CELL + 2 }, scene)
+-    const gmat = new StandardMaterial('gmat', scene)
+-    gmat.diffuseColor = new Color3(0.18, 0.28, 0.18)
+-    ground.material = gmat
+-
+-    // 落牆預告格（地上紅色薄片，波 3 換美術）
+-    this.warnMesh = MeshBuilder.CreateGround('close-warn', { width: CELL * 0.95, height: CELL * 0.95 }, scene)
+-    const warnMat = new StandardMaterial('close-warn-mat', scene)
+-    warnMat.emissiveColor = new Color3(1, 0.2, 0.15)
+-    warnMat.disableLighting = true
+-    warnMat.alpha = 0.7
+-    this.warnMesh.material = warnMat
+-    this.warnMesh.position.y = 0.02
+-    this.warnMesh.setEnabled(false)
+-
+-    // 水泥牆
++    // 柱牆（固定）：地面貼圖同時烘牆根陰影
+     this.generateWalls()
+     this.walls = new Set(this.baseWalls)
+-    for (const idx of this.baseWalls) {
+-      const cx = idx % GRID_W
+-      const cy = Math.floor(idx / GRID_W)
+-      const w = MeshBuilder.CreateBox(`wall-${cx}-${cy}`, { size: CELL * 0.95 }, scene)
+-      w.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.47, cellToWorld(cy, GRID_H))
+-      w.material = this.wallMat
+-    }
++    this.board.setWalls(this.baseWalls, this.isWall)
++
++    // AC10：draw calls 量測；偵錯量測場景只在 tankNoDegrade=1 下生效
++    this.instr = new SceneInstrumentation(scene)
++    this.bench = typeof window !== 'undefined' && benchEnabled(tierQuery(window.location.search, window.location.hash))
+ 
+     this.selfVisual = this.makeTank(ctx.selfId, 0, 0)
+     this.hud = createTextPanel(scene, this.camera, 'hud', 4, 1.1, new Vector3(0, 2.45, 8))
+     this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+     window.addEventListener('keyup', this.onKeyUp)
+ 
+     this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
+     attachFlowAudio(this.flow, 'tank', {
+@@ -1215,44 +1180,46 @@ class TankScene implements GameModule {
+     const phase = this.flow.state.phase
+     const now = performance.now()
+ 
+     // 自己
+     if (this.selfVisual) {
+       this.selfVisual.root.position.x = this.state.x
+       this.selfVisual.root.position.z = this.state.z
+       this.selfVisual.root.rotation.y = this.state.ry
+       this.selfVisual.turret.rotation.y = this.state.turretAngle - this.state.ry
+       this.syncTankVisual(this.selfVisual, this.ctx.selfId, now)
++      poseTank(this.selfVisual.rig, now)
+     }
+ 
+     // 遠端
+     const ids = new Set(this.own.remoteIds())
+     for (const [id, v] of this.peerVisuals) {
+       if (ids.has(id)) continue
+-      v.root.dispose(false, true)
++      this.disposeVisual(v)
+       this.peerVisuals.delete(id)
+     }
+     for (const id of ids) {
+       let v = this.peerVisuals.get(id)
+       if (!v) {
+         const init = this.own.latestRemote(id)
+         v = this.makeTank(id, init?.x ?? 0, init?.z ?? 0)
+         this.peerVisuals.set(id, v)
+       }
+       const s = this.own.sampleRemote(id)
+       if (s) {
+         v.root.position.x = s.a.x + (s.b.x - s.a.x) * s.alpha
+         v.root.position.z = s.a.z + (s.b.z - s.a.z) * s.alpha
+         v.root.rotation.y = s.a.ry + (s.b.ry - s.a.ry) * s.alpha
+         v.turret.rotation.y = s.a.turretAngle + (s.b.turretAngle - s.a.turretAngle) * s.alpha - v.root.rotation.y
+       }
+       this.syncTankVisual(v, id, now)
++      poseTank(v.rig, now)
+     }
+ 
+     // bot：host 直接用模擬位置；guest 平滑追 host 廣播的目標
+     const k = Math.min(1, deltaMs / 60)
+     for (const [id, v] of this.botVisuals) {
+       const target = this.botState.get(id)
+       if (!target) continue
+       let draw = target
+       if (this.ctx.role !== 'host') {
+         draw = this.botDraw.get(id) ?? { ...target }
+@@ -1260,68 +1227,64 @@ class TankScene implements GameModule {
+         draw.z += (target.z - draw.z) * k
+         draw.ry = rotateToward(draw.ry, target.ry, Math.PI * k)
+         draw.turretAngle = rotateToward(draw.turretAngle, target.turretAngle, Math.PI * k)
+         this.botDraw.set(id, draw)
+       }
+       v.root.position.x = draw.x
+       v.root.position.z = draw.z
+       v.root.rotation.y = draw.ry
+       v.turret.rotation.y = draw.turretAngle - draw.ry
+       this.syncTankVisual(v, id, now)
++      poseTank(v.rig, now)
+     }
+ 
+-    // 道具浮動旋轉
+-    for (const it of this.items.values()) {
+-      it.mesh.rotation.y += deltaMs * 0.003
+-      it.mesh.position.y = 0.4 + Math.sin(now * 0.004 + it.mesh.position.x) * 0.1
+-    }
+-
+-    // 落牆落下 + 預告格
+-    for (const w of this.closedWalls.values()) {
+-      const t = Math.min(1, (now - w.born) / CLOSE_DROP_MS)
+-      w.mesh.position.y = CELL * 0.47 + (CELL * 4 - CELL * 0.47) * (1 - t * t)
+-    }
+-    const warn = this.warnCell
+-    this.warnMesh.setEnabled(warn !== null)
+-    if (warn) {
+-      this.warnMesh.position.x = cellToWorld(warn.cx, GRID_W)
+-      this.warnMesh.position.z = cellToWorld(warn.cy, GRID_H)
+-    }
++    // 預告格脈動、blob 影、道具浮動、落牆落下回彈、所有 thin instance 上傳（每幀一次）
++    this.board.setWarning(this.warnCell, 0.5 + 0.5 * Math.sin((now / 1000) * WARN_PULSE_HZ * Math.PI * 2))
++    if (this.blobShadows) this.syncBlobs()
++    this.board.update(now)
++    this.look.update(deltaMs)
+ 
+     // 爆炸碎片動畫
+     this.flames = this.flames.filter((f) => {
+       if (f.until > now) {
+         const meta = f.mesh.metadata as { vx: number; vy: number; vz: number } | undefined
+         if (meta) {
+           f.mesh.position.x += meta.vx * deltaMs * 0.001
+           f.mesh.position.y += meta.vy * deltaMs * 0.001
+           f.mesh.position.z += meta.vz * deltaMs * 0.001
+           meta.vy -= 9.8 * deltaMs * 0.001
+         }
+         f.mesh.scaling.scaleInPlace(0.97)
+         return true
+       }
+-      f.mesh.dispose()
++      f.mesh.dispose(false, true)
+       return false
+     })
+ 
+     // HUD
+     const ents = this.entities()
+     const aliveCount = ents.filter((e) => this.isAlive(e.id)).length
+     const me = this.statOf(this.ctx.selfId)
+     const hpNote = phase === 'playing' ? `・HP ${me.hp}/${me.maxHp} ・擊殺 ${me.kills}` : ''
+     const deadNote = !this.isAlive(this.ctx.selfId) && phase === 'playing' ? '・已毀損（觀戰中）' : ''
+     this.hud.draw(
+       phase === 'playing' ? `存活 ${aliveCount} / ${ents.length}${hpNote}${deadNote}\n${this.debugLine(now)}` : '',
+       44
+     )
+ 
++    // AC10：每 2 秒印 draw calls 與 fps（讀上一幀的完整計數；還沒渲染過的首次取樣不印）
++    if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
++      this.lastPerfLog = now
++      const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps(), 'tank')
++      if (line) console.info(line)
++    }
++
+     this.syncOverlay()
+ 
+     if (phase === 'countdown') {
+       const n = Math.ceil(this.flow.countdownRemaining() / 1000)
+       this.banner.draw(n > 0 ? String(n) : 'GO!', 200)
+     } else if (phase === 'result') {
+       this.banner.draw('')
+       if (this.ctx.role === 'host') {
+         this.resultElapsed += deltaMs
+         if (this.resultElapsed > 10000) this.hostRestart()
+@@ -1338,20 +1301,35 @@ class TankScene implements GameModule {
+       alive: this.isAlive(this.ctx.selfId),
+     }
+     if (now - this.lastDebugAt > 250) {
+       this.lastDebugAt = now
+       ;(window as unknown as Record<string, unknown>).__TANK_STATE = this.debugState(now)
+     }
+   }
+ 
+   private lastDebugAt = 0
+ 
++  /** 陰影被降級關掉後：存活坦克與場上道具底下墊 blob 影 */
++  private syncBlobs(): void {
++    this.board.clearBlobs()
++    const all: [string, TankVisual | undefined][] = [
++      [this.ctx.selfId, this.selfVisual],
++      ...[...this.peerVisuals].map(([id, v]): [string, TankVisual] => [id, v]),
++      ...[...this.botVisuals].map(([id, v]): [string, TankVisual] => [id, v]),
++    ]
++    for (const [id, v] of all) {
++      if (!v || !this.isAlive(id)) continue
++      this.board.putBlob(`t-${id}`, v.root.position.x, v.root.position.z, BLOB_TANK)
++    }
++    for (const it of this.board.itemSpots()) this.board.putBlob(it.key, it.x, it.z, BLOB_ITEM)
++  }
++
+   /** 驗證用快照（qa 腳本取樣 window.__TANK_*）：名冊、配色、存活、buff、子彈、縮圈 */
+   private debugState(now: number) {
+     return {
+       entities: this.entities().map((e) => {
+         const s = this.statOf(e.id)
+         const p = this.posOf(e.id)
+         return {
+           id: e.id,
+           name: this.nameFor(e.id),
+           colorIndex: this.colorIndex(e.id),
+@@ -1375,34 +1353,36 @@ class TankScene implements GameModule {
+   }
+ 
+   dispose(): void {
+     window.removeEventListener('keydown', this.onKeyDown)
+     window.removeEventListener('keyup', this.onKeyUp)
+     stopAllAudio()
+     this.ticker.stop()
+     this.own.stop()
+     this.flow.dispose()
+     this.offOpen?.()
+-    this.selfVisual?.root.dispose(false, true)
+-    for (const v of this.peerVisuals.values()) v.root.dispose(false, true)
++    if (this.selfVisual) this.disposeVisual(this.selfVisual)
++    for (const v of this.peerVisuals.values()) this.disposeVisual(v)
+     this.peerVisuals.clear()
+-    for (const v of this.botVisuals.values()) v.root.dispose(false, true)
++    for (const v of this.botVisuals.values()) this.disposeVisual(v)
+     this.botVisuals.clear()
+     this.botState.clear()
+     this.botDraw.clear()
+     this.bots = []
+-    for (const b of this.bullets.values()) b.mesh.dispose()
+     this.bullets.clear()
+-    for (const m of this.crates.values()) m.dispose()
+     this.crates.clear()
+-    for (const it of this.items.values()) it.mesh.dispose()
+     this.items.clear()
+-    for (const w of this.closedWalls.values()) w.mesh.dispose()
+     this.closedWalls.clear()
+-    for (const f of this.flames) f.mesh.dispose()
++    for (const f of this.flames) f.mesh.dispose(false, true)
+     this.flames = []
+     this.hud.dispose()
+     this.banner.dispose()
++    this.board.dispose()
++    this.kit.dispose()
++    this.shieldMat.dispose()
++    this.instr?.dispose()
++    this.instr = null
++    this.look.dispose()
+   }
+ }
+ 
+ export const createTankScene = (): GameModule => new TankScene()
+diff --git a/src/babylon/games/tankFx/bench.test.ts b/src/babylon/games/tankFx/bench.test.ts
+new file mode 100644
+index 0000000..2b000d3
+--- /dev/null
++++ b/src/babylon/games/tankFx/bench.test.ts
+@@ -0,0 +1,44 @@
++import { describe, expect, it } from 'vitest'
++import { BENCH_BULLETS, benchEnabled, benchLayout } from '@/babylon/games/tankFx/bench'
++import { ITEM_KINDS } from '@/babylon/games/tankFx/combat'
++import { GRID_H, GRID_W } from '@/babylon/games/tankFx/grid'
++
++describe('benchEnabled（?tankBench=1 只在 tankNoDegrade=1 下生效）', () => {
++  it('兩個都給才開', () => {
++    expect(benchEnabled('?tankBench=1&tankNoDegrade=1')).toBe(true)
++  })
++  it('只給 tankBench 不開', () => {
++    expect(benchEnabled('?tankBench=1')).toBe(false)
++    expect(benchEnabled('?tankBench=1&tankNoDegrade=0')).toBe(false)
++  })
++  it('沒給不開', () => {
++    expect(benchEnabled('')).toBe(false)
++    expect(benchEnabled('?tankNoDegrade=1')).toBe(false)
++  })
++})
++
++describe('benchLayout（5 種道具各一＋10 顆靜止子彈）', () => {
++  const blocked = (cx: number, cy: number) => cx % 2 === 1 && cy % 2 === 1
++  const lay = benchLayout(blocked)
++  it('五種道具各一個，不重格、不在阻擋格', () => {
++    expect(lay.items.map((i) => i.kind).sort()).toEqual([...ITEM_KINDS].sort())
++    const cells = new Set(lay.items.map((i) => `${i.cx},${i.cy}`))
++    expect(cells.size).toBe(5)
++    for (const i of lay.items) {
++      expect(blocked(i.cx, i.cy)).toBe(false)
++      expect(i.cx >= 0 && i.cx < GRID_W && i.cy >= 0 && i.cy < GRID_H).toBe(true)
++    }
++  })
++  it('10 顆子彈，不在阻擋格、不與道具同格', () => {
++    expect(lay.bullets).toHaveLength(BENCH_BULLETS)
++    expect(BENCH_BULLETS).toBe(10)
++    const itemCells = new Set(lay.items.map((i) => `${i.cx},${i.cy}`))
++    for (const b of lay.bullets) {
++      expect(blocked(b.cx, b.cy)).toBe(false)
++      expect(itemCells.has(`${b.cx},${b.cy}`)).toBe(false)
++    }
++  })
++  it('同輸入同輸出（決定性）', () => {
++    expect(benchLayout(blocked)).toEqual(lay)
++  })
++})
+diff --git a/src/babylon/games/tankFx/bench.ts b/src/babylon/games/tankFx/bench.ts
+new file mode 100644
+index 0000000..39c14d7
+--- /dev/null
++++ b/src/babylon/games/tankFx/bench.ts
+@@ -0,0 +1,40 @@
++/**
++ * 效能量測場景（AC10 N1，純函式）：`?tankBench=1` 且 `?tankNoDegrade=1` 時，場上擺 5 種道具各一、10 顆靜止子彈。
++ * 只是視覺擺設（不進遊戲邏輯、撿不到也不會動），用來固定 draw call 的量測條件。
++ */
++import { ITEM_KINDS, type ItemKind } from '@/babylon/games/tankFx/combat'
++import { GRID_H, GRID_W, type CellPred } from '@/babylon/games/tankFx/grid'
++
++export const BENCH_BULLETS = 10
++
++export interface BenchLayout {
++  items: { kind: ItemKind; cx: number; cy: number }[]
++  bullets: { cx: number; cy: number }[]
++}
++
++/** search 為合併過 hash 的 query（fx/quality 的 tierQuery） */
++export function benchEnabled(search: string): boolean {
++  const q = new URLSearchParams(search)
++  return q.get('tankBench') === '1' && q.get('tankNoDegrade') === '1'
++}
++
++/** 從場地中央一列往外找空格：道具放第 7 列、子彈放第 8 列（決定性，各端一致） */
++export function benchLayout(blocked: CellPred): BenchLayout {
++  const used = new Set<string>()
++  const take = (rows: number[], n: number): { cx: number; cy: number }[] => {
++    const out: { cx: number; cy: number }[] = []
++    for (const cy of rows) {
++      for (let cx = 1; cx < GRID_W - 1 && out.length < n; cx++) {
++        const k = `${cx},${cy}`
++        if (used.has(k) || blocked(cx, cy)) continue
++        used.add(k)
++        out.push({ cx, cy })
++      }
++    }
++    return out
++  }
++  const mid = Math.floor(GRID_H / 2)
++  const itemCells = take([mid - 1, mid - 3, mid + 1], ITEM_KINDS.length)
++  const bullets = take([mid, mid - 2, mid + 2], BENCH_BULLETS)
++  return { items: itemCells.map((c, i) => ({ kind: ITEM_KINDS[i], ...c })), bullets }
++}
+diff --git a/src/babylon/games/tankFx/board.ts b/src/babylon/games/tankFx/board.ts
+new file mode 100644
+index 0000000..b901650
+--- /dev/null
++++ b/src/babylon/games/tankFx/board.ts
+@@ -0,0 +1,448 @@
++/**
++ * 坦克場景物件（spec §4）：地面 1 個 mesh＋程式貼圖、場外延伸底色與外框基座；
++ * 柱牆／外框／落牆／木箱／子彈（一般與反彈後）／5 種道具／預告格／blob 影各自一個 thin instance 群組，
++ * 場上物件再多 draw call 也固定。遊戲邏輯留在 tank.ts，這裡只管畫。
++ */
++import { Color3, MeshBuilder, StandardMaterial, type DynamicTexture, type Mesh, type Scene } from '@/babylon/babylonCore'
++import { easeOut, itemHop } from '@/babylon/fx/curves'
++import { toMesh } from '@/babylon/fx/models'
++import { ThinGroup } from '@/babylon/fx/thin'
++import { ThinSlots } from '@/babylon/fx/thinSlots'
++import { crateData } from '@/babylon/games/bomberFx/models'
++import { createBlockAtlas } from '@/babylon/games/bomberFx/textures'
++import type { ItemKind } from '@/babylon/games/tankFx/combat'
++import { ITEM_ICON_ATTR, applyItemIcon } from '@/babylon/games/tankFx/itemIcon'
++import type { CellPred } from '@/babylon/games/tankFx/grid'
++import {
++  BORDER_COLORS,
++  BRICK_H,
++  CLOSE_COLORS,
++  WALL_COLORS,
++  brickData,
++  bulletData,
++  groundQuadData,
++  tokenData,
++  voidData,
++} from '@/babylon/games/tankFx/models'
++import { ITEM_ORDER, TANK } from '@/babylon/games/tankFx/palette'
++import {
++  createBlobTexture,
++  createGroundTexture,
++  createItemAtlas,
++  createWarnTexture,
++  tokenUV,
++} from '@/babylon/games/tankFx/textures'
++
++export interface BoardConfig {
++  gridW: number
++  gridH: number
++  cell: number
++  toWorld: (cx: number, cy: number) => { x: number; z: number }
++}
++
++/** 光影登記用：依用途分好的 mesh 與材質（ToyLook 用） */
++export interface BoardFxTargets {
++  toon: StandardMaterial[]
++  receivers: Mesh[]
++  casters: Mesh[]
++  outlined: Mesh[]
++  glow: { mesh: Mesh; color: string; strength: number }[]
++}
++
++interface ItemRec {
++  kind: ItemKind
++  x: number
++  z: number
++  born: number
++}
++
++interface ClosingWall {
++  x: number
++  z: number
++  born: number
++  done: boolean
++}
++
++/** 木箱實例縮放（spec §4：0.9 CELL × 0.8 = 1.44 立方，比柱牆矮） */
++const CRATE_SCALE = 0.8
++/** 道具浮動高度與幅度、彈出時長 */
++const ITEM_Y = 1.1
++const ITEM_BOB = 0.12
++const ITEM_HOP_MS = 300
++/** 代幣往鏡頭仰的角度（同 bomber 代幣） */
++const ITEM_PITCH = -0.55
++const BULLET_Y = 0.35
++/** 落牆：從 y +6 以 easeIn 落下 260ms，落地回彈 scaleY 0.85→1.04→1 120ms（spec §8 #15） */
++const DROP_FROM = 6
++export const DROP_MS = 260
++const LAND_MS = 120
++
++export class TankBoard {
++  private readonly scene: Scene
++  private readonly cfg: BoardConfig
++  private textures: DynamicTexture[] = []
++  private mats: StandardMaterial[] = []
++  private meshes: Mesh[] = []
++  private groups: ThinGroup<number | string>[] = []
++  private toonMats: StandardMaterial[] = []
++  private ground!: Mesh
++  private groundTex: DynamicTexture | null = null
++  private groundMat!: StandardMaterial
++  private pillars!: ThinGroup<number>
++  private border!: ThinGroup<number>
++  private sudden!: ThinGroup<number>
++  private closing = new Map<number, ClosingWall>()
++  private crates!: ThinGroup<number>
++  private bullets!: ThinGroup<string>
++  private bounced!: ThinGroup<string>
++  /** 5 種道具共用一組 thin instance；iconSlots 與 items.slots 以同樣的操作順序維護，slot 一一對應 */
++  private items!: ThinGroup<number | string>
++  private iconSlots = new ThinSlots<number | string>(8, 1)
++  private iconVersion = -1
++  private itemRecs = new Map<number | string, ItemRec>()
++  private warn!: Mesh
++  private warnMat!: StandardMaterial
++  private blobs!: ThinGroup<string>
++
++  constructor(scene: Scene, cfg: BoardConfig) {
++    this.scene = scene
++    this.cfg = cfg
++    this.build()
++  }
++
++  private mat(name: string, setup: (m: StandardMaterial) => void, toon = true): StandardMaterial {
++    const m = new StandardMaterial(name, this.scene)
++    m.specularColor = Color3.Black()
++    setup(m)
++    this.mats.push(m)
++    if (toon) this.toonMats.push(m)
++    return m
++  }
++
++  private group<K extends number | string>(name: string, mesh: Mesh, mat: StandardMaterial, capacity: number): ThinGroup<K> {
++    mesh.name = name
++    mesh.material = mat
++    mesh.isPickable = false
++    const g = new ThinGroup<K>(mesh, capacity)
++    this.groups.push(g as unknown as ThinGroup<number | string>)
++    return g
++  }
++
++  private build(): void {
++    const { scene } = this
++    const { gridW, gridH, cell } = this.cfg
++    const gw = gridW * cell
++    const gh = gridH * cell
++
++    // 場外延伸底色＋外框底下的深色基座：同一個頂點色 mesh、不受光（避免被 ACES 拉灰）
++    const voidMat = this.mat(
++      'tank-void-mat',
++      (m) => {
++        m.disableLighting = true
++        m.diffuseColor = Color3.Black()
++        m.emissiveColor = Color3.White()
++      },
++      false
++    )
++    const voidMesh = toMesh('tank-void', voidData(gw + cell * 2 + 1.4), scene)
++    voidMesh.material = voidMat
++    voidMesh.isPickable = false
++    this.meshes.push(voidMesh)
++
++    // 地面：1 個 mesh，貼圖在 setWalls 時畫（要烘牆根陰影）
++    this.ground = MeshBuilder.CreateGround('tank-ground', { width: gw, height: gh }, scene)
++    this.ground.isPickable = false
++    this.groundMat = this.mat('tank-ground-mat', () => undefined)
++    this.ground.material = this.groundMat
++    this.meshes.push(this.ground)
++
++    // 積木：柱牆、外框、落牆同一個模型，三組頂點色
++    const brickMat = this.mat('tank-brick-mat', () => undefined)
++    this.pillars = this.group('tank-pillars', toMesh('tp', brickData(WALL_COLORS), scene), brickMat, 64)
++    this.border = this.group('tank-border', toMesh('tb', brickData(BORDER_COLORS), scene), brickMat, 72)
++    this.sudden = this.group('tank-sudden', toMesh('ts', brickData(CLOSE_COLORS), scene), brickMat, 128)
++    let bk = 0
++    const sy = 1.9 / BRICK_H
++    for (let c = -1; c <= gridW; c++) {
++      for (const r of [-1, gridH]) {
++        const { x, z } = this.cfg.toWorld(c, r)
++        this.border.put(bk++, { x, y: 0, z, sy })
++      }
++    }
++    for (let r = 0; r < gridH; r++) {
++      for (const c of [-1, gridW]) {
++        const { x, z } = this.cfg.toWorld(c, r)
++        this.border.put(bk++, { x, y: 0, z, sy })
++      }
++    }
++
++    // 木箱：沿用 bomber 的木箱模型與方塊圖集（只讀），實例縮 0.8
++    const atlas = createBlockAtlas(scene)
++    this.textures.push(atlas)
++    const crateMat = this.mat('tank-crate-mat', (m) => {
++      m.diffuseTexture = atlas
++    })
++    this.crates = this.group('tank-crates', toMesh('tc', crateData(cell, 'soft'), scene), crateMat, 96)
++
++    // 子彈：一般與反彈後兩組（反彈後換紅暈），材質走 emissive
++    const bulletMat = this.mat(
++      'tank-bullet-mat',
++      (m) => {
++        m.disableLighting = true
++        m.emissiveColor = Color3.FromHexString(TANK.bullet)
++      },
++      false
++    )
++    const bounceMat = this.mat(
++      'tank-bullet-bounce-mat',
++      (m) => {
++        m.disableLighting = true
++        m.emissiveColor = Color3.FromHexString('#FFB4A8')
++      },
++      false
++    )
++    this.bullets = this.group('tank-bullets', toMesh('tbl', bulletData(), scene), bulletMat, 32)
++    this.bounced = this.group('tank-bullets-bounce', toMesh('tbb', bulletData(), scene), bounceMat, 16)
++
++    // 道具：5 種代幣共用一組 thin instance＋圖集材質，實例屬性 tankItemIcon 選圖集欄（itemIcon.ts）
++    const itemAtlas = createItemAtlas(scene)
++    this.textures.push(itemAtlas)
++    const itemMat = this.mat('tank-item-mat', (m) => {
++      m.diffuseTexture = itemAtlas
++      m.specularColor = new Color3(0.45, 0.45, 0.45)
++      m.specularPower = 40
++    })
++    applyItemIcon(itemMat)
++    this.items = this.group('tank-items', toMesh('ti', tokenData(tokenUV()), scene), itemMat, 8)
++
++    // 落牆預告格（一次最多 1 筆，用一般 mesh）
++    const warnTex = createWarnTexture(scene)
++    this.textures.push(warnTex)
++    this.warnMat = this.mat(
++      'tank-warn-mat',
++      (m) => {
++        m.diffuseTexture = warnTex
++        m.emissiveTexture = warnTex
++        m.useAlphaFromDiffuseTexture = true
++        m.disableLighting = true
++      },
++      false
++    )
++    this.warn = toMesh('tank-warn', groundQuadData(cell * 0.9, 0.02), scene)
++    this.warn.material = this.warnMat
++    this.warn.isVisible = false
++    this.warn.isPickable = false
++    this.meshes.push(this.warn)
++
++    // blob 影：陰影被降級關掉時墊在坦克與道具底下
++    const blobTex = createBlobTexture(scene)
++    this.textures.push(blobTex)
++    const blobMat = this.mat(
++      'tank-blob-mat',
++      (m) => {
++        m.diffuseTexture = blobTex
++        m.useAlphaFromDiffuseTexture = true
++        m.disableLighting = true
++        m.emissiveColor = Color3.White()
++      },
++      false
++    )
++    this.blobs = this.group('tank-blobs', toMesh('tbo', groundQuadData(1, 0.012), scene), blobMat, 16)
++    this.syncAll()
++  }
++
++  fxTargets(): BoardFxTargets {
++    const items = [this.items.mesh]
++    return {
++      toon: [...this.toonMats],
++      receivers: [this.ground],
++      casters: items,
++      outlined: [this.crates.mesh, ...items],
++      glow: [
++        { mesh: this.bullets.mesh, color: TANK.bulletHot, strength: 0.9 },
++        { mesh: this.bounced.mesh, color: TANK.bounce, strength: 1 },
++        // 代幣本身不發光又疊 bloom，全強度會糊成一團；壓低只留色暈
++        // 5 種共用一個 mesh，Glow 色只能一種：暖白
++        { mesh: this.items.mesh, color: '#FFE9A0', strength: 0.12 },
++        { mesh: this.warn, color: TANK.warn, strength: 0.6 },
++      ],
++    }
++  }
++
++  // ---- 牆 ----
++
++  /** 固定柱牆（init 一次）；地面貼圖同時烘牆根陰影 */
++  setWalls(walls: Iterable<number>, isWall: CellPred): void {
++    const { gridW, gridH } = this.cfg
++    this.pillars.clear()
++    for (const ci of walls) {
++      const { x, z } = this.cfg.toWorld(ci % gridW, Math.floor(ci / gridW))
++      this.pillars.put(ci, { x, y: 0, z })
++    }
++    this.groundTex?.dispose()
++    this.groundTex = createGroundTexture(this.scene, gridW, gridH, isWall)
++    this.groundMat.diffuseTexture = this.groundTex
++  }
++
++  // ---- 木箱 ----
++
++  setCrate(ci: number, on: boolean): void {
++    if (!on) {
++      this.crates.remove(ci)
++      return
++    }
++    const { x, z } = this.cfg.toWorld(ci % this.cfg.gridW, Math.floor(ci / this.cfg.gridW))
++    this.crates.put(ci, { x, y: 0, z, sx: CRATE_SCALE, sy: CRATE_SCALE, sz: CRATE_SCALE })
++  }
++
++  clearCrates(): void {
++    this.crates.clear()
++  }
++
++  // ---- 突然死亡 ----
++
++  addClosingWall(ci: number, now: number): void {
++    const { x, z } = this.cfg.toWorld(ci % this.cfg.gridW, Math.floor(ci / this.cfg.gridW))
++    this.closing.set(ci, { x, z, born: now, done: false })
++    this.sudden.put(ci, { x, y: DROP_FROM, z })
++  }
++
++  clearClosingWalls(): void {
++    this.closing.clear()
++    this.sudden.clear()
++  }
++
++  /** 紅色預告格：null 收起；pulse 0..1 */
++  setWarning(cell: { cx: number; cy: number } | null, pulse: number): void {
++    if (!cell) {
++      this.warn.isVisible = false
++      return
++    }
++    const { x, z } = this.cfg.toWorld(cell.cx, cell.cy)
++    this.warn.position.set(x, 0, z)
++    this.warn.isVisible = true
++    this.warnMat.alpha = 0.35 + 0.3 * pulse
++  }
++
++  // ---- 子彈 ----
++
++  putBullet(id: string, x: number, z: number, bounced: boolean): void {
++    const on = bounced ? this.bounced : this.bullets
++    const off = bounced ? this.bullets : this.bounced
++    off.remove(id)
++    on.put(id, { x, y: BULLET_Y, z })
++  }
++
++  removeBullet(id: string): void {
++    this.bullets.remove(id)
++    this.bounced.remove(id)
++  }
++
++  clearBullets(): void {
++    this.bullets.clear()
++    this.bounced.clear()
++  }
++
++  // ---- 道具 ----
++
++  /** bornAt 給了就播出現彈跳（從木箱高度彈起、轉一圈） */
++  addItem(key: number | string, kind: ItemKind, cx: number, cy: number, bornAt = -Infinity): void {
++    this.removeItem(key)
++    const { x, z } = this.cfg.toWorld(cx, cy)
++    this.itemRecs.set(key, { kind, x, z, born: bornAt })
++  }
++
++  removeItem(key: number | string): void {
++    if (this.itemRecs.has(key)) {
++      this.items.remove(key)
++      this.iconSlots.remove(key)
++    }
++    this.itemRecs.delete(key)
++  }
++
++  clearItems(): void {
++    this.items.clear()
++    this.iconSlots.clear()
++    this.itemRecs.clear()
++  }
++
++  // ---- blob 影 ----
++
++  putBlob(key: string, x: number, z: number, size: number): void {
++    this.blobs.put(key, { x, y: 0, z, sx: size, sy: 1, sz: size })
++  }
++
++  clearBlobs(): void {
++    this.blobs.clear()
++  }
++
++  /** 道具位置（blob 影用） */
++  itemSpots(): { key: string; x: number; z: number }[] {
++    return [...this.itemRecs].map(([k, r]) => ({ key: `item-${k}`, x: r.x, z: r.z }))
++  }
++
++  // ---- 每幀 ----
++
++  update(now: number): void {
++    const { cell } = this.cfg
++    for (const [key, r] of this.itemRecs) {
++      const hop = itemHop((now - r.born) / ITEM_HOP_MS, cell)
++      const y = ITEM_Y + Math.sin(now * 0.004 + r.x) * ITEM_BOB + hop.lift
++      const yaw = Math.sin(now * 0.002 + r.x + r.z) * 0.5 + hop.spin
++      this.items.put(key, { x: r.x, y, z: r.z, pitch: ITEM_PITCH, yaw })
++      if (!this.iconSlots.has(key)) {
++        const icon = ITEM_ORDER.indexOf(r.kind)
++        this.iconSlots.add(key)
++        this.iconSlots.write(key, (buf, o) => (buf[o] = icon))
++      }
++    }
++    for (const [ci, w] of this.closing) {
++      if (w.done) continue
++      const t = (now - w.born) / DROP_MS
++      if (t < 1) {
++        this.sudden.put(ci, { x: w.x, y: DROP_FROM * (1 - t * t), z: w.z })
++        continue
++      }
++      const u = (now - w.born - DROP_MS) / LAND_MS
++      if (u >= 1) {
++        w.done = true
++        this.sudden.put(ci, { x: w.x, y: 0, z: w.z })
++        continue
++      }
++      // 落地回彈：0.85 → 1.04 → 1
++      const s = u < 0.5 ? 0.85 + 0.19 * easeOut(u / 0.5) : 1.04 - 0.04 * ((u - 0.5) / 0.5)
++      this.sudden.put(ci, { x: w.x, y: 0, z: w.z, sy: s })
++    }
++    this.syncAll()
++  }
++
++  private syncAll(): void {
++    for (const g of this.groups) g.sync()
++    // 道具圖示屬性：在 matrix 之後上傳（buffer 擴充過就重新綁定）
++    const ic = this.iconSlots
++    if (!ic.dirty) return
++    if (this.iconVersion !== ic.bufferVersion) {
++      this.items.mesh.thinInstanceSetBuffer(ITEM_ICON_ATTR, ic.buffer, 1, false)
++      this.iconVersion = ic.bufferVersion
++    } else {
++      this.items.mesh.thinInstanceBufferUpdated(ITEM_ICON_ATTR)
++    }
++    ic.dirty = false
++  }
++
++  dispose(): void {
++    for (const g of this.groups) g.dispose()
++    this.groups = []
++    for (const m of this.meshes) m.dispose()
++    this.meshes = []
++    this.groundTex?.dispose()
++    this.groundTex = null
++    for (const m of this.mats) m.dispose()
++    for (const t of this.textures) t.dispose()
++    this.mats = []
++    this.toonMats = []
++    this.textures = []
++    this.itemRecs.clear()
++    this.closing.clear()
++  }
++}
+diff --git a/src/babylon/games/tankFx/itemIcon.ts b/src/babylon/games/tankFx/itemIcon.ts
+new file mode 100644
+index 0000000..b58313e
+--- /dev/null
++++ b/src/babylon/games/tankFx/itemIcon.ts
+@@ -0,0 +1,49 @@
++/**
++ * 道具代幣共用一組 thin instance（AC10 省 draw call）：每個實例帶一個浮點屬性 `tankItemIcon`（道具序 0..4），
++ * 掛在 StandardMaterial 上的 material plugin 把整顆代幣的 uv.x 平移到圖集裡那一欄（圖示與外殼色都在同一欄）。
++ * 5 種道具因此只算 1 個 mesh：主畫面、描邊、陰影、Glow 各 1 次，而不是各 5 次。
++ */
++import { MaterialPluginBase, ShaderLanguage, type Material, type MaterialDefines } from '@/babylon/babylonCore'
++import { ITEM_ORDER } from '@/babylon/games/tankFx/palette'
++
++/** 實例屬性名（thinInstanceSetBuffer 的 kind） */
++export const ITEM_ICON_ATTR = 'tankItemIcon'
++
++/** 圖集一欄一種道具（textures.ts 的 createItemAtlas 同序）；getCustomCode 在 super() 內就會被呼叫，不能放實例欄位 */
++const STEP = (1 / ITEM_ORDER.length).toFixed(6)
++
++class ItemIconPlugin extends MaterialPluginBase {
++  constructor(material: Material) {
++    super(material, 'TankItemIcon', 210, { TANK_ITEMICON: false }, true, true)
++  }
++
++  override getClassName(): string {
++    return 'TankItemIconPlugin'
++  }
++
++  override isCompatible(shaderLanguage: ShaderLanguage): boolean {
++    return shaderLanguage === ShaderLanguage.GLSL
++  }
++
++  override prepareDefines(defines: MaterialDefines): void {
++    defines.TANK_ITEMICON = true
++  }
++
++  override getAttributes(attributes: string[]): void {
++    attributes.push(ITEM_ICON_ATTR)
++  }
++
++  override getCustomCode(shaderType: string): { [pointName: string]: string } | null {
++    if (shaderType !== 'vertex') return null
++    return {
++      CUSTOM_VERTEX_DEFINITIONS: `#ifdef TANK_ITEMICON\nattribute float ${ITEM_ICON_ATTR};\n#endif`,
++      CUSTOM_VERTEX_UPDATE_POSITION: `#if defined(TANK_ITEMICON) && defined(UV1)\nuvUpdated.x += ${ITEM_ICON_ATTR} * ${STEP};\n#endif`,
++    }
++  }
++}
++
++/** 替材質掛上「依實例換圖集欄」 */
++export function applyItemIcon(material: Material): void {
++  if (material.pluginManager?.getPlugin('TankItemIcon')) return
++  new ItemIconPlugin(material)
++}
+diff --git a/src/babylon/games/tankFx/juice.test.ts b/src/babylon/games/tankFx/juice.test.ts
+new file mode 100644
+index 0000000..c52648a
+--- /dev/null
++++ b/src/babylon/games/tankFx/juice.test.ts
+@@ -0,0 +1,48 @@
++import { describe, expect, it } from 'vitest'
++import { FIRE_SQUASH, HIT_SQUASH, recoilZ, squashPose, RECOIL_DIST } from '@/babylon/games/tankFx/juice'
++
++describe('squashPose（spec §7 開砲與受擊共用曲線）', () => {
++  const amp = 0.2
++  it('t=0 與 t=1 回到原狀', () => {
++    expect(squashPose(0, amp).sy).toBeCloseTo(1, 6)
++    expect(squashPose(1, amp).sy).toBeCloseTo(1, 6)
++    expect(squashPose(1, amp).sxz).toBeCloseTo(1, 6)
++  })
++  it('t≈0.17 壓到最低 1−amp', () => {
++    expect(squashPose(0.175, amp).sy).toBeCloseTo(1 - amp, 3)
++  })
++  it('t≈0.6 彈高約 1+0.3·amp', () => {
++    expect(squashPose(0.6, amp).sy).toBeCloseTo(1 + 0.3 * amp, 2)
++  })
++  it('體積近似守恆：壓扁時橫向變寬', () => {
++    const p = squashPose(0.175, amp)
++    expect(p.sxz).toBeCloseTo(1 + amp * 0.5, 3)
++  })
++  it('超出範圍夾住', () => {
++    expect(squashPose(-1, amp).sy).toBe(1)
++    expect(squashPose(2, amp).sy).toBe(1)
++  })
++  it('開砲與受擊參數照 spec', () => {
++    expect(FIRE_SQUASH).toEqual({ amp: 0.12, ms: 180 })
++    expect(HIT_SQUASH).toEqual({ amp: 0.22, ms: 260 })
++  })
++})
++
++describe('recoilZ（砲管後座）', () => {
++  it('0.15 時退到最遠，0 與 1 在原位', () => {
++    expect(recoilZ(0)).toBeCloseTo(0, 6)
++    expect(recoilZ(0.15)).toBeCloseTo(-RECOIL_DIST, 6)
++    expect(recoilZ(1)).toBeCloseTo(0, 6)
++  })
++  it('回位途中介於兩者之間且單調', () => {
++    const a = recoilZ(0.4)
++    const b = recoilZ(0.7)
++    expect(a).toBeLessThan(0)
++    expect(b).toBeGreaterThan(a)
++    expect(b).toBeLessThan(0)
++  })
++  it('範圍外為 0', () => {
++    expect(recoilZ(-0.1)).toBe(0)
++    expect(recoilZ(1.5)).toBe(0)
++  })
++})
+diff --git a/src/babylon/games/tankFx/juice.ts b/src/babylon/games/tankFx/juice.ts
+new file mode 100644
+index 0000000..f58b509
+--- /dev/null
++++ b/src/babylon/games/tankFx/juice.ts
+@@ -0,0 +1,33 @@
++/**
++ * 坦克的 juice 曲線（spec §7，純函式）：開砲與受擊共用同一條擠壓回彈，砲管後座另一條。
++ * t 一律是 0..1 的進度（呼叫端用 經過毫秒 / 時長 算），超出範圍回原狀。
++ */
++import { clamp01, easeOut } from '@/babylon/fx/curves'
++
++/** 開砲：振幅 0.12、180ms */
++export const FIRE_SQUASH = { amp: 0.12, ms: 180 } as const
++/** 受擊：振幅 0.22、260ms */
++export const HIT_SQUASH = { amp: 0.22, ms: 260 } as const
++/** 砲管後座距離（local z）與時長 */
++export const RECOIL_DIST = 0.14
++export const RECOIL_MS = 180
++
++/** 回彈段係數：spec 公式寫 0.45，但它的關鍵幀「t≈0.6 時 sy≈1+0.3·amp」要 0.8 才對得上，以關鍵幀為準 */
++const REBOUND = 0.8
++const PRESS_END = 0.35
++
++/** 先往下壓（t≈0.17 最低 1−amp）、再彈高（t≈0.6 約 1+0.3·amp）、t=1 收回；橫向以體積守恆近似 */
++export function squashPose(t: number, amp: number): { sy: number; sxz: number } {
++  if (!(t > 0 && t < 1)) return { sy: 1, sxz: 1 }
++  const press = t < PRESS_END ? Math.sin(Math.PI * (t / PRESS_END)) : 0
++  const rebound = Math.sin(Math.PI * clamp01((t - PRESS_END) / (1 - PRESS_END))) * (1 - t)
++  const sy = 1 - amp * press + amp * REBOUND * rebound
++  return { sy, sxz: 1 + (1 - sy) * 0.5 }
++}
++
++/** 砲管後座：前 15% 退到 −RECOIL_DIST，之後 easeOut 回位 */
++export function recoilZ(t: number): number {
++  if (!(t >= 0 && t <= 1)) return 0
++  if (t < 0.15) return -RECOIL_DIST * (t / 0.15)
++  return -RECOIL_DIST * (1 - easeOut((t - 0.15) / 0.85))
++}
+diff --git a/src/babylon/games/tankFx/models.ts b/src/babylon/games/tankFx/models.ts
+new file mode 100644
+index 0000000..e090091
+--- /dev/null
++++ b/src/babylon/games/tankFx/models.ts
+@@ -0,0 +1,279 @@
++/**
++ * 坦克 A「Toy Army」的程式建模（spec §3／§4）：頂點色＋少量圖集 UV，原點在地面中心、車頭朝 +Z。
++ * 每台坦克 2 個 mesh：hull（車身＋擋泥板＋燈＋負重輪＋履帶，履帶紋走貼圖 UV 捲動）、turret（含旗或天線與砲管；
++ * 砲管後座以 CPU 平移那一段頂點，見 tankModel.ts）。
++ * 場景物件（積木牆、代幣、子彈、預告格、blob 影）各一份 MeshData，交給 thin instance。
++ */
++import { colorize, mergeData, roundedBox, type FaceUV, type MeshData } from '@/babylon/fx/geometry'
++import { at, cylinder, frustum, radial, rgba, solid, sphere, type Rgba } from '@/babylon/fx/models'
++import { PLAYER_PALETTE, TANK, type ColorIndex } from '@/babylon/games/tankFx/palette'
++
++// ---- 履帶貼圖的 UV 分區（textures.ts 的 createTrackTexture 畫同一份配置） ----
++
++/** 貼圖上半（v 0.5–1）全白：車身各部件取這一點，頂點色就是畫面色 */
++export const TRACK_WHITE_UV: FaceUV = [0.02, 0.72, 0.04, 0.78]
++/** 貼圖下半（v 0–0.5）是履帶紋；u 方向重複（WRAP）；v 只取中段避開雙線性取樣滲到白區 */
++const CLEAT_V: [number, number] = [0.06, 0.44]
++/** 履帶長 */
++export const TRACK_LEN = 1.44
++/** 一張履帶紋（8 條亮紋）對應的世界長度：捲動時 uOffset += 移動距離 / TRACK_TILE */
++export const TRACK_TILE = 0.72
++
++const WHITE6: FaceUV[] = Array.from({ length: 6 }, () => TRACK_WHITE_UV)
++
++const box = (w: number, h: number, d: number, r: number, faceUV: FaceUV[] = WHITE6, segments = 2): MeshData =>
++  roundedBox({ width: w, height: h, depth: d, radius: r, segments, faceUV })
++
++/** 圓柱的 uv 一律指到白點（不然頂點色會乘上履帶紋） */
++const whiteUV = (d: MeshData): MeshData => {
++  const [u0, v0] = TRACK_WHITE_UV
++  const uvs = new Array(d.uvs.length)
++  for (let i = 0; i < uvs.length; i += 2) {
++    uvs[i] = u0
++    uvs[i + 1] = v0 + 0.03
++  }
++  return { ...d, uvs }
++}
++
++/** 沿 X 軸的圓柱（負重輪）：pitch 先把 +Y 倒到 +Z，yaw 再把 +Z 轉到 +X */
++const AXIS_X = { pitch: Math.PI / 2, yaw: Math.PI / 2 } as const
++/** 沿 Z 軸的圓柱（車燈、砲管） */
++const AXIS_Z = { pitch: Math.PI / 2 } as const
++
++const darker = (c: Rgba, k: number): Rgba => [c[0] * k, c[1] * k, c[2] * k, c[3]]
++
++// ---- 坦克 ----
++
++/** 車身＋擋泥板＋車燈＋負重輪＋履帶（spec §3 hull／tracks；合併成一個 mesh） */
++export function hullData(ci: ColorIndex): MeshData {
++  const pal = PLAYER_PALETTE[ci]
++  const body = at(radial(box(0.72, 0.34, 1.24, 0.12), pal.light, pal.base, pal.dark), { x: 0, y: 0.4, z: 0 })
++  const fenders = [-1, 1].map((s) =>
++    at(solid(box(0.36, 0.06, 0.96, 0.03, WHITE6, 1), rgba(pal.dark)), { x: s * 0.53, y: 0.39, z: 0 })
++  )
++  const lights = [-1, 1].map((s) =>
++    at(solid(whiteUV(cylinder(0.08, 0.12, 10)), rgba(TANK.headlight)), { x: s * 0.24, y: 0.49, z: 0.6, ...AXIS_Z })
++  )
++  const wheels: MeshData[] = []
++  for (const s of [-1, 1]) {
++    for (const z of [-0.45, 0, 0.45]) {
++      wheels.push(at(solid(whiteUV(cylinder(0.04, 0.24, 12)), rgba(TANK.wheel)), { x: s * 0.715, y: 0.18, z, ...AXIS_X }))
++      wheels.push(at(solid(whiteUV(cylinder(0.05, 0.09, 8)), rgba(TANK.hub)), { x: s * 0.725, y: 0.18, z, ...AXIS_X }))
++    }
++  }
++  return mergeData([body, ...fenders, ...lights, ...wheels, ...[-1, 1].map((s) => trackData(s))])
++}
++
++/**
++ * 一條履帶：先沿 X 建（長面 ±Z、頂面 +Y 的 u 都沿長邊），再 yaw 轉成沿 Z。
++ * 三個看得到的面 u 一律朝世界 −Z（+Z 面原本反向，faceUV 翻過來），捲動時三面同向。
++ */
++function trackData(side: number): MeshData {
++  const u = TRACK_LEN / TRACK_TILE
++  const [v0, v1] = CLEAT_V
++  const end: FaceUV = [0, v0, 0.12, v1]
++  const faceUV: FaceUV[] = [
++    [u, v0, 0, v1], // +Z（轉後朝 +X）
++    [0, v0, u, v1], // −Z（轉後朝 −X）
++    end,
++    end,
++    [0, v0, u, v1], // +Y
++    [0, v0, u, v1], // −Y
++  ]
++  const raw = roundedBox({ width: TRACK_LEN, height: 0.36, depth: 0.34, radius: 0.15, segments: 2, faceUV })
++  const top = rgba('#FFFFFF')
++  const sideC = rgba('#C9C6D8')
++  const shaded = colorize(raw, (_p, n) => (n[1] > 0.6 ? top : sideC))
++  return at(shaded, { x: side * 0.53, y: 0.18, z: 0, yaw: Math.PI / 2 })
++}
++
++/** 砲塔樞紐在車身座標的 z（spec §3：(0, 0, −0.05)） */
++export const TURRET_PIVOT_Z = -0.05
++
++/** 砲塔＋砲管合併；barrelStart／barrelCount 為砲管那一段頂點（後座時沿 z 平移） */
++export interface TurretMesh {
++  data: MeshData
++  barrelStart: number
++  barrelCount: number
++}
++
++export function turretMeshData(ci: ColorIndex, isBot: boolean): TurretMesh {
++  const body = turretData(ci, isBot)
++  const barrel = at(barrelData(), { x: 0, y: BARREL_Y, z: 0 })
++  return { data: mergeData([body, barrel]), barrelStart: body.positions.length / 3, barrelCount: barrel.positions.length / 3 }
++}
++
++/** 砲塔（座圈＋圓頂＋臉板＋眼睛＋艙蓋＋旗或天線），座標以樞紐為原點 */
++function turretData(ci: ColorIndex, isBot: boolean): MeshData {
++  const pal = PLAYER_PALETTE[ci]
++  const ring = at(radial(whiteUV(frustum(0.23, 0.72, 0.76, 20)), pal.base, pal.base, pal.dark), { x: 0, y: 0.685, z: 0 })
++  const dome = at(radial(whiteUV(sphere(0.66, 16)), pal.light, pal.base, pal.dark), { x: 0, y: 0.8, z: 0, sy: 0.42 })
++  const face = at(solid(box(0.36, 0.12, 0.08, 0.03), rgba(TANK.face)), { x: 0, y: 0.84, z: 0.28 })
++  const eyes: MeshData[] = []
++  for (const s of [-1, 1]) {
++    eyes.push(at(solid(whiteUV(sphere(0.085, 8)), rgba(TANK.eye)), { x: s * 0.085, y: 0.84, z: 0.32, sz: 0.5 }))
++    eyes.push(at(solid(whiteUV(sphere(0.03, 6)), rgba('#FFFFFF')), { x: s * 0.085 + 0.016, y: 0.858, z: 0.338 }))
++  }
++  const hatch = at(solid(whiteUV(cylinder(0.04, 0.2, 14)), rgba(pal.light)), { x: 0, y: 0.94, z: -0.1 })
++  const extra = isBot ? antennaData() : flagData(pal.base)
++  const parts = [ring, dome, face, ...eyes, hatch, ...extra]
++  return at(mergeData(parts), { x: 0, y: 0, z: -TURRET_PIVOT_Z })
++}
++
++function flagData(base: string): MeshData[] {
++  const px = -0.22
++  const pz = -0.22
++  const pole = at(solid(whiteUV(cylinder(0.52, 0.05, 6)), rgba(TANK.barrelDark)), { x: px, y: 1.16, z: pz })
++  // 三角旗往 −Z 飄：雙面（兩組相反繞序；Babylon 正面為 cross(b−a, c−a) 與法線反向），頂點色本色
++  const top = 1.42
++  const bot = 1.24
++  const tipZ = pz - 0.32
++  const tipY = (top + bot) / 2
++  const c = rgba(base)
++  const [u, v] = [TRACK_WHITE_UV[0], TRACK_WHITE_UV[1] + 0.03]
++  const flag: MeshData = {
++    positions: [px, top, pz, px, bot, pz, px, tipY, tipZ, px, top, pz, px, bot, pz, px, tipY, tipZ],
++    normals: [1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0],
++    uvs: [u, v, u, v, u, v, u, v, u, v, u, v],
++    indices: [0, 2, 1, 3, 4, 5],
++    colors: [...c, ...c, ...c, ...darker(c, 0.85), ...darker(c, 0.85), ...darker(c, 0.85)],
++  }
++  return [pole, flag]
++}
++
++function antennaData(): MeshData[] {
++  const px = -0.22
++  const pz = -0.22
++  return [
++    at(solid(whiteUV(cylinder(0.45, 0.04, 6)), rgba(TANK.barrelDark)), { x: px, y: 1.125, z: pz }),
++    at(solid(whiteUV(sphere(0.14, 10)), rgba(TANK.aiBall)), { x: px, y: 1.37, z: pz }),
++  ]
++}
++
++/** 砲管在砲塔座標的高度（mesh 擺在這個 y，後座改 position.z） */
++export const BARREL_Y = 0.68
++
++/** 砲管＋砲口環＋砲口黑洞，座標以 (0, BARREL_Y, 0) 為原點、沿 +Z */
++function barrelData(): MeshData {
++  const z0 = 0.6 - TURRET_PIVOT_Z
++  const tube = at(radial(whiteUV(cylinder(0.62, 0.16, 12)), '#B4BBD6', TANK.barrel, TANK.barrelDark), { x: 0, y: 0, z: z0, ...AXIS_Z })
++  const ring = at(solid(whiteUV(cylinder(0.1, 0.22, 14)), rgba(TANK.barrelDark)), { x: 0, y: 0, z: z0 + 0.32, ...AXIS_Z })
++  const hole = at(solid(whiteUV(cylinder(0.02, 0.12, 10)), rgba(TANK.muzzle)), { x: 0, y: 0, z: z0 + 0.372, ...AXIS_Z })
++  return mergeData([tube, ring, hole])
++}
++
++/** 砲口在砲塔座標的 z（之後特效對位用） */
++export const MUZZLE_Z = 0.6 - TURRET_PIVOT_Z + 0.37
++
++// ---- 場景 ----
++
++export interface BrickColors {
++  top: string
++  side: string
++  sideDark: string
++  band: string
++  stud: string
++  studSide: string
++}
++
++export const WALL_COLORS: BrickColors = {
++  top: TANK.wallTop,
++  side: TANK.wallSide,
++  sideDark: TANK.wallSideDark,
++  band: TANK.wallBand,
++  stud: TANK.stud,
++  studSide: TANK.studSide,
++}
++export const BORDER_COLORS: BrickColors = {
++  top: TANK.borderTop,
++  side: TANK.borderSide,
++  sideDark: '#5A5078',
++  band: TANK.borderStud,
++  stud: TANK.borderStud,
++  studSide: TANK.borderStudSide,
++}
++export const CLOSE_COLORS: BrickColors = {
++  top: TANK.closeTop,
++  side: TANK.closeSide,
++  sideDark: '#9E2C27',
++  band: TANK.closeStud,
++  stud: TANK.closeStud,
++  studSide: TANK.closeStudSide,
++}
++
++/** 積木塊高（柱牆、落牆）；外框以實例 sy 撐到 1.9 */
++export const BRICK_H = 1.7
++
++/** 積木：圓角盒 1.9×1.7×1.9＋頂面 2×2 凸點（spec §4），底面貼地 */
++export function brickData(c: BrickColors): MeshData {
++  const w = 1.9
++  const h = BRICK_H
++  const top = rgba(c.top)
++  const side = rgba(c.side)
++  const sideDark = rgba(c.sideDark)
++  const band = rgba(c.band)
++  const body = colorize(at(box(w, h, w, 0.18), { x: 0, y: h / 2, z: 0 }), (p, n) => {
++    if (n[1] > 0.7) return top
++    if (p[1] > h * 0.82) return band
++    if (p[1] < h * 0.12) return sideDark
++    return side
++  })
++  const stud = rgba(c.stud)
++  const studSide = rgba(c.studSide)
++  const studs: MeshData[] = []
++  for (const sx of [-1, 1]) {
++    for (const sz of [-1, 1]) {
++      const s = colorize(whiteUV(cylinder(0.16, 0.54, 16)), (_p, n) => (n[1] > 0.7 ? stud : studSide))
++      studs.push(at(s, { x: sx * 0.45, y: h + 0.08, z: sz * 0.45 }))
++    }
++  }
++  return mergeData([body, ...studs])
++}
++
++/** 子彈：球 d 0.3（材質給 emissive，頂點色全白） */
++export const bulletData = (): MeshData => solid(sphere(0.3, 10), rgba('#FFFFFF'))
++
++/**
++ * 道具代幣：圓角方塊外殼＋下唇＋高光條＋正面圖示 quad，頂點色全白、顏色全取圖集第 0 欄
++ * （5 種道具共用這一份 mesh，shader 依實例屬性平移到各自那一欄，見 itemIcon.ts）。
++ * 圖示朝 +Y，實例以 pitch 往鏡頭仰（同 bomber 代幣）。
++ */
++export function tokenData(uv: { icon: FaceUV; shell: FaceUV; lip: FaceUV; white: FaceUV }): MeshData {
++  const W = 0.9
++  const D = 0.86
++  const six = (f: FaceUV) => Array.from({ length: 6 }, () => f)
++  const shellBox = roundedBox({ width: W, height: 0.22, depth: D, radius: 0.1, segments: 2, faceUV: six(uv.shell) })
++  const lipBox = at(roundedBox({ width: W, height: 0.18, depth: D, radius: 0.08, segments: 1, faceUV: six(uv.lip) }), { x: 0, y: -0.1, z: 0 })
++  const shine = at(roundedBox({ width: 0.26, height: 0.02, depth: 0.08, radius: 0.01, segments: 1, faceUV: six(uv.white) }), {
++    x: -0.2,
++    y: 0.112,
++    z: 0.32,
++  })
++  const q = 0.66
++  const y = 0.113
++  const [u0, v0, u1, v1] = uv.icon
++  const icon: MeshData = {
++    positions: [-q / 2, y, -q / 2, q / 2, y, -q / 2, q / 2, y, q / 2, -q / 2, y, q / 2],
++    normals: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
++    uvs: [u0, v0, u1, v0, u1, v1, u0, v1],
++    indices: [0, 1, 2, 0, 2, 3],
++  }
++  return mergeData([shellBox, lipBox, shine, icon])
++}
++
++/** 場外延伸底色（120²）＋外框底下的深色基座（plinth）合成一個 mesh，頂點色、不受光 */
++export function voidData(plinthSize: number): MeshData {
++  const quad = (size: number, y: number, hex: string): MeshData => solid(groundQuadData(size, y), rgba(hex))
++  return mergeData([quad(120, -0.02, TANK.void), quad(plinthSize, -0.01, TANK.plinth)])
++}
++
++/** 貼地正方形（預告格、blob 影）：邊長 size，y 高度 */
++export const groundQuadData = (size: number, y: number): MeshData => {
++  const q = size / 2
++  return {
++    positions: [-q, y, -q, q, y, -q, q, y, q, -q, y, q],
++    normals: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
++    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
++    indices: [0, 1, 2, 0, 2, 3],
++  }
++}
+diff --git a/src/babylon/games/tankFx/palette.test.ts b/src/babylon/games/tankFx/palette.test.ts
+new file mode 100644
+index 0000000..304b8e0
+--- /dev/null
++++ b/src/babylon/games/tankFx/palette.test.ts
+@@ -0,0 +1,23 @@
++import { describe, expect, it } from 'vitest'
++import { ITEM_COLORS, ITEM_ORDER, TANK } from '@/babylon/games/tankFx/palette'
++import { ITEM_KINDS } from '@/babylon/games/tankFx/combat'
++
++const HEX = /^#[0-9A-F]{6}$/i
++
++describe('tankFx palette（spec §2.2／§2.3）', () => {
++  it('五種道具都有底色、唇色與圖示色', () => {
++    expect([...ITEM_ORDER].sort()).toEqual([...ITEM_KINDS].sort())
++    for (const k of ITEM_KINDS) {
++      expect(ITEM_COLORS[k].shell).toMatch(HEX)
++      expect(ITEM_COLORS[k].lip).toMatch(HEX)
++      expect(ITEM_COLORS[k].icon).toMatch(HEX)
++    }
++  })
++  it('場景色都是合法 hex', () => {
++    for (const v of Object.values(TANK)) expect(v).toMatch(HEX)
++  })
++  it('地面跟 bomber 草綠拉開、場外底色照 spec', () => {
++    expect(TANK.groundA).toBe('#A9B67F')
++    expect(TANK.void).toBe('#22302C')
++  })
++})
+diff --git a/src/babylon/games/tankFx/palette.ts b/src/babylon/games/tankFx/palette.ts
+new file mode 100644
+index 0000000..836ab37
+--- /dev/null
++++ b/src/babylon/games/tankFx/palette.ts
+@@ -0,0 +1,67 @@
++/**
++ * 坦克 A「Toy Army」場景色票（spec §2.2／§2.3）：純資料，不依賴 Babylon。玩家色沿用 fx/palette 的 PLAYER_PALETTE。
++ */
++import type { ItemKind } from '@/babylon/games/tankFx/combat'
++
++export { OUTLINE, PLAYER_PALETTE, type ColorIndex } from '@/babylon/fx/palette'
++
++export const TANK = {
++  groundA: '#A9B67F',
++  groundB: '#9DAB72',
++  groundSeam: '#8E9C66',
++  camo: '#93A169',
++  void: '#22302C',
++  plinth: '#1A2421',
++  wallTop: '#E3E6EF',
++  wallSide: '#9BA1B8',
++  wallSideDark: '#767C95',
++  wallBand: '#F1F3F8',
++  stud: '#EDEFF5',
++  studSide: '#B9BFD0',
++  borderTop: '#B3A4C9',
++  borderSide: '#6F6490',
++  borderStud: '#C9BEDB',
++  borderStudSide: '#8C80AA',
++  closeTop: '#FF5A4E',
++  closeSide: '#C23A33',
++  closeStud: '#FF8A80',
++  closeStudSide: '#D9483F',
++  warn: '#FF3B30',
++  trackTop: '#4A4566',
++  trackSide: '#3A3556',
++  cleat: '#6E6890',
++  wheel: '#8E9AB0',
++  hub: '#C3CBD8',
++  barrel: '#8A93B8',
++  barrelDark: '#5B6285',
++  muzzle: '#3A3F5C',
++  face: '#FFF1E0',
++  eye: '#2B2440',
++  headlight: '#FFF6C8',
++  aiBall: '#39E6FF',
++  bullet: '#FFF1B8',
++  bulletHot: '#FFD23F',
++  bounce: '#FF5A4E',
++  shield: '#39D5FF',
++  shieldFill: '#7FE8FF',
++  triple: '#B07CFF',
++  dust: '#E4DCC0',
++} as const
++
++export interface ItemColor {
++  shell: string
++  lip: string
++  icon: string
++}
++
++/** 道具代幣：底色、暗階下唇、圖示色 */
++export const ITEM_COLORS: Record<ItemKind, ItemColor> = {
++  hp: { shell: '#FF5C8A', lip: '#C2335E', icon: '#FFFFFF' },
++  speed: { shell: '#FFD23F', lip: '#C79A00', icon: '#3A2A00' },
++  rapid: { shell: '#FF6B3D', lip: '#C2441B', icon: '#FFFFFF' },
++  shield: { shell: '#1FB5E0', lip: '#0B7FA6', icon: '#FFFFFF' },
++  triple: { shell: '#B07CFF', lip: '#7A45D6', icon: '#FFFFFF' },
++}
++
++/** 道具圖集的格序（textures.ts 的 itemCellUV 用） */
++export const ITEM_ORDER: readonly ItemKind[] = ['hp', 'speed', 'rapid', 'shield', 'triple']
+diff --git a/src/babylon/games/tankFx/tankModel.ts b/src/babylon/games/tankFx/tankModel.ts
+new file mode 100644
+index 0000000..66bd1f7
+--- /dev/null
++++ b/src/babylon/games/tankFx/tankModel.ts
+@@ -0,0 +1,209 @@
++/**
++ * 玩具坦克化身（spec §3／§6）：每台 2 個 mesh（hull 含履帶、turret 含旗／天線與砲管）＋自己頭上的「你」標記。
++ * 砲管不另拆 mesh（每拆一個要多主畫面、描邊 ×2、陰影共 4 個 draw call），後座改由 CPU 平移砲管那段頂點。
++ * 共用材質與各色頂點資料放 TankKit；履帶紋每台一張小貼圖（uOffset 各自捲動）。
++ * 動作（擠壓回彈、後座、履帶捲動）在 poseTank，遊戲邏輯留在 tank.ts。
++ */
++import { Color3, Mesh, MeshBuilder, StandardMaterial, type DynamicTexture, type Scene } from '@/babylon/babylonCore'
++import type { MeshData } from '@/babylon/fx/geometry'
++import { toMesh } from '@/babylon/fx/models'
++import { createLabelTexture } from '@/babylon/fx/textures'
++import { FIRE_SQUASH, HIT_SQUASH, RECOIL_MS, recoilZ, squashPose } from '@/babylon/games/tankFx/juice'
++import { TRACK_TILE, TURRET_PIVOT_Z, hullData, turretMeshData, type TurretMesh } from '@/babylon/games/tankFx/models'
++import { PLAYER_PALETTE, type ColorIndex } from '@/babylon/games/tankFx/palette'
++import { createTrackTexture } from '@/babylon/games/tankFx/textures'
++
++export interface TankRig {
++  root: Mesh
++  hull: Mesh
++  turret: Mesh
++  /** 砲塔原始頂點與砲管段（後座用） */
++  turretBase: Float32Array
++  turretPos: Float32Array
++  barrelStart: number
++  barrelCount: number
++  /** 目前已套到頂點上的後座量 */
++  recoil: number
++  /** 只有自己有 */
++  label: Mesh | null
++  /** 投影／描邊／無敵閃爍的對象 */
++  parts: Mesh[]
++  trackTex: DynamicTexture
++  hullMat: StandardMaterial
++  colorIndex: ColorIndex
++  isBot: boolean
++  /** 動畫起點（performance.now；-Infinity = 沒在播） */
++  fireAt: number
++  hitAt: number
++  /** 上一幀的位置（算履帶捲動距離） */
++  lastX: number
++  lastZ: number
++}
++
++/** 「你」標記高度與尺寸（spec §3） */
++const LABEL_Y = 2.0
++/** 單幀位移超過這個視為瞬移（重生、插值跳點），不算進履帶捲動 */
++const TELEPORT = 1.5
++
++export class TankKit {
++  private readonly scene: Scene
++  readonly turretMat: StandardMaterial
++  private readonly hullCache = new Map<ColorIndex, MeshData>()
++  private readonly turretCache = new Map<string, TurretMesh>()
++  private labelMats = new Map<ColorIndex, StandardMaterial>()
++  /** 新建的材質交給呼叫端掛 toon（ToyLook） */
++  onMaterial: (m: StandardMaterial) => void = () => undefined
++
++  constructor(scene: Scene) {
++    this.scene = scene
++    this.turretMat = this.vcMat('tank-turret-mat')
++  }
++
++  private vcMat(name: string): StandardMaterial {
++    const m = new StandardMaterial(name, this.scene)
++    m.specularColor = Color3.Black()
++    return m
++  }
++
++  private hullOf(ci: ColorIndex): MeshData {
++    let d = this.hullCache.get(ci)
++    if (!d) this.hullCache.set(ci, (d = hullData(ci)))
++    return d
++  }
++
++  private turretOf(ci: ColorIndex, isBot: boolean): TurretMesh {
++    const k = `${ci}-${isBot ? 1 : 0}`
++    let d = this.turretCache.get(k)
++    if (!d) this.turretCache.set(k, (d = turretMeshData(ci, isBot)))
++    return d
++  }
++
++  private labelMat(ci: ColorIndex): StandardMaterial {
++    let m = this.labelMats.get(ci)
++    if (m) return m
++    const tex = createLabelTexture(this.scene, `tank-you-${ci}`, '你', PLAYER_PALETTE[ci].base)
++    m = new StandardMaterial(`tank-you-mat-${ci}`, this.scene)
++    m.diffuseTexture = tex
++    m.emissiveTexture = tex
++    m.useAlphaFromDiffuseTexture = true
++    m.disableLighting = true
++    m.backFaceCulling = false
++    this.labelMats.set(ci, m)
++    return m
++  }
++
++  build(id: string, ci: ColorIndex, isBot: boolean, isSelf: boolean, x: number, z: number): TankRig {
++    const scene = this.scene
++    const root = new Mesh(`tank-${id}`, scene)
++    root.position.set(x, 0, z)
++
++    const trackTex = createTrackTexture(scene, `tank-track-tex-${id}`)
++    const hullMat = this.vcMat(`tank-hull-mat-${id}`)
++    hullMat.diffuseTexture = trackTex
++    this.onMaterial(hullMat)
++
++    const hull = toMesh(`tank-hull-${id}`, this.hullOf(ci), scene, true)
++    hull.material = hullMat
++    hull.parent = root
++    const tm = this.turretOf(ci, isBot)
++    const turret = toMesh(`tank-turret-${id}`, tm.data, scene, true)
++    turret.material = this.turretMat
++    turret.parent = hull
++    turret.position.z = TURRET_PIVOT_Z
++
++    let label: Mesh | null = null
++    if (isSelf) {
++      label = MeshBuilder.CreatePlane(`tank-you-${id}`, { width: 0.9, height: 0.45 }, scene)
++      label.material = this.labelMat(ci)
++      label.parent = root
++      label.position.y = LABEL_Y
++      label.billboardMode = Mesh.BILLBOARDMODE_ALL
++      label.isPickable = false
++    }
++    for (const m of [hull, turret]) m.isPickable = false
++
++    return {
++      root,
++      hull,
++      turret,
++      turretBase: new Float32Array(tm.data.positions),
++      turretPos: new Float32Array(tm.data.positions),
++      barrelStart: tm.barrelStart,
++      barrelCount: tm.barrelCount,
++      recoil: 0,
++      label,
++      parts: [hull, turret],
++      trackTex,
++      hullMat,
++      colorIndex: ci,
++      isBot,
++      fireAt: -Infinity,
++      hitAt: -Infinity,
++      lastX: x,
++      lastZ: z,
++    }
++  }
++
++  /** 名冊變動（bot 補位、有人離房）換色：只換頂點色，不重建 mesh */
++  repaint(rig: TankRig, ci: ColorIndex): void {
++    if (rig.colorIndex === ci) return
++    rig.colorIndex = ci
++    const hc = this.hullOf(ci).colors
++    const tc = this.turretOf(ci, rig.isBot).data.colors
++    if (hc) rig.hull.setVerticesData('color', hc, true)
++    if (tc) rig.turret.setVerticesData('color', tc, true)
++    if (rig.label) rig.label.material = this.labelMat(ci)
++  }
++
++  dispose(): void {
++    this.turretMat.dispose()
++    for (const m of this.labelMats.values()) {
++      m.diffuseTexture?.dispose()
++      m.dispose()
++    }
++    this.labelMats.clear()
++  }
++}
++
++/** 拆一台坦克（含每台自己的履帶貼圖與材質） */
++export function disposeTank(rig: TankRig): void {
++  rig.root.dispose(false, false)
++  rig.hullMat.dispose()
++  rig.trackTex.dispose()
++}
++
++/**
++ * 每幀擺姿勢：擠壓回彈（受擊優先於開砲，作用在 hull，砲塔是子物件一起壓）、砲管後座、履帶依實際位移捲動。
++ * root 的位置與朝向、砲塔角度由呼叫端先寫好。
++ */
++export function poseTank(rig: TankRig, now: number): void {
++  const hitT = (now - rig.hitAt) / HIT_SQUASH.ms
++  const fireT = (now - rig.fireAt) / FIRE_SQUASH.ms
++  const sq = hitT >= 0 && hitT < 1 ? squashPose(hitT, HIT_SQUASH.amp) : squashPose(fireT, FIRE_SQUASH.amp)
++  rig.hull.scaling.set(sq.sxz, sq.sy, sq.sxz)
++  setRecoil(rig, recoilZ((now - rig.fireAt) / RECOIL_MS))
++
++  const p = rig.root.position
++  const dx = p.x - rig.lastX
++  const dz = p.z - rig.lastZ
++  const dist = Math.hypot(dx, dz)
++  rig.lastX = p.x
++  rig.lastZ = p.z
++  if (dist > 1e-4 && dist < TELEPORT) {
++    // 位移與車頭同向為前進、反向（擊退）為後退
++    const ry = rig.root.rotation.y
++    const sign = dx * Math.sin(ry) + dz * Math.cos(ry) >= 0 ? 1 : -1
++    rig.trackTex.uOffset = (((rig.trackTex.uOffset + (sign * dist) / TRACK_TILE) % 1) + 1) % 1
++  }
++}
++
++/** 砲管那段頂點沿 z 平移到 dz（沒變就不上傳） */
++function setRecoil(rig: TankRig, dz: number): void {
++  if (Math.abs(dz - rig.recoil) < 1e-4) return
++  rig.recoil = dz
++  const base = rig.turretBase
++  const out = rig.turretPos
++  const end = (rig.barrelStart + rig.barrelCount) * 3
++  for (let o = rig.barrelStart * 3 + 2; o < end; o += 3) out[o] = base[o] + dz
++  rig.turret.updateVerticesData('position', out)
++}
+diff --git a/src/babylon/games/tankFx/textures.ts b/src/babylon/games/tankFx/textures.ts
+new file mode 100644
+index 0000000..9947ba5
+--- /dev/null
++++ b/src/babylon/games/tankFx/textures.ts
+@@ -0,0 +1,253 @@
++/**
++ * 坦克 A「Toy Army」的程式貼圖（DynamicTexture + Canvas 2D，不載入外部圖檔；spec §4／§10）：
++ * 地面沙盤（棋盤＋格縫＋迷彩斑點＋烘進去的牆根陰影）、履帶紋、道具圖集、落牆預告格、blob 影。
++ * canvas 上方 = 貼圖 v=1（CreateGround 的 v=1 在世界 +Z），所以格子 cy 由下往上畫。
++ */
++import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
++import type { FaceUV } from '@/babylon/fx/geometry'
++import { ctxOf, roundRect } from '@/babylon/fx/textures'
++import { ITEM_COLORS, ITEM_ORDER, OUTLINE, TANK } from '@/babylon/games/tankFx/palette'
++import type { CellPred } from '@/babylon/games/tankFx/grid'
++
++/** 決定性小亂數（貼圖點綴用，各端一致） */
++const rand = (seed: number): (() => number) => {
++  let s = seed >>> 0
++  return () => {
++    s = (Math.imul(s ^ (s >>> 15), 0x2c1b3c6d) + 0x9e3779b9) >>> 0
++    return s / 0x100000000
++  }
++}
++
++/** 地面每格像素（16 格 × 32 = 512²） */
++const GROUND_PX = 32
++
++/** 玩具沙盤：A／B 棋盤、1px 格縫、每 4×4 格 1–2 塊迷彩斑點；isWall 的格子四周烘 3px 接地陰影 */
++export function createGroundTexture(scene: Scene, gridW: number, gridH: number, isWall: CellPred): DynamicTexture {
++  const PX = GROUND_PX
++  const W = gridW * PX
++  const H = gridH * PX
++  const tex = new DynamicTexture('tank-ground-tex', { width: W, height: H }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  const g = ctxOf(tex)
++  const yOf = (cy: number) => (gridH - 1 - cy) * PX
++  for (let cy = 0; cy < gridH; cy++) {
++    for (let cx = 0; cx < gridW; cx++) {
++      g.fillStyle = (cx + cy) % 2 === 0 ? TANK.groundA : TANK.groundB
++      g.fillRect(cx * PX, yOf(cy), PX, PX)
++    }
++  }
++  // 迷彩斑點：每 4×4 區塊 1–2 塊不規則橢圓
++  const rnd = rand(0x7a4c)
++  g.fillStyle = TANK.camo
++  g.globalAlpha = 0.55
++  for (let by = 0; by < gridH; by += 4) {
++    for (let bx = 0; bx < gridW; bx += 4) {
++      const n = 1 + Math.floor(rnd() * 2)
++      for (let i = 0; i < n; i++) {
++        const x = (bx + rnd() * 4) * PX
++        const y = (gridH - by - rnd() * 4) * PX
++        const rx = PX * (0.35 + rnd() * 0.4)
++        const ry = PX * (0.25 + rnd() * 0.3)
++        g.beginPath()
++        g.ellipse(x, y, rx, ry, rnd() * Math.PI, 0, Math.PI * 2)
++        g.fill()
++      }
++    }
++  }
++  // 格縫
++  g.globalAlpha = 0.5
++  g.fillStyle = TANK.groundSeam
++  for (let i = 0; i <= gridW; i++) g.fillRect(i * PX, 0, 1, H)
++  for (let i = 0; i <= gridH; i++) g.fillRect(0, i * PX, W, 1)
++  g.globalAlpha = 1
++  // 牆根接地陰影（牆不投即時影，靠烘焙）：牆格四周外擴 3px
++  g.fillStyle = 'rgba(43,36,64,0.18)'
++  const SH = 3
++  for (let cy = 0; cy < gridH; cy++) {
++    for (let cx = 0; cx < gridW; cx++) {
++      if (!isWall(cx, cy)) continue
++      const inset = PX * 0.025
++      roundRect(g, cx * PX + inset - SH, yOf(cy) + inset - SH, PX - inset * 2 + SH * 2, PX - inset * 2 + SH * 2, 6)
++      g.fill()
++    }
++  }
++  // 外框積木壓在場地四周：邊緣再壓一道暗邊
++  g.fillStyle = 'rgba(43,36,64,0.18)'
++  g.fillRect(0, 0, W, SH)
++  g.fillRect(0, H - SH, W, SH)
++  g.fillRect(0, 0, SH, H)
++  g.fillRect(W - SH, 0, SH, H)
++  tex.update()
++  tex.wrapU = Texture.CLAMP_ADDRESSMODE
++  tex.wrapV = Texture.CLAMP_ADDRESSMODE
++  return tex
++}
++
++/** 履帶貼圖 64×32：上半全白（車身部件取這裡），下半 trackTop 底＋每 8px 一條 cleat 亮紋；u 方向 WRAP 捲動 */
++export function createTrackTexture(scene: Scene, name: string): DynamicTexture {
++  const W = 64
++  const H = 32
++  const tex = new DynamicTexture(name, { width: W, height: H }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  const g = ctxOf(tex)
++  g.fillStyle = '#FFFFFF'
++  g.fillRect(0, 0, W, H / 2)
++  g.fillStyle = TANK.trackTop
++  g.fillRect(0, H / 2, W, H / 2)
++  g.fillStyle = TANK.cleat
++  for (let x = 0; x < W; x += 8) g.fillRect(x + 1, H / 2 + 2, 3, H / 2 - 4)
++  g.fillStyle = TANK.trackSide
++  for (let x = 0; x < W; x += 8) g.fillRect(x + 4, H / 2 + 2, 1, H / 2 - 4)
++  tex.update()
++  tex.wrapU = Texture.WRAP_ADDRESSMODE
++  tex.wrapV = Texture.CLAMP_ADDRESSMODE
++  return tex
++}
++
++// ---- 道具圖集：5 欄（每種道具一欄），上半圖示格、下半外殼／下唇／白三塊色票 ----
++
++const ITEM_TILE = 64
++/** 圖集欄數（itemIcon 外掛依實例把 uv.x 平移 kindIndex / ITEM_COLUMNS） */
++export const ITEM_COLUMNS = ITEM_ORDER.length
++
++/** 代幣各部位在第 0 欄的 UV；其他道具由 shader 平移整欄 */
++export interface TokenUV {
++  icon: FaceUV
++  shell: FaceUV
++  lip: FaceUV
++  white: FaceUV
++}
++
++export function tokenUV(): TokenUV {
++  const W = ITEM_TILE * ITEM_COLUMNS
++  const pad = 1 / W
++  const col = 1 / ITEM_COLUMNS
++  // 下半三塊色票各取中心一小點（外殼 0–21px、下唇 21–42px、白 42–64px）
++  const swatch = (cx: number): FaceUV => [cx / W - pad, 0.22, cx / W + pad, 0.28]
++  return {
++    icon: [pad, 0.5 + 0.02, col - pad, 0.98],
++    shell: swatch(10.5),
++    lip: swatch(31.5),
++    white: swatch(53),
++  }
++}
++
++/** lucide 圖示（24×24 viewBox）的 path；triple 為 spec §9.5 的自訂三道扇形彈軌 */
++const ICON_PATHS: Record<string, string[]> = {
++  hp: ['M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z'],
++  speed: [
++    'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z',
++  ],
++  rapid: [
++    'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z',
++  ],
++  shield: [
++    'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z',
++  ],
++}
++
++function drawTriple(g: CanvasRenderingContext2D, color: string): void {
++  g.strokeStyle = color
++  g.fillStyle = color
++  g.lineWidth = 2.6
++  g.lineCap = 'round'
++  g.beginPath()
++  g.moveTo(12, 20)
++  g.lineTo(12, 6)
++  g.moveTo(12, 20)
++  g.lineTo(6.5, 7.5)
++  g.moveTo(12, 20)
++  g.lineTo(17.5, 7.5)
++  g.stroke()
++  for (const [x, y] of [
++    [12, 5],
++    [6, 6.5],
++    [18, 6.5],
++  ]) {
++    g.beginPath()
++    g.arc(x, y, 2.4, 0, Math.PI * 2)
++    g.fill()
++  }
++}
++
++/** 道具圖集 320×128：canvas 上半（v 0.5–1）每欄外殼底色上一個圖示，下半是外殼／下唇／白三塊色票 */
++export function createItemAtlas(scene: Scene): DynamicTexture {
++  const T = ITEM_TILE
++  const tex = new DynamicTexture('tank-item-atlas', { width: T * ITEM_COLUMNS, height: T * 2 }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  const g = ctxOf(tex)
++  ITEM_ORDER.forEach((kind, i) => {
++    const c = ITEM_COLORS[kind]
++    const x0 = i * T
++    g.fillStyle = c.shell
++    g.fillRect(x0, 0, T, T)
++    g.fillRect(x0, T, 21, T)
++    g.fillStyle = c.lip
++    g.fillRect(x0 + 21, T, 21, T)
++    g.fillStyle = '#FFFFFF'
++    g.fillRect(x0 + 42, T, T - 42, T)
++    g.save()
++    g.translate(x0 + T * 0.14, T * 0.14)
++    g.scale((T * 0.72) / 24, (T * 0.72) / 24)
++    if (kind === 'triple') {
++      drawTriple(g, c.icon)
++    } else {
++      g.lineJoin = 'round'
++      for (const d of ICON_PATHS[kind]) {
++        const p = new Path2D(d)
++        g.fillStyle = c.icon
++        g.fill(p)
++        g.lineWidth = 1.6
++        g.strokeStyle = kind === 'speed' ? c.icon : OUTLINE
++        g.globalAlpha = kind === 'speed' ? 1 : 0.35
++        g.stroke(p)
++        g.globalAlpha = 1
++      }
++    }
++    g.restore()
++  })
++  tex.update()
++  return tex
++}
++
++/** 落牆預告格 64²：圓角紅底 50%＋紅邊 100%＋白色 triangle-alert */
++export function createWarnTexture(scene: Scene): DynamicTexture {
++  const S = 64
++  const tex = new DynamicTexture('tank-warn-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = true
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, S, S)
++  roundRect(g, 3, 3, S - 6, S - 6, 9)
++  g.fillStyle = 'rgba(255,59,48,0.5)'
++  g.fill()
++  g.lineWidth = 4
++  g.strokeStyle = TANK.warn
++  g.stroke()
++  g.save()
++  g.translate(S * 0.2, S * 0.2)
++  g.scale((S * 0.6) / 24, (S * 0.6) / 24)
++  g.strokeStyle = '#FFFFFF'
++  g.lineWidth = 2.4
++  g.lineCap = 'round'
++  g.lineJoin = 'round'
++  g.stroke(new Path2D('m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'))
++  g.stroke(new Path2D('M12 9v4'))
++  g.stroke(new Path2D('M12 17h.01'))
++  g.restore()
++  tex.update()
++  return tex
++}
++
++/** blob 影 64²：深紫徑向漸層（陰影被降級關掉時墊在坦克與道具下面） */
++export function createBlobTexture(scene: Scene): DynamicTexture {
++  const S = 64
++  const tex = new DynamicTexture('tank-blob-tex', { width: S, height: S }, scene, false, Texture.BILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = true
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, S, S)
++  const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2)
++  gr.addColorStop(0, 'rgba(43,36,64,0.55)')
++  gr.addColorStop(0.6, 'rgba(43,36,64,0.35)')
++  gr.addColorStop(1, 'rgba(43,36,64,0)')
++  g.fillStyle = gr
++  g.fillRect(0, 0, S, S)
++  tex.update()
++  return tex
++}
+diff --git a/src/babylon/types.ts b/src/babylon/types.ts
+index a7152d6..1109155 100644
+--- a/src/babylon/types.ts
++++ b/src/babylon/types.ts
+@@ -89,36 +89,79 @@ export interface KitchenHud {
+   kind: 'kitchen'
+   /** 本局剩餘秒數，量化到整秒 */
+   remainSec: number
+   score: number
+   delivered: number
+   orders: KitchenHudOrder[]
+   gone: KitchenHudGone[]
+   players: KitchenHudPlayer[]
+ }
+ 
++/** 坦克的計時 buff（護盾另以 shield 旗標表示）；remainSec 量化到整秒 */
++export type TankBuffKind = 'speed' | 'rapid' | 'triple'
++
++export interface TankHudBuff {
++  kind: TankBuffKind
++  remainSec: number
++}
++
++/** 坦克 HUD 玩家卡（含 bot）；colorIndex = 在「ctx.players 依序＋bots 依序」的序號，P 編號 = colorIndex + 1 */
++export interface TankHudPlayer {
++  id: string
++  name: string
++  colorIndex: 0 | 1 | 2 | 3
++  isSelf: boolean
++  isBot: boolean
++  alive: boolean
++  hp: number
++  maxHp: number
++  kills: number
++  shield: boolean
++  buffs: TankHudBuff[]
++}
++
++/** 擊殺通知一則：id 單調遞增（React key）；killer 為 null 表示落牆；名字為顯示名 */
++export interface TankHudFeed {
++  id: number
++  killer: string | null
++  victim: string
++}
++
++/**
++ * 坦克的 React HUD 資料（共用契約：欄位只增不改）。
++ * remainSec 為到突然死亡的剩餘秒數（量化到整秒），進入後為 0 且 suddenDeath 為 true；feed 為最近 3 則擊殺。
++ */
++export interface TankHud {
++  kind: 'tank'
++  remainSec: number
++  suddenDeath: boolean
++  aliveCount: number
++  players: TankHudPlayer[]
++  feed: TankHudFeed[]
++}
++
+ /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
+ export interface GameContext {
+   scene: Scene
+   net: NetTransport
+   selfId: string
+   role: 'host' | 'guest'
+   /** 房主 uid（單人模式即自己）：guest 只信任來自它的權威訊息（安全審查 C1） */
+   hostId: string
+   players: GamePlayer[]
+   /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
+   setOverlay?: (overlay: GameOverlay | null) => void
+   /**
+    * 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件）。
+-   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD。
++   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD、'tank' 走坦克 HUD。
+    */
+-  setHud?: (hud: GameHud | KitchenHud | null) => void
++  setHud?: (hud: GameHud | KitchenHud | TankHud | null) => void
+ }
+ 
+ /**
+  * 對戰遊戲標準介面（計畫 §3）。
+  * 每款 Babylon 遊戲實作此介面 + 一個 Scene；新增遊戲不需 Godot 專案或匯出。
+  */
+ export interface GameModule {
+   readonly gameId: string
+   /** 建場景、註冊輸入、初始網路握手 */
+   init(ctx: GameContext): void
+diff --git a/src/index.css b/src/index.css
+index 44016f4..1481e3f 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1691,10 +1691,248 @@ html {
+     @apply hidden;
+   }
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .kitchen-order-danger,
+   .kitchen-clock[data-urgent='true'] .kitchen-clock-text {
+     @apply animate-none;
+   }
+ }
++
++/* ===== 坦克對戰 HUD（A · Toy Army，tank spec §9）：960×540 設計尺寸，--tank-scale 由 JS 依容器等比縮放；token 與 bomber 玩家卡同套 ===== */
++.tank-hud {
++  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--tank-ink) [--tank-ink:#2b2440] [--tank-paper:#fff6e3] [--tank-plate:#f3e6cc];
++}
++
++.tank-num {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold leading-none tabular-nums;
++}
++
++/* 計時膠囊：頂部中央，到突然死亡的倒數＋存活數 */
++.tank-timer {
++  @apply absolute left-1/2 top-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top))] flex h-[44px] min-w-[200px] -translate-x-1/2 origin-top items-center justify-center gap-2.5 whitespace-nowrap rounded-full border-[2.5px] border-(--tank-ink) bg-(--tank-paper) px-4 text-(--tank-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--tank-scale)];
++}
++.tank-timer-icon {
++  @apply size-5 shrink-0 text-[#ff6a3d];
++}
++.tank-timer-text {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[28px] leading-none tabular-nums;
++}
++.tank-timer-sudden-text {
++  @apply text-[17px] font-black leading-none;
++}
++.tank-timer-sep {
++  @apply h-6 w-[2px] rounded-full bg-[#e4d6bc];
++}
++.tank-timer-alive {
++  @apply text-[14px] font-extrabold text-[#8a7a66];
++}
++.tank-timer-urgent {
++  @apply animate-[tank-pulse_0.5s_ease-in-out_infinite] text-[#ff3b4e];
++}
++.tank-timer-urgent .tank-timer-icon {
++  @apply text-[#ff3b4e];
++}
++.tank-timer-sudden {
++  @apply bg-[#ff3b4e] text-white;
++}
++.tank-timer-sudden .tank-timer-icon,
++.tank-timer-sudden .tank-timer-alive {
++  @apply text-white;
++}
++.tank-timer-sudden .tank-timer-sep {
++  @apply bg-white/50;
++}
++
++/* 兩側玩家卡欄：左 P1／P3、右 P2／P4（同 .bomber-col*；右欄讓出 Battle 的浮動全螢幕鈕） */
++.tank-col {
++  @apply absolute top-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top))] flex flex-col gap-[14px] [scale:calc(var(--tank-scale)_*_0.75)];
++}
++.tank-col-left {
++  @apply left-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-left))] origin-top-left;
++}
++.tank-col-right {
++  @apply top-[max(calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top)),calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px))] right-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-right))] origin-top-right;
++}
++
++.tank-card {
++  @apply relative flex h-[168px] w-[118px] flex-col overflow-hidden rounded-2xl border-[2.5px] border-(--tank-ink) bg-(--tank-paper) text-(--tank-ink) shadow-[0_5px_0_rgba(0,0,0,.4)] transition-[filter,opacity] duration-300;
++}
++.tank-card-dead {
++  @apply opacity-60 grayscale;
++}
++.tank-card-head {
++  @apply flex h-[34px] shrink-0 items-center justify-between gap-1 border-b-[2.5px] border-(--tank-ink) bg-linear-to-b from-(--tc-light) to-(--tc-base) px-2;
++}
++.tank-card-name {
++  @apply min-w-0 truncate text-[15px] font-black text-white [text-shadow:0_1.5px_0_var(--tank-ink)];
++}
++.tank-card-tags {
++  @apply flex shrink-0 items-center;
++}
++.tank-card-no {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold text-[16px] leading-none text-white [text-shadow:0_1.5px_0_var(--tank-ink)];
++}
++.tank-ai-tag {
++  @apply mr-0.5 rounded-[4px] bg-[#39e6ff] px-1 font-['Fredoka',_var(--font-sans)] font-bold text-[10px] leading-[14px] text-(--tank-ink);
++}
++.tank-card-skull {
++  @apply absolute right-1 top-[38px] text-[18px] leading-none;
++}
++.tank-card-avatar {
++  @apply flex h-[66px] shrink-0 items-center justify-center bg-[radial-gradient(circle_at_50%_62%,#efe3cc_0,#efe3cc_30px,transparent_31px)];
++}
++.tank-card-avatar-svg {
++  @apply size-[64px] shrink-0;
++}
++.tank-card-shield {
++  @apply absolute right-1.5 top-[40px] flex size-[26px] items-center justify-center rounded-full border-2 border-(--tank-ink) bg-[#39d5ff];
++}
++.tank-card-shield-icon {
++  @apply size-4 stroke-[2.5] text-white;
++}
++.tank-card-hp {
++  @apply flex h-[22px] shrink-0 items-center justify-center gap-[3px];
++}
++.tank-heart {
++  @apply size-[15px] shrink-0 stroke-[2.5];
++}
++.tank-heart-on {
++  @apply fill-[#ff5c8a] text-[#ff3b6a];
++}
++.tank-heart-off {
++  @apply fill-none text-[#cdbfa6];
++}
++.tank-card-hp-text {
++  @apply text-[14px];
++}
++.tank-card-kills {
++  @apply mx-2 flex h-[22px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-(--tank-plate) text-[15px];
++}
++.tank-card-kills-icon {
++  @apply size-[14px] stroke-[2.5] text-[#ff3b4e];
++}
++.tank-card-buffs {
++  @apply flex h-[20px] shrink-0 justify-center gap-[3px] pt-1;
++}
++.tank-buff {
++  @apply flex h-[15px] min-w-[34px] items-center justify-center gap-0.5 rounded-full border-[1.5px] border-(--tank-ink) px-1 text-[10px];
++}
++.tank-buff-icon {
++  @apply size-[10px] shrink-0 stroke-[2.5];
++}
++
++/* 擊殺通知：貼右欄左側，最多 3 則往下排，3 秒後淡出 */
++.tank-feed {
++  @apply absolute top-[calc(18px_*_var(--tank-scale)_+_env(safe-area-inset-top))] right-[calc(118.5px_*_var(--tank-scale)_+_env(safe-area-inset-right))] flex origin-top-right flex-col items-end gap-1.5 [scale:var(--tank-scale)];
++}
++.tank-feed-item {
++  @apply flex h-[26px] items-center gap-1 whitespace-nowrap rounded-full border-2 border-(--tank-ink) bg-(--tank-paper) px-2 text-[12px] font-black text-(--tank-ink) shadow-[0_3px_0_rgba(0,0,0,.4)] transition-opacity duration-300 animate-[tank-feed-in_0.25s_ease-out];
++}
++.tank-feed-leave {
++  @apply opacity-0;
++}
++.tank-feed-dot {
++  @apply size-[10px] shrink-0 rounded-full border-[1.5px] border-(--tank-ink) bg-[var(--tc-base,#cdbfa6)];
++}
++.tank-feed-name {
++  @apply max-w-[96px] truncate;
++}
++.tank-feed-icon {
++  @apply size-[15px] shrink-0 stroke-[2.5];
++}
++.tank-feed-kill {
++  @apply text-[#ff3b4e];
++}
++.tank-feed-wall {
++  @apply text-[#c23a33];
++}
++.tank-feed-chevron {
++  @apply size-[13px] shrink-0 stroke-[3] text-[#8a7a66];
++}
++
++/* 矮畫面用的頂部頭像膠囊（預設隱藏） */
++.tank-pills {
++  @apply absolute left-1/2 top-[max(6px,env(safe-area-inset-top))] hidden -translate-x-1/2 gap-1.5;
++}
++.tank-pill {
++  @apply relative flex h-[30px] items-center gap-1.5 rounded-full border-2 border-(--tank-ink) bg-(--tank-paper) pr-2 text-(--tank-ink) shadow-[0_3px_0_rgba(0,0,0,.4),inset_0_0_0_2px_var(--tc-base)];
++}
++.tank-pill-avatar {
++  @apply -my-1 size-[34px] shrink-0;
++}
++.tank-pill-stat {
++  @apply flex items-center gap-px font-['Fredoka',_var(--font-sans)] font-bold text-[12px] leading-none;
++}
++.tank-pill-icon {
++  @apply size-[11px] stroke-[2.5];
++}
++.tank-pill-hp {
++  @apply fill-[#ff5c8a] text-[#ff3b6a];
++}
++.tank-pill-kills {
++  @apply text-[#ff3b4e];
++}
++.tank-pill-buff {
++  @apply flex size-[13px] shrink-0 items-center justify-center rounded-full border border-(--tank-ink);
++}
++.tank-pill-buff-icon {
++  @apply size-[8px] stroke-[3];
++}
++.tank-pill-skull {
++  @apply absolute -right-1 -top-1 text-[13px] leading-none;
++}
++/* 護盾：青色外圈＋左上小盾 */
++.tank-pill-shield {
++  @apply outline-2 outline-offset-1 outline-[#39d5ff];
++}
++.tank-pill-shield-icon {
++  @apply absolute -left-1 -top-1 z-10 size-[14px] rounded-full bg-[#39d5ff] p-0.5 stroke-[2.5] text-white;
++}
++
++@keyframes tank-pulse {
++  0%, 100% { transform: scale(1); }
++  50% { transform: scale(1.08); }
++}
++@keyframes tank-feed-in {
++  from { opacity: 0; transform: translateX(16px); }
++  to { opacity: 1; transform: translateX(0); }
++}
++
++/* 矮畫面（手機橫向）：玩家卡改成頂部頭像膠囊，計時膠囊移到下方中央，擊殺通知移到全螢幕鈕下方 */
++@media (max-height: 500px) {
++  .tank-col {
++    @apply hidden;
++  }
++  .tank-pills {
++    @apply flex;
++  }
++  .tank-timer {
++    @apply top-auto bottom-[max(8px,env(safe-area-inset-bottom))] h-[34px] min-w-0 origin-bottom gap-2 px-3 [scale:1];
++  }
++  .tank-timer-text {
++    @apply text-[20px];
++  }
++  .tank-timer-sudden-text {
++    @apply text-[14px];
++  }
++  .tank-timer-icon {
++    @apply size-4;
++  }
++  .tank-timer-sep {
++    @apply h-4;
++  }
++  .tank-timer-alive {
++    @apply text-[12px];
++  }
++  .tank-feed {
++    @apply top-[calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px)] right-[max(0.5rem,env(safe-area-inset-right))] [scale:0.85];
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .tank-timer-urgent,
++  .tank-feed-item {
++    @apply animate-none;
++  }
++}
+diff --git a/src/pages/Battle/BabylonCanvas.tsx b/src/pages/Battle/BabylonCanvas.tsx
+index 48f7473..c15715d 100644
+--- a/src/pages/Battle/BabylonCanvas.tsx
++++ b/src/pages/Battle/BabylonCanvas.tsx
+@@ -1,59 +1,71 @@
+ import { useEffect, useMemo, useRef, useState } from 'react'
+ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
+ import { RotateCw } from 'lucide-react'
+ import { Button } from '@/components/ui/button'
+ import type { NetTransport } from '@/core/webrtc'
+-import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder } from '@/babylon/types'
++import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder, TankHud } from '@/babylon/types'
+ import { getGameFactory } from '@/babylon/games'
+ import type { GameType } from '@/core/room'
+ import { TouchControls, type TouchAction } from './TouchControls'
+ import { BomberHud } from '@/pages/Battle/BomberHud'
+ import { sameHud } from '@/pages/Battle/bomberHud'
+ import { KitchenHud as KitchenHudPanel } from '@/pages/Battle/KitchenHud'
+ import { KITCHEN_LEAVE_MS, collectLeaving, freshGone, isKitchenHud, type LeavingOrder } from '@/pages/Battle/kitchenHud'
++import { TankHud as TankHudPanel } from '@/pages/Battle/TankHud'
++import {
++  TANK_FEED_LEAVE_MS,
++  TANK_FEED_MAX,
++  TANK_FEED_SHOW_MS,
++  TANK_TOUCH_ACTIONS,
++  freshFeed,
++  isTankHud,
++  type TankFeedItem,
++} from '@/pages/Battle/tankHud'
+ 
+ interface BabylonCanvasProps {
+   gameType: GameType
+   net: NetTransport
+   selfId: string
+   role: 'host' | 'guest'
+   /** 房主 uid：遊戲層據此過濾非房主的權威訊息 */
+   hostId: string
+   players: GamePlayer[]
+ }
+ 
+ /**
+  * 各遊戲的行動裝置動作鈕（移動一律由虛擬搖桿 → 方向鍵）。
+  * key 對應遊戲端 e.key.toLowerCase() 後的比對值。
+  */
+ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
+-  tank: [{ label: '🔥', key: ' ' }],
++  tank: TANK_TOUCH_ACTIONS,
+   race: [],
+   bomber: [
+     { label: '💣', key: ' ' },
+     { label: '🧤', key: 'f' },
+   ],
+   overcooked: [{ label: '✋', key: 'e' }],
+ }
+ 
+ /**
+  * Babylon 引擎掛載點（計畫 §2）。負責 Engine/Scene 生命週期、
+  * 依 gameType 實例化 GameModule、把 NetTransport 訊息轉進場景、跑 render loop，
+  * 卸載時依序釋放所有資源。遊戲本身與網路同處 JS context，無 iframe/postMessage。
+  */
+ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
+   const canvasRef = useRef<HTMLCanvasElement>(null)
+   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
+-  const [hud, setHudState] = useState<GameHud | KitchenHud | null>(null)
++  const [hud, setHudState] = useState<GameHud | KitchenHud | TankHud | null>(null)
+   // 廚房 HUD 正在播離場動畫的訂單卡（gone 只出現在一次 setHud，另存起來播完才移除）
+   const [leaving, setLeaving] = useState<LeavingOrder[]>([])
++  // 坦克 HUD 畫面上的擊殺通知：每則從第一次收到起顯示 3 秒、淡出後移除
++  const [tankFeed, setTankFeed] = useState<TankFeedItem[]>([])
+   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
+   const isTouch = useMemo(() => window.matchMedia?.('(pointer: coarse)')?.matches ?? false, [])
+   // 觸控裝置強制橫向：直向時以提示蓋住遊戲，並嘗試原生鎖定方向
+   const [portrait, setPortrait] = useState(false)
+   // players 走 ref，避免列表變動觸發引擎重建（init 只在掛載時讀一次初始值）
+   const playersRef = useRef(players)
+   useEffect(() => {
+     playersRef.current = players
+   }, [players])
+ 
+@@ -100,25 +112,49 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+       leaveSeq += added.length
+       setLeaving((prev) => [...prev, ...added])
+       for (const l of added) {
+         const t = window.setTimeout(() => {
+           leaveTimers.delete(t)
+           setLeaving((prev) => prev.filter((x) => x.key !== l.key))
+         }, KITCHEN_LEAVE_MS[l.reason])
+         leaveTimers.add(t)
+       }
+     }
++    // 坦克擊殺通知：只收沒看過的 id；feed 清空（新的一局）時重置已看過的集合
++    const tankSeen = new Set<number>()
++    const queueTankFeed = (next: TankHud) => {
++      if (next.feed.length === 0) {
++        tankSeen.clear()
++        return
++      }
++      const fresh = freshFeed(tankSeen, next.feed)
++      if (fresh.length === 0) return
++      for (const f of fresh) tankSeen.add(f.id)
++      setTankFeed((prev) => [...prev, ...fresh.map((f) => ({ ...f, leaving: false }))].slice(-TANK_FEED_MAX))
++      const later = (ms: number, fn: () => void) => {
++        const t = window.setTimeout(() => {
++          leaveTimers.delete(t)
++          fn()
++        }, ms)
++        leaveTimers.add(t)
++      }
++      for (const f of fresh) {
++        later(TANK_FEED_SHOW_MS, () => setTankFeed((prev) => prev.map((x) => (x.id === f.id ? { ...x, leaving: true } : x))))
++        later(TANK_FEED_SHOW_MS + TANK_FEED_LEAVE_MS, () => setTankFeed((prev) => prev.filter((x) => x.id !== f.id)))
++      }
++    }
+     // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪；沒有 kind 的一律當 bomber
+-    const setHud = (next: GameHud | KitchenHud | null) => {
++    const setHud = (next: GameHud | KitchenHud | TankHud | null) => {
+       if (isKitchenHud(next)) queueLeaving(next)
+       else prevKitchenOrders = []
+-      setHudState((prev) => (sameHud<GameHud | KitchenHud>(prev, next) ? prev : next))
++      if (isTankHud(next)) queueTankFeed(next)
++      setHudState((prev) => (sameHud<GameHud | KitchenHud | TankHud>(prev, next) ? prev : next))
+     }
+     game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
+ 
+     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
+ 
+     // 遊戲操作鍵（空白鍵/方向鍵）在 canvas 聚焦時不可觸發頁面捲動
+     const SCROLL_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+     const blockScrollKeys = (e: KeyboardEvent) => {
+       if (SCROLL_KEYS.includes(e.key)) e.preventDefault()
+     }
+@@ -167,33 +203,41 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+       canvas.removeEventListener('keydown', blockScrollKeys)
+       offMessage()
+       engine.stopRenderLoop()
+       game.dispose()
+       scene.dispose()
+       engine.dispose()
+       for (const t of leaveTimers) window.clearTimeout(t)
+       setOverlay(null)
+       setHudState(null)
+       setLeaving([])
++      setTankFeed([])
+       ;(window as unknown as Record<string, unknown>).__BATTLE_READY = false
+     }
+   }, [gameType, net, selfId, role, hostId])
+ 
+   return (
+     <>
+       <canvas
+         ref={canvasRef}
+         data-testid="battle-canvas"
+         className="block size-full bg-slate-950 outline-none touch-none"
+         tabIndex={0}
+       />
+-      {hud && (isKitchenHud(hud) ? <KitchenHudPanel hud={hud} leaving={leaving} /> : <BomberHud hud={hud} />)}
++      {hud &&
++        (isKitchenHud(hud) ? (
++          <KitchenHudPanel hud={hud} leaving={leaving} />
++        ) : isTankHud(hud) ? (
++          <TankHudPanel hud={hud} feed={tankFeed} />
++        ) : (
++          <BomberHud hud={hud} />
++        ))}
+       {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
+       {isTouch && portrait && (
+         <div
+           className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/95 p-6 text-center"
+           data-testid="rotate-prompt"
+         >
+           <RotateCw className="size-14 animate-pulse text-indigo-400" aria-hidden="true" />
+           <p className="text-lg font-bold text-slate-100">請將手機轉為橫向</p>
+           <p className="text-sm text-slate-400">本遊戲需橫向遊玩</p>
+         </div>
+diff --git a/src/pages/Battle/TankHud.tsx b/src/pages/Battle/TankHud.tsx
+new file mode 100644
+index 0000000..f3c9b14
+--- /dev/null
++++ b/src/pages/Battle/TankHud.tsx
+@@ -0,0 +1,291 @@
++import { useEffect, useId, useRef, useState, type CSSProperties, type Ref } from 'react'
++import { AlarmClock, ChevronRight, Crosshair, Flame, Heart, Shield, SquareArrowDown, Zap } from 'lucide-react'
++import type { TankBuffKind, TankHud, TankHudBuff, TankHudPlayer } from '@/babylon/types'
++import { hudScale, playerLabel } from '@/pages/Battle/bomberHud'
++import {
++  TANK_BUFFS,
++  TANK_COLORS,
++  feedView,
++  hpView,
++  sortTankPlayers,
++  splitTankColumns,
++  tankTimerView,
++  type FeedSide,
++  type TankFeedItem,
++} from '@/pages/Battle/tankHud'
++
++const INK = '#2B2440'
++
++/** 玩家色以 CSS 變數交給 .tank-* class 取用 */
++function colorVars(colorIndex: number): CSSProperties {
++  const c = TANK_COLORS[colorIndex] ?? TANK_COLORS[0]
++  return { '--tc-light': c.light, '--tc-base': c.base, '--tc-dark': c.dark } as CSSProperties
++}
++
++/** Q 版玩具坦克正視頭像（spec §9.5）：履帶、車身、圓頂、臉板、砲口；真人插三角旗、bot 改青色天線球 */
++export function TankAvatar({ colorIndex, isBot, className }: { colorIndex: number; isBot: boolean; className?: string }) {
++  const c = TANK_COLORS[colorIndex] ?? TANK_COLORS[0]
++  const uid = useId().replace(/[^\w-]/g, '')
++  const bodyId = `tank-body-${uid}`
++  const domeId = `tank-dome-${uid}`
++  return (
++    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
++      <defs>
++        <linearGradient id={bodyId} x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0%" stopColor={c.base} />
++          <stop offset="100%" stopColor={c.dark} />
++        </linearGradient>
++        <radialGradient id={domeId} cx="35%" cy="25%" r="80%">
++          <stop offset="0%" stopColor={c.light} />
++          <stop offset="50%" stopColor={c.base} />
++          <stop offset="100%" stopColor={c.dark} />
++        </radialGradient>
++      </defs>
++      <g stroke={INK} strokeWidth="2">
++        <rect x="8" y="38" width="14" height="20" rx="4" fill="#4A4566" />
++        <rect x="42" y="38" width="14" height="20" rx="4" fill="#4A4566" />
++        <rect x="16" y="36" width="32" height="18" rx="5" fill={`url(#${bodyId})`} />
++        <rect x="18" y="30" width="28" height="10" rx="4" fill={c.base} />
++        <path d="M20 30 A12 9 0 0 1 44 30 Z" fill={`url(#${domeId})`} />
++        <rect x="24" y="24" width="16" height="7" rx="2" fill="#FFF1E0" />
++        <ellipse cx="28.5" cy="27.5" rx="1.6" ry="2.2" fill={INK} />
++        <ellipse cx="35.5" cy="27.5" rx="1.6" ry="2.2" fill={INK} />
++        <circle cx="32" cy="40" r="5" fill="#5B6285" />
++        <circle cx="32" cy="40" r="2" fill={INK} />
++        <line x1="24" y1="24" x2="24" y2="8" />
++        {isBot ? (
++          <circle cx="24" cy="8" r="3.5" fill="#39E6FF" />
++        ) : (
++          <path d="M24 8 L34 11 L24 14 Z" fill={c.base} />
++        )}
++      </g>
++    </svg>
++  )
++}
++
++/** 三連發圖示（spec §9.5）：三道扇形彈軌，末端各一顆子彈 */
++export function TripleIcon({ className }: { className?: string }) {
++  return (
++    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" aria-hidden="true">
++      <path d="M12 20 L12 6 M12 20 L6.5 7.5 M12 20 L17.5 7.5" strokeWidth="2.6" strokeLinecap="round" />
++      <g fill="currentColor" stroke="none">
++        <circle cx="12" cy="5" r="2.4" />
++        <circle cx="6" cy="6.5" r="2.4" />
++        <circle cx="18" cy="6.5" r="2.4" />
++      </g>
++    </svg>
++  )
++}
++
++function BuffIcon({ kind, className }: { kind: TankBuffKind; className?: string }) {
++  if (kind === 'speed') return <Zap className={className} />
++  if (kind === 'rapid') return <Flame className={className} />
++  return <TripleIcon className={className} />
++}
++
++function buffStyle(kind: TankBuffKind): CSSProperties {
++  const b = TANK_BUFFS[kind]
++  return { backgroundColor: b.bg, color: b.fg }
++}
++
++function BuffBadge({ buff }: { buff: TankHudBuff }) {
++  return (
++    <span
++      className={`tank-buff tank-buff-${buff.kind}`}
++      style={buffStyle(buff.kind)}
++      data-tank-buff={buff.kind}
++      aria-label={`${TANK_BUFFS[buff.kind].label} ${buff.remainSec} 秒`}
++    >
++      <BuffIcon kind={buff.kind} className="tank-buff-icon" />
++      <span className="tank-num">{buff.remainSec}s</span>
++    </span>
++  )
++}
++
++function HpRow({ p }: { p: TankHudPlayer }) {
++  const hp = hpView(p.hp, p.maxHp)
++  return (
++    <div className="tank-card-hp" aria-label={`血量 ${p.hp}/${p.maxHp}`}>
++      {hp.mode === 'hearts' ? (
++        hp.hearts.map((on, i) => <Heart key={i} className={on ? 'tank-heart tank-heart-on' : 'tank-heart tank-heart-off'} />)
++      ) : (
++        <>
++          <Heart className="tank-heart tank-heart-on" />
++          <span className="tank-num tank-card-hp-text">{hp.text}</span>
++        </>
++      )}
++    </div>
++  )
++}
++
++function PlayerCard({ p }: { p: TankHudPlayer }) {
++  return (
++    <div
++      className={p.alive ? 'tank-card' : 'tank-card tank-card-dead'}
++      style={colorVars(p.colorIndex)}
++      data-tank-card={p.colorIndex}
++      data-alive={p.alive}
++      title={p.name}
++    >
++      <div className="tank-card-head">
++        <span className="tank-card-name">{p.isSelf ? '你' : p.name}</span>
++        <span className="tank-card-tags">
++          {p.isBot && <span className="tank-ai-tag">AI</span>}
++          <span className="tank-card-no">{playerLabel(p.colorIndex)}</span>
++        </span>
++      </div>
++      {!p.alive && <span className="tank-card-skull">💀</span>}
++      <div className="tank-card-avatar">
++        <TankAvatar colorIndex={p.colorIndex} isBot={p.isBot} className="tank-card-avatar-svg" />
++      </div>
++      {p.shield && (
++        <span className="tank-card-shield" data-tank-shield="card" aria-label="護盾">
++          <Shield className="tank-card-shield-icon" />
++        </span>
++      )}
++      <HpRow p={p} />
++      <div className="tank-card-kills" aria-label={`擊殺 ${p.kills}`}>
++        <Crosshair className="tank-card-kills-icon" />
++        <span className="tank-num">× {p.kills}</span>
++      </div>
++      <div className="tank-card-buffs">
++        {p.buffs.map((b) => (
++          <BuffBadge key={b.kind} buff={b} />
++        ))}
++      </div>
++    </div>
++  )
++}
++
++/** 矮畫面（max-height 500px）改用的頭像膠囊：頭像、HP、擊殺、buff 小圓 */
++function PlayerPill({ p }: { p: TankHudPlayer }) {
++  const cls = ['tank-pill', !p.alive && 'tank-card-dead', p.shield && 'tank-pill-shield'].filter(Boolean).join(' ')
++  return (
++    <div
++      className={cls}
++      style={colorVars(p.colorIndex)}
++      data-tank-pill={p.colorIndex}
++      data-alive={p.alive}
++      title={`${playerLabel(p.colorIndex)} ${p.name}`}
++    >
++      {p.shield && <Shield className="tank-pill-shield-icon" data-tank-shield="pill" aria-label="護盾" />}
++      <TankAvatar colorIndex={p.colorIndex} isBot={p.isBot} className="tank-pill-avatar" />
++      <span className="tank-pill-stat">
++        <Heart className="tank-pill-icon tank-pill-hp" />
++        {p.hp}
++      </span>
++      <span className="tank-pill-stat">
++        <Crosshair className="tank-pill-icon tank-pill-kills" />
++        {p.kills}
++      </span>
++      {p.buffs.map((b) => (
++        <span key={b.kind} className="tank-pill-buff" style={buffStyle(b.kind)} data-tank-buff={b.kind}>
++          <BuffIcon kind={b.kind} className="tank-pill-buff-icon" />
++        </span>
++      ))}
++      {!p.alive && <span className="tank-pill-skull">💀</span>}
++    </div>
++  )
++}
++
++function FeedName({ side }: { side: FeedSide }) {
++  return (
++    <>
++      <span className="tank-feed-dot" style={side.colorIndex === null ? undefined : colorVars(side.colorIndex)} />
++      <span className="tank-feed-name">{side.name}</span>
++    </>
++  )
++}
++
++function FeedRow({ item, players }: { item: TankFeedItem; players: TankHudPlayer[] }) {
++  const v = feedView(item, players)
++  return (
++    <div
++      className={item.leaving ? 'tank-feed-item tank-feed-leave' : 'tank-feed-item'}
++      data-tank-feed={v.killer ? 'kill' : 'wall'}
++    >
++      {v.killer ? (
++        <>
++          <FeedName side={v.killer} />
++          <Crosshair className="tank-feed-icon tank-feed-kill" />
++        </>
++      ) : (
++        <>
++          <SquareArrowDown className="tank-feed-icon tank-feed-wall" />
++          <span className="tank-feed-name">落牆</span>
++          <ChevronRight className="tank-feed-chevron" />
++        </>
++      )}
++      <FeedName side={v.victim} />
++    </div>
++  )
++}
++
++interface TankHudViewProps {
++  hud: TankHud
++  /** 畫面上的擊殺通知（含淡出中），由外層依 hud.feed 管理 */
++  feed: TankFeedItem[]
++  scale?: number
++  rootRef?: Ref<HTMLDivElement>
++}
++
++/** 坦克 HUD 的純呈現（無副作用，可在 node 靜態渲染自查） */
++export function TankHudView({ hud, feed, scale = 1, rootRef }: TankHudViewProps) {
++  const { left, right } = splitTankColumns(hud.players)
++  const timer = tankTimerView(hud)
++  return (
++    <div ref={rootRef} className="tank-hud" style={{ '--tank-scale': scale } as CSSProperties} data-tank-hud="">
++      <div className={`tank-timer tank-timer-${timer.mode}`} data-tank-timer={timer.mode}>
++        <AlarmClock className="tank-timer-icon" />
++        <span className={timer.mode === 'sudden' ? 'tank-timer-sudden-text' : 'tank-timer-text'}>{timer.text}</span>
++        <span className="tank-timer-sep" />
++        <span className="tank-timer-alive">
++          存活 {hud.aliveCount}/{hud.players.length}
++        </span>
++      </div>
++      <div className="tank-col tank-col-left">
++        {left.map((p) => (
++          <PlayerCard key={p.id} p={p} />
++        ))}
++      </div>
++      <div className="tank-col tank-col-right">
++        {right.map((p) => (
++          <PlayerCard key={p.id} p={p} />
++        ))}
++      </div>
++      <div className="tank-pills">
++        {sortTankPlayers(hud.players).map((p) => (
++          <PlayerPill key={p.id} p={p} />
++        ))}
++      </div>
++      <div className="tank-feed">
++        {feed.map((f) => (
++          <FeedRow key={f.id} item={f} players={hud.players} />
++        ))}
++      </div>
++    </div>
++  )
++}
++
++/**
++ * 坦克的 React HUD（spec §9）：左 P1／P3、右 P2／P4 玩家卡，頂部中央計時膠囊，右上擊殺通知。
++ * 以 960×540 設計尺寸排版，依容器等比縮放（--tank-scale）；矮畫面由 CSS 切成頭像膠囊。
++ */
++export function TankHud({ hud, feed }: { hud: TankHud; feed: TankFeedItem[] }) {
++  const rootRef = useRef<HTMLDivElement>(null)
++  const [scale, setScale] = useState(1)
++
++  useEffect(() => {
++    const el = rootRef.current
++    if (!el) return
++    const update = () => setScale(hudScale(el.clientWidth, el.clientHeight))
++    update()
++    const ro = new ResizeObserver(update)
++    ro.observe(el)
++    return () => ro.disconnect()
++  }, [])
++
++  return <TankHudView hud={hud} feed={feed} scale={scale} rootRef={rootRef} />
++}
++
++export default TankHud
+diff --git a/src/pages/Battle/kitchenHud.ts b/src/pages/Battle/kitchenHud.ts
+index 1d0d736..8d3c5a5 100644
+--- a/src/pages/Battle/kitchenHud.ts
++++ b/src/pages/Battle/kitchenHud.ts
+@@ -1,29 +1,29 @@
+ import { PLAYER_PALETTE } from '@/babylon/fx/palette'
+ import { ORDER_LIFE_MS, RECIPES, SCORE_SERVE } from '@/babylon/games/overcookedKitchen'
+-import type { GameHud, KitchenHud, KitchenHudGone, KitchenHudOrder, KitchenHudPlayer, KitchenIng } from '@/babylon/types'
++import type { GameHud, KitchenHud, KitchenHudGone, KitchenHudOrder, KitchenHudPlayer, KitchenIng, TankHud } from '@/babylon/types'
+ import { formatTimer } from '@/pages/Battle/bomberHud'
+ 
+ /** 固定 4 色（kitchen spec §4），與 3D 廚師同源；索引 = colorIndex */
+ export const KITCHEN_COLORS = PLAYER_PALETTE
+ 
+ /** 剩這麼多秒（含）以內計時膠囊變紅跳動 */
+ const URGENT_SECONDS = 15
+ /** 計時條分級門檻（剩餘比例） */
+ const WARN_RATIO = 0.5
+ const DANGER_RATIO = 0.25
+ 
+ /** 離場動畫時長（spec §7：出餐 600ms、逾時 400ms） */
+ export const KITCHEN_LEAVE_MS = { served: 600, expired: 400 } as const
+ 
+ /** setHud 收到的是不是廚房 HUD（沒有 kind 的一律當 bomber） */
+-export function isKitchenHud(hud: GameHud | KitchenHud | null): hud is KitchenHud {
++export function isKitchenHud(hud: GameHud | KitchenHud | TankHud | null): hud is KitchenHud {
+   return hud !== null && 'kind' in hud && hud.kind === 'kitchen'
+ }
+ 
+ const recipeName = (id: string, fallback: string) => RECIPES.find((r) => r.id === id)?.name ?? fallback
+ 
+ /**
+  * HUD 照實顯示的菜（裁決 ⑤）：出餐只比對 ing，所以訂單卡與食譜只分蔬菜湯／肉湯，
+  * 分數一律是實際得分 SCORE_SERVE。
+  */
+ export const KITCHEN_DISHES: readonly { ing: KitchenIng; name: string; score: number }[] = [
+diff --git a/src/pages/Battle/tankHud.test.ts b/src/pages/Battle/tankHud.test.ts
+new file mode 100644
+index 0000000..7650f7e
+--- /dev/null
++++ b/src/pages/Battle/tankHud.test.ts
+@@ -0,0 +1,250 @@
++import { createElement } from 'react'
++import { renderToStaticMarkup } from 'react-dom/server'
++import { describe, expect, it } from 'vitest'
++import type { GameHud, KitchenHud, TankHud, TankHudPlayer } from '@/babylon/types'
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import { sameHud } from '@/pages/Battle/bomberHud'
++import { isKitchenHud } from '@/pages/Battle/kitchenHud'
++import {
++  TANK_BUFFS,
++  TANK_COLORS,
++  TANK_FEED_LEAVE_MS,
++  TANK_FEED_MAX,
++  TANK_FEED_SHOW_MS,
++  TANK_TOUCH_ACTIONS,
++  feedView,
++  freshFeed,
++  hpView,
++  isTankHud,
++  splitTankColumns,
++  tankTimerView,
++} from '@/pages/Battle/tankHud'
++import { TankHudView } from '@/pages/Battle/TankHud'
++
++function player(colorIndex: 0 | 1 | 2 | 3, extra: Partial<TankHudPlayer> = {}): TankHudPlayer {
++  return {
++    id: `p${colorIndex}`,
++    name: `玩家${colorIndex + 1}`,
++    colorIndex,
++    isSelf: false,
++    isBot: false,
++    alive: true,
++    hp: 3,
++    maxHp: 3,
++    kills: 0,
++    shield: false,
++    buffs: [],
++    ...extra,
++  }
++}
++
++/** 假資料（照 TankHud 共用契約）：自己有護盾＋加速、真人有三連發＋連射、bot 一台陣亡 */
++function tank(extra: Partial<TankHud> = {}): TankHud {
++  return {
++    kind: 'tank',
++    remainSec: 42,
++    suddenDeath: false,
++    aliveCount: 3,
++    players: [
++      player(0, { id: 'me', name: '小紅', isSelf: true, shield: true, kills: 1, buffs: [{ kind: 'speed', remainSec: 5 }] }),
++      player(1, {
++        id: 'blue',
++        name: '小藍',
++        hp: 2,
++        kills: 2,
++        buffs: [
++          { kind: 'triple', remainSec: 7 },
++          { kind: 'rapid', remainSec: 3 },
++        ],
++      }),
++      player(2, { id: 'bot-0', name: '電腦1', isBot: true, hp: 1 }),
++      player(3, { id: 'bot-1', name: '電腦2', isBot: true, alive: false, hp: 0 }),
++    ],
++    feed: [
++      { id: 1, killer: '小藍', victim: '電腦2' },
++      { id: 2, killer: null, victim: '電腦2' },
++    ],
++    ...extra,
++  }
++}
++
++const bomber: GameHud = { timer: { secondsLeft: 24, suddenDeath: false }, aliveCount: 1, totalCount: 1, players: [] }
++const kitchen: KitchenHud = { kind: 'kitchen', remainSec: 9, score: 0, delivered: 0, orders: [], gone: [], players: [] }
++
++describe('isTankHud', () => {
++  it('kind 為 tank 才是坦克 HUD', () => {
++    expect(isTankHud(tank())).toBe(true)
++    expect(isTankHud(kitchen)).toBe(false)
++    expect(isTankHud(bomber)).toBe(false)
++    expect(isTankHud(null)).toBe(false)
++  })
++  it('坦克 HUD 不會被當成廚房 HUD（沒有 kind 仍當 bomber）', () => {
++    expect(isKitchenHud(tank())).toBe(false)
++  })
++  it('sameHud：內容相同不重繪、血量變了要重繪', () => {
++    expect(sameHud<TankHud>(tank(), tank())).toBe(true)
++    const hurt = tank()
++    hurt.players[0] = { ...hurt.players[0], hp: 2 }
++    expect(sameHud<TankHud>(tank(), hurt)).toBe(false)
++  })
++})
++
++describe('色票', () => {
++  it('直接取 fx/palette 的 PLAYER_PALETTE，不另存一份', () => {
++    expect(TANK_COLORS).toBe(PLAYER_PALETTE)
++  })
++  it('三種 buff 照 spec §2.3 上色', () => {
++    expect(TANK_BUFFS.speed).toMatchObject({ bg: '#FFD23F', fg: '#3A2A00' })
++    expect(TANK_BUFFS.rapid).toMatchObject({ bg: '#FF6B3D', fg: '#FFFFFF' })
++    expect(TANK_BUFFS.triple).toMatchObject({ bg: '#B07CFF', fg: '#FFFFFF' })
++  })
++})
++
++describe('計時膠囊', () => {
++  it('m:ss 顯示到突然死亡的倒數', () => {
++    expect(tankTimerView(tank({ remainSec: 75 }))).toEqual({ mode: 'normal', text: '1:15' })
++  })
++  it('最後 10 秒（含）變紅跳動', () => {
++    expect(tankTimerView(tank({ remainSec: 10 })).mode).toBe('urgent')
++    expect(tankTimerView(tank({ remainSec: 11 })).mode).toBe('normal')
++  })
++  it('進入突然死亡後變「縮圈中」，忽略 remainSec', () => {
++    expect(tankTimerView(tank({ remainSec: 0, suddenDeath: true }))).toEqual({ mode: 'sudden', text: '縮圈中' })
++  })
++})
++
++describe('HP', () => {
++  it('maxHp ≤ 6 畫成一排心：還有的在前', () => {
++    expect(hpView(2, 3)).toEqual({ mode: 'hearts', hearts: [true, true, false] })
++    expect(hpView(0, 6)).toEqual({ mode: 'hearts', hearts: [false, false, false, false, false, false] })
++  })
++  it('maxHp > 6 改成 hp/maxHp', () => {
++    expect(hpView(5, 8)).toEqual({ mode: 'count', text: '5/8' })
++  })
++  it('hp 夾在 0–maxHp、非有限值當 0', () => {
++    expect(hpView(9, 3)).toEqual({ mode: 'hearts', hearts: [true, true, true] })
++    expect(hpView(-1, 3)).toEqual({ mode: 'hearts', hearts: [false, false, false] })
++    expect(hpView(Number.NaN, 2)).toEqual({ mode: 'hearts', hearts: [false, false] })
++  })
++})
++
++describe('玩家卡分欄', () => {
++  it('左欄 P1／P3、右欄 P2／P4，依 P 編號排序', () => {
++    const { left, right } = splitTankColumns([player(3), player(1), player(2), player(0)])
++    expect(left.map((p) => p.colorIndex)).toEqual([0, 2])
++    expect(right.map((p) => p.colorIndex)).toEqual([1, 3])
++  })
++})
++
++describe('擊殺通知', () => {
++  it('只收沒看過的 id，依 id 由舊到新', () => {
++    const feed = [
++      { id: 5, killer: 'a', victim: 'b' },
++      { id: 4, killer: null, victim: 'c' },
++    ]
++    expect(freshFeed(new Set([4]), feed).map((f) => f.id)).toEqual([5])
++    expect(freshFeed(new Set(), feed).map((f) => f.id)).toEqual([4, 5])
++  })
++  it('一次最多 3 則、3 秒後淡出 300ms', () => {
++    expect(TANK_FEED_MAX).toBe(3)
++    expect(TANK_FEED_SHOW_MS).toBe(3000)
++    expect(TANK_FEED_LEAVE_MS).toBe(300)
++  })
++  it('依名字找色點；落牆沒有擊殺者', () => {
++    const hud = tank()
++    expect(feedView({ id: 1, killer: '小藍', victim: '電腦2' }, hud.players)).toEqual({
++      killer: { name: '小藍', colorIndex: 1 },
++      victim: { name: '電腦2', colorIndex: 3 },
++    })
++    expect(feedView({ id: 2, killer: null, victim: '小紅' }, hud.players)).toEqual({
++      killer: null,
++      victim: { name: '小紅', colorIndex: 0 },
++    })
++  })
++  it('名冊找不到的名字照樣顯示、色點留空', () => {
++    expect(feedView({ id: 3, killer: '離房的人', victim: '電腦1' }, tank().players).killer).toEqual({
++      name: '離房的人',
++      colorIndex: null,
++    })
++  })
++})
++
++describe('手機觸控鈕（AC4）', () => {
++  it('砲塔左轉 q、右轉 e，開火放最右', () => {
++    expect(TANK_TOUCH_ACTIONS.map((a) => a.key)).toEqual(['q', 'e', ' '])
++  })
++})
++
++describe('TankHudView 元件（假資料靜態渲染）', () => {
++  const render = (hud: TankHud, feed = hud.feed.map((f) => ({ ...f, leaving: false }))) =>
++    renderToStaticMarkup(createElement(TankHudView, { hud, feed }))
++
++  it('根節點 [data-tank-hud]，不出現 bomber／kitchen HUD', () => {
++    const html = render(tank())
++    expect(html).toContain('data-tank-hud=""')
++    expect(html).not.toContain('data-bomber-hud')
++    expect(html).not.toContain('data-kitchen-hud')
++  })
++
++  it('4 張玩家卡含 bot：自己掛「你」、bot 掛 AI、陣亡灰化', () => {
++    const html = render(tank())
++    expect(html.match(/data-tank-card="/g)).toHaveLength(4)
++    expect(html).toContain('>你<')
++    expect(html.match(/class="tank-ai-tag"/g)).toHaveLength(2)
++    expect(html.match(/tank-card tank-card-dead/g)).toHaveLength(1)
++    expect(html).toContain('data-alive="false"')
++  })
++
++  it('單人只列實際張數', () => {
++    const html = render(tank({ players: [player(0, { isSelf: true })], aliveCount: 1, feed: [] }))
++    expect(html.match(/data-tank-card="/g)).toHaveLength(1)
++  })
++
++  it('HP 心數、擊殺數、護盾標', () => {
++    const html = render(tank())
++    // 卡片 3+3+3+3 顆心、膠囊不畫心串
++    expect(html.match(/tank-heart-on/g)).toHaveLength(3 + 2 + 1)
++    expect(html.match(/tank-heart-off/g)).toHaveLength(0 + 1 + 2 + 3)
++    expect(html).toContain('× 2')
++    expect(html.match(/data-tank-shield="card"/g)).toHaveLength(1)
++    expect(html.match(/data-tank-shield="pill"/g)).toHaveLength(1)
++  })
++
++  it('三種 buff 徽章帶剩餘秒數', () => {
++    const html = render(tank())
++    expect(html).toContain('data-tank-buff="speed"')
++    expect(html).toContain('data-tank-buff="triple"')
++    expect(html).toContain('data-tank-buff="rapid"')
++    expect(html).toContain('5s')
++    expect(html).toContain('7s')
++    expect(html).toContain('3s')
++  })
++
++  it('計時膠囊：倒數與存活數；縮圈中變紅', () => {
++    const html = render(tank())
++    expect(html).toContain('data-tank-timer="normal"')
++    expect(html).toContain('0:42')
++    expect(html).toContain('存活 3/4')
++    const sd = render(tank({ remainSec: 0, suddenDeath: true }))
++    expect(sd).toContain('data-tank-timer="sudden"')
++    expect(sd).toContain('縮圈中')
++  })
++
++  it('擊殺通知：擊殺與落牆兩種、淡出中的掛 leave', () => {
++    const hud = tank()
++    const html = render(hud, [
++      { ...hud.feed[0], leaving: true },
++      { ...hud.feed[1], leaving: false },
++    ])
++    expect(html.match(/data-tank-feed="/g)).toHaveLength(2)
++    expect(html).toContain('data-tank-feed="kill"')
++    expect(html).toContain('data-tank-feed="wall"')
++    expect(html).toContain('落牆')
++    expect(html.match(/tank-feed-leave/g)).toHaveLength(1)
++  })
++
++  it('手機膠囊與玩家卡同數量（CSS 切換顯示）', () => {
++    const html = render(tank())
++    expect(html.match(/data-tank-pill="/g)).toHaveLength(4)
++  })
++})
+diff --git a/src/pages/Battle/tankHud.ts b/src/pages/Battle/tankHud.ts
+new file mode 100644
+index 0000000..2391070
+--- /dev/null
++++ b/src/pages/Battle/tankHud.ts
+@@ -0,0 +1,89 @@
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import type { GameHud, KitchenHud, TankBuffKind, TankHud, TankHudFeed, TankHudPlayer } from '@/babylon/types'
++import { timerView, type TimerMode } from '@/pages/Battle/bomberHud'
++import type { TouchAction } from '@/pages/Battle/TouchControls'
++
++/** 固定 4 色（tank spec §2.1），與 3D 坦克同源；索引 = colorIndex */
++export const TANK_COLORS = PLAYER_PALETTE
++
++/** buff 徽章底色與圖示／字色（tank spec §2.3） */
++export const TANK_BUFFS: Record<TankBuffKind, { label: string; bg: string; fg: string }> = {
++  speed: { label: '加速', bg: '#FFD23F', fg: '#3A2A00' },
++  rapid: { label: '連射', bg: '#FF6B3D', fg: '#FFFFFF' },
++  triple: { label: '三連發', bg: '#B07CFF', fg: '#FFFFFF' },
++}
++
++/** 擊殺通知：同時最多幾則、收到後顯示多久開始淡出、淡出多久後移除（spec §9.2） */
++export const TANK_FEED_MAX = 3
++export const TANK_FEED_SHOW_MS = 3000
++export const TANK_FEED_LEAVE_MS = 300
++
++/** 卡片 HP 超過這麼多格改顯示 hp/maxHp */
++const MAX_HEARTS = 6
++
++/**
++ * 手機動作鈕（AC4、spec §9.3）：砲塔左轉 q、右轉 e（tank.ts 按住即轉），開火放最右。
++ * ↺／↻ 為 U+21BA／U+21BB。
++ */
++export const TANK_TOUCH_ACTIONS: TouchAction[] = [
++  { label: '↺', key: 'q' },
++  { label: '↻', key: 'e' },
++  { label: '🔥', key: ' ' },
++]
++
++/** setHud 收到的是不是坦克 HUD（沒有 kind 的一律當 bomber） */
++export function isTankHud(hud: GameHud | KitchenHud | TankHud | null): hud is TankHud {
++  return hud !== null && 'kind' in hud && hud.kind === 'tank'
++}
++
++/** 計時膠囊：到突然死亡的 m:ss，最後 10 秒（含）變紅跳動，進入後變「縮圈中」（同 bomber） */
++export function tankTimerView(hud: Pick<TankHud, 'remainSec' | 'suddenDeath'>): { mode: TimerMode; text: string } {
++  return timerView({ secondsLeft: hud.remainSec, suddenDeath: hud.suddenDeath })
++}
++
++export type HpView = { mode: 'hearts'; hearts: boolean[] } | { mode: 'count'; text: string }
++
++/** 卡片 HP：maxHp ≤ 6 畫成一排心（還有的在前），否則 hp/maxHp；hp 夾在 0–maxHp */
++export function hpView(hp: number, maxHp: number): HpView {
++  const max = Number.isFinite(maxHp) ? Math.max(0, Math.round(maxHp)) : 0
++  const cur = Number.isFinite(hp) ? Math.min(max, Math.max(0, Math.round(hp))) : 0
++  if (max > MAX_HEARTS) return { mode: 'count', text: `${cur}/${max}` }
++  return { mode: 'hearts', hearts: Array.from({ length: max }, (_, i) => i < cur) }
++}
++
++/** 左欄 P1／P3、右欄 P2／P4，各自依 P 編號排序 */
++export function splitTankColumns(players: TankHudPlayer[]): { left: TankHudPlayer[]; right: TankHudPlayer[] } {
++  const sorted = sortTankPlayers(players)
++  return {
++    left: sorted.filter((p) => p.colorIndex % 2 === 0),
++    right: sorted.filter((p) => p.colorIndex % 2 === 1),
++  }
++}
++
++export function sortTankPlayers(players: TankHudPlayer[]): TankHudPlayer[] {
++  return [...players].sort((a, b) => a.colorIndex - b.colorIndex)
++}
++
++/** 還沒顯示過的擊殺通知，依 id 由舊到新 */
++export function freshFeed(seen: ReadonlySet<number>, feed: TankHudFeed[]): TankHudFeed[] {
++  return feed.filter((f) => !seen.has(f.id)).sort((a, b) => a.id - b.id)
++}
++
++/** 正在畫面上的擊殺通知；leaving 為 true 時播淡出 */
++export interface TankFeedItem extends TankHudFeed {
++  leaving: boolean
++}
++
++export interface FeedSide {
++  name: string
++  colorIndex: number | null
++}
++
++/** 擊殺通知的顯示資料：依名字從名冊找色點，找不到（如已離房）色點留空 */
++export function feedView(f: TankHudFeed, players: TankHudPlayer[]): { killer: FeedSide | null; victim: FeedSide } {
++  const side = (name: string): FeedSide => ({
++    name,
++    colorIndex: players.find((p) => p.name === name)?.colorIndex ?? null,
++  })
++  return { killer: f.killer === null ? null : side(f.killer), victim: side(f.victim) }
++}
+

@@ -1,0 +1,3215 @@
+# 坦克美術＋可玩度（A Toy Army） — wave 1 since 0e0bac9 — 2026-10-03T09:39
+# files changed: 17 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/games/tank.ts                 | 964 ++++++++++++++++++++++--------
+ src/babylon/games/tankFx/bounce.test.ts   | 104 ++++
+ src/babylon/games/tankFx/bounce.ts        |  88 +++
+ src/babylon/games/tankFx/closing.test.ts  |  64 ++
+ src/babylon/games/tankFx/closing.ts       |  44 ++
+ src/babylon/games/tankFx/combat.test.ts   | 122 ++++
+ src/babylon/games/tankFx/combat.ts        |  98 +++
+ src/babylon/games/tankFx/grid.test.ts     |  72 +++
+ src/babylon/games/tankFx/grid.ts          |  62 ++
+ src/babylon/games/tankFx/messages.test.ts | 118 ++++
+ src/babylon/games/tankFx/messages.ts      | 116 ++++
+ src/babylon/games/tankFx/pacing.test.ts   |  21 +
+ src/babylon/games/tankFx/pacing.ts        |   8 +
+ src/babylon/games/tankFx/roster.test.ts   |  66 ++
+ src/babylon/games/tankFx/roster.ts        |  43 ++
+ src/babylon/games/tankFx/tankAI.test.ts   | 177 ++++++
+ src/babylon/games/tankFx/tankAI.ts        | 272 +++++++++
+ 17 files changed, 2190 insertions(+), 249 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/games/tank.ts b/src/babylon/games/tank.ts
+index 888fd12..fb67af4 100644
+--- a/src/babylon/games/tank.ts
++++ b/src/babylon/games/tank.ts
+@@ -18,237 +18,357 @@ import {
+   createOwnershipSync,
+   isIntIn,
+   isNumIn,
+   isObj,
+   isOneOf,
+   isStr,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
+ } from '@/babylon/net'
+-import { validateShootReq } from './tankNet'
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
++import { validateShootReq } from '@/babylon/games/tankNet'
++import { stepBullet } from '@/babylon/games/tankFx/bounce'
++import { CLOSE_INTERVAL_MS, CLOSE_WARN_MS, SUDDEN_DEATH_MS, closeDue, crushedIds, spiralCells } from '@/babylon/games/tankFx/closing'
++import {
++  INVULN_MS,
++  ITEM_KINDS,
++  KNOCKBACK,
++  SHIELD_MS,
++  TRIPLE_MS,
++  buffRemainSec,
++  invulnBlinkOn,
++  knockback,
++  pickItemKind,
++  resolveHit,
++  tripleVelocities,
++  type ItemKind,
++} from '@/babylon/games/tankFx/combat'
++import { CELL, GRID_H, GRID_W, cellIdx, cellToWorld, tankMoveBlocked, worldToCell } from '@/babylon/games/tankFx/grid'
++import {
++  decodeBotState,
++  decodeBounce,
++  decodeClose,
++  decodeCrate,
++  decodeHit,
++  decodePickup,
++  decodeSeed,
++  type BotStateEntry,
++} from '@/babylon/games/tankFx/messages'
++import { paceTick } from '@/babylon/games/tankFx/pacing'
++import { entityIds, makeBots, rankStandings, tankColorIndex, type RosterEntry, type Standing } from '@/babylon/games/tankFx/roster'
++import { createAIMemory, decideTankBot, type TankAIMemory } from '@/babylon/games/tankFx/tankAI'
+ 
+ /**
+  * 坦克對戰（Host Authority 事件制）。
+  *
+- * - 位置/砲塔：ownership 20Hz 廣播，遠端插值
+- * - 射擊：guest 廣播 shootReq → host 驗證 → 廣播 bullet
+- * - 碰撞/HP/道具/勝負：host 裁決 → 廣播 hit/destroyed/item/pickup
++ * - 位置/砲塔：真人 ownership 20Hz 廣播、遠端插值；bot 由 host 模擬並以 botState 20Hz 廣播
++ * - 射擊：guest 廣播 shootReq → host 驗證 → 廣播 bullet（三連發由 host 依 buff 補兩發）
++ * - 子彈：各端以 tankFx/bounce 同一支純函式推進；host 判定反彈後廣播 bounce 供 guest 校正
++ * - 碰撞/HP/道具/縮圈/勝負：host 裁決 → 廣播 hit/destroyed/crate/item/pickup/close
+  */
+ 
+ interface TankState {
+   x: number
+   z: number
+   ry: number
+   turretAngle: number
+ }
+ 
+ interface BulletInfo {
+   id: string
+   owner: string
+   x: number
+   z: number
+   vx: number
+   vz: number
++  bounces: number
+   mesh: Mesh
+   createdAt: number
+ }
+ 
+ interface TankVisual {
+   root: Mesh
+   turret: Mesh
+   barrel: Mesh
+   hpBars: Mesh[]
++  /** 無敵閃爍時要一起隱藏的部件 */
++  parts: Mesh[]
++  shield: Mesh
++  bodyMat: StandardMaterial
++  darkMat: StandardMaterial
++  colorIndex: number
+   alive: boolean
+ }
+ 
+-type ItemKind = 'hp' | 'speed' | 'rapid'
+-
+ interface ItemInfo {
+   kind: ItemKind
+   mesh: Mesh
+ }
+ 
+ interface PlayerStat {
+   alive: boolean
+   hp: number
+   maxHp: number
+   kills: number
+-  speedMul: number
+-  rapidMul: number
+   speedUntil: number
+   rapidUntil: number
+-}
+-
+-interface Standing {
+-  id: string
+-  name: string
+-  alive: boolean
+-  kills: number
++  shieldUntil: number
++  tripleUntil: number
++  invulnUntil: number
+ }
+ 
+ const SIM_HZ = 30
+-const CELL = 2
+-const GRID_W = 16
+-const GRID_H = 16
+ const MOVE_SPEED = 4.5
+ const TURRET_SPEED = 3.5
+ const BULLET_SPEED = 12
+ const BULLET_LIFETIME_MS = 2000
+ const FIRE_COOLDOWN_MS = 500
+ const INIT_HP = 3
+ const CRATE_DROP_CHANCE = 0.5
+-/** 合法道具種類（網路封包驗證用） */
+-const ITEM_KINDS = ['hp', 'speed', 'rapid'] as const
++/** 既有道具效果：加速 ×1.25、連射冷卻 ×0.5，各 5 秒 */
++const SPEED_MUL = 1.25
++const RAPID_MUL = 0.5
++const BUFF_MS = 5000
+ /** 世界座標容許範圍（場地半徑再放寬一格，擋掉離譜座標） */
+ const WORLD_LIMIT = (GRID_W * CELL) / 2 + CELL
+ /** 子彈速度上限（擋掉超速外掛封包） */
+ const VEL_LIMIT = BULLET_SPEED * 2
++const LIMITS = { worldLimit: WORLD_LIMIT, velLimit: VEL_LIMIT }
++/** bot 位置廣播間隔（20Hz） */
++const BOT_BROADCAST_MS = 50
++/** 子彈命中坦克的判定距離 */
++const HIT_RADIUS = 0.7
++/** 落牆由高處落下的動畫時間 */
++const CLOSE_DROP_MS = 250
+ 
+ const SPAWN_CORNERS: [number, number][] = [
+   [1, 1],
+   [GRID_W - 2, GRID_H - 2],
+   [1, GRID_H - 2],
+   [GRID_W - 2, 1],
+ ]
+ 
+-const cellToWorld = (c: number, count: number): number => (c - (count - 1) / 2) * CELL
+-const worldToCell = (w: number, count: number): number => Math.round(w / CELL + (count - 1) / 2)
++const SPIRAL = spiralCells(GRID_W, GRID_H)
++
++const speedMulOf = (s: PlayerStat, now: number) => (s.speedUntil > now ? SPEED_MUL : 1)
++const rapidMulOf = (s: PlayerStat, now: number) => (s.rapidUntil > now ? RAPID_MUL : 1)
++
++/** 砲塔往目標角轉，最多 maxStep（取最短方向） */
++const rotateToward = (cur: number, target: number, maxStep: number): number => {
++  let d = (target - cur) % (Math.PI * 2)
++  if (d > Math.PI) d -= Math.PI * 2
++  if (d < -Math.PI) d += Math.PI * 2
++  return Math.abs(d) <= maxStep ? cur + d : cur + Math.sign(d) * maxStep
++}
+ 
+ class TankScene implements GameModule {
+   readonly gameId = 'tank'
+   private ctx!: GameContext
+   private keys = new Set<string>()
+   private ticker!: FixedTicker
+   private own!: OwnershipSync<TankState>
+   private flow!: GameFlow
+   private offOpen: (() => void) | null = null
+ 
+   private state: TankState = { x: 0, z: 0, ry: 0, turretAngle: 0 }
+   private stats = new Map<string, PlayerStat>()
+-  /** host：各玩家上次開火時刻（shootReq 冷卻驗證用；每局重置） */
++  /** host：各實體上次開火時刻（shootReq／bot 冷卻驗證用；每局重置） */
+   private lastShotAt = new Map<string, number>()
+   private bullets = new Map<string, BulletInfo>()
+   private items = new Map<number, ItemInfo>()
++  /** 固定柱牆（init 時決定） */
++  private baseWalls = new Set<number>()
++  /** 目前所有不可破牆（柱牆＋突然死亡落下的牆） */
+   private walls = new Set<number>()
++  private closedWalls = new Map<number, { mesh: Mesh; born: number }>()
+   private crates = new Map<number, Mesh>()
+   private flames: { mesh: Mesh; until: number }[] = []
+   private currentSeed = 1
+   private lastFireInput = 0
+   private bulletSeq = 0
+   private resultElapsed = 0
+   private lastOverlayKey = ''
+ 
++  // 縮圈：playingSince 為本端進 playing 的時刻；closeIndex 為下一面的螺旋起點
++  private playingSince = 0
++  private lastClose = 0
++  private closeIndex = 0
++  private warnCell: { cx: number; cy: number } | null = null
++
++  // 電腦玩家（補滿至 4 台）：名冊由 host 決定並隨 seed 廣播
++  private bots: RosterEntry[] = []
++  /** host：bot 模擬位置；guest：host 廣播的插值目標 */
++  private botState = new Map<string, TankState>()
++  /** guest：bot 顯示位置（平滑追 botState） */
++  private botDraw = new Map<string, TankState>()
++  private botMem = new Map<string, TankAIMemory>()
++  private lastBotBroadcast = 0
++
+   private selfVisual?: TankVisual
+   private peerVisuals = new Map<string, TankVisual>()
++  private botVisuals = new Map<string, TankVisual>()
+   private camera!: ArcRotateCamera
+   private hud!: TextPanel
+   private banner!: TextPanel
+ 
+   private crateMat!: StandardMaterial
+   private wallMat!: StandardMaterial
++  private closeWallMat!: StandardMaterial
+   private flameMat!: StandardMaterial
+-  private itemHpMat!: StandardMaterial
+-  private itemSpeedMat!: StandardMaterial
+-  private itemRapidMat!: StandardMaterial
++  private itemMats!: Record<ItemKind, StandardMaterial>
+   private bulletMat!: StandardMaterial
++  private shieldMat!: StandardMaterial
++  private warnMesh!: Mesh
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const key = e.key.toLowerCase()
+     this.keys.add(key)
+     if (key === ' ' || key === 'enter') this.requestFire()
+     if (key === 'r') this.requestRestart()
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+ 
+-  private colorFor(id: string): Color3 {
+-    let h = 0
+-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+-    return Color3.FromHSV(h % 360, 0.65, 0.85)
++  /** 所有實體（真人 players 在前、bots 在後） */
++  private entities(): RosterEntry[] {
++    return [...this.ctx.players, ...this.bots]
++  }
++
++  private isBot(id: string): boolean {
++    return this.bots.some((b) => b.id === id)
++  }
++
++  private colorIndex(id: string): number {
++    return tankColorIndex(id, this.ctx.players, this.bots)
+   }
+ 
+   private nameFor(id: string): string {
+-    return this.ctx.players.find((p) => p.id === id)?.name ?? id.slice(0, 6)
++    return this.entities().find((p) => p.id === id)?.name ?? id.slice(0, 6)
+   }
+ 
+   private isAlive(id: string): boolean {
+     return this.stats.get(id)?.alive ?? false
+   }
+ 
++  private freshStat(): PlayerStat {
++    return {
++      alive: true,
++      hp: INIT_HP,
++      maxHp: INIT_HP,
++      kills: 0,
++      speedUntil: 0,
++      rapidUntil: 0,
++      shieldUntil: 0,
++      tripleUntil: 0,
++      invulnUntil: 0,
++    }
++  }
++
+   private statOf(id: string): PlayerStat {
+     let s = this.stats.get(id)
+     if (!s) {
+-      s = { alive: true, hp: INIT_HP, maxHp: INIT_HP, kills: 0, speedMul: 1, rapidMul: 1, speedUntil: 0, rapidUntil: 0 }
++      s = this.freshStat()
+       this.stats.set(id, s)
+     }
+     return s
+   }
+ 
++  /** 某實體當前位置（自己用本地、bot 用 host 模擬／廣播目標、其餘遠端用最新樣本） */
+   private posOf(pid: string): TankState | null {
+-    return pid === this.ctx.selfId ? this.state : this.own.latestRemote(pid)
++    if (pid === this.ctx.selfId) return this.state
++    if (this.isBot(pid)) return this.botState.get(pid) ?? null
++    return this.own.latestRemote(pid)
++  }
++
++  private spawnOf(id: string): TankState {
++    const idx = Math.max(0, entityIds(this.ctx.players, this.bots).indexOf(id))
++    const [cx, cy] = SPAWN_CORNERS[idx % SPAWN_CORNERS.length]
++    return { x: cellToWorld(cx, GRID_W), z: cellToWorld(cy, GRID_H), ry: 0, turretAngle: 0 }
+   }
+ 
+   private makeTank(id: string, x: number, z: number): TankVisual {
+     const scene = this.ctx.scene
+-    const color = this.colorFor(id)
+ 
+-    const bodyMat = new StandardMaterial(`tank-body-${id}`, this.ctx.scene)
+-    bodyMat.diffuseColor = color
+-    const darkMat = new StandardMaterial(`tank-dark-${id}`, this.ctx.scene)
+-    darkMat.diffuseColor = color.scale(0.5)
++    const bodyMat = new StandardMaterial(`tank-body-${id}`, scene)
++    const darkMat = new StandardMaterial(`tank-dark-${id}`, scene)
+     const barrelMat = new StandardMaterial(`tank-barrel-${id}`, scene)
+     barrelMat.diffuseColor = new Color3(0.25, 0.25, 0.28)
+ 
+     const root = new Mesh(`tank-${id}`, scene)
+     root.position = new Vector3(x, 0, z)
++    const parts: Mesh[] = []
+ 
+     // 車體
+     const body = MeshBuilder.CreateBox(`tank-body-${id}`, { width: 1.2, height: 0.35, depth: 0.8 }, scene)
+     body.material = bodyMat
+     body.parent = root
+     body.position.y = 0.25
++    parts.push(body)
+ 
+     // 履帶（兩側深色薄片）
+     for (const side of [-1, 1]) {
+       const track = MeshBuilder.CreateBox(`tank-track-${side}-${id}`, { width: 0.22, height: 0.2, depth: 0.9 }, scene)
+       track.material = darkMat
+       track.parent = root
+       track.position.set(side * 0.58, 0.12, 0)
++      parts.push(track)
+     }
+ 
+-    // 砂塔
++    // 砲塔
+     const turret = MeshBuilder.CreateCylinder(`tank-turret-${id}`, { diameter: 0.7, height: 0.25 }, scene)
+     turret.material = bodyMat
+     turret.parent = root
+     turret.position.y = 0.5
++    parts.push(turret)
+ 
+     // 砲管
+     const barrel = MeshBuilder.CreateCylinder(`tank-barrel-${id}`, { diameter: 0.12, height: 0.65 }, scene)
+     barrel.material = barrelMat
+     barrel.parent = turret
+     barrel.position.set(0, 0, 0.4)
+     barrel.rotation.x = Math.PI / 2
++    parts.push(barrel)
+ 
+     // HP 條（3 個小方塊在頭頂）
+     const hpBars: Mesh[] = []
+     const hpMat = new StandardMaterial(`hp-${id}`, scene)
+     hpMat.diffuseColor = new Color3(0.2, 0.85, 0.3)
+     hpMat.emissiveColor = new Color3(0.1, 0.4, 0.15)
+     for (let i = 0; i < 3; i++) {
+       const bar = MeshBuilder.CreateBox(`hp-bar-${i}-${id}`, { width: 0.22, height: 0.08, depth: 0.08 }, scene)
+       bar.material = hpMat
+       bar.parent = root
+       bar.position.set((i - 1) * 0.26, 0.78, 0)
+       hpBars.push(bar)
+     }
+ 
+-    return { root, turret, barrel, hpBars, alive: true }
++    // 護盾泡泡（暫用半透明球，波 3 換美術）
++    const shield = MeshBuilder.CreateSphere(`tank-shield-${id}`, { diameter: 1.7, segments: 12 }, scene)
++    shield.material = this.shieldMat
++    shield.parent = root
++    shield.position.y = 0.35
++    shield.isPickable = false
++    shield.setEnabled(false)
++
++    const v: TankVisual = { root, turret, barrel, hpBars, parts, shield, bodyMat, darkMat, colorIndex: -1, alive: true }
++    this.paintTank(v, this.colorIndex(id))
++    return v
++  }
++
++  /** 固定 4 色：名冊變動（bot 補位、有人離房）時顏色跟著改 */
++  private paintTank(v: TankVisual, ci: number): void {
++    if (v.colorIndex === ci) return
++    v.colorIndex = ci
++    const pal = PLAYER_PALETTE[ci]
++    v.bodyMat.diffuseColor = Color3.FromHexString(pal.base)
++    v.darkMat.diffuseColor = Color3.FromHexString(pal.dark)
+   }
+ 
+   private updateHpBars(visual: TankVisual, hp: number): void {
+     for (let i = 0; i < visual.hpBars.length; i++) {
+       const bar = visual.hpBars[i]
+       if (i < hp) {
+         bar.setEnabled(true)
+         const mat = bar.material as StandardMaterial
+         if (hp <= 1) {
+           mat.diffuseColor = new Color3(0.9, 0.2, 0.15)
+@@ -259,209 +379,468 @@ class TankScene implements GameModule {
+         } else {
+           mat.diffuseColor = new Color3(0.2, 0.85, 0.3)
+           mat.emissiveColor = new Color3(0.1, 0.4, 0.15)
+         }
+       } else {
+         bar.setEnabled(false)
+       }
+     }
+   }
+ 
++  /** 每幀同步一台坦克的顏色、HP、護盾、無敵閃爍與存活 */
++  private syncTankVisual(v: TankVisual, id: string, now: number): void {
++    const s = this.statOf(id)
++    this.paintTank(v, this.colorIndex(id))
++    this.updateHpBars(v, s.hp)
++    v.shield.setEnabled(s.shieldUntil > now)
++    const on = invulnBlinkOn(now, s.invulnUntil)
++    for (const m of v.parts) m.isVisible = on
++    v.root.setEnabled(this.isAlive(id))
++  }
++
+   // ---- 地圖 ----
+ 
+   private generateWalls(): void {
+-    this.walls.clear()
++    this.baseWalls.clear()
+     for (let cy = 1; cy < GRID_H; cy += 2) {
+       for (let cx = 1; cx < GRID_W; cx += 2) {
+         // 出生角（如 [1,1]）不可放牆，否則該位玩家出生即卡死在牆內
+         if (SPAWN_CORNERS.some(([sx, sy]) => sx === cx && sy === cy)) continue
+-        this.walls.add(cy * GRID_W + cx)
++        this.baseWalls.add(cellIdx(cx, cy))
+       }
+     }
+   }
+ 
++  private isWall = (cx: number, cy: number): boolean => this.walls.has(cellIdx(cx, cy))
++  private isCrate = (cx: number, cy: number): boolean => this.crates.has(cellIdx(cx, cy))
++
+   private applySeed(seed: number): void {
+     const scene = this.ctx.scene
+-    // 清理舊箱子和道具
++    // 清理舊箱子、道具、子彈、碎片與落牆
+     for (const m of this.crates.values()) m.dispose()
+     this.crates.clear()
+     for (const it of this.items.values()) it.mesh.dispose()
+     this.items.clear()
+     for (const b of this.bullets.values()) b.mesh.dispose()
+     this.bullets.clear()
+     for (const f of this.flames) f.mesh.dispose()
+     this.flames = []
+-
+-    // 初始化所有玩家 stats
++    for (const w of this.closedWalls.values()) w.mesh.dispose()
++    this.closedWalls.clear()
++    this.walls = new Set(this.baseWalls)
++    this.lastClose = 0
++    this.closeIndex = 0
++    this.warnCell = null
++
++    // 初始化所有實體 stats（含 bot）
+     this.lastShotAt.clear()
+-    for (const p of this.ctx.players) {
+-      this.stats.set(p.id, {
+-        hp: INIT_HP,
+-        maxHp: INIT_HP,
+-        kills: 0,
+-        speedMul: 1,
+-        rapidMul: 1,
+-        speedUntil: 0,
+-        rapidUntil: 0,
+-        alive: true,
+-      })
+-    }
++    this.stats.clear()
++    for (const e of this.entities()) this.stats.set(e.id, this.freshStat())
+ 
+     // 確定性隨機：seed 決定木箱位置
+     let rng = seed
+     const nextRng = () => {
+       rng = (rng * 1103515245 + 12345) & 0x7fffffff
+       return rng / 0x7fffffff
+     }
+ 
+     for (let cy = 0; cy < GRID_H; cy++) {
+       for (let cx = 0; cx < GRID_W; cx++) {
+-        const idx = cy * GRID_W + cx
++        const idx = cellIdx(cx, cy)
+         if (this.walls.has(idx)) continue
+         // 出生點附近不放箱子
+-        const nearSpawn = SPAWN_CORNERS.some(
+-          ([sx, sy]) => Math.abs(cx - sx) <= 1 && Math.abs(cy - sy) <= 1,
+-        )
++        const nearSpawn = SPAWN_CORNERS.some(([sx, sy]) => Math.abs(cx - sx) <= 1 && Math.abs(cy - sy) <= 1)
+         if (nearSpawn) continue
+         if (nextRng() < 0.3) {
+           const crate = MeshBuilder.CreateBox(`crate-${cx}-${cy}`, { size: CELL * 0.85 }, scene)
+           crate.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.42, cellToWorld(cy, GRID_H))
+           crate.material = this.crateMat
+           this.crates.set(idx, crate)
+         }
+       }
+     }
+ 
+-    // 建水泥牆 mesh
+-    // ( walls 在 init 時已建，這裡不需要重建)
++    // 自己回出生角（依「真人＋bot」合併名冊的序）
++    this.state = this.spawnOf(this.ctx.selfId)
+ 
+-    // 自己回出生角
+-    const idx = Math.max(0, this.ctx.players.findIndex((p) => p.id === this.ctx.selfId))
+-    const [cx, cy] = SPAWN_CORNERS[idx % SPAWN_CORNERS.length]
+-    this.state = {
+-      x: cellToWorld(cx, GRID_W),
+-      z: cellToWorld(cy, GRID_H),
+-      ry: 0,
+-      turretAngle: 0,
++    // bot 位置與化身：依名冊重建
++    for (const [id, v] of this.botVisuals) {
++      if (this.bots.some((b) => b.id === id)) continue
++      v.root.dispose(false, true)
++      this.botVisuals.delete(id)
++    }
++    this.botState.clear()
++    this.botDraw.clear()
++    this.botMem.clear()
++    for (const b of this.bots) {
++      const sp = this.spawnOf(b.id)
++      this.botState.set(b.id, { ...sp })
++      this.botDraw.set(b.id, { ...sp })
++      this.botMem.set(b.id, createAIMemory())
++      if (!this.botVisuals.has(b.id)) this.botVisuals.set(b.id, this.makeTank(b.id, sp.x, sp.z))
+     }
+ 
+     this.selfVisual?.root.setEnabled(true)
+     for (const v of this.peerVisuals.values()) v.root.setEnabled(true)
+   }
+ 
+-  private hitBlocked(px: number, pz: number): boolean {
+-    const R = 0.5
+-    for (const ox of [-R, R]) {
+-      for (const oz of [-R, R]) {
+-        const cx = worldToCell(px + ox, GRID_W)
+-        const cy = worldToCell(pz + oz, GRID_H)
+-        if (cx < 0 || cx >= GRID_W || cy < 0 || cy >= GRID_H) return true
+-        if (this.walls.has(cy * GRID_W + cx)) return true
+-        if (this.crates.has(cy * GRID_W + cx)) return true
+-      }
+-    }
+-    return false
++  /** 從 (fx,fz) 移到 (tx,tz) 是否被擋：只擋新碰到或更深入的牆／木箱（落牆擦到的坦克仍能脫困） */
++  private moveBlocked(fx: number, fz: number, tx: number, tz: number): boolean {
++    return tankMoveBlocked(fx, fz, tx, tz, (cx, cy) => this.isWall(cx, cy) || this.isCrate(cx, cy))
+   }
+ 
+   // ---- 射擊 ----
+ 
+   private hostBroadcast(type: string, payload: unknown): void {
+     this.ctx.net.broadcast({ game: this.gameId, type, payload })
+     this.applyMessage(type, payload)
+   }
+ 
+   private requestFire(): void {
+     if (this.flow.state.phase !== 'playing' || !this.isAlive(this.ctx.selfId)) return
+     const now = performance.now()
+     const stat = this.statOf(this.ctx.selfId)
+-    const cd = FIRE_COOLDOWN_MS * stat.rapidMul
++    const cd = FIRE_COOLDOWN_MS * rapidMulOf(stat, now)
+     if (now - this.lastFireInput < cd) return
+     this.lastFireInput = now
+ 
+     const vx = Math.sin(this.state.turretAngle) * BULLET_SPEED
+     const vz = Math.cos(this.state.turretAngle) * BULLET_SPEED
+     const sx = this.state.x + Math.sin(this.state.turretAngle) * 0.6
+     const sz = this.state.z + Math.cos(this.state.turretAngle) * 0.6
+ 
+     if (this.ctx.role === 'host') {
+-      this.spawnBullet(this.ctx.selfId, sx, sz, vx, vz)
++      this.lastShotAt.set(this.ctx.selfId, now)
++      this.hostFire(this.ctx.selfId, sx, sz, vx, vz)
+     } else {
+       this.ctx.net.broadcast({
+         game: this.gameId,
+         type: 'shootReq',
+         payload: { x: sx, z: sz, vx, vz },
+       })
+     }
+   }
+ 
+-  private spawnBullet(owner: string, x: number, z: number, vx: number, vz: number): void {
+-    const id = `b${this.bulletSeq++}`
++  /** host：開火（真人、guest 請求、bot 共用）。三連發 buff 中由 host 補左右兩發，各自廣播 bullet */
++  private hostFire(owner: string, x: number, z: number, vx: number, vz: number): void {
++    const s = this.statOf(owner)
++    const vels: [number, number][] = s.tripleUntil > performance.now() ? tripleVelocities(vx, vz) : [[vx, vz]]
++    for (const [bvx, bvz] of vels) {
++      this.hostBroadcast('bullet', { id: `b${this.bulletSeq++}`, owner, x, z, vx: bvx, vz: bvz })
++    }
++  }
++
++  private spawnBullet(id: string, owner: string, x: number, z: number, vx: number, vz: number): void {
+     const mesh = MeshBuilder.CreateSphere(`bullet-${id}`, { diameter: 0.2 }, this.ctx.scene)
+     mesh.position = new Vector3(x, 0.35, z)
+     mesh.material = this.bulletMat
+-    this.bullets.set(id, {
+-      id,
+-      owner,
+-      x,
+-      z,
+-      vx,
+-      vz,
+-      mesh,
+-      createdAt: performance.now(),
+-    })
++    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, mesh, createdAt: performance.now() })
+     playSfx('tank_fire')
+   }
+ 
++  private removeBullet(id: string): void {
++    const b = this.bullets.get(id)
++    if (!b) return
++    b.mesh.dispose()
++    this.bullets.delete(id)
++  }
++
++  /** 各端推進子彈（同一支 stepBullet）；host 另判反彈廣播、木箱、命中 */
++  private stepBullets(dt: number, now: number): void {
++    const host = this.ctx.role === 'host'
++    for (const [id, b] of [...this.bullets]) {
++      if (!this.bullets.has(id)) continue
++      if (now - b.createdAt > BULLET_LIFETIME_MS) {
++        this.removeBullet(id)
++        continue
++      }
++      const r = stepBullet(b, dt, this.isWall, this.isCrate)
++      if (r.kind === 'expire') {
++        this.removeBullet(id)
++        continue
++      }
++      if (r.kind === 'crate') {
++        this.removeBullet(id)
++        if (host) {
++          const ci = cellIdx(r.cx, r.cy)
++          this.hostBroadcast('crate', { ci, bulletId: id })
++          if (Math.random() < CRATE_DROP_CHANCE) {
++            this.hostBroadcast('item', { cx: r.cx, cy: r.cy, kind: pickItemKind(Math.random()) })
++          }
++        }
++        continue
++      }
++      b.x = r.x
++      b.z = r.z
++      b.vx = r.vx
++      b.vz = r.vz
++      b.bounces = r.bounces
++      b.mesh.position.x = b.x
++      b.mesh.position.z = b.z
++      if (r.kind === 'bounce' && host) {
++        this.ctx.net.broadcast({
++          game: this.gameId,
++          type: 'bounce',
++          payload: { bulletId: id, x: b.x, z: b.z, vx: b.vx, vz: b.vz },
++        })
++      }
++      if (host) this.hostBulletHits(b, now)
++    }
++  }
++
++  /** host：子彈與坦克碰撞。反彈過的子彈可命中發射者 */
++  private hostBulletHits(b: BulletInfo, now: number): void {
++    for (const e of this.entities()) {
++      if (e.id === b.owner && b.bounces === 0) continue
++      if (!this.isAlive(e.id)) continue
++      const pos = this.posOf(e.id)
++      if (!pos) continue
++      if (Math.hypot(b.x - pos.x, b.z - pos.z) >= HIT_RADIUS) continue
++      const s = this.statOf(e.id)
++      const out = resolveHit(s, now)
++      const len = Math.hypot(b.vx, b.vz) || 1
++      this.hostBroadcast('hit', {
++        bulletId: b.id,
++        targetId: e.id,
++        hp: out.hp,
++        killerId: b.owner,
++        dirX: b.vx / len,
++        dirZ: b.vz / len,
++        shieldBroken: out.shieldBroken,
++        invuln: out.invuln,
++      })
++      if (out.damaged && out.hp <= 0) {
++        this.hostBroadcast('destroyed', { targetId: e.id, killerId: b.owner === e.id ? null : b.owner })
++      }
++      return
++    }
++  }
++
++  private applyHit(h: NonNullable<ReturnType<typeof decodeHit>>): void {
++    if (h.bulletId) this.removeBullet(h.bulletId)
++    const now = performance.now()
++    const s = this.statOf(h.targetId)
++    s.hp = h.hp
++    if (!h.invuln) s.invulnUntil = now + INVULN_MS
++    if (h.shieldBroken) s.shieldUntil = 0
++    // 擊退：真人由受擊者本機套用（再經 ownership 同步）、bot 由 host 套用（再經 botState 同步）；
++    // 無敵期間被命中不擊退（避免連續命中把坦克一路推走）
++    if (!h.invuln && (h.dirX !== 0 || h.dirZ !== 0)) {
++      const target =
++        h.targetId === this.ctx.selfId
++          ? this.state
++          : this.ctx.role === 'host' && this.isBot(h.targetId)
++            ? this.botState.get(h.targetId)
++            : undefined
++      if (target) {
++        const { x: fx, z: fz } = target
++        const p = knockback(fx, fz, h.dirX, h.dirZ, KNOCKBACK, (x, z) => this.moveBlocked(fx, fz, x, z))
++        target.x = p.x
++        target.z = p.z
++      }
++    }
++    if (h.invuln) return
++    playSfx('tank_hit')
++    this.spawnExplosion(h.targetId)
++  }
++
+   // ---- 道具 ----
+ 
+   private spawnItem(cx: number, cy: number, kind: ItemKind): void {
+-    const ci = cy * GRID_W + cx
++    const ci = cellIdx(cx, cy)
+     this.items.get(ci)?.mesh.dispose()
+     const mesh = MeshBuilder.CreateBox(`item-${ci}`, { size: 0.5 }, this.ctx.scene)
+     mesh.position = new Vector3(cellToWorld(cx, GRID_W), 0.4, cellToWorld(cy, GRID_H))
+-    mesh.material = kind === 'hp' ? this.itemHpMat : kind === 'speed' ? this.itemSpeedMat : this.itemRapidMat
++    mesh.material = this.itemMats[kind]
+     this.items.set(ci, { kind, mesh })
+   }
+ 
+   private detectPickups(): void {
+     if (this.items.size === 0) return
+-    for (const p of this.ctx.players) {
+-      if (!this.isAlive(p.id)) continue
+-      const pos = this.posOf(p.id)
++    for (const e of this.entities()) {
++      if (!this.isAlive(e.id)) continue
++      const pos = this.posOf(e.id)
+       if (!pos) continue
+-      const cx = worldToCell(pos.x, GRID_W)
+-      const cy = worldToCell(pos.z, GRID_H)
+-      const ci = cy * GRID_W + cx
+-      if (this.items.has(ci)) this.hostBroadcast('pickup', { ci, who: p.id })
++      const ci = cellIdx(worldToCell(pos.x, GRID_W), worldToCell(pos.z, GRID_H))
++      const it = this.items.get(ci)
++      if (it) this.hostBroadcast('pickup', { ci, who: e.id, kind: it.kind })
+     }
+   }
+ 
+-  private applyPickup(p: { ci: number; who: string }): void {
++  /** buff／護盾到期時刻由本端收到 pickup 的時刻自算 */
++  private applyPickup(p: { ci: number; who: string; kind: ItemKind | null }): void {
+     const it = this.items.get(p.ci)
+-    if (!it) return
++    const kind = p.kind ?? it?.kind
++    if (!kind) return
++    if (it) {
++      it.mesh.dispose()
++      this.items.delete(p.ci)
++    }
+     playSfx('pickup')
+-    it.mesh.dispose()
+-    this.items.delete(p.ci)
+     const s = this.statOf(p.who)
+     const now = performance.now()
+-    if (it.kind === 'hp') {
++    if (kind === 'hp') {
+       s.hp = Math.min(s.maxHp + 1, s.hp + 1)
+       s.maxHp = Math.max(s.maxHp, s.hp)
+-    } else if (it.kind === 'speed') {
+-      s.speedMul = 1.25
+-      s.speedUntil = now + 5000
++    } else if (kind === 'speed') {
++      s.speedUntil = now + BUFF_MS
++    } else if (kind === 'rapid') {
++      s.rapidUntil = now + BUFF_MS
++    } else if (kind === 'shield') {
++      s.shieldUntil = now + SHIELD_MS
+     } else {
+-      s.rapidMul = 0.5
+-      s.rapidUntil = now + 5000
++      s.tripleUntil = now + TRIPLE_MS
++    }
++  }
++
++  // ---- 縮圈突然死亡 ----
++
++  /** host：時間到就沿螺旋落下一面牆；中心在該格的坦克壓毀 */
++  private tickSuddenDeath(now: number): void {
++    if (!closeDue({ now, playingSince: this.playingSince, lastClose: this.lastClose })) return
++    const next = nextCloseCell(SPIRAL, this.isWall, this.closeIndex)
++    if (!next) return
++    const alive = this.entities()
++      .filter((e) => this.isAlive(e.id))
++      .map((e) => ({ id: e.id, pos: this.posOf(e.id) }))
++      .filter((e): e is { id: string; pos: TankState } => e.pos !== null)
++      .map((e) => ({ id: e.id, x: e.pos.x, z: e.pos.z }))
++    const crushed = crushedIds(next.cx, next.cy, alive)
++    this.hostBroadcast('close', { cx: next.cx, cy: next.cy })
++    for (const id of crushed) this.hostBroadcast('destroyed', { targetId: id, killerId: null })
++  }
++
++  /** 套用落牆（host 本地 + guest）：該格成牆、清木箱／道具／子彈、建落牆 mesh */
++  private applyClose(cx: number, cy: number): void {
++    const ci = cellIdx(cx, cy)
++    const now = performance.now()
++    this.lastClose = now
++    this.closeIndex = SPIRAL.findIndex(([x, y]) => x === cx && y === cy) + 1
++    if (this.walls.has(ci)) return
++    this.walls.add(ci)
++    this.crates.get(ci)?.dispose()
++    this.crates.delete(ci)
++    this.items.get(ci)?.mesh.dispose()
++    this.items.delete(ci)
++    for (const b of [...this.bullets.values()]) {
++      if (worldToCell(b.x, GRID_W) === cx && worldToCell(b.z, GRID_H) === cy) this.removeBullet(b.id)
++    }
++    const mesh = MeshBuilder.CreateBox(`close-${cx}-${cy}`, { size: CELL * 0.95 }, this.ctx.scene)
++    mesh.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 4, cellToWorld(cy, GRID_H))
++    mesh.material = this.closeWallMat
++    this.closedWalls.set(ci, { mesh, born: now })
++  }
++
++  /** 各端：落牆前 CLOSE_WARN_MS 算出下一面的預告格 */
++  private updateWarnCell(now: number): void {
++    const active =
++      this.flow.state.phase === 'playing' &&
++      closeWarningActive({
++        now,
++        playingSince: this.playingSince,
++        lastClose: this.lastClose,
++        suddenMs: SUDDEN_DEATH_MS,
++        intervalMs: CLOSE_INTERVAL_MS,
++        leadMs: CLOSE_WARN_MS,
++      })
++    const next = active ? nextCloseCell(SPIRAL, this.isWall, this.closeIndex) : null
++    this.warnCell = next ? { cx: next.cx, cy: next.cy } : null
++  }
++
++  // ---- 電腦玩家（僅 host 模擬）----
++
++  private simulateBots(dt: number, now: number): void {
++    if (this.bots.length === 0) return
++    const bullets = [...this.bullets.values()].map((b) => ({
++      x: b.x,
++      z: b.z,
++      vx: b.vx,
++      vz: b.vz,
++      owner: b.owner,
++      bounces: b.bounces,
++    }))
++    const items = [...this.items.keys()].map((ci) => ({ cx: ci % GRID_W, cy: Math.floor(ci / GRID_W) }))
++    const warn = this.warnCell
++    const isDanger = (cx: number, cy: number) => warn !== null && warn.cx === cx && warn.cy === cy
++
++    for (const bot of this.bots) {
++      if (!this.isAlive(bot.id)) continue
++      const pos = this.botState.get(bot.id)
++      if (!pos) continue
++      const enemies = this.entities()
++        .filter((e) => e.id !== bot.id && this.isAlive(e.id))
++        .map((e) => ({ id: e.id, pos: this.posOf(e.id) }))
++        .filter((e): e is { id: string; pos: TankState } => e.pos !== null)
++        .map((e) => ({ id: e.id, x: e.pos.x, z: e.pos.z }))
++      // 開火走 host 內部路徑：同受冷卻與 buff 規則
++      const stat = this.statOf(bot.id)
++      const last = this.lastShotAt.get(bot.id)
++      const fireReady = last === undefined || now - last >= FIRE_COOLDOWN_MS * rapidMulOf(stat, now)
++      const { action, memory } = decideTankBot(
++        {
++          self: { id: bot.id, x: pos.x, z: pos.z, turretAngle: pos.turretAngle },
++          now,
++          isWall: this.isWall,
++          isCrate: this.isCrate,
++          isDanger,
++          enemies,
++          bullets,
++          items,
++          rand: Math.random,
++          fireReady,
++        },
++        this.botMem.get(bot.id) ?? createAIMemory()
++      )
++      this.botMem.set(bot.id, memory)
++
++      if (action.moveX !== 0 || action.moveZ !== 0) {
++        const len = Math.hypot(action.moveX, action.moveZ)
++        const step = (MOVE_SPEED * speedMulOf(stat, now) * dt) / len
++        const nx = pos.x + action.moveX * step
++        if (!this.moveBlocked(pos.x, pos.z, nx, pos.z)) pos.x = nx
++        const nz = pos.z + action.moveZ * step
++        if (!this.moveBlocked(pos.x, pos.z, pos.x, nz)) pos.z = nz
++        pos.ry = Math.atan2(action.moveX, action.moveZ)
++      }
++      if (action.aim !== null) pos.turretAngle = rotateToward(pos.turretAngle, action.aim, TURRET_SPEED * dt)
++
++      if (action.fire && fireReady) {
++        this.lastShotAt.set(bot.id, now)
++        const a = pos.turretAngle
++        this.hostFire(
++          bot.id,
++          pos.x + Math.sin(a) * 0.6,
++          pos.z + Math.cos(a) * 0.6,
++          Math.sin(a) * BULLET_SPEED,
++          Math.cos(a) * BULLET_SPEED
++        )
++      }
++    }
++
++    // 30Hz tick 下以累加節拍維持平均 20Hz（直接設 last = now 只會每 2 tick 送一次 ≈ 15Hz）
++    const pace = paceTick(now, this.lastBotBroadcast, BOT_BROADCAST_MS)
++    this.lastBotBroadcast = pace.last
++    if (pace.due) {
++      const states: BotStateEntry[] = []
++      for (const b of this.bots) {
++        const s = this.botState.get(b.id)
++        if (s) states.push({ id: b.id, x: s.x, z: s.z, ry: s.ry, ta: s.turretAngle })
++      }
++      this.ctx.net.broadcast({ game: this.gameId, type: 'botState', payload: { states } })
+     }
+   }
+ 
++  /** guest 套用 host 廣播的 bot 位置（更新插值目標，update() 平滑追上） */
++  private applyBotStates(states: BotStateEntry[]): void {
++    for (const s of states) this.botState.set(s.id, { x: s.x, z: s.z, ry: s.ry, turretAngle: s.ta })
++  }
++
+   // ---- 重開 ----
+ 
+   /** 可重開的時機：結算畫面，或自己已毀損且場上其他真人也全毀 */
+   private canRestart(): boolean {
+     return this.canAdvance(this.ctx.selfId)
+   }
+ 
+   /** 重開/推進回合的受理條件（host 收 restartReq 與客端提示共用同一條規則） */
+   private canAdvance(requester: string): boolean {
+     return canAdvanceMidRound(
+@@ -475,38 +854,39 @@ class TankScene implements GameModule {
+   private requestRestart(): void {
+     if (!this.canRestart()) return
+     if (this.ctx.role === 'host') this.hostRestart()
+     else this.ctx.net.broadcast({ game: this.gameId, type: 'restartReq', payload: {} })
+   }
+ 
+   private hostRestart(): void {
+     if (this.ctx.role !== 'host') return
+     this.resultElapsed = 0
+     this.currentSeed = (Math.random() * 0x7fffffff) | 0
+-    this.hostBroadcast('seed', { seed: this.currentSeed })
++    this.bots = makeBots(this.ctx.players.length)
++    this.hostBroadcast('seed', { seed: this.currentSeed, bots: this.bots })
+     this.flow.startCountdown(3)
+   }
+ 
+   private syncOverlay(): void {
+     const setOverlay = this.ctx.setOverlay
+     if (!setOverlay) return
+ 
+     const phase = this.flow.state.phase
+     const dead = !this.isAlive(this.ctx.selfId)
+     let overlay: GameOverlay | null = null
+ 
+     if (phase === 'result') {
+       const standings = (this.flow.state.result as Standing[] | undefined) ?? []
+       const win = standings[0]?.id === this.ctx.selfId
+       overlay = {
+         title: win ? '🏆 你獲勝了！' : '💥 對局結束',
+-        subtitle: standings.map((s, i) => `${i + 1}. ${s.name}${s.alive ? '（生存）' : ''} 击殺:${s.kills}`).join('\n'),
++        subtitle: standings.map((s, i) => `${i + 1}. ${s.name}${s.alive ? '（生存）' : ''} 擊殺:${s.kills}`).join('\n'),
+         actions: [{ label: '🔄 重新開始', onClick: () => this.requestRestart(), variant: 'primary' }],
+       }
+     } else if (phase === 'playing' && dead) {
+       overlay = {
+         title: '💥 坦克已毀損',
+         subtitle: '觀戰中——可立即重開一局',
+         actions: [{ label: '🔄 重新開始', onClick: () => this.requestRestart(), variant: 'primary' }],
+       }
+     }
+ 
+@@ -516,89 +896,117 @@ class TankScene implements GameModule {
+     setOverlay(overlay)
+   }
+ 
+   // ---- 網路訊息 ----
+ 
+   /** 訊息 payload 一律先驗型別與範圍（安全審查 C2）；驗不過即丟棄該則訊息 */
+   private applyMessage(type: string, payload: unknown): void {
+     const p = payload
+     if (!isObj(p)) return
+     if (type === 'seed') {
+-      if (!isNumIn(p.seed, 0, 0xffffffff)) return
+-      this.applySeed(p.seed)
++      const d = decodeSeed(p)
++      if (!d) return
++      this.bots = d.bots
++      this.applySeed(d.seed)
+     } else if (type === 'bullet') {
+       if (!isStr(p.id) || !isStr(p.owner)) return
+       if (!isNumIn(p.x, -WORLD_LIMIT, WORLD_LIMIT) || !isNumIn(p.z, -WORLD_LIMIT, WORLD_LIMIT)) return
+       if (!isNumIn(p.vx, -VEL_LIMIT, VEL_LIMIT) || !isNumIn(p.vz, -VEL_LIMIT, VEL_LIMIT)) return
+-      if (!this.bullets.has(p.id)) this.spawnBullet(p.owner, p.x, p.z, p.vx, p.vz)
++      if (!this.bullets.has(p.id)) this.spawnBullet(p.id, p.owner, p.x, p.z, p.vx, p.vz)
++    } else if (type === 'bounce') {
++      const d = decodeBounce(p, LIMITS)
++      const b = d && this.bullets.get(d.bulletId)
++      if (!d || !b) return
++      // guest 已用同一函式預測過反彈就只對齊速度；還沒反彈（預測落後）就直接校正到 host 狀態
++      if (b.bounces === 0) {
++        b.x = d.x
++        b.z = d.z
++        b.bounces = 1
++      }
++      b.vx = d.vx
++      b.vz = d.vz
+     } else if (type === 'hit') {
+-      if (!isStr(p.targetId) || !isIntIn(p.hp, 0, 99)) return
+-      const s = this.statOf(p.targetId)
+-      s.hp = p.hp
+-      playSfx('tank_hit')
+-      // 爆炸特效
+-      this.spawnExplosion(p.targetId)
++      const d = decodeHit(p)
++      if (d) this.applyHit(d)
+     } else if (type === 'destroyed') {
+       if (!isStr(p.targetId)) return
+       const s = this.statOf(p.targetId)
+       s.alive = false
+       playSfx(p.targetId === this.ctx.selfId ? 'death' : 'kill')
+       if (p.targetId === this.ctx.selfId) this.selfVisual?.root.setEnabled(false)
+-      else this.peerVisuals.get(p.targetId)?.root.setEnabled(false)
+-      // 給击杀者加分
++      else (this.peerVisuals.get(p.targetId) ?? this.botVisuals.get(p.targetId))?.root.setEnabled(false)
++      // 給擊殺者加分（killerId 為 null＝落牆或自己反彈打死自己）
+       if (isStr(p.killerId)) {
+         const ks = this.statOf(p.killerId)
+         ks.kills++
+       }
++    } else if (type === 'crate') {
++      const d = decodeCrate(p)
++      if (!d) return
++      this.crates.get(d.ci)?.dispose()
++      this.crates.delete(d.ci)
++      // 打掉木箱的那發：guest 端的副本還在半路，木箱先刪會讓它穿過去（幽靈子彈）
++      if (d.bulletId) this.removeBullet(d.bulletId)
+     } else if (type === 'item') {
+       if (!isIntIn(p.cx, 0, GRID_W - 1) || !isIntIn(p.cy, 0, GRID_H - 1)) return
+       if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return
+       this.spawnItem(p.cx, p.cy, p.kind)
+     } else if (type === 'pickup') {
+-      if (!isIntIn(p.ci, 0, GRID_W * GRID_H - 1) || !isStr(p.who)) return
+-      this.applyPickup({ ci: p.ci, who: p.who })
++      const d = decodePickup(p)
++      if (d) this.applyPickup(d)
++    } else if (type === 'close') {
++      const d = decodeClose(p)
++      if (d) this.applyClose(d.cx, d.cy)
++    } else if (type === 'botState') {
++      if (this.ctx.role === 'host') return
++      const d = decodeBotState(
++        p,
++        this.bots.map((b) => b.id),
++        LIMITS
++      )
++      if (d) this.applyBotStates(d.states)
+     }
+   }
+ 
+   /** 是否為本局玩家（host 只受理已知玩家的上行請求） */
+   private isPlayer(id: string): boolean {
+     return this.ctx.players.some((pl) => pl.id === id)
+   }
+ 
+   onNetworkMessage(from: string, msg: GameNetMessage): void {
+     if (msg.game !== this.gameId) return
+     if (msg.type === 'shootReq') {
+       // host 不只驗座標：存活、冷卻、起點與已知位置的距離、速度大小都要重新裁決
+       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
+       const now = performance.now()
+       const req = validateShootReq(msg.payload, {
+         alive: this.isAlive(from),
+         lastShotAt: this.lastShotAt.get(from),
+-        cooldownMs: FIRE_COOLDOWN_MS * this.statOf(from).rapidMul,
++        cooldownMs: FIRE_COOLDOWN_MS * rapidMulOf(this.statOf(from), now),
+         knownPos: this.own.latestRemote(from),
+         now,
+         worldLimit: WORLD_LIMIT,
+         bulletSpeed: BULLET_SPEED,
+       })
+       if (!req) return
+       this.lastShotAt.set(from, now)
+-      this.spawnBullet(from, req.x, req.z, req.vx, req.vz)
++      this.hostFire(from, req.x, req.z, req.vx, req.vz)
+       return
+     }
+     if (msg.type === 'restartReq') {
+       // 僅在結算中，或請求者已毀損且其他真人也全毀時受理
+       if (this.ctx.role !== 'host' || !this.isPlayer(from)) return
+       if (this.canAdvance(from)) this.hostRestart()
+       return
+     }
+     if (this.ctx.role === 'host') return
+-    // seed/bullet/hit/destroyed/item/pickup 僅信任房主廣播
++    // seed/bullet/bounce/hit/destroyed/crate/item/pickup/close/botState 僅信任房主廣播
+     if (from !== this.ctx.hostId) return
+     this.applyMessage(msg.type, msg.payload)
+   }
+ 
+   // ---- 爆炸特效 ----
+ 
+   private spawnExplosion(targetId: string): void {
+     const pos = this.posOf(targetId)
+     if (!pos) return
+     const now = performance.now()
+@@ -621,282 +1029,298 @@ class TankScene implements GameModule {
+       this.flames.push({ mesh: frag, until })
+     }
+   }
+ 
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+-    this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 28, Vector3.Zero(), scene)
++    this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 0.55, 38, new Vector3(0, 0, -2), scene)
+     new HemisphericLight('light', new Vector3(0.2, 1, 0.1), scene)
+ 
+     // 共用材質
+     this.crateMat = new StandardMaterial('crate-mat', scene)
+     this.crateMat.diffuseColor = new Color3(0.62, 0.45, 0.22)
+     this.wallMat = new StandardMaterial('wall-mat', scene)
+     this.wallMat.diffuseColor = new Color3(0.42, 0.45, 0.5)
++    this.closeWallMat = new StandardMaterial('close-wall-mat', scene)
++    this.closeWallMat.diffuseColor = new Color3(0.62, 0.3, 0.3)
+     this.flameMat = new StandardMaterial('flame-mat', scene)
+     this.flameMat.emissiveColor = new Color3(1, 0.45, 0.1)
+     this.flameMat.disableLighting = true
+     this.bulletMat = new StandardMaterial('bullet-mat', scene)
+     this.bulletMat.emissiveColor = new Color3(1, 0.85, 0.2)
+     this.bulletMat.disableLighting = true
+-
+-    this.itemHpMat = new StandardMaterial('item-hp', scene)
+-    this.itemHpMat.diffuseColor = new Color3(0.2, 0.85, 0.3)
+-    this.itemHpMat.emissiveColor = new Color3(0.1, 0.4, 0.15)
+-    this.itemSpeedMat = new StandardMaterial('item-speed', scene)
+-    this.itemSpeedMat.diffuseColor = new Color3(0.2, 0.5, 0.95)
+-    this.itemSpeedMat.emissiveColor = new Color3(0.1, 0.3, 0.8)
+-    this.itemRapidMat = new StandardMaterial('item-rapid', scene)
+-    this.itemRapidMat.diffuseColor = new Color3(0.95, 0.55, 0.1)
+-    this.itemRapidMat.emissiveColor = new Color3(0.8, 0.4, 0.05)
++    this.shieldMat = new StandardMaterial('shield-mat', scene)
++    this.shieldMat.diffuseColor = new Color3(0.3, 0.8, 1)
++    this.shieldMat.emissiveColor = new Color3(0.15, 0.45, 0.6)
++    this.shieldMat.alpha = 0.3
++
++    const itemMat = (name: string, diffuse: Color3, emissive: Color3) => {
++      const m = new StandardMaterial(name, scene)
++      m.diffuseColor = diffuse
++      m.emissiveColor = emissive
++      return m
++    }
++    this.itemMats = {
++      hp: itemMat('item-hp', new Color3(0.2, 0.85, 0.3), new Color3(0.1, 0.4, 0.15)),
++      speed: itemMat('item-speed', new Color3(0.2, 0.5, 0.95), new Color3(0.1, 0.3, 0.8)),
++      rapid: itemMat('item-rapid', new Color3(0.95, 0.55, 0.1), new Color3(0.8, 0.4, 0.05)),
++      shield: itemMat('item-shield', new Color3(0.3, 0.85, 1), new Color3(0.15, 0.55, 0.7)),
++      triple: itemMat('item-triple', new Color3(0.75, 0.4, 1), new Color3(0.5, 0.2, 0.75)),
++    }
+ 
+     // 地板
+     const ground = MeshBuilder.CreateGround('ground', { width: GRID_W * CELL + 2, height: GRID_H * CELL + 2 }, scene)
+     const gmat = new StandardMaterial('gmat', scene)
+     gmat.diffuseColor = new Color3(0.18, 0.28, 0.18)
+     ground.material = gmat
+ 
++    // 落牆預告格（地上紅色薄片，波 3 換美術）
++    this.warnMesh = MeshBuilder.CreateGround('close-warn', { width: CELL * 0.95, height: CELL * 0.95 }, scene)
++    const warnMat = new StandardMaterial('close-warn-mat', scene)
++    warnMat.emissiveColor = new Color3(1, 0.2, 0.15)
++    warnMat.disableLighting = true
++    warnMat.alpha = 0.7
++    this.warnMesh.material = warnMat
++    this.warnMesh.position.y = 0.02
++    this.warnMesh.setEnabled(false)
++
+     // 水泥牆
+     this.generateWalls()
+-    for (const idx of this.walls) {
++    this.walls = new Set(this.baseWalls)
++    for (const idx of this.baseWalls) {
+       const cx = idx % GRID_W
+       const cy = Math.floor(idx / GRID_W)
+       const w = MeshBuilder.CreateBox(`wall-${cx}-${cy}`, { size: CELL * 0.95 }, scene)
+       w.position = new Vector3(cellToWorld(cx, GRID_W), CELL * 0.47, cellToWorld(cy, GRID_H))
+       w.material = this.wallMat
+     }
+ 
+     this.selfVisual = this.makeTank(ctx.selfId, 0, 0)
+-    this.hud = createTextPanel(scene, this.camera, 'hud', 4, 0.7, new Vector3(0, 2.6, 8))
++    this.hud = createTextPanel(scene, this.camera, 'hud', 4, 1.1, new Vector3(0, 2.45, 8))
+     this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+     window.addEventListener('keyup', this.onKeyUp)
+ 
+     this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
+     attachFlowAudio(this.flow, 'tank', {
+       resultSfx: (r) => ((r as Standing[] | undefined)?.[0]?.id === ctx.selfId ? 'win' : 'lose'),
+     })
+     this.flow.onChange((s) => {
+       ;(window as unknown as Record<string, unknown>).__BATTLE_PHASE = s.phase
++      // 縮圈計時以本端進 playing 的時刻起算
++      if (s.phase === 'playing') {
++        if (this.playingSince === 0) this.playingSince = performance.now()
++      } else {
++        this.playingSince = 0
++      }
+     })
+     ;(window as unknown as Record<string, unknown>).__BATTLE_PHASE = this.flow.state.phase
+ 
+     this.own = createOwnershipSync<TankState>({ net: ctx.net, game: this.gameId })
+     this.own.start(() => ({ ...this.state }))
+ 
+     this.ticker = createFixedTicker(SIM_HZ, (_t, stepMs) => this.simulate(stepMs / 1000))
+     this.ticker.start()
+ 
+     if (ctx.role === 'host') {
+       this.currentSeed = (Math.random() * 0x7fffffff) | 0
+-      this.hostBroadcast('seed', { seed: this.currentSeed })
++      this.bots = makeBots(ctx.players.length)
++      this.hostBroadcast('seed', { seed: this.currentSeed, bots: this.bots })
+       this.offOpen = ctx.net.on('open', (peerId) => {
+-        ctx.net.send(peerId, { game: this.gameId, type: 'seed', payload: { seed: this.currentSeed } })
++        ctx.net.send(peerId, { game: this.gameId, type: 'seed', payload: { seed: this.currentSeed, bots: this.bots } })
+       })
+       this.flow.startCountdown(3)
+     } else {
+       this.applySeed(1)
+     }
+   }
+ 
+   private simulate(dt: number): void {
+     const playing = this.flow.state.phase === 'playing'
++    const now = performance.now()
+ 
+     // 移動
+     if (playing && this.isAlive(this.ctx.selfId)) {
+       const k = this.keys
+       const dx = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)
+       const dz = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0)
+-      const stat = this.statOf(this.ctx.selfId)
+-      const now = performance.now()
+-      const speed = MOVE_SPEED * stat.speedMul * (stat.speedUntil > now ? 1 : 1)
++      const speed = MOVE_SPEED * speedMulOf(this.statOf(this.ctx.selfId), now)
+ 
+       if (dx !== 0 || dz !== 0) {
+         const len = Math.hypot(dx, dz)
+         const step = (speed * dt) / len
+         const nx = this.state.x + dx * step
+-        if (!this.hitBlocked(nx, this.state.z)) this.state.x = nx
++        if (!this.moveBlocked(this.state.x, this.state.z, nx, this.state.z)) this.state.x = nx
+         const nz = this.state.z + dz * step
+-        if (!this.hitBlocked(this.state.x, nz)) this.state.z = nz
++        if (!this.moveBlocked(this.state.x, this.state.z, this.state.x, nz)) this.state.z = nz
+         this.state.ry = Math.atan2(dx, dz)
+       }
+ 
+       // 砲塔旋轉 Q/E
+       if (k.has('q')) this.state.turretAngle -= TURRET_SPEED * dt
+       if (k.has('e')) this.state.turretAngle += TURRET_SPEED * dt
+     }
+ 
+-    if (this.ctx.role !== 'host' || !playing) return
++    if (!playing) return
+ 
+-    // 道具拾取
+-    this.detectPickups()
++    // 子彈：各端同一支純函式推進（guest 為預測，host 為裁決）
++    this.stepBullets(dt, now)
++    this.updateWarnCell(now)
+ 
+-    // 子彈移動 + 碰撞
+-    const now = performance.now()
+-    for (const [id, b] of [...this.bullets]) {
+-      b.x += b.vx * dt
+-      b.z += b.vz * dt
+-      b.mesh.position.x = b.x
+-      b.mesh.position.z = b.z
+-
+-      // 超時
+-      if (now - b.createdAt > BULLET_LIFETIME_MS) {
+-        b.mesh.dispose()
+-        this.bullets.delete(id)
+-        continue
+-      }
+-
+-      // 確認子彈還存在（可能被碰撞處理中刪除）
+-      if (!this.bullets.has(id)) continue
+-
+-      // 碰牆/箱
+-      const cx = worldToCell(b.x, GRID_W)
+-      const cy = worldToCell(b.z, GRID_H)
+-      if (cx < 0 || cx >= GRID_W || cy < 0 || cy >= GRID_H) {
+-        b.mesh.dispose()
+-        this.bullets.delete(id)
+-        continue
+-      }
+-      const ci = cy * GRID_W + cx
+-      if (this.walls.has(ci)) {
+-        b.mesh.dispose()
+-        this.bullets.delete(id)
+-        continue
+-      }
+-      if (this.crates.has(ci)) {
+-        // 摧毀箱子
+-        this.crates.get(ci)?.dispose()
+-        this.crates.delete(ci)
+-        b.mesh.dispose()
+-        this.bullets.delete(id)
+-        // 掉落道具
+-        if (Math.random() < CRATE_DROP_CHANCE) {
+-          const kind: ItemKind = ['hp', 'speed', 'rapid'][Math.floor(Math.random() * 3)] as ItemKind
+-          this.hostBroadcast('item', { cx, cy, kind })
+-        }
+-        continue
+-      }
++    if (this.ctx.role !== 'host') return
+ 
+-      // 碰撞坦克
+-      for (const p of this.ctx.players) {
+-        if (p.id === b.owner) continue
+-        if (!this.isAlive(p.id)) continue
+-        const pos = this.posOf(p.id)
+-        if (!pos) continue
+-        const dist = Math.hypot(b.x - pos.x, b.z - pos.z)
+-        if (dist < 0.7) {
+-          const s = this.statOf(p.id)
+-          s.hp--
+-          b.mesh.dispose()
+-          this.bullets.delete(id)
+-          this.hostBroadcast('hit', { bulletId: id, targetId: p.id, hp: s.hp, killerId: b.owner })
+-          if (s.hp <= 0) {
+-            this.hostBroadcast('destroyed', { targetId: p.id, killerId: b.owner })
+-          }
+-          break
+-        }
+-      }
++    this.detectPickups()
++    this.tickSuddenDeath(now)
++    this.simulateBots(dt, now)
++
++    // 勝負：2 實體以上（含 bot）、存活 ≤ 1 → 結算
++    const ents = this.entities()
++    if (ents.length >= 2 && ents.filter((e) => this.isAlive(e.id)).length <= 1) {
++      const standings = rankStandings(
++        ents.map((e) => ({
++          id: e.id,
++          name: this.nameFor(e.id),
++          alive: this.isAlive(e.id),
++          kills: this.statOf(e.id).kills,
++        }))
++      )
++      this.flow.endGame(standings)
+     }
++  }
+ 
+-    // 道具浮動旋轉
+-    for (const it of this.items.values()) {
+-      it.mesh.rotation.y += dt * 3
+-      it.mesh.position.y = 0.4 + Math.sin(now * 0.004 + it.mesh.position.x) * 0.1
++  /** 除錯文字行（波 3 換 React HUD 時整段刪除）：自己的護盾／buff 與縮圈倒數，供 qa 判讀 */
++  private debugLine(now: number): string {
++    const s = this.statOf(this.ctx.selfId)
++    const parts: string[] = []
++    const add = (label: string, until: number) => {
++      const sec = buffRemainSec(until, now)
++      if (sec > 0) parts.push(`${label} ${sec}s`)
+     }
+-
+-    // 勝負：2 人以上、存活 ≤ 1 → 結算
+-    if (this.ctx.players.length >= 2) {
+-      const aliveIds = this.ctx.players.filter((p) => this.isAlive(p.id)).map((p) => p.id)
+-      if (aliveIds.length <= 1) {
+-        const standings: Standing[] = this.ctx.players.map((p) => ({
+-          id: p.id,
+-          name: this.nameFor(p.id),
+-          alive: this.isAlive(p.id),
+-          kills: this.statOf(p.id).kills,
+-        }))
+-        // 按存活 > 擊殺排序
+-        standings.sort((a, b) => (b.alive ? 1 : 0) - (a.alive ? 1 : 0) || b.kills - a.kills)
+-        this.flow.endGame(standings)
+-      }
++    add('護盾', s.shieldUntil)
++    add('加速', s.speedUntil)
++    add('連射', s.rapidUntil)
++    add('三連', s.tripleUntil)
++    if (this.playingSince !== 0) {
++      const left = SUDDEN_DEATH_MS - (now - this.playingSince)
++      parts.push(left > 0 ? `縮圈 ${Math.ceil(left / 1000)}s` : '縮圈中')
+     }
++    return parts.join('・')
+   }
+ 
+   update(deltaMs: number): void {
+     const phase = this.flow.state.phase
+     const now = performance.now()
+ 
+     // 自己
+     if (this.selfVisual) {
+       this.selfVisual.root.position.x = this.state.x
+       this.selfVisual.root.position.z = this.state.z
+       this.selfVisual.root.rotation.y = this.state.ry
+       this.selfVisual.turret.rotation.y = this.state.turretAngle - this.state.ry
+-      const s = this.statOf(this.ctx.selfId)
+-      this.updateHpBars(this.selfVisual, s.hp)
+-      this.selfVisual.root.setEnabled(this.isAlive(this.ctx.selfId))
++      this.syncTankVisual(this.selfVisual, this.ctx.selfId, now)
+     }
+ 
+     // 遠端
+     const ids = new Set(this.own.remoteIds())
+     for (const [id, v] of this.peerVisuals) {
+       if (ids.has(id)) continue
+       v.root.dispose(false, true)
+       this.peerVisuals.delete(id)
+     }
+     for (const id of ids) {
+       let v = this.peerVisuals.get(id)
+       if (!v) {
+         const init = this.own.latestRemote(id)
+         v = this.makeTank(id, init?.x ?? 0, init?.z ?? 0)
+-        v.root.setEnabled(this.isAlive(id))
+         this.peerVisuals.set(id, v)
+       }
+       const s = this.own.sampleRemote(id)
+       if (s) {
+         v.root.position.x = s.a.x + (s.b.x - s.a.x) * s.alpha
+         v.root.position.z = s.a.z + (s.b.z - s.a.z) * s.alpha
+         v.root.rotation.y = s.a.ry + (s.b.ry - s.a.ry) * s.alpha
+         v.turret.rotation.y = s.a.turretAngle + (s.b.turretAngle - s.a.turretAngle) * s.alpha - v.root.rotation.y
+       }
+-      const ps = this.statOf(id)
+-      this.updateHpBars(v, ps.hp)
+-      v.root.setEnabled(this.isAlive(id))
++      this.syncTankVisual(v, id, now)
++    }
++
++    // bot：host 直接用模擬位置；guest 平滑追 host 廣播的目標
++    const k = Math.min(1, deltaMs / 60)
++    for (const [id, v] of this.botVisuals) {
++      const target = this.botState.get(id)
++      if (!target) continue
++      let draw = target
++      if (this.ctx.role !== 'host') {
++        draw = this.botDraw.get(id) ?? { ...target }
++        draw.x += (target.x - draw.x) * k
++        draw.z += (target.z - draw.z) * k
++        draw.ry = rotateToward(draw.ry, target.ry, Math.PI * k)
++        draw.turretAngle = rotateToward(draw.turretAngle, target.turretAngle, Math.PI * k)
++        this.botDraw.set(id, draw)
++      }
++      v.root.position.x = draw.x
++      v.root.position.z = draw.z
++      v.root.rotation.y = draw.ry
++      v.turret.rotation.y = draw.turretAngle - draw.ry
++      this.syncTankVisual(v, id, now)
++    }
++
++    // 道具浮動旋轉
++    for (const it of this.items.values()) {
++      it.mesh.rotation.y += deltaMs * 0.003
++      it.mesh.position.y = 0.4 + Math.sin(now * 0.004 + it.mesh.position.x) * 0.1
++    }
++
++    // 落牆落下 + 預告格
++    for (const w of this.closedWalls.values()) {
++      const t = Math.min(1, (now - w.born) / CLOSE_DROP_MS)
++      w.mesh.position.y = CELL * 0.47 + (CELL * 4 - CELL * 0.47) * (1 - t * t)
++    }
++    const warn = this.warnCell
++    this.warnMesh.setEnabled(warn !== null)
++    if (warn) {
++      this.warnMesh.position.x = cellToWorld(warn.cx, GRID_W)
++      this.warnMesh.position.z = cellToWorld(warn.cy, GRID_H)
+     }
+ 
+     // 爆炸碎片動畫
+     this.flames = this.flames.filter((f) => {
+       if (f.until > now) {
+         const meta = f.mesh.metadata as { vx: number; vy: number; vz: number } | undefined
+         if (meta) {
+           f.mesh.position.x += meta.vx * deltaMs * 0.001
+           f.mesh.position.y += meta.vy * deltaMs * 0.001
+           f.mesh.position.z += meta.vz * deltaMs * 0.001
+           meta.vy -= 9.8 * deltaMs * 0.001
+         }
+         f.mesh.scaling.scaleInPlace(0.97)
+         return true
+       }
+       f.mesh.dispose()
+       return false
+     })
+ 
+     // HUD
+-    const aliveCount = this.ctx.players.filter((p) => this.isAlive(p.id)).length
++    const ents = this.entities()
++    const aliveCount = ents.filter((e) => this.isAlive(e.id)).length
+     const me = this.statOf(this.ctx.selfId)
+     const hpNote = phase === 'playing' ? `・HP ${me.hp}/${me.maxHp} ・擊殺 ${me.kills}` : ''
+     const deadNote = !this.isAlive(this.ctx.selfId) && phase === 'playing' ? '・已毀損（觀戰中）' : ''
+-    this.hud.draw(phase === 'playing' ? `存活 ${aliveCount} / ${this.ctx.players.length}${hpNote}${deadNote}` : '', 48)
++    this.hud.draw(
++      phase === 'playing' ? `存活 ${aliveCount} / ${ents.length}${hpNote}${deadNote}\n${this.debugLine(now)}` : '',
++      44
++    )
+ 
+     this.syncOverlay()
+ 
+     if (phase === 'countdown') {
+       const n = Math.ceil(this.flow.countdownRemaining() / 1000)
+       this.banner.draw(n > 0 ? String(n) : 'GO!', 200)
+     } else if (phase === 'result') {
+       this.banner.draw('')
+       if (this.ctx.role === 'host') {
+         this.resultElapsed += deltaMs
+@@ -906,37 +1330,79 @@ class TankScene implements GameModule {
+       this.resultElapsed = 0
+       this.banner.draw('')
+     }
+ 
+     // 驗證用
+     ;(window as unknown as Record<string, unknown>).__BATTLE_POS = {
+       x: this.state.x,
+       z: this.state.z,
+       alive: this.isAlive(this.ctx.selfId),
+     }
++    if (now - this.lastDebugAt > 250) {
++      this.lastDebugAt = now
++      ;(window as unknown as Record<string, unknown>).__TANK_STATE = this.debugState(now)
++    }
++  }
++
++  private lastDebugAt = 0
++
++  /** 驗證用快照（qa 腳本取樣 window.__TANK_*）：名冊、配色、存活、buff、子彈、縮圈 */
++  private debugState(now: number) {
++    return {
++      entities: this.entities().map((e) => {
++        const s = this.statOf(e.id)
++        const p = this.posOf(e.id)
++        return {
++          id: e.id,
++          name: this.nameFor(e.id),
++          colorIndex: this.colorIndex(e.id),
++          alive: s.alive,
++          hp: s.hp,
++          kills: s.kills,
++          shield: s.shieldUntil > now,
++          triple: buffRemainSec(s.tripleUntil, now),
++          invuln: s.invulnUntil > now,
++          x: p ? Math.round(p.x * 100) / 100 : null,
++          z: p ? Math.round(p.z * 100) / 100 : null,
++        }
++      }),
++      bullets: [...this.bullets.values()].map((b) => ({ id: b.id, owner: b.owner, bounces: b.bounces })),
++      items: [...this.items.values()].map((i) => i.kind),
++      crates: this.crates.size,
++      closed: this.closedWalls.size,
++      warn: this.warnCell,
++      suddenDeath: this.playingSince !== 0 && now - this.playingSince >= SUDDEN_DEATH_MS,
++    }
+   }
+ 
+   dispose(): void {
+     window.removeEventListener('keydown', this.onKeyDown)
+     window.removeEventListener('keyup', this.onKeyUp)
+     stopAllAudio()
+     this.ticker.stop()
+     this.own.stop()
+     this.flow.dispose()
+     this.offOpen?.()
+     this.selfVisual?.root.dispose(false, true)
+     for (const v of this.peerVisuals.values()) v.root.dispose(false, true)
+     this.peerVisuals.clear()
++    for (const v of this.botVisuals.values()) v.root.dispose(false, true)
++    this.botVisuals.clear()
++    this.botState.clear()
++    this.botDraw.clear()
++    this.bots = []
+     for (const b of this.bullets.values()) b.mesh.dispose()
+     this.bullets.clear()
+     for (const m of this.crates.values()) m.dispose()
+     this.crates.clear()
+     for (const it of this.items.values()) it.mesh.dispose()
+     this.items.clear()
++    for (const w of this.closedWalls.values()) w.mesh.dispose()
++    this.closedWalls.clear()
+     for (const f of this.flames) f.mesh.dispose()
+     this.flames = []
+     this.hud.dispose()
+     this.banner.dispose()
+   }
+ }
+ 
+ export const createTankScene = (): GameModule => new TankScene()
+diff --git a/src/babylon/games/tankFx/bounce.test.ts b/src/babylon/games/tankFx/bounce.test.ts
+new file mode 100644
+index 0000000..22eee32
+--- /dev/null
++++ b/src/babylon/games/tankFx/bounce.test.ts
+@@ -0,0 +1,104 @@
++import { describe, it, expect } from 'vitest'
++import { BULLET_MAX_BOUNCE, stepBullet, type BulletKin } from '@/babylon/games/tankFx/bounce'
++import { GRID_H, GRID_W, cellToWorld } from '@/babylon/games/tankFx/grid'
++
++const DT = 1 / 30
++const SPEED = 12
++const wx = (c: number) => cellToWorld(c, GRID_W)
++const wz = (c: number) => cellToWorld(c, GRID_H)
++const only = (...cells: [number, number][]) => (cx: number, cy: number) =>
++  cells.some(([x, y]) => x === cx && y === cy)
++const none = () => false
++
++describe('stepBullet — 反彈', () => {
++  it('上限常數為 1', () => {
++    expect(BULLET_MAX_BOUNCE).toBe(1)
++  })
++
++  it('空地照常前進', () => {
++    const b: BulletKin = { x: wx(4), z: wz(4), vx: SPEED, vz: 0, bounces: 0 }
++    const r = stepBullet(b, DT, none, none)
++    expect(r.kind).toBe('move')
++    if (r.kind !== 'move') return
++    expect(r.x).toBeCloseTo(wx(4) + SPEED * DT)
++  })
++
++  it('撞 x 向牆面：vx 反向、vz 不變，反射點落在牆面', () => {
++    // 格 7 右緣 x=0；從 -0.1 前進 0.4 會進格 8（牆）
++    const b: BulletKin = { x: -0.1, z: wz(4) + 0.3, vx: SPEED, vz: 1, bounces: 0 }
++    const r = stepBullet(b, DT, only([8, 4]), none)
++    expect(r.kind).toBe('bounce')
++    if (r.kind !== 'bounce') return
++    expect(r.vx).toBe(-SPEED)
++    expect(r.vz).toBe(1)
++    expect(r.x).toBeCloseTo(-(-0.1 + SPEED * DT)) // 對 x=0 鏡射
++    expect(r.hitX).toBeCloseTo(0)
++    expect(r.bounces).toBe(1)
++  })
++
++  it('撞 z 向牆面：vz 反向、vx 不變', () => {
++    const b: BulletKin = { x: wx(4), z: -0.1, vx: 0, vz: SPEED, bounces: 0 }
++    const r = stepBullet(b, DT, only([4, 8]), none)
++    expect(r.kind).toBe('bounce')
++    if (r.kind !== 'bounce') return
++    expect(r.vz).toBe(-SPEED)
++    expect(r.vx).toBe(0)
++    expect(r.hitZ).toBeCloseTo(0)
++  })
++
++  it('角落（兩軸同時跨格且兩側皆牆）：兩軸皆反向', () => {
++    const b: BulletKin = { x: -0.1, z: -0.1, vx: SPEED, vz: SPEED, bounces: 0 }
++    const r = stepBullet(b, DT, only([8, 7], [7, 8], [8, 8]), none)
++    expect(r.kind).toBe('bounce')
++    if (r.kind !== 'bounce') return
++    expect([r.vx, r.vz]).toEqual([-SPEED, -SPEED])
++  })
++
++  it('斜角只撞到一側牆：只反向那一軸', () => {
++    const b: BulletKin = { x: -0.1, z: -0.1, vx: SPEED, vz: SPEED, bounces: 0 }
++    const r = stepBullet(b, DT, only([8, 7], [8, 8]), none)
++    expect(r.kind).toBe('bounce')
++    if (r.kind !== 'bounce') return
++    expect([r.vx, r.vz]).toEqual([-SPEED, SPEED])
++  })
++
++  it('場外視同牆（外圈）', () => {
++    const b: BulletKin = { x: wx(0) - 0.9, z: wz(3), vx: -SPEED, vz: 0, bounces: 0 }
++    expect(stepBullet(b, DT, none, none).kind).toBe('bounce')
++  })
++
++  it('已反彈過一次，第二次撞牆即消失', () => {
++    const b: BulletKin = { x: -0.1, z: wz(4), vx: SPEED, vz: 0, bounces: 1 }
++    const r = stepBullet(b, DT, only([8, 4]), none)
++    expect(r.kind).toBe('expire')
++  })
++
++  it('撞木箱：回報該格、不反彈', () => {
++    const b: BulletKin = { x: -0.1, z: wz(4), vx: SPEED, vz: 0, bounces: 0 }
++    const r = stepBullet(b, DT, none, only([8, 4]))
++    expect(r).toMatchObject({ kind: 'crate', cx: 8, cy: 4 })
++  })
++})
++
++describe('stepBullet — guest 預測與 host 一致', () => {
++  /** 從同一則 bullet 訊息起算逐 tick 推進，回傳第一次反彈結果 */
++  const firstBounce = (start: BulletKin, isWall: (cx: number, cy: number) => boolean) => {
++    let b = { ...start }
++    for (let i = 0; i < 300; i++) {
++      const r = stepBullet(b, DT, isWall, none)
++      if (r.kind === 'bounce') return r
++      if (r.kind !== 'move') return null
++      b = { x: r.x, z: r.z, vx: r.vx, vz: r.vz, bounces: r.bounces }
++    }
++    return null
++  }
++
++  it('同一函式、同輸入得同一反彈點與反彈後速度', () => {
++    const wall = only([10, 6], [10, 5], [10, 7])
++    const spawn: BulletKin = { x: wx(3) + 0.37, z: wz(6) - 0.21, vx: 11.2, vz: 4.3, bounces: 0 }
++    const host = firstBounce(spawn, wall)
++    const guest = firstBounce(structuredClone(spawn), wall)
++    expect(host).not.toBeNull()
++    expect(guest).toEqual(host)
++  })
++})
+diff --git a/src/babylon/games/tankFx/bounce.ts b/src/babylon/games/tankFx/bounce.ts
+new file mode 100644
+index 0000000..43c5037
+--- /dev/null
++++ b/src/babylon/games/tankFx/bounce.ts
+@@ -0,0 +1,88 @@
++/**
++ * 子彈逐 tick 推進與反彈（純函式）。host 判定與 guest 預測共用同一支，
++ * 同輸入必得同一反彈點：反射以撞擊面鏡射位置，不依賴 tick 相位以外的狀態。
++ */
++import { CELL, GRID_H, GRID_W, cellToWorld, inGrid, worldToCell, type CellPred } from '@/babylon/games/tankFx/grid'
++
++/** 子彈最多反彈次數；超過即在下一次撞牆時消失 */
++export const BULLET_MAX_BOUNCE = 1
++
++export interface BulletKin {
++  x: number
++  z: number
++  vx: number
++  vz: number
++  bounces: number
++}
++
++export type BulletStep =
++  | ({ kind: 'move' } & BulletKin)
++  | ({ kind: 'bounce'; hitX: number; hitZ: number } & BulletKin)
++  | { kind: 'expire'; hitX: number; hitZ: number }
++  | { kind: 'crate'; cx: number; cy: number }
++
++/**
++ * 推進一個 tick。isWall 為不可破牆（含突然死亡落下的牆），場外一律視為牆；
++ * isCrate 為木箱（打掉、子彈消失、不反彈）。
++ */
++export function stepBullet(b: BulletKin, dt: number, isWall: CellPred, isCrate: CellPred): BulletStep {
++  const solid = (cx: number, cy: number) => !inGrid(cx, cy) || isWall(cx, cy)
++  const ocx = worldToCell(b.x, GRID_W)
++  const ocy = worldToCell(b.z, GRID_H)
++  const dx = b.vx * dt
++  const dz = b.vz * dt
++  const nx = b.x + dx
++  const nz = b.z + dz
++  const ncx = worldToCell(nx, GRID_W)
++  const ncy = worldToCell(nz, GRID_H)
++
++  if (!solid(ncx, ncy)) {
++    if (isCrate(ncx, ncy)) return { kind: 'crate', cx: ncx, cy: ncy }
++    return { kind: 'move', x: nx, z: nz, vx: b.vx, vz: b.vz, bounces: b.bounces }
++  }
++
++  let flipX: boolean
++  let flipZ: boolean
++  if (ncx !== ocx && ncy !== ocy) {
++    // 斜向跨格：看兩側鄰格決定撞到哪一面；兩側同為牆或同為空（正撞角）就兩軸都反
++    const sx = solid(ncx, ocy)
++    const sz = solid(ocx, ncy)
++    flipX = sx === sz ? true : sx
++    flipZ = sx === sz ? true : sz
++  } else {
++    flipX = ncx !== ocx
++    flipZ = ncy !== ocy
++  }
++
++  // 撞擊面：舊格往前進方向的邊界
++  const faceX = cellToWorld(ocx, GRID_W) + Math.sign(b.vx) * (CELL / 2)
++  const faceZ = cellToWorld(ocy, GRID_H) + Math.sign(b.vz) * (CELL / 2)
++  let hitX = nx
++  let hitZ = nz
++  if (flipX && flipZ) {
++    hitX = faceX
++    hitZ = faceZ
++  } else if (flipX) {
++    const t = dx !== 0 ? (faceX - b.x) / dx : 0
++    hitX = faceX
++    hitZ = b.z + dz * t
++  } else if (flipZ) {
++    const t = dz !== 0 ? (faceZ - b.z) / dz : 0
++    hitX = b.x + dx * t
++    hitZ = faceZ
++  }
++
++  // 本來就在牆格內（牆落在子彈上），或反彈次數用完 → 消失
++  if ((!flipX && !flipZ) || b.bounces >= BULLET_MAX_BOUNCE) return { kind: 'expire', hitX, hitZ }
++
++  return {
++    kind: 'bounce',
++    x: flipX ? 2 * faceX - nx : nx,
++    z: flipZ ? 2 * faceZ - nz : nz,
++    vx: flipX ? -b.vx : b.vx,
++    vz: flipZ ? -b.vz : b.vz,
++    bounces: b.bounces + 1,
++    hitX,
++    hitZ,
++  }
++}
+diff --git a/src/babylon/games/tankFx/closing.test.ts b/src/babylon/games/tankFx/closing.test.ts
+new file mode 100644
+index 0000000..27b79a4
+--- /dev/null
++++ b/src/babylon/games/tankFx/closing.test.ts
+@@ -0,0 +1,64 @@
++import { describe, it, expect } from 'vitest'
++import {
++  CLOSE_INTERVAL_MS,
++  CLOSE_WARN_MS,
++  SUDDEN_DEATH_MS,
++  closeDue,
++  crushedIds,
++  spiralCells,
++} from '@/babylon/games/tankFx/closing'
++import { GRID_H, GRID_W, cellToWorld } from '@/babylon/games/tankFx/grid'
++
++describe('常數', () => {
++  it('AC2 具名常數', () => {
++    expect([SUDDEN_DEATH_MS, CLOSE_INTERVAL_MS, CLOSE_WARN_MS]).toEqual([60000, 700, 400])
++  })
++})
++
++describe('spiralCells — 外圈往內螺旋', () => {
++  const s = spiralCells(GRID_W, GRID_H)
++  it('涵蓋每一格恰好一次', () => {
++    expect(s.length).toBe(GRID_W * GRID_H)
++    expect(new Set(s.map(([x, y]) => y * GRID_W + x)).size).toBe(GRID_W * GRID_H)
++  })
++
++  it('從左上角沿上排往右，外圈走完才進內圈', () => {
++    expect(s.slice(0, 3)).toEqual([
++      [0, 0],
++      [1, 0],
++      [2, 0],
++    ])
++    const ring = (c: readonly [number, number]) => Math.min(c[0], c[1], GRID_W - 1 - c[0], GRID_H - 1 - c[1])
++    for (let i = 1; i < s.length; i++) expect(ring(s[i])).toBeGreaterThanOrEqual(ring(s[i - 1]))
++  })
++})
++
++describe('crushedIds — 壓毀判定', () => {
++  const at = (cx: number, cy: number, dx = 0, dz = 0) => ({ x: cellToWorld(cx, GRID_W) + dx, z: cellToWorld(cy, GRID_H) + dz })
++
++  it('中心在落牆格內＝壓毀', () => {
++    expect(crushedIds(3, 0, [{ id: 'a', ...at(3, 0, 0.9, -0.9) }])).toEqual(['a'])
++  })
++
++  it('中心在相鄰格＝不壓毀（車身擦到也不算）', () => {
++    expect(crushedIds(3, 0, [{ id: 'b', ...at(4, 0, -0.95) }, { id: 'c', ...at(3, 1) }])).toEqual([])
++  })
++})
++
++describe('closeDue — 落牆時機', () => {
++  const base = { playingSince: 1000, lastClose: 0 }
++  it('未進 playing 不落', () => {
++    expect(closeDue({ now: 999_999, playingSince: 0, lastClose: 0 })).toBe(false)
++  })
++
++  it('滿 SUDDEN_DEATH_MS 才開始', () => {
++    expect(closeDue({ ...base, now: 1000 + SUDDEN_DEATH_MS - 1 })).toBe(false)
++    expect(closeDue({ ...base, now: 1000 + SUDDEN_DEATH_MS })).toBe(true)
++  })
++
++  it('之後每 CLOSE_INTERVAL_MS 一面', () => {
++    const last = 1000 + SUDDEN_DEATH_MS
++    expect(closeDue({ ...base, lastClose: last, now: last + CLOSE_INTERVAL_MS - 1 })).toBe(false)
++    expect(closeDue({ ...base, lastClose: last, now: last + CLOSE_INTERVAL_MS })).toBe(true)
++  })
++})
+diff --git a/src/babylon/games/tankFx/closing.ts b/src/babylon/games/tankFx/closing.ts
+new file mode 100644
+index 0000000..d81d09b
+--- /dev/null
++++ b/src/babylon/games/tankFx/closing.ts
+@@ -0,0 +1,44 @@
++/**
++ * 縮圈突然死亡（純函式）。落牆序列、預告與「下一面落點」沿用 bomberFx/suddenDeath 的
++ * nextCloseCell／closeWarningActive（只讀 import），這裡補坦克專屬的螺旋、時機與壓毀判定。
++ */
++import { GRID_H, GRID_W, worldToCell } from '@/babylon/games/tankFx/grid'
++
++/** 進 playing 滿此時間後開始縮圈 */
++export const SUDDEN_DEATH_MS = 60000
++/** 每面牆落下的間隔 */
++export const CLOSE_INTERVAL_MS = 700
++/** 落牆前的地面紅色預告時間 */
++export const CLOSE_WARN_MS = 400
++
++/** 由外圈往內、順時針的螺旋格序列（左上角起沿上排往右），各端決定性一致 */
++export function spiralCells(w: number, h: number): [number, number][] {
++  const cells: [number, number][] = []
++  let top = 0
++  let bottom = h - 1
++  let left = 0
++  let right = w - 1
++  while (top <= bottom && left <= right) {
++    for (let cx = left; cx <= right; cx++) cells.push([cx, top])
++    for (let cy = top + 1; cy <= bottom; cy++) cells.push([right, cy])
++    if (top < bottom) for (let cx = right - 1; cx >= left; cx--) cells.push([cx, bottom])
++    if (left < right) for (let cy = bottom - 1; cy > top; cy--) cells.push([left, cy])
++    top++
++    bottom--
++    left++
++    right--
++  }
++  return cells
++}
++
++/** host：是否該落下一面牆（首面 = playingSince + SUDDEN_DEATH_MS，之後每 CLOSE_INTERVAL_MS） */
++export function closeDue(o: { now: number; playingSince: number; lastClose: number }): boolean {
++  if (o.playingSince === 0) return false
++  const nextAt = o.lastClose !== 0 ? o.lastClose + CLOSE_INTERVAL_MS : o.playingSince + SUDDEN_DEATH_MS
++  return o.now >= nextAt
++}
++
++/** 坦克中心所在格等於落牆格者被壓毀（車身擦到相鄰格不算） */
++export function crushedIds(cx: number, cy: number, tanks: readonly { id: string; x: number; z: number }[]): string[] {
++  return tanks.filter((t) => worldToCell(t.x, GRID_W) === cx && worldToCell(t.z, GRID_H) === cy).map((t) => t.id)
++}
+diff --git a/src/babylon/games/tankFx/combat.test.ts b/src/babylon/games/tankFx/combat.test.ts
+new file mode 100644
+index 0000000..417a94c
+--- /dev/null
++++ b/src/babylon/games/tankFx/combat.test.ts
+@@ -0,0 +1,122 @@
++import { describe, it, expect } from 'vitest'
++import {
++  INVULN_MS,
++  ITEM_KINDS,
++  KNOCKBACK,
++  SHIELD_MS,
++  TRIPLE_MS,
++  TRIPLE_SPREAD_DEG,
++  buffRemainSec,
++  invulnBlinkOn,
++  knockback,
++  pickItemKind,
++  resolveHit,
++  tripleVelocities,
++} from '@/babylon/games/tankFx/combat'
++
++const NOW = 50_000
++
++describe('常數', () => {
++  it('AC2 具名常數', () => {
++    expect([INVULN_MS, KNOCKBACK, SHIELD_MS, TRIPLE_MS, TRIPLE_SPREAD_DEG]).toEqual([1000, 0.6, 12000, 8000, 12])
++  })
++})
++
++describe('resolveHit — 無敵／護盾／扣血', () => {
++  it('一般命中扣 1 血', () => {
++    expect(resolveHit({ hp: 3, shieldUntil: 0, invulnUntil: 0 }, NOW)).toEqual({
++      damaged: true,
++      hp: 2,
++      shieldBroken: false,
++      invuln: false,
++    })
++  })
++
++  it('無敵期間不扣血、不破盾', () => {
++    const r = resolveHit({ hp: 3, shieldUntil: NOW + 5000, invulnUntil: NOW + 1 }, NOW)
++    expect(r).toEqual({ damaged: false, hp: 3, shieldBroken: false, invuln: true })
++  })
++
++  it('護盾抵擋：不扣血、盾破', () => {
++    const r = resolveHit({ hp: 1, shieldUntil: NOW + 1, invulnUntil: 0 }, NOW)
++    expect(r).toEqual({ damaged: false, hp: 1, shieldBroken: true, invuln: false })
++  })
++
++  it('護盾到期就不再抵擋', () => {
++    expect(resolveHit({ hp: 2, shieldUntil: NOW, invulnUntil: 0 }, NOW).damaged).toBe(true)
++  })
++
++  it('無敵恰好到期即可再受傷', () => {
++    expect(resolveHit({ hp: 2, shieldUntil: 0, invulnUntil: NOW }, NOW).damaged).toBe(true)
++  })
++})
++
++describe('knockback — 以碰撞判定截斷', () => {
++  it('空曠處推滿 KNOCKBACK', () => {
++    const r = knockback(0, 0, 1, 0, KNOCKBACK, () => false)
++    expect(r.x).toBeCloseTo(0.6)
++    expect(r.z).toBe(0)
++  })
++
++  it('前方有牆：停在牆前、不進牆', () => {
++    const blocked = (x: number) => x > 0.25
++    const r = knockback(0, 0, 1, 0, KNOCKBACK, blocked)
++    expect(r.x).toBeLessThanOrEqual(0.25)
++    expect(r.x).toBeGreaterThan(0.15)
++  })
++
++  it('一開始就被擋：原地不動', () => {
++    expect(knockback(1, 2, 0, 1, KNOCKBACK, () => true)).toEqual({ x: 1, z: 2 })
++  })
++})
++
++describe('tripleVelocities — 三連發', () => {
++  it('中央原向量、左右各偏 12° 且速度大小不變', () => {
++    const [c, l, r] = tripleVelocities(0, 12)
++    expect(c).toEqual([0, 12])
++    const rad = (TRIPLE_SPREAD_DEG * Math.PI) / 180
++    for (const v of [l, r]) expect(Math.hypot(v[0], v[1])).toBeCloseTo(12)
++    expect(Math.abs(Math.atan2(l[0], l[1]))).toBeCloseTo(rad)
++    expect(Math.atan2(l[0], l[1])).toBeCloseTo(-Math.atan2(r[0], r[1]))
++  })
++})
++
++describe('pickItemKind — 五種等機率', () => {
++  it('五種道具', () => {
++    expect([...ITEM_KINDS]).toEqual(['hp', 'speed', 'rapid', 'shield', 'triple'])
++  })
++
++  it('[0,1) 均分成五段', () => {
++    expect([0, 0.19, 0.2, 0.41, 0.6, 0.79, 0.8, 0.9999].map(pickItemKind)).toEqual([
++      'hp',
++      'hp',
++      'speed',
++      'rapid',
++      'shield',
++      'shield',
++      'triple',
++      'triple',
++    ])
++  })
++
++  it('越界亂數也夾在合法範圍', () => {
++    expect(pickItemKind(1)).toBe('triple')
++    expect(pickItemKind(-0.5)).toBe('hp')
++  })
++})
++
++describe('buffRemainSec／invulnBlinkOn', () => {
++  it('剩餘秒數無條件進位、到期為 0', () => {
++    expect(buffRemainSec(NOW + 7001, NOW)).toBe(8)
++    expect(buffRemainSec(NOW + 1000, NOW)).toBe(1)
++    expect(buffRemainSec(NOW, NOW)).toBe(0)
++    expect(buffRemainSec(0, NOW)).toBe(0)
++  })
++
++  it('無敵到期後不閃、期間會亮暗交替', () => {
++    expect(invulnBlinkOn(NOW, NOW)).toBe(true)
++    const states = new Set<boolean>()
++    for (let t = 0; t < INVULN_MS; t += 25) states.add(invulnBlinkOn(NOW + t, NOW + INVULN_MS))
++    expect(states).toEqual(new Set([true, false]))
++  })
++})
+diff --git a/src/babylon/games/tankFx/combat.ts b/src/babylon/games/tankFx/combat.ts
+new file mode 100644
+index 0000000..80c5652
+--- /dev/null
++++ b/src/babylon/games/tankFx/combat.ts
+@@ -0,0 +1,98 @@
++/**
++ * 坦克受擊、道具與 buff 規則（純函式）。host 用來裁決，各端用來算顯示。
++ */
++
++/** 被命中後的無敵時間：期間 host 不再扣血（子彈照樣消失） */
++export const INVULN_MS = 1000
++/** 受擊擊退距離（世界單位），以碰撞判定截斷 */
++export const KNOCKBACK = 0.6
++/** 護盾持續時間；抵擋下一發或到期即消失 */
++export const SHIELD_MS = 12000
++/** 三連發持續時間 */
++export const TRIPLE_MS = 8000
++/** 三連發左右兩發的偏角 */
++export const TRIPLE_SPREAD_DEG = 12
++
++/** 合法道具種類（網路封包驗證用），五種等機率 */
++export const ITEM_KINDS = ['hp', 'speed', 'rapid', 'shield', 'triple'] as const
++export type ItemKind = (typeof ITEM_KINDS)[number]
++
++/** r ∈ [0,1) 均分成五段取道具；越界夾回 */
++export const pickItemKind = (r: number): ItemKind => {
++  const i = Math.floor(r * ITEM_KINDS.length)
++  return ITEM_KINDS[Math.min(ITEM_KINDS.length - 1, Math.max(0, i))]
++}
++
++export interface Defense {
++  hp: number
++  shieldUntil: number
++  invulnUntil: number
++}
++
++export interface HitOutcome {
++  /** 是否扣血 */
++  damaged: boolean
++  /** 命中後血量 */
++  hp: number
++  /** 這發打破了護盾 */
++  shieldBroken: boolean
++  /** 命中時仍在無敵中（不重置無敵時間） */
++  invuln: boolean
++}
++
++/** host 裁決一發命中：無敵 > 護盾 > 扣血 */
++export function resolveHit(d: Defense, now: number): HitOutcome {
++  if (d.invulnUntil > now) return { damaged: false, hp: d.hp, shieldBroken: false, invuln: true }
++  if (d.shieldUntil > now) return { damaged: false, hp: d.hp, shieldBroken: true, invuln: false }
++  return { damaged: true, hp: d.hp - 1, shieldBroken: false, invuln: false }
++}
++
++/** 沿 (dirX, dirZ) 推 dist，每 step 檢查一次碰撞，第一個會卡住的位置前停下 */
++export function knockback(
++  x: number,
++  z: number,
++  dirX: number,
++  dirZ: number,
++  dist: number,
++  blocked: (x: number, z: number) => boolean,
++  step = 0.05
++): { x: number; z: number } {
++  const len = Math.hypot(dirX, dirZ)
++  if (len === 0 || dist <= 0) return { x, z }
++  const ux = dirX / len
++  const uz = dirZ / len
++  let cx = x
++  let cz = z
++  for (let d = Math.min(step, dist); ; d = Math.min(d + step, dist)) {
++    const tx = x + ux * d
++    const tz = z + uz * d
++    if (blocked(tx, tz)) break
++    cx = tx
++    cz = tz
++    if (d >= dist) break
++  }
++  return { x: cx, z: cz }
++}
++
++/** 向量繞 Y 軸旋轉（與 turretAngle 同一慣例：方向 = (sin a, cos a)，正角往 +x 轉） */
++const rotate = (vx: number, vz: number, rad: number): [number, number] => {
++  const a = Math.atan2(vx, vz) + rad
++  const s = Math.hypot(vx, vz)
++  return [Math.sin(a) * s, Math.cos(a) * s]
++}
++
++/** 三連發：[中央, 左, 右]，速度大小不變 */
++export function tripleVelocities(vx: number, vz: number): [number, number][] {
++  const rad = (TRIPLE_SPREAD_DEG * Math.PI) / 180
++  return [[vx, vz], rotate(vx, vz, -rad), rotate(vx, vz, rad)]
++}
++
++/** buff 剩餘秒數（無條件進位到整秒，到期為 0） */
++export const buffRemainSec = (until: number, now: number): number => (until > now ? Math.ceil((until - now) / 1000) : 0)
++
++/** 無敵閃爍：12Hz 方波，以剩餘時間算相位，各端一致；到期後恆亮 */
++export function invulnBlinkOn(now: number, until: number): boolean {
++  const left = until - now
++  if (left <= 0) return true
++  return Math.floor((left / 1000) * 12 * 2) % 2 === 0
++}
+diff --git a/src/babylon/games/tankFx/grid.test.ts b/src/babylon/games/tankFx/grid.test.ts
+new file mode 100644
+index 0000000..91c6956
+--- /dev/null
++++ b/src/babylon/games/tankFx/grid.test.ts
+@@ -0,0 +1,72 @@
++import { describe, it, expect } from 'vitest'
++import { CELL, GRID_H, GRID_W, cellToWorld, inGrid, tankBlocked, tankMoveBlocked, worldToCell } from '@/babylon/games/tankFx/grid'
++
++describe('grid — 格與世界座標', () => {
++  it('cellToWorld／worldToCell 互逆，場地常數不變', () => {
++    expect([CELL, GRID_W, GRID_H]).toEqual([2, 16, 16])
++    for (let c = 0; c < GRID_W; c++) expect(worldToCell(cellToWorld(c, GRID_W), GRID_W)).toBe(c)
++  })
++
++  it('inGrid 只收 0..15', () => {
++    expect(inGrid(0, 15)).toBe(true)
++    expect(inGrid(-1, 0)).toBe(false)
++    expect(inGrid(0, 16)).toBe(false)
++  })
++})
++
++describe('tankBlocked — 坦克佔位（半徑 0.5 四角）', () => {
++  const none = () => false
++  it('格中心、四周空曠不擋', () => {
++    expect(tankBlocked(cellToWorld(4, GRID_W), cellToWorld(4, GRID_H), none)).toBe(false)
++  })
++
++  it('任一角落進牆格即擋', () => {
++    const wall = (cx: number, cy: number) => cx === 5 && cy === 4
++    // 格 4 中心 x=-7，右緣 -6；坦克中心往右 0.6 → 右角落 -5.9 落入格 5
++    expect(tankBlocked(cellToWorld(4, GRID_W) + 0.6, cellToWorld(4, GRID_H), wall)).toBe(true)
++  })
++
++  it('出場外即擋', () => {
++    expect(tankBlocked(cellToWorld(0, GRID_W) - 0.6, 0, none)).toBe(true)
++  })
++})
++
++describe('tankMoveBlocked — 只擋新增碰到（或更深入）的阻擋格', () => {
++  const only = (...cells: [number, number][]) => (cx: number, cy: number) =>
++    cells.some(([x, y]) => x === cx && y === cy)
++  const wall = only([3, 2])
++  // 中心在 (2,2) 格、距右界 0.2：右側兩角已落在剛落下的 (3,2) 牆格內
++  const x0 = cellToWorld(2, GRID_W) + CELL / 2 - 0.2
++  const z0 = cellToWorld(2, GRID_H)
++
++  it('重現：舊判定下四向都動不了', () => {
++    const stuck = [
++      [-0.15, 0],
++      [0.15, 0],
++      [0, -0.15],
++      [0, 0.15],
++    ].every(([dx, dz]) => tankBlocked(x0 + dx, z0 + dz, wall))
++    expect(stuck).toBe(true)
++  })
++
++  it('擦到落牆格的坦克可往外、沿牆移動', () => {
++    expect(tankMoveBlocked(x0, z0, x0 - 0.15, z0, wall)).toBe(false)
++    expect(tankMoveBlocked(x0, z0, x0, z0 + 0.15, wall)).toBe(false)
++    expect(tankMoveBlocked(x0, z0, x0, z0 - 0.15, wall)).toBe(false)
++  })
++
++  it('不能往已擦到的牆格更深處走', () => {
++    expect(tankMoveBlocked(x0, z0, x0 + 0.15, z0, wall)).toBe(true)
++  })
++
++  it('空曠處碰到新的牆格照樣擋', () => {
++    const x = cellToWorld(2, GRID_W) + CELL / 2 - 0.55
++    expect(tankMoveBlocked(x, z0, x + 0.1, z0, wall)).toBe(true)
++    expect(tankMoveBlocked(x, z0, x - 0.1, z0, wall)).toBe(false)
++  })
++
++  it('出場外照樣擋', () => {
++    const x = cellToWorld(0, GRID_W) - CELL / 2 + 0.55
++    expect(tankMoveBlocked(x, z0, x - 0.1, z0, () => false)).toBe(true)
++  })
++})
+diff --git a/src/babylon/games/tankFx/grid.ts b/src/babylon/games/tankFx/grid.ts
+new file mode 100644
+index 0000000..2973169
+--- /dev/null
++++ b/src/babylon/games/tankFx/grid.ts
+@@ -0,0 +1,62 @@
++/**
++ * 坦克場地格線（純函式，node 可單測）。場地常數原樣搬自 tank.ts，數值不變。
++ */
++
++export const CELL = 2
++export const GRID_W = 16
++export const GRID_H = 16
++/** 坦克佔位半徑（碰撞以中心 ±R 的四個角落取格） */
++export const TANK_RADIUS = 0.5
++
++export type CellPred = (cx: number, cy: number) => boolean
++
++export const cellToWorld = (c: number, count: number): number => (c - (count - 1) / 2) * CELL
++export const worldToCell = (w: number, count: number): number => Math.round(w / CELL + (count - 1) / 2)
++export const cellIdx = (cx: number, cy: number): number => cy * GRID_W + cx
++export const inGrid = (cx: number, cy: number): boolean => cx >= 0 && cx < GRID_W && cy >= 0 && cy < GRID_H
++
++/** 坦克中心在 (x, z) 時是否會卡進 blocked 格或出場 */
++export const tankBlocked = (x: number, z: number, blocked: CellPred): boolean => {
++  for (const ox of [-TANK_RADIUS, TANK_RADIUS]) {
++    for (const oz of [-TANK_RADIUS, TANK_RADIUS]) {
++      const cx = worldToCell(x + ox, GRID_W)
++      const cy = worldToCell(z + oz, GRID_H)
++      if (!inGrid(cx, cy) || blocked(cx, cy)) return true
++    }
++  }
++  return false
++}
++
++/** 坦克方框（中心 ±R）與某格方框的重疊面積 */
++const overlapArea = (x: number, z: number, cx: number, cy: number): number => {
++  const gx = cellToWorld(cx, GRID_W)
++  const gz = cellToWorld(cy, GRID_H)
++  const ox = Math.min(x + TANK_RADIUS, gx + CELL / 2) - Math.max(x - TANK_RADIUS, gx - CELL / 2)
++  const oz = Math.min(z + TANK_RADIUS, gz + CELL / 2) - Math.max(z - TANK_RADIUS, gz - CELL / 2)
++  return ox > 0 && oz > 0 ? ox * oz : 0
++}
++
++/**
++ * 移動判定：只擋「新碰到、或更深入」的阻擋格（含場外）。
++ * 落牆時車身已擦進該格的坦克（中心在相鄰格，不算壓毀）仍可往外或沿牆移動，不會永久卡死。
++ */
++export const tankMoveBlocked = (fx: number, fz: number, tx: number, tz: number, blocked: CellPred): boolean => {
++  const seen = new Set<string>()
++  for (const [x, z] of [
++    [fx, fz],
++    [tx, tz],
++  ]) {
++    for (const ox of [-TANK_RADIUS, TANK_RADIUS]) {
++      for (const oz of [-TANK_RADIUS, TANK_RADIUS]) {
++        const cx = worldToCell(x + ox, GRID_W)
++        const cy = worldToCell(z + oz, GRID_H)
++        const key = `${cx},${cy}`
++        if (seen.has(key)) continue
++        seen.add(key)
++        if (inGrid(cx, cy) && !blocked(cx, cy)) continue
++        if (overlapArea(tx, tz, cx, cy) > overlapArea(fx, fz, cx, cy) + 1e-9) return true
++      }
++    }
++  }
++  return false
++}
+diff --git a/src/babylon/games/tankFx/messages.test.ts b/src/babylon/games/tankFx/messages.test.ts
+new file mode 100644
+index 0000000..99ec8f9
+--- /dev/null
++++ b/src/babylon/games/tankFx/messages.test.ts
+@@ -0,0 +1,118 @@
++import { describe, it, expect } from 'vitest'
++import {
++  decodeBotState,
++  decodeBounce,
++  decodeClose,
++  decodeCrate,
++  decodeHit,
++  decodePickup,
++  decodeSeed,
++} from '@/babylon/games/tankFx/messages'
++
++const LIMITS = { worldLimit: 18, velLimit: 24 }
++
++describe('decodeSeed — bots 可選', () => {
++  it('舊格式（無 bots）照收，bots 為空', () => {
++    expect(decodeSeed({ seed: 7 })).toEqual({ seed: 7, bots: [] })
++  })
++
++  it('帶 bots 名冊', () => {
++    const bots = [{ id: 'bot-0', name: '電腦1' }]
++    expect(decodeSeed({ seed: 7, bots })).toEqual({ seed: 7, bots })
++  })
++
++  it('bots 形狀不對（id 非 bot-N、超過 4 台、非陣列）整則丟棄', () => {
++    expect(decodeSeed({ seed: 7, bots: [{ id: 'p1', name: 'x' }] })).toBeNull()
++    expect(decodeSeed({ seed: 7, bots: Array.from({ length: 5 }, (_, i) => ({ id: `bot-${i}`, name: 'x' })) })).toBeNull()
++    expect(decodeSeed({ seed: 7, bots: 'x' })).toBeNull()
++    expect(decodeSeed({ seed: -1 })).toBeNull()
++  })
++})
++
++describe('decodeBounce', () => {
++  it('合法', () => {
++    const p = { bulletId: 'b3', x: 1, z: -2, vx: -12, vz: 0 }
++    expect(decodeBounce(p, LIMITS)).toEqual(p)
++  })
++
++  it('座標越界、超速、缺 id 拒收', () => {
++    expect(decodeBounce({ bulletId: 'b3', x: 99, z: 0, vx: 0, vz: 0 }, LIMITS)).toBeNull()
++    expect(decodeBounce({ bulletId: 'b3', x: 0, z: 0, vx: 99, vz: 0 }, LIMITS)).toBeNull()
++    expect(decodeBounce({ x: 0, z: 0, vx: 0, vz: 0 }, LIMITS)).toBeNull()
++  })
++})
++
++describe('decodeClose／decodeCrate', () => {
++  it('格座標在場內才收', () => {
++    expect(decodeClose({ cx: 0, cy: 15 })).toEqual({ cx: 0, cy: 15 })
++    expect(decodeClose({ cx: 16, cy: 0 })).toBeNull()
++    expect(decodeClose({ cx: 1.5, cy: 0 })).toBeNull()
++  })
++
++  it('crate 格索引在場內才收', () => {
++    expect(decodeCrate({ ci: 255 })).toEqual({ ci: 255, bulletId: null })
++    expect(decodeCrate({ ci: 256 })).toBeNull()
++  })
++
++  it('crate 帶打掉它的 bulletId（guest 據此刪掉自己延遲的那發，避免穿過已刪木箱）', () => {
++    expect(decodeCrate({ ci: 40, bulletId: 'b12' })).toEqual({ ci: 40, bulletId: 'b12' })
++  })
++
++  it('bulletId 型別錯拒收', () => {
++    expect(decodeCrate({ ci: 40, bulletId: 12 })).toBeNull()
++  })
++})
++
++describe('decodeBotState — 只收名冊內的 bot', () => {
++  const ids = ['bot-0', 'bot-1']
++  it('合法', () => {
++    const states = [{ id: 'bot-0', x: 1, z: 2, ry: 0.5, ta: -1 }]
++    expect(decodeBotState({ states }, ids, LIMITS)).toEqual({ states })
++  })
++
++  it('不在名冊、座標越界、非有限數皆丟棄整則', () => {
++    expect(decodeBotState({ states: [{ id: 'bot-3', x: 0, z: 0, ry: 0, ta: 0 }] }, ids, LIMITS)).toBeNull()
++    expect(decodeBotState({ states: [{ id: 'bot-0', x: 99, z: 0, ry: 0, ta: 0 }] }, ids, LIMITS)).toBeNull()
++    expect(decodeBotState({ states: [{ id: 'bot-0', x: 0, z: 0, ry: NaN, ta: 0 }] }, ids, LIMITS)).toBeNull()
++  })
++})
++
++describe('decodeHit — 新可選欄位', () => {
++  it('舊格式照收：無方向、未破盾、非無敵', () => {
++    expect(decodeHit({ bulletId: 'b1', targetId: 'p1', hp: 2, killerId: 'p0' })).toEqual({
++      bulletId: 'b1',
++      targetId: 'p1',
++      hp: 2,
++      killerId: 'p0',
++      dirX: 0,
++      dirZ: 0,
++      shieldBroken: false,
++      invuln: false,
++    })
++  })
++
++  it('帶擊退方向與破盾', () => {
++    const r = decodeHit({ bulletId: 'b1', targetId: 'p1', hp: 2, killerId: null, dirX: 0.6, dirZ: -0.8, shieldBroken: true })
++    expect(r).toMatchObject({ dirX: 0.6, dirZ: -0.8, shieldBroken: true, killerId: null })
++  })
++
++  it('方向超出單位範圍或型別錯拒收', () => {
++    expect(decodeHit({ targetId: 'p1', hp: 2, dirX: 3, dirZ: 0 })).toBeNull()
++    expect(decodeHit({ targetId: 'p1', hp: 2, shieldBroken: 'yes' })).toBeNull()
++    expect(decodeHit({ targetId: 'p1', hp: 100 })).toBeNull()
++  })
++})
++
++describe('decodePickup — kind 可選', () => {
++  it('舊格式照收', () => {
++    expect(decodePickup({ ci: 3, who: 'p0' })).toEqual({ ci: 3, who: 'p0', kind: null })
++  })
++
++  it('帶 kind', () => {
++    expect(decodePickup({ ci: 3, who: 'bot-0', kind: 'shield' })).toEqual({ ci: 3, who: 'bot-0', kind: 'shield' })
++  })
++
++  it('未知 kind 拒收', () => {
++    expect(decodePickup({ ci: 3, who: 'p0', kind: 'nuke' })).toBeNull()
++  })
++})
+diff --git a/src/babylon/games/tankFx/messages.ts b/src/babylon/games/tankFx/messages.ts
+new file mode 100644
+index 0000000..50e967b
+--- /dev/null
++++ b/src/babylon/games/tankFx/messages.ts
+@@ -0,0 +1,116 @@
++/**
++ * 坦克下行訊息解碼（host → guest）。只信任房主廣播之外，形狀與範圍也要先驗：
++ * 驗不過回 null（呼叫端靜默丟棄），絕不 throw。新欄位一律可選，舊格式照收。
++ */
++import { isArrayOf, isIntIn, isNum, isNumIn, isObj, isOneOf, isStr } from '@/babylon/net'
++import { ITEM_KINDS, type ItemKind } from '@/babylon/games/tankFx/combat'
++import { GRID_H, GRID_W } from '@/babylon/games/tankFx/grid'
++import { MAX_TANKS, type RosterEntry } from '@/babylon/games/tankFx/roster'
++
++export interface Limits {
++  worldLimit: number
++  velLimit: number
++}
++
++const BOT_ID = /^bot-[0-3]$/
++
++export function decodeSeed(p: unknown): { seed: number; bots: RosterEntry[] } | null {
++  if (!isObj(p) || !isNumIn(p.seed, 0, 0xffffffff)) return null
++  if (p.bots === undefined) return { seed: p.seed, bots: [] }
++  if (!isArrayOf<RosterEntry>(p.bots, (b) => isObj(b) && isStr(b.id) && BOT_ID.test(b.id) && isStr(b.name, 20), MAX_TANKS)) {
++    return null
++  }
++  return { seed: p.seed, bots: p.bots.map((b) => ({ id: b.id, name: b.name })) }
++}
++
++export interface BouncePayload {
++  bulletId: string
++  x: number
++  z: number
++  vx: number
++  vz: number
++}
++
++export function decodeBounce(p: unknown, l: Limits): BouncePayload | null {
++  if (!isObj(p) || !isStr(p.bulletId)) return null
++  if (!isNumIn(p.x, -l.worldLimit, l.worldLimit) || !isNumIn(p.z, -l.worldLimit, l.worldLimit)) return null
++  if (!isNumIn(p.vx, -l.velLimit, l.velLimit) || !isNumIn(p.vz, -l.velLimit, l.velLimit)) return null
++  return { bulletId: p.bulletId, x: p.x, z: p.z, vx: p.vx, vz: p.vz }
++}
++
++export function decodeClose(p: unknown): { cx: number; cy: number } | null {
++  if (!isObj(p) || !isIntIn(p.cx, 0, GRID_W - 1) || !isIntIn(p.cy, 0, GRID_H - 1)) return null
++  return { cx: p.cx, cy: p.cy }
++}
++
++/** bulletId（可選）＝打掉這個木箱的子彈：guest 的子彈比 host 晚一個延遲，木箱先被刪就會穿過去，所以一併刪 */
++export function decodeCrate(p: unknown): { ci: number; bulletId: string | null } | null {
++  if (!isObj(p) || !isIntIn(p.ci, 0, GRID_W * GRID_H - 1)) return null
++  if (p.bulletId !== undefined && !isStr(p.bulletId)) return null
++  return { ci: p.ci, bulletId: p.bulletId ?? null }
++}
++
++export interface BotStateEntry {
++  id: string
++  x: number
++  z: number
++  ry: number
++  ta: number
++}
++
++export function decodeBotState(p: unknown, botIds: readonly string[], l: Limits): { states: BotStateEntry[] } | null {
++  if (!isObj(p)) return null
++  const states = p.states
++  const ok = isArrayOf<BotStateEntry>(
++    states,
++    (s) =>
++      isObj(s) &&
++      isStr(s.id) &&
++      botIds.includes(s.id) &&
++      isNumIn(s.x, -l.worldLimit, l.worldLimit) &&
++      isNumIn(s.z, -l.worldLimit, l.worldLimit) &&
++      isNum(s.ry) &&
++      isNum(s.ta),
++    MAX_TANKS
++  )
++  if (!ok) return null
++  return { states: states.map((s) =>({ id: s.id, x: s.x, z: s.z, ry: s.ry, ta: s.ta })) }
++}
++
++export interface HitPayload {
++  bulletId: string | null
++  targetId: string
++  hp: number
++  killerId: string | null
++  /** 擊退方向單位向量（舊格式為 0,0＝不擊退） */
++  dirX: number
++  dirZ: number
++  shieldBroken: boolean
++  /** 命中時仍在無敵中：不扣血、不重置無敵時間 */
++  invuln: boolean
++}
++
++const optBool = (v: unknown): v is boolean | undefined => v === undefined || typeof v === 'boolean'
++const optUnit = (v: unknown): v is number | undefined => v === undefined || isNumIn(v, -1.001, 1.001)
++
++export function decodeHit(p: unknown): HitPayload | null {
++  if (!isObj(p) || !isStr(p.targetId) || !isIntIn(p.hp, 0, 99)) return null
++  if (!optUnit(p.dirX) || !optUnit(p.dirZ) || !optBool(p.shieldBroken) || !optBool(p.invuln)) return null
++  return {
++    bulletId: isStr(p.bulletId) ? p.bulletId : null,
++    targetId: p.targetId,
++    hp: p.hp,
++    killerId: isStr(p.killerId) ? p.killerId : null,
++    dirX: p.dirX ?? 0,
++    dirZ: p.dirZ ?? 0,
++    shieldBroken: p.shieldBroken ?? false,
++    invuln: p.invuln ?? false,
++  }
++}
++
++export function decodePickup(p: unknown): { ci: number; who: string; kind: ItemKind | null } | null {
++  if (!isObj(p) || !isIntIn(p.ci, 0, GRID_W * GRID_H - 1) || !isStr(p.who)) return null
++  if (p.kind === undefined) return { ci: p.ci, who: p.who, kind: null }
++  if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return null
++  return { ci: p.ci, who: p.who, kind: p.kind }
++}
+diff --git a/src/babylon/games/tankFx/pacing.test.ts b/src/babylon/games/tankFx/pacing.test.ts
+new file mode 100644
+index 0000000..d4fe5e1
+--- /dev/null
++++ b/src/babylon/games/tankFx/pacing.test.ts
+@@ -0,0 +1,21 @@
++import { describe, it, expect } from 'vitest'
++import { paceTick } from '@/babylon/games/tankFx/pacing'
++
++describe('paceTick — 固定 tick 下維持平均廣播頻率', () => {
++  it('30Hz tick、50ms 間隔：一秒送 20 次', () => {
++    let last = 0
++    let sent = 0
++    for (let i = 1; i <= 30; i++) {
++      const r = paceTick((i * 1000) / 30, last, 50)
++      last = r.last
++      if (r.due) sent++
++    }
++    expect(sent).toBe(20)
++  })
++
++  it('落後太多（例如分頁暫停）時夾回 now，不連發補送', () => {
++    const r = paceTick(10_000, 0, 50)
++    expect(r).toEqual({ due: true, last: 10_000 })
++    expect(paceTick(10_033, r.last, 50).due).toBe(false)
++  })
++})
+diff --git a/src/babylon/games/tankFx/pacing.ts b/src/babylon/games/tankFx/pacing.ts
+new file mode 100644
+index 0000000..8199d00
+--- /dev/null
++++ b/src/babylon/games/tankFx/pacing.ts
+@@ -0,0 +1,8 @@
++/**
++ * 固定 tick 下的廣播節拍（純函式）：last 以 interval 累加，平均頻率 = 1000 / interval；
++ * 落後超過兩個間隔（分頁暫停等）就夾回 now，不連發補送。
++ */
++export function paceTick(now: number, last: number, interval: number): { due: boolean; last: number } {
++  if (now - last < interval) return { due: false, last }
++  return { due: true, last: now - last > interval * 2 ? now : last + interval }
++}
+diff --git a/src/babylon/games/tankFx/roster.test.ts b/src/babylon/games/tankFx/roster.test.ts
+new file mode 100644
+index 0000000..9023c99
+--- /dev/null
++++ b/src/babylon/games/tankFx/roster.test.ts
+@@ -0,0 +1,66 @@
++import { describe, it, expect } from 'vitest'
++import { entityIds, makeBots, rankStandings, tankColorIndex } from '@/babylon/games/tankFx/roster'
++
++const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `玩家${i}` }))
++
++describe('makeBots — 補滿 4 台', () => {
++  it('單人補 3 台，命名 bot-N／電腦N', () => {
++    expect(makeBots(1)).toEqual([
++      { id: 'bot-0', name: '電腦1' },
++      { id: 'bot-1', name: '電腦2' },
++      { id: 'bot-2', name: '電腦3' },
++    ])
++  })
++
++  it('4 人以上不補', () => {
++    expect(makeBots(4)).toEqual([])
++    expect(makeBots(6)).toEqual([])
++  })
++})
++
++describe('tankColorIndex — 固定 4 色', () => {
++  it('依「真人依序＋bot 依序」給 0..3', () => {
++    const ps = players(2)
++    const bots = makeBots(2)
++    expect(entityIds(ps, bots)).toEqual(['p0', 'p1', 'bot-0', 'bot-1'])
++    expect(['p0', 'p1', 'bot-0', 'bot-1'].map((id) => tankColorIndex(id, ps, bots))).toEqual([0, 1, 2, 3])
++  })
++
++  it('同一份名冊在任何 selfId 下輸出一致', () => {
++    const ps = players(3)
++    const bots = makeBots(3)
++    const table = (selfId: string) => {
++      void selfId // 推導不吃 selfId：各 client 只差在自己是誰
++      return entityIds(ps, bots).map((id) => tankColorIndex(id, ps, bots))
++    }
++    const ref = table('p0')
++    for (const self of ['p1', 'p2']) expect(table(self)).toEqual(ref)
++  })
++
++  it('中途有人離房：依新名冊重排', () => {
++    const ps = players(3)
++    expect(tankColorIndex('p2', ps, [])).toBe(2)
++    expect(tankColorIndex('p2', ps.filter((p) => p.id !== 'p1'), [])).toBe(1)
++  })
++})
++
++describe('rankStandings — 結算含 bot', () => {
++  it('存活優先、再比擊殺，同分依名冊序', () => {
++    const r = rankStandings([
++      { id: 'p0', name: 'A', alive: false, kills: 3 },
++      { id: 'bot-0', name: '電腦1', alive: true, kills: 0 },
++      { id: 'bot-1', name: '電腦2', alive: false, kills: 1 },
++      { id: 'p1', name: 'B', alive: false, kills: 1 },
++    ])
++    expect(r.map((s) => s.id)).toEqual(['bot-0', 'p0', 'bot-1', 'p1'])
++  })
++
++  it('不改動輸入陣列', () => {
++    const input = [
++      { id: 'a', name: 'a', alive: false, kills: 0 },
++      { id: 'b', name: 'b', alive: true, kills: 0 },
++    ]
++    rankStandings(input)
++    expect(input[0].id).toBe('a')
++  })
++})
+diff --git a/src/babylon/games/tankFx/roster.ts b/src/babylon/games/tankFx/roster.ts
+new file mode 100644
+index 0000000..e9c39e5
+--- /dev/null
++++ b/src/babylon/games/tankFx/roster.ts
+@@ -0,0 +1,43 @@
++/**
++ * 坦克名冊：bot 補位、固定 4 色、結算排名（純函式）。
++ * 配色推導只讀 import bomberFx/palette 的 colorIndexOf，與炸彈超人同規則。
++ */
++import { colorIndexOf } from '@/babylon/games/bomberFx/palette'
++import type { ColorIndex } from '@/babylon/fx/palette'
++
++export interface RosterEntry {
++  id: string
++  name: string
++}
++
++/** 場上坦克上限（含 bot） */
++export const MAX_TANKS = 4
++
++/** host：依真人數補滿 4 台（bot-0.. ／電腦1..），與 bomber 同規則 */
++export function makeBots(humanCount: number): RosterEntry[] {
++  const count = Math.max(0, MAX_TANKS - humanCount)
++  return Array.from({ length: count }, (_, i) => ({ id: `bot-${i}`, name: `電腦${i + 1}` }))
++}
++
++/** 實體序：真人依序在前、bot 依序在後（出生角與配色共用） */
++export const entityIds = (players: readonly { id: string }[], bots: readonly { id: string }[]): string[] => [
++  ...players.map((p) => p.id),
++  ...bots.map((b) => b.id),
++]
++
++export const tankColorIndex = (
++  id: string,
++  players: readonly { id: string }[],
++  bots: readonly { id: string }[]
++): ColorIndex => colorIndexOf(id, entityIds(players, bots))
++
++export interface Standing {
++  id: string
++  name: string
++  alive: boolean
++  kills: number
++}
++
++/** 存活優先、再比擊殺；同分保持輸入（名冊）順序。不改動輸入 */
++export const rankStandings = (list: readonly Standing[]): Standing[] =>
++  [...list].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kills - a.kills)
+diff --git a/src/babylon/games/tankFx/tankAI.test.ts b/src/babylon/games/tankFx/tankAI.test.ts
+new file mode 100644
+index 0000000..99075a0
+--- /dev/null
++++ b/src/babylon/games/tankFx/tankAI.test.ts
+@@ -0,0 +1,177 @@
++import { describe, it, expect } from 'vitest'
++import {
++  AI_AIM_ERR_DEG,
++  AI_DODGE_MS,
++  AI_REACT_MS,
++  createAIMemory,
++  decideTankBot,
++  type TankAIInput,
++} from '@/babylon/games/tankFx/tankAI'
++import { GRID_H, GRID_W, cellToWorld } from '@/babylon/games/tankFx/grid'
++
++const NOW = 10_000
++const wx = (c: number) => cellToWorld(c, GRID_W)
++const wz = (c: number) => cellToWorld(c, GRID_H)
++const only = (...cells: [number, number][]) => (cx: number, cy: number) =>
++  cells.some(([x, y]) => x === cx && y === cy)
++const none = () => false
++
++/** 空曠場地上位於格 (2,2) 中心的 bot */
++const input = (over: Partial<TankAIInput> = {}): TankAIInput => ({
++  self: { id: 'bot-0', x: wx(2), z: wz(2), turretAngle: 0 },
++  now: NOW,
++  isWall: none,
++  isCrate: none,
++  isDanger: none,
++  enemies: [],
++  bullets: [],
++  items: [],
++  rand: () => 0.5,
++  ...over,
++})
++
++describe('常數', () => {
++  it('AC2 具名常數', () => {
++    expect([AI_AIM_ERR_DEG, AI_REACT_MS, AI_DODGE_MS]).toEqual([8, 300, 600])
++  })
++})
++
++describe('decideTankBot — 開火', () => {
++  const enemy = { id: 'p0', x: wx(8), z: wz(2) }
++  const aimed = Math.atan2(enemy.x - wx(2), 0) // 正 +x 方向
++
++  it('有直線視線、反應時間已過、砲塔對準 → 開火', () => {
++    const mem = { targetId: 'p0', seenSince: NOW - AI_REACT_MS, aimErr: 0 }
++    const { action } = decideTankBot(input({ enemies: [enemy], self: { id: 'bot-0', x: wx(2), z: wz(2), turretAngle: aimed } }), mem)
++    expect(action.fire).toBe(true)
++    expect(action.aim).toBeCloseTo(aimed)
++  })
++
++  it('剛看到目標：未滿反應延遲不開火', () => {
++    const { action, memory } = decideTankBot(
++      input({ enemies: [enemy], self: { id: 'bot-0', x: wx(2), z: wz(2), turretAngle: aimed } }),
++      createAIMemory()
++    )
++    expect(action.fire).toBe(false)
++    expect(memory).toMatchObject({ targetId: 'p0', seenSince: NOW })
++  })
++
++  it('瞄準誤差不超過 AI_AIM_ERR_DEG', () => {
++    for (const r of [0, 0.999]) {
++      const { action } = decideTankBot(input({ enemies: [enemy], rand: () => r }), createAIMemory())
++      expect(Math.abs((action.aim ?? 0) - aimed)).toBeLessThanOrEqual((AI_AIM_ERR_DEG * Math.PI) / 180 + 1e-9)
++    }
++  })
++
++  it('每開一發就重抽瞄準誤差（不會對同一目標永遠打偏同一邊）', () => {
++    const seq = [0.9, 0.1]
++    const mem = { targetId: 'p0', seenSince: NOW - AI_REACT_MS, aimErr: 0 }
++    const { action, memory } = decideTankBot(
++      input({ enemies: [enemy], rand: () => seq.shift() ?? 0.5, self: { id: 'bot-0', x: wx(2), z: wz(2), turretAngle: aimed } }),
++      mem
++    )
++    expect(action.fire).toBe(true)
++    expect(memory.aimErr).not.toBe(0)
++  })
++
++  it('冷卻中（fireReady=false）不回報開火、也不重抽誤差', () => {
++    const mem = { targetId: 'p0', seenSince: NOW - AI_REACT_MS, aimErr: 0 }
++    const { action, memory } = decideTankBot(
++      input({ enemies: [enemy], fireReady: false, self: { id: 'bot-0', x: wx(2), z: wz(2), turretAngle: aimed } }),
++      mem
++    )
++    expect(action.fire).toBe(false)
++    expect(memory.aimErr).toBe(0)
++  })
++
++  it('有視線但距離遠：邊瞄準邊往敵人靠近', () => {
++    const far = { id: 'p0', x: wx(14), z: wz(2) }
++    const { action } = decideTankBot(input({ enemies: [far] }), createAIMemory())
++    expect(action.aim).not.toBeNull()
++    expect([action.moveX, action.moveZ]).toEqual([1, 0])
++  })
++
++  it('中間隔著牆＝無視線，不開火也不瞄準', () => {
++    const mem = { targetId: 'p0', seenSince: NOW - 1000, aimErr: 0 }
++    const { action, memory } = decideTankBot(
++      input({ enemies: [enemy], isWall: only([5, 2]), self: { id: 'bot-0', x: wx(2), z: wz(2), turretAngle: aimed } }),
++      mem
++    )
++    expect(action.fire).toBe(false)
++    expect(memory.targetId).toBeNull()
++  })
++
++  it('木箱也擋視線', () => {
++    const mem = { targetId: 'p0', seenSince: NOW - 1000, aimErr: 0 }
++    const { memory } = decideTankBot(input({ enemies: [enemy], isCrate: only([5, 2]) }), mem)
++    expect(memory.targetId).toBeNull()
++  })
++})
++
++describe('decideTankBot — 閃避', () => {
++  it('子彈將在 AI_DODGE_MS 內擊中自己 → 橫移（垂直於彈道）', () => {
++    const bullet = { x: wx(2) - 4, z: wz(2), vx: 12, vz: 0, owner: 'p0', bounces: 0 }
++    const { action } = decideTankBot(input({ bullets: [bullet] }), createAIMemory())
++    expect(action.moveX).toBeCloseTo(0)
++    expect(Math.abs(action.moveZ)).toBeCloseTo(1)
++  })
++
++  it('子彈太遠（超過 AI_DODGE_MS 才到）不閃', () => {
++    const bullet = { x: wx(2) - 10, z: wz(2), vx: 12, vz: 0, owner: 'p0', bounces: 0 }
++    const { action } = decideTankBot(input({ bullets: [bullet] }), createAIMemory())
++    expect([action.moveX, action.moveZ]).toEqual([0, 0])
++  })
++
++  it('自己剛射出（未反彈）的子彈不閃', () => {
++    const bullet = { x: wx(2) - 4, z: wz(2), vx: 12, vz: 0, owner: 'bot-0', bounces: 0 }
++    const { action } = decideTankBot(input({ bullets: [bullet] }), createAIMemory())
++    expect([action.moveX, action.moveZ]).toEqual([0, 0])
++  })
++
++  it('閃避方向一側是預告格就閃往另一側', () => {
++    const bullet = { x: wx(2) - 4, z: wz(2) + 0.1, vx: 12, vz: 0, owner: 'p0', bounces: 0 }
++    // 子彈略偏 +z，原本會往 -z 閃；-z 那格是預告格 → 改往 +z
++    const { action } = decideTankBot(input({ bullets: [bullet], isDanger: only([2, 1]) }), createAIMemory())
++    expect(action.moveZ).toBeCloseTo(1)
++  })
++})
++
++describe('decideTankBot — 尋路', () => {
++  it('撿道具：無目標時沿格路徑走向最近的道具', () => {
++    const { action } = decideTankBot(input({ items: [{ cx: 2, cy: 5 }] }), createAIMemory())
++    expect([action.moveX, action.moveZ]).toEqual([0, 1])
++  })
++
++  it('避開預告格：直線路徑上有預告格就繞路', () => {
++    const { action } = decideTankBot(input({ items: [{ cx: 4, cy: 2 }], isDanger: only([3, 2]) }), createAIMemory())
++    expect(action.moveX).toBe(0)
++    expect(Math.abs(action.moveZ)).toBe(1)
++  })
++
++  it('不走進已落牆格（牆格不可通行）', () => {
++    const { action } = decideTankBot(input({ items: [{ cx: 4, cy: 2 }], isWall: only([3, 2]) }), createAIMemory())
++    expect(action.moveX).toBe(0)
++  })
++
++  it('站在預告格上 → 往最近的安全格逃', () => {
++    const { action } = decideTankBot(input({ isDanger: only([2, 2], [2, 1], [2, 3], [1, 2]) }), createAIMemory())
++    expect([action.moveX, action.moveZ]).toEqual([1, 0])
++  })
++
++  it('無道具、無視線 → 走向最近的敵人', () => {
++    const enemy = { id: 'p0', x: wx(2), z: wz(9) }
++    const { action } = decideTankBot(input({ enemies: [enemy], isWall: only([2, 5]) }), createAIMemory())
++    expect(Math.hypot(action.moveX, action.moveZ)).toBeCloseTo(1)
++  })
++
++  it('路被木箱擋住：對準木箱開火', () => {
++    const crate = only([2, 3], [1, 2], [3, 2], [2, 1])
++    const enemy = { id: 'p0', x: wx(2), z: wz(9) }
++    const { action } = decideTankBot(
++      input({ enemies: [enemy], isCrate: crate, self: { id: 'bot-0', x: wx(2), z: wz(2), turretAngle: 0 } }),
++      createAIMemory()
++    )
++    expect(action.aim).not.toBeNull()
++    expect(action.fire).toBe(true)
++  })
++})
+diff --git a/src/babylon/games/tankFx/tankAI.ts b/src/babylon/games/tankFx/tankAI.ts
+new file mode 100644
+index 0000000..a93f057
+--- /dev/null
++++ b/src/babylon/games/tankFx/tankAI.ts
+@@ -0,0 +1,272 @@
++/**
++ * 坦克電腦玩家決策（純函式，host 每 tick 對每台 bot 呼叫一次）。
++ *
++ * 優先序：
++ * - 移動：子彈將在 AI_DODGE_MS 內擊中自己 → 橫移閃避；站在預告格 → 逃到最近安全格；
++ *   否則沿格路徑走向最近的道具，沒有道具且看不到敵人就走向最近的敵人。
++ *   尋路不經過牆（含已落牆格）與預告格；路被木箱擋住就停下打木箱。
++ * - 砲塔：有直線視線的最近敵人 → 瞄準（誤差 ≤ AI_AIM_ERR_DEG），看到滿 AI_REACT_MS 且對準才開火；
++ *   否則對準擋路的木箱開火。
++ * 冷卻與 buff 由 host 的開火路徑另行把關，這裡只回答「想不想開火」。
++ */
++import {
++  GRID_H,
++  GRID_W,
++  cellIdx,
++  cellToWorld,
++  inGrid,
++  tankMoveBlocked,
++  worldToCell,
++  type CellPred,
++} from '@/babylon/games/tankFx/grid'
++
++export const AI_AIM_ERR_DEG = 8
++export const AI_REACT_MS = 300
++export const AI_DODGE_MS = 600
++
++/** 子彈與坦克中心距離小於此值算命中（同 tank.ts 判定 0.7），閃避再多留餘裕 */
++const DODGE_RADIUS = 1.0
++/** 砲塔與目標角差小於此值才算對準 */
++const AIM_TOLERANCE = 0.06
++/** 有視線但距離超過此值（世界單位）時，邊瞄準邊沿路徑靠近 */
++const ENGAGE_DIST = 10
++const MAX_AIM_ERR = (AI_AIM_ERR_DEG * Math.PI) / 180
++/** 換軸前先對齊格中心的容許偏差 */
++const ALIGN_EPS = 0.15
++
++export interface AiTank {
++  id: string
++  x: number
++  z: number
++}
++
++export interface AiBullet {
++  x: number
++  z: number
++  vx: number
++  vz: number
++  owner: string
++  bounces: number
++}
++
++export interface TankAIInput {
++  self: AiTank & { turretAngle: number }
++  now: number
++  /** 不可破牆（含已落牆格）；場外由本模組一律視為牆 */
++  isWall: CellPred
++  isCrate: CellPred
++  /** 落牆預告格 */
++  isDanger: CellPred
++  /** 存活的其他坦克 */
++  enemies: readonly AiTank[]
++  bullets: readonly AiBullet[]
++  items: readonly { cx: number; cy: number }[]
++  /** [0,1) 亂數（瞄準誤差用） */
++  rand: () => number
++  /** 開火冷卻已好（host 依 FIRE_COOLDOWN_MS 與 buff 算）；省略視為 true */
++  fireReady?: boolean
++}
++
++export interface TankAIMemory {
++  targetId: string | null
++  seenSince: number
++  /** 本次鎖定的瞄準誤差（弧度），換目標才重抽，避免砲塔每 tick 抖動 */
++  aimErr: number
++}
++
++export interface TankAIAction {
++  /** 移動方向（軸向單位向量或 0） */
++  moveX: number
++  moveZ: number
++  /** 砲塔目標角；null 表示維持現狀 */
++  aim: number | null
++  fire: boolean
++}
++
++export const createAIMemory = (): TankAIMemory => ({ targetId: null, seenSince: 0, aimErr: 0 })
++
++const angleTo = (fx: number, fz: number, tx: number, tz: number) => Math.atan2(tx - fx, tz - fz)
++const angleDiff = (a: number, b: number) => {
++  const d = (a - b) % (Math.PI * 2)
++  return Math.abs(d > Math.PI ? d - Math.PI * 2 : d < -Math.PI ? d + Math.PI * 2 : d)
++}
++
++/** 兩點之間沿直線每 0.25 取樣，經過 blocked 格即無視線 */
++export function hasLineOfSight(ax: number, az: number, bx: number, bz: number, blocked: CellPred): boolean {
++  const dist = Math.hypot(bx - ax, bz - az)
++  const n = Math.ceil(dist / 0.25)
++  for (let i = 1; i < n; i++) {
++    const t = i / n
++    const cx = worldToCell(ax + (bx - ax) * t, GRID_W)
++    const cy = worldToCell(az + (bz - az) * t, GRID_H)
++    if (!inGrid(cx, cy) || blocked(cx, cy)) return false
++  }
++  return true
++}
++
++const DIRS: [number, number][] = [
++  [1, 0],
++  [-1, 0],
++  [0, 1],
++  [0, -1],
++]
++
++/** BFS：從 start 出發（start 本身不受限），回傳到第一個符合 isGoal 的格的路徑（含 start） */
++function bfs(
++  start: [number, number],
++  passable: CellPred,
++  isGoal: CellPred
++): [number, number][] | null {
++  const prev = new Map<number, number>()
++  const s = cellIdx(start[0], start[1])
++  prev.set(s, -1)
++  const queue: number[] = [s]
++  for (let head = 0; head < queue.length; head++) {
++    const cur = queue[head]
++    const cx = cur % GRID_W
++    const cy = Math.floor(cur / GRID_W)
++    if (cur !== s && isGoal(cx, cy)) {
++      const path: [number, number][] = []
++      for (let k = cur; k !== -1; k = prev.get(k) as number) path.push([k % GRID_W, Math.floor(k / GRID_W)])
++      return path.reverse()
++    }
++    for (const [dx, dy] of DIRS) {
++      const nx = cx + dx
++      const ny = cy + dy
++      if (!inGrid(nx, ny) || !passable(nx, ny)) continue
++      const ni = cellIdx(nx, ny)
++      if (prev.has(ni)) continue
++      prev.set(ni, cur)
++      queue.push(ni)
++    }
++  }
++  return null
++}
++
++/** 子彈威脅：回傳要閃的那發（AI_DODGE_MS 內最接近距離 < DODGE_RADIUS 且中間無牆） */
++function threat(input: TankAIInput): AiBullet | null {
++  const { self } = input
++  for (const b of input.bullets) {
++    if (b.owner === self.id && b.bounces === 0) continue
++    const v2 = b.vx * b.vx + b.vz * b.vz
++    if (v2 === 0) continue
++    const rx = self.x - b.x
++    const rz = self.z - b.z
++    const along = rx * b.vx + rz * b.vz
++    if (along <= 0) continue
++    const t = Math.min(along / v2, AI_DODGE_MS / 1000)
++    const px = b.x + b.vx * t - self.x
++    const pz = b.z + b.vz * t - self.z
++    if (Math.hypot(px, pz) >= DODGE_RADIUS) continue
++    if (!hasLineOfSight(b.x, b.z, self.x, self.z, input.isWall)) continue
++    return b
++  }
++  return null
++}
++
++export function decideTankBot(input: TankAIInput, memory: TankAIMemory): { action: TankAIAction; memory: TankAIMemory } {
++  const { self, now } = input
++  const scx = worldToCell(self.x, GRID_W)
++  const scy = worldToCell(self.z, GRID_H)
++  const wall = (cx: number, cy: number) => !inGrid(cx, cy) || input.isWall(cx, cy)
++  const losBlock = (cx: number, cy: number) => wall(cx, cy) || input.isCrate(cx, cy)
++
++  // ---- 目標與砲塔 ----
++  let target: AiTank | null = null
++  let best = Infinity
++  for (const e of input.enemies) {
++    if (!hasLineOfSight(self.x, self.z, e.x, e.z, losBlock)) continue
++    const d = Math.hypot(e.x - self.x, e.z - self.z)
++    if (d < best) {
++      best = d
++      target = e
++    }
++  }
++  let mem: TankAIMemory
++  if (!target) mem = { targetId: null, seenSince: 0, aimErr: 0 }
++  else if (target.id !== memory.targetId) {
++    mem = { targetId: target.id, seenSince: now, aimErr: (input.rand() * 2 - 1) * MAX_AIM_ERR }
++  } else mem = { ...memory }
++
++  let aim: number | null = null
++  let fire = false
++  if (target) {
++    aim = angleTo(self.x, self.z, target.x, target.z) + mem.aimErr
++    fire =
++      (input.fireReady ?? true) &&
++      now - mem.seenSince >= AI_REACT_MS &&
++      angleDiff(self.turretAngle, aim) < AIM_TOLERANCE
++    // 每發重抽誤差：同一目標不會永遠偏同一邊
++    if (fire) mem.aimErr = (input.rand() * 2 - 1) * MAX_AIM_ERR
++  }
++
++  // ---- 移動 ----
++  let moveX = 0
++  let moveZ = 0
++  const danger = (cx: number, cy: number) => inGrid(cx, cy) && input.isDanger(cx, cy)
++  const dangerAt = (x: number, z: number) => danger(worldToCell(x, GRID_W), worldToCell(z, GRID_H))
++  const blockedAt = (x: number, z: number) =>
++    tankMoveBlocked(self.x, self.z, x, z, (cx, cy) => wall(cx, cy) || input.isCrate(cx, cy))
++
++  const bullet = threat(input)
++  if (bullet) {
++    const len = Math.hypot(bullet.vx, bullet.vz)
++    const px = -bullet.vz / len
++    const pz = bullet.vx / len
++    // 往離彈道較遠的一側閃；那側會卡住或會走進預告格就換另一側
++    const side = (self.x - bullet.x) * px + (self.z - bullet.z) * pz >= 0 ? 1 : -1
++    for (const s of [side, -side]) {
++      const dx = px * s
++      const dz = pz * s
++      if (blockedAt(self.x + dx * 0.6, self.z + dz * 0.6)) continue
++      if (dangerAt(self.x + dx * DODGE_LOOKAHEAD, self.z + dz * DODGE_LOOKAHEAD)) continue
++      moveX = round(dx)
++      moveZ = round(dz)
++      break
++    }
++    return { action: { moveX, moveZ, aim, fire }, memory: mem }
++  }
++
++  const passable = (cx: number, cy: number) => !wall(cx, cy) && !danger(cx, cy)
++  let path: [number, number][] | null = null
++  if (danger(scx, scy)) {
++    path = bfs([scx, scy], (cx, cy) => !wall(cx, cy), (cx, cy) => !danger(cx, cy) && !input.isCrate(cx, cy))
++  } else if (input.items.length > 0) {
++    const goals = new Set(input.items.map((i) => cellIdx(i.cx, i.cy)))
++    path = goals.has(cellIdx(scx, scy)) ? null : bfs([scx, scy], passable, (cx, cy) => goals.has(cellIdx(cx, cy)))
++  }
++  const approach = !target || best > ENGAGE_DIST
++  if (!path && approach && input.enemies.length > 0 && !danger(scx, scy)) {
++    const goals = new Set(input.enemies.map((e) => cellIdx(worldToCell(e.x, GRID_W), worldToCell(e.z, GRID_H))))
++    path = bfs([scx, scy], passable, (cx, cy) => goals.has(cellIdx(cx, cy)))
++  }
++
++  if (path && path.length > 1) {
++    const [nx, ny] = path[1]
++    if (input.isCrate(nx, ny)) {
++      // 路被木箱擋住：停下對準木箱開火（沒有敵人目標時才換砲塔目標）
++      if (!target) {
++        aim = angleTo(self.x, self.z, cellToWorld(nx, GRID_W), cellToWorld(ny, GRID_H))
++        fire = angleDiff(self.turretAngle, aim) < AIM_TOLERANCE * 2
++      }
++    } else {
++      const ccx = cellToWorld(scx, GRID_W)
++      const ccz = cellToWorld(scy, GRID_H)
++      if (nx !== scx) {
++        const off = ccz - self.z
++        if (Math.abs(off) > ALIGN_EPS) moveZ = Math.sign(off)
++        else moveX = Math.sign(cellToWorld(nx, GRID_W) - self.x)
++      } else {
++        const off = ccx - self.x
++        if (Math.abs(off) > ALIGN_EPS) moveX = Math.sign(off)
++        else moveZ = Math.sign(cellToWorld(ny, GRID_H) - self.z)
++      }
++    }
++  }
++
++  return { action: { moveX, moveZ, aim, fire }, memory: mem }
++}
++
++/** 閃避時檢查「往那側走會不會進預告格」的前瞻距離 */
++const DODGE_LOOKAHEAD = 1.2
++const round = (v: number) => Math.round(v * 1e6) / 1e6
+

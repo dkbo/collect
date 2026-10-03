@@ -1,0 +1,729 @@
+# 坦克美術＋可玩度（A Toy Army） — wave 4 since 28bc63e — 2026-10-03T13:43
+# files changed: 11 (working tree included)
+
+## commits
+
+## stat
+ scripts/qa/tankart/agg.mjs                  |  44 +++++++
+ scripts/qa/tankart/analyze.mjs              |  85 ++++++++++++
+ scripts/qa/tankart/ghost.mjs                |  13 ++
+ scripts/qa/tankart/ghost2.mjs               |  12 ++
+ scripts/qa/tankart/ghostbounce.mjs          |  18 +++
+ scripts/qa/tankart/mp2.mjs                  |  22 ++++
+ scripts/qa/tankart/mpcmp.mjs                |  32 +++++
+ scripts/qa/tankart/play.mjs                 | 195 ++++++++++++++++++++++++++++
+ src/babylon/games/tank.ts                   |  19 ++-
+ src/babylon/games/tankFx/bulletLife.test.ts |  89 +++++++++++++
+ src/babylon/games/tankFx/bulletLife.ts      |  27 ++++
+ 11 files changed, 546 insertions(+), 10 deletions(-)
+
+## diff (-U10)
+diff --git a/scripts/qa/tankart/agg.mjs b/scripts/qa/tankart/agg.mjs
+new file mode 100644
+index 0000000..9407157
+--- /dev/null
++++ b/scripts/qa/tankart/agg.mjs
+@@ -0,0 +1,44 @@
++// 彙整多個 analyze 輸出＋原始 play JSON：無敵間隔、擊退（含無敵期間不擊退）、護盾、三連發、反彈、縮圈、壓毀、配色、結算、錯誤
++import { readFileSync } from 'node:fs'
++const files = process.argv.slice(2)
++const A = { rounds: 0, bullets: 0, bounced: 0, maxBounces: 0, own: {}, botShield: 0, botTriple: 0, shieldBreaks: 0, shieldHpLoss: 0, triple: {}, illegal: 0, items: new Set(), sudden: [], crush: [], errors: [], pageErrors: [], colors: new Set(), overlays: [] }
++const gaps = [], knockStart = [], knockDuringInv = []
++for (const f of files) {
++  const raw = JSON.parse(readFileSync(f, 'utf8')), an = JSON.parse(readFileSync(f.replace(/\.json$/, '.an.json'), 'utf8'))
++  for (const o of raw.overlays ?? []) A.overlays.push(o[0])
++  for (const c of an.contexts) {
++    if (c.round === undefined) { A.errors.push(...c.errors); A.pageErrors.push(...c.pageErrors); continue }
++    A.rounds++; A.bullets += c.bullets.seen; A.bounced += c.bullets.bounced; A.maxBounces = Math.max(A.maxBounces, c.bullets.maxBounces)
++    for (const [k, v] of Object.entries(c.bulletsByOwner)) A.own[k] = (A.own[k] ?? 0) + v
++    c.itemKinds.forEach((k) => A.items.add(k)); A.colors.add(c.roster.join(','))
++    if (c.sudden) A.sudden.push({ f, r: c.round, ...c.sudden })
++    for (const [id, e] of Object.entries(c.ents)) {
++      if (id.startsWith('bot')) { if (e.shieldSamples) A.botShield++; if (e.tripleSamples) A.botTriple++ }
++      A.shieldBreaks += e.shieldBreaks.length; A.shieldHpLoss += e.shieldBreaks.filter((x) => x.hpAfter < x.hpBefore).length
++      for (const n of e.tripleFreshBullets) A.triple[n] = (A.triple[n] ?? 0) + 1
++      A.illegal += e.illegalPos.length
++      if (e.death && e.death.prevWarn && e.death.prevWarn.cx === e.death.cell[0] && e.death.prevWarn.cy === e.death.cell[1]) A.crush.push({ f: f.split('/').pop(), r: c.round, id, cell: e.death.cell })
++    }
++  }
++  // 原始樣本：扣血間隔上界、被動 solo 位移（受擊開始 vs 無敵中）
++  for (const c of raw.contexts) {
++    const S = c.samples.filter((s) => s.d.__TANK_STATE && s.d.__BATTLE_PHASE === 'playing')
++    const ids = new Set(S.flatMap((s) => s.d.__TANK_STATE.entities.map((e) => e.id)))
++    for (const id of ids) {
++      let last = null
++      for (let i = 1; i < S.length; i++) {
++        const a = S[i - 1].d.__TANK_STATE.entities.find((e) => e.id === id), b = S[i].d.__TANK_STATE.entities.find((e) => e.id === id)
++        if (!a || !b || b.hp > a.hp || (!a.alive && b.alive) || S[i].t - S[i - 1].t > 3000) { last = null; continue }
++        if (b.hp < a.hp) { const cur = { tp: S[i - 1].t, t: S[i].t }; if (last && cur.t - last.tp < 5000) gaps.push(cur.t - last.tp); last = cur }
++        if (id === 'solo' && raw.wander !== true && a.alive && b.alive && b.hp <= a.hp && S[i].t - S[i - 1].t < 600) {
++          const m = Math.hypot(b.x - a.x, b.z - a.z)
++          if (!a.invuln && b.invuln) knockStart.push(+m.toFixed(2))
++          else if (a.invuln && b.invuln && m > 0.01) knockDuringInv.push({ m: +m.toFixed(2), t: S[i].t, f: f.split('/').pop() })
++        }
++      }
++    }
++  }
++}
++gaps.sort((a, b) => a - b)
++const h = (a) => { const m = {}; for (const v of a) m[v] = (m[v] ?? 0) + 1; return m }
++console.log(JSON.stringify({ ...A, items: [...A.items], colors: [...A.colors], hpLossPairs: gaps.length, minHpLossGapUpperMs: gaps.slice(0, 5), knockAtHitStart: h(knockStart), knockDuringInvuln: knockDuringInv, overlays: A.overlays.length, overlaySample: A.overlays.slice(0, 3) }, null, 1))
+diff --git a/scripts/qa/tankart/analyze.mjs b/scripts/qa/tankart/analyze.mjs
+new file mode 100644
+index 0000000..aa73589
+--- /dev/null
++++ b/scripts/qa/tankart/analyze.mjs
+@@ -0,0 +1,85 @@
++#!/usr/bin/env node
++// 分析 play.mjs 的 JSON：反彈次數、無敵窗、護盾、三連發、位置合法、縮圈節奏與壓毀、bot 開火／撿道具、配色、結算。
++// 用法：node scripts/qa/tankart/analyze.mjs <play.json>
++import { readFileSync } from 'node:fs'
++const r = JSON.parse(readFileSync(process.argv[2], 'utf8'))
++const CELL = 2, G = 16
++const SPAWN = [[1, 1], [G - 2, G - 2], [G - 2, 1], [1, G - 2]]
++const wtc = (w) => Math.round(w / CELL + (G - 1) / 2)
++const baseWall = (cx, cy) => cx % 2 === 1 && cy % 2 === 1 && !SPAWN.some(([a, b]) => a === cx && b === cy)
++const blocked = (x, z) => [-0.49, 0.49].some((ox) => [-0.49, 0.49].some((oz) => { const cx = wtc(x + ox), cy = wtc(z + oz); return cx < 0 || cy < 0 || cx >= G || cy >= G || baseWall(cx, cy) }))
++const out = { mode: r.mode, error: r.error ?? null, overlay: r.overlay, contexts: [] }
++for (const c of r.contexts) {
++ out.contexts.push({ tag: c.tag, pageErrors: c.pageErrors, errors: c.errors.filter((e) => !/GL Driver Message/.test(e)), info: c.info.length })
++ const rounds = []
++ let cur = null
++ for (const x of c.samples) {
++  const ph = x.d.__BATTLE_PHASE
++  if (!cur || (ph === 'countdown' && cur.lastPh !== 'countdown')) { cur = { samples: [], lastPh: null }; rounds.push(cur) }
++  cur.samples.push(x); cur.lastPh = ph
++ }
++ for (const [ri, rd] of rounds.entries()) {
++  const S = rd.samples.filter((s) => s.d.__TANK_STATE)
++  if (S.length < 5) continue
++  const o = { tag: c.tag, round: ri, samples: S.length, durS: Math.round((S.at(-1).t - S[0].t) / 1000), medianDtMs: S.slice(1).map((s, i) => s.t - S[i].t).sort((a, b) => a - b)[Math.floor(S.length / 2)] }
++  const first = S[0]?.d.__TANK_STATE
++  o.roster = first?.entities.map((e) => `${e.id}:${e.name}:c${e.colorIndex}`)
++  o.colorStable = S.every((s) => s.d.__TANK_STATE.entities.every((e) => e.colorIndex === first.entities.find((f) => f.id === e.id)?.colorIndex))
++  // 反彈
++  const maxB = new Map()
++  for (const s of S) for (const b of s.d.__TANK_STATE.bullets) maxB.set(b.id, Math.max(maxB.get(b.id) ?? 0, b.bounces))
++  o.bullets = { seen: maxB.size, bounced: [...maxB.values()].filter((v) => v >= 1).length, maxBounces: Math.max(0, ...maxB.values()) }
++  const owners = new Map()
++  for (const s of S) for (const b of s.d.__TANK_STATE.bullets) owners.set(b.id, b.owner)
++  o.bulletsByOwner = {}
++  for (const ow of owners.values()) o.bulletsByOwner[ow] = (o.bulletsByOwner[ow] ?? 0) + 1
++  // 每實體：無敵窗、受擊、護盾、三連發、位置
++  o.ents = {}
++  const ids = first?.entities.map((e) => e.id) ?? []
++  for (const id of ids) {
++    const E = S.map((s) => ({ t: s.t, e: s.d.__TANK_STATE.entities.find((x) => x.id === id), st: s.d.__TANK_STATE })).filter((x) => x.e)
++    const inv = []; let start = null
++    const hpDropInInv = []; const shieldBreaks = []; const knock = []; const illegal = []; const tripleShots = []
++    let tripleSeen = 0, shieldSeen = 0
++    for (let i = 0; i < E.length; i++) {
++      const { t, e } = E[i], p = E[i - 1]?.e
++      if (e.invuln && start === null) start = t
++      if (!e.invuln && start !== null) { inv.push(t - start); start = null }
++      if (p && e.hp < p.hp && p.invuln && E[i - 1].t - (start ?? t) > 300) hpDropInInv.push(t)
++      if (p && p.shield && !e.shield) shieldBreaks.push({ t, hpBefore: p.hp, hpAfter: e.hp, invulnAfter: e.invuln })
++      if (p && e.invuln && !p.invuln && e.x != null && p.x != null) knock.push(Math.round(Math.hypot(e.x - p.x, e.z - p.z) * 100) / 100)
++      if (e.alive && e.x != null && blocked(e.x, e.z)) illegal.push({ t, x: e.x, z: e.z })
++      if (e.triple > 0) tripleSeen++
++      if (e.shield) shieldSeen++
++      if (e.triple > 0 && i > 0) {
++        const prevIds = new Set(E[i - 1].st.bullets.map((b) => b.id))
++        const fresh = E[i].st.bullets.filter((b) => b.owner === id && !prevIds.has(b.id)).length
++        if (fresh) tripleShots.push(fresh)
++      }
++    }
++    const died = E.findIndex((x, i) => i > 0 && E[i - 1].e.alive && !x.e.alive)
++    let crushed = null
++    if (died > 0) {
++      const pe = E[died - 1].e, w = E[died - 1].st.warn
++      crushed = { t: E[died].t, cell: [wtc(pe.x), wtc(pe.z)], prevWarn: w, suddenDeath: E[died].st.suddenDeath }
++    }
++    o.ents[id] = { invulnWindowsMs: inv, hpDropDuringInvuln: hpDropInInv, shieldSamples: shieldSeen, shieldBreaks, knockOnHit: knock, tripleSamples: tripleSeen, tripleFreshBullets: tripleShots, illegalPos: illegal.slice(0, 3), death: crushed, final: E.at(-1)?.e }
++  }
++  // 縮圈
++  const sdIdx = S.findIndex((s) => s.d.__TANK_STATE.suddenDeath)
++  const pl = S.find((s) => s.d.__BATTLE_PHASE === 'playing')
++  o.sudden = sdIdx < 0 ? null : { startS: Math.round((S[sdIdx].t - (pl?.t ?? 0)) / 100) / 10, closedFinal: S.at(-1).d.__TANK_STATE.closed }
++  if (sdIdx >= 0) {
++    const a = S.find((s) => s.d.__TANK_STATE.closed > 2), b = S.findLast((s) => s.d.__TANK_STATE.closed > 0)
++    if (a && b && b.t > a.t) o.sudden.msPerWall = Math.round((b.t - a.t) / (b.d.__TANK_STATE.closed - a.d.__TANK_STATE.closed))
++    o.sudden.firstClosedAtS = Math.round(((S.find((s) => s.d.__TANK_STATE.closed > 0)?.t ?? 0) - (pl?.t ?? 0)) / 100) / 10
++    o.sudden.warnSeen = S.some((s) => s.d.__TANK_STATE.warn)
++  }
++  const kinds = new Set(); for (const s of S) for (const k of s.d.__TANK_STATE.items) kinds.add(k)
++  o.itemKinds = [...kinds]
++  o.crates = [first?.crates, S.at(-1)?.d.__TANK_STATE.crates]
++  o.phases = [...new Set(rd.samples.map((s) => s.d.__BATTLE_PHASE))]
++  out.contexts.push(o)
++ }
++}
++console.log(JSON.stringify(out, null, 1))
+diff --git a/scripts/qa/tankart/ghost.mjs b/scripts/qa/tankart/ghost.mjs
+new file mode 100644
+index 0000000..d6d2d52
+--- /dev/null
++++ b/scripts/qa/tankart/ghost.mjs
+@@ -0,0 +1,13 @@
++// 兩端按局（以 A 端 countdown 起點的牆鐘切）比對每發子彈存活時間；guest 比 host 多活 >700ms 視為幽靈子彈
++import { readFileSync } from 'node:fs'
++const r = JSON.parse(readFileSync(process.argv[2], 'utf8'))
++const [A, B] = r.contexts.map((c) => c.samples)
++const starts = []; let prev = null
++for (const s of A) { const ph = s.d.__BATTLE_PHASE; if (ph === 'countdown' && prev !== 'countdown') starts.push(s.w); prev = ph }
++const roundOf = (w) => { let i = -1; for (const [j, t] of starts.entries()) if (w >= t - 1500) i = j; return i }
++const info = (S) => { const m = new Map(); for (const s of S) { if (!s.d.__TANK_STATE) continue; const rd = roundOf(s.w); for (const b of s.d.__TANK_STATE.bullets) { const k = `${rd}:${b.id}`; const x = m.get(k) ?? { first: s.w, last: s.w, n: 0, bounced: false, crates0: s.d.__TANK_STATE.crates }; x.last = s.w; x.n++; if (b.bounces) x.bounced = true; m.set(k, x) } } return m }
++const a = info(A), b = info(B)
++const ghosts = []
++for (const [k, y] of b) { const x = a.get(k); const hl = x ? x.last - x.first : 0; const gl = y.last - y.first; if (gl - hl > 700) ghosts.push({ k, hostLife: hl, guestLife: gl, hostSeen: !!x, guestBounced: y.bounced }) }
++const lives = [...b.values()].map((y) => y.last - y.first)
++console.log(JSON.stringify({ rounds: starts.length, guestBullets: b.size, hostBullets: a.size, ghosts, maxGuestLife: Math.max(...lives) }))
+diff --git a/scripts/qa/tankart/ghost2.mjs b/scripts/qa/tankart/ghost2.mjs
+new file mode 100644
+index 0000000..8127174
+--- /dev/null
++++ b/scripts/qa/tankart/ghost2.mjs
+@@ -0,0 +1,12 @@
++// 嚴格版幽靈子彈：guest 在 tg 仍有該彈，而 host 在 [tg-1000, tg-500] 有樣本且其中沒有該彈（host 已移除超過 0.5s，扣掉網路延遲）、且 host 先前看過它
++import { readFileSync } from 'node:fs'
++const r = JSON.parse(readFileSync(process.argv[2], 'utf8'))
++const [A, B] = r.contexts.map((c) => c.samples.filter((s) => s.d.__TANK_STATE && s.d.__BATTLE_PHASE === 'playing'))
++const ghosts = new Map()
++for (const g of B) for (const b of g.d.__TANK_STATE.bullets) {
++  const win = A.filter((h) => h.w >= g.w - 1000 && h.w <= g.w - 500)
++  if (!win.length || win.some((h) => h.d.__TANK_STATE.bullets.some((x) => x.id === b.id))) continue
++  const seenBefore = A.some((h) => h.w < g.w - 1000 && h.w > g.w - 2500 && h.d.__TANK_STATE.bullets.some((x) => x.id === b.id))
++  if (seenBefore) ghosts.set(`${b.id}@${Math.round(g.w / 1000)}`, true)
++}
++console.log(JSON.stringify({ guestSamples: B.length, ghosts: [...ghosts.keys()] }))
+diff --git a/scripts/qa/tankart/ghostbounce.mjs b/scripts/qa/tankart/ghostbounce.mjs
+new file mode 100644
+index 0000000..5db0faa
+--- /dev/null
++++ b/scripts/qa/tankart/ghostbounce.mjs
+@@ -0,0 +1,18 @@
++#!/usr/bin/env node
++// 波 4 幽靈反彈判定：play.mjs --mp 的 JSON（A=host、B=guest）。按局（A 端 countdown 起點牆鐘）切，
++// 每發子彈比兩端取樣到的最大反彈次數；guest > host 且 host 那一局沒送過該彈的 bounce → 幽靈反彈。
++// 用法：node scripts/qa/tankart/ghostbounce.mjs <play 輸出.json>
++import { readFileSync } from 'node:fs'
++const r = JSON.parse(readFileSync(process.argv[2], 'utf8'))
++const [A, B] = r.contexts.map((c) => c.samples)
++const starts = []; let prev = null
++for (const s of A) { const ph = s.d.__BATTLE_PHASE; if (ph === 'countdown' && prev !== 'countdown') starts.push(s.w); prev = ph }
++const roundOf = (w) => { let i = -1; for (const [j, t] of starts.entries()) if (w >= t - 1500) i = j; return i }
++const bounces = (S) => { const m = new Map(); for (const s of S) { if (!s.d.__TANK_STATE || s.d.__BATTLE_PHASE !== 'playing') continue; const rd = roundOf(s.w); for (const b of s.d.__TANK_STATE.bullets) { const k = `${rd}:${b.id}`; m.set(k, Math.max(m.get(k) ?? 0, b.bounces)) } } return m }
++const wireIds = (n, dir) => (n?.wire ?? []).filter((x) => x[2] === dir && /"type":"bounce"/.test(x[3])).map((x) => `${roundOf(x[1])}:${x[3].match(/"bulletId":"([^"]+)"/)?.[1]}`)
++const ha = bounces(A), gb = bounces(B)
++const sent = new Set(wireIds(r.net?.[0], 'S')), recv = wireIds(r.net?.[1], 'R')
++const common = [...gb.keys()].filter((k) => ha.has(k))
++const ghosts = [...gb.entries()].filter(([k, g]) => g > (ha.get(k) ?? 0) && !sent.has(k)).map(([k, g]) => ({ k, guest: g, host: ha.get(k) ?? null }))
++const errs = r.contexts.map((c) => ({ tag: c.tag, errors: c.errors.filter((e) => !/GL Driver Message/.test(e)), pageErrors: c.pageErrors }))
++console.log(JSON.stringify({ error: r.error ?? null, rounds: starts.length, guestBullets: gb.size, hostBullets: ha.size, common: common.length, guestBounced: [...gb.values()].filter(Boolean).length, bounceWireHostSent: sent.size, bounceWireGuestRecv: recv.length, ghostBounces: ghosts.length, ghosts, errors: errs }))
+diff --git a/scripts/qa/tankart/mp2.mjs b/scripts/qa/tankart/mp2.mjs
+new file mode 100644
+index 0000000..0c5e9dc
+--- /dev/null
++++ b/scripts/qa/tankart/mp2.mjs
+@@ -0,0 +1,22 @@
++// AC13 補強：B 每筆取樣對 A 前後兩筆做時間內插比 bot 位置；列出反彈次數不一致的子彈與其 wire 訊息
++import { readFileSync } from 'node:fs'
++const r = JSON.parse(readFileSync(process.argv[2], 'utf8'))
++const [A, B] = r.contexts.map((c) => c.samples.filter((s) => s.d.__TANK_STATE && s.d.__BATTLE_PHASE === 'playing'))
++const d = []
++for (const b of B) {
++  let i = A.findIndex((a) => a.w >= b.w); if (i <= 0) continue
++  const a0 = A[i - 1], a1 = A[i], span = a1.w - a0.w; if (span > 1500) continue
++  const k = (b.w - a0.w) / span
++  for (const e of b.d.__TANK_STATE.entities) {
++    if (!e.id.startsWith('bot') || !e.alive || e.x == null) continue
++    const p = a0.d.__TANK_STATE.entities.find((x) => x.id === e.id), q = a1.d.__TANK_STATE.entities.find((x) => x.id === e.id)
++    if (!p?.alive || !q?.alive) continue
++    d.push(Math.hypot(e.x - (p.x + (q.x - p.x) * k), e.z - (p.z + (q.z - p.z) * k)))
++  }
++}
++const qt = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? +s[Math.floor(p * (s.length - 1))].toFixed(2) : null }
++const bounces = (S) => { const m = new Map(); for (const s of S) for (const b of s.d.__TANK_STATE.bullets) m.set(b.id, Math.max(m.get(b.id) ?? 0, b.bounces)); return m }
++const ba = bounces(A), bb = bounces(B)
++const mism = [...ba.keys()].filter((k) => bb.has(k) && ba.get(k) !== bb.get(k)).map((k) => [k, ba.get(k), bb.get(k)])
++const wire = r.net.map((n) => (n?.wire ?? []).filter((x) => /"type":"bounce"/.test(x[3])).map((x) => x[3].match(/"bulletId":"([^"]+)"/)?.[1]))
++console.log(JSON.stringify({ botDistN: d.length, p50: qt(d, 0.5), p90: qt(d, 0.9), max: qt(d, 1), mismatched: mism, bounceWireHostSent: wire[0].length, bounceWireGuestRecv: wire[1].length, mismInWire: mism.map(([k]) => [k, wire[0].includes(k), wire[1].includes(k)]) }))
+diff --git a/scripts/qa/tankart/mpcmp.mjs b/scripts/qa/tankart/mpcmp.mjs
+new file mode 100644
+index 0000000..6559650
+--- /dev/null
++++ b/scripts/qa/tankart/mpcmp.mjs
+@@ -0,0 +1,32 @@
++#!/usr/bin/env node
++// 比對 play.mjs --mp 兩端：配色、bot 位置（同牆鐘時刻）、子彈反彈次數、護盾／三連發旗標、落牆數、存活、結算文字。
++import { readFileSync } from 'node:fs'
++const r = JSON.parse(readFileSync(process.argv[2], 'utf8'))
++const [A, B] = r.contexts.map((c) => c.samples.filter((s) => s.d.__TANK_STATE && s.d.__BATTLE_PHASE === 'playing'))
++const near = (arr, w) => { let best = null; for (const s of arr) if (!best || Math.abs(s.w - w) < Math.abs(best.w - w)) best = s; return best }
++const o = { error: r.error ?? null, code: r.code, overlays: r.overlays, samples: [A.length, B.length], colorMismatch: 0, botDist: [], selfDist: [], shieldMismatch: 0, tripleMismatch: 0, aliveMismatch: 0, closedDiff: [], hpMismatch: 0 }
++for (const b of B) {
++  const a = near(A, b.w); if (!a || Math.abs(a.w - b.w) > 120) continue
++  const ea = a.d.__TANK_STATE.entities, eb = b.d.__TANK_STATE.entities
++  for (const x of eb) {
++    const y = ea.find((e) => e.id === x.id); if (!y) continue
++    if (x.colorIndex !== y.colorIndex) o.colorMismatch++
++    if (x.alive && y.alive && x.x != null && y.x != null) (x.id.startsWith('bot') ? o.botDist : o.selfDist).push(Math.hypot(x.x - y.x, x.z - y.z))
++    if (x.shield !== y.shield) o.shieldMismatch++
++    if (Math.abs(x.triple - y.triple) > 1) o.tripleMismatch++
++    if (x.alive !== y.alive) o.aliveMismatch++
++    if (x.hp !== y.hp) o.hpMismatch++
++  }
++  o.closedDiff.push(a.d.__TANK_STATE.closed - b.d.__TANK_STATE.closed)
++}
++const q = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? +s[Math.floor(p * (s.length - 1))].toFixed(2) : null }
++o.pairs = o.closedDiff.length
++o.botDist = { p50: q(o.botDist, 0.5), p90: q(o.botDist, 0.9), max: q(o.botDist, 1) }
++o.selfDist = { p50: q(o.selfDist, 0.5), p90: q(o.selfDist, 0.9), max: q(o.selfDist, 1) }
++o.closedDiff = { min: Math.min(...o.closedDiff), max: Math.max(...o.closedDiff), maxA: Math.max(0, ...A.map((s) => s.d.__TANK_STATE.closed)), maxB: Math.max(0, ...B.map((s) => s.d.__TANK_STATE.closed)) }
++const bounces = (S) => { const m = new Map(); for (const s of S) for (const b of s.d.__TANK_STATE.bullets) m.set(b.id, Math.max(m.get(b.id) ?? 0, b.bounces)); return m }
++const ba = bounces(A), bb = bounces(B)
++const common = [...ba.keys()].filter((k) => bb.has(k))
++o.bullets = { A: ba.size, B: bb.size, common: common.length, bouncedCommon: common.filter((k) => ba.get(k) && bb.get(k)).length, bounceMismatch: common.filter((k) => ba.get(k) !== bb.get(k)).length, onlyA: ba.size - common.length, onlyB: bb.size - common.length }
++o.errors = r.contexts.map((c) => ({ tag: c.tag, errors: c.errors.filter((e) => !/GL Driver Message/.test(e)), pageErrors: c.pageErrors }))
++console.log(JSON.stringify(o, null, 1))
+diff --git a/scripts/qa/tankart/play.mjs b/scripts/qa/tankart/play.mjs
+new file mode 100644
+index 0000000..4b6ea92
+--- /dev/null
++++ b/scripts/qa/tankart/play.mjs
+@@ -0,0 +1,195 @@
++#!/usr/bin/env node
++// tankart qa：/battle 坦克單人（3 bot）或 --contexts 2 兩人，定時取樣 window.__BATTLE_*／__TANK* 偵錯全域、console 與截圖。
++// 用法：node scripts/qa/tankart/play.mjs <base 例 http://localhost:5179/collect/> <out 前綴> [--mp] [--secs 90] [--query 'tankTier=desktop'] [--every 2000] [--fire]
++// stdout：JSON summary（每個 context 的取樣、console info/錯誤、截圖路徑）。截圖只寫 out 前綴（放 scratchpad）。
++import { existsSync, readdirSync } from 'node:fs'
++import { homedir } from 'node:os'
++import { join } from 'node:path'
++import { pathToFileURL } from 'node:url'
++import dns from 'node:dns/promises'
++
++const argv = process.argv.slice(2)
++const BASE = argv[0]
++const OUT = argv[1]
++const opt = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d }
++const MP = argv.includes('--mp')
++const FIRE = argv.includes('--fire')
++const SECS = Number(opt('--secs', '90'))
++const EVERY = Number(opt('--every', '2000'))
++const QUERY = opt('--query', '')
++const SHOT_EVERY = Number(opt('--shot-every', '5000'))
++const WANDER = argv.includes('--wander')
++const ROUNDS = Number(opt('--rounds', '1'))
++// --skip-ms N：每局進 playing 後 --skip-after ms 把頁面 performance.now 往前撥 N ms（只動時鐘不動遊戲碼，用來在 bot 分出勝負前觸發 60 秒縮圈）
++const SKIP_MS = Number(opt('--skip-ms', '0')) || (argv.includes('--goto') ? 1 : 0)
++const SKIP_AFTER = Number(opt('--skip-after', '3000'))
++// --goto x,z：每局進 playing 先把自己（context A）走到世界座標 (x, z) 再停住（測落牆壓毀用）
++// --probe-move ms：快轉後等 ms，再依序按 d、w、a 各 800ms，記錄前後位置（測落牆擦邊後能否移動）
++const PROBE_MOVE = Number(opt('--probe-move', '0'))
++const GOTO = opt('--goto', '') ? opt('--goto').split(',').map(Number) : null
++async function goAxis(p, axis, target, tol = 0.15, timeout = 8000) {
++  const t0 = Date.now(); let held = null
++  while (Date.now() - t0 < timeout) {
++    const q = await p.page.evaluate(() => window.__BATTLE_POS)
++    if (!q) { await wait(30); continue }
++    const d = target - q[axis]
++    if (Math.abs(d) <= tol) break
++    const k = axis === 'x' ? (d > 0 ? 'd' : 'a') : (d > 0 ? 'w' : 's')
++    if (Math.abs(d) < 0.6) { if (held) { await p.page.keyboard.up(held); held = null } await p.page.keyboard.down(k); await wait(25); await p.page.keyboard.up(k); await wait(60); continue }
++    if (held !== k) { if (held) await p.page.keyboard.up(held); await p.page.keyboard.down(k); held = k }
++    await wait(20)
++  }
++  if (held) await p.page.keyboard.up(held)
++}
++const HOME = homedir()
++const wait = (ms) => new Promise((r) => setTimeout(r, ms))
++
++async function loadPlaywright() {
++  const npx = join(HOME, '.npm/_npx')
++  const cands = existsSync(npx) ? readdirSync(npx).flatMap((d) => [join(npx, d, 'node_modules/playwright'), join(npx, d, 'node_modules/playwright-core')]) : []
++  for (const c of cands) if (existsSync(join(c, 'index.mjs'))) return import(pathToFileURL(join(c, 'index.mjs')).href)
++  throw new Error('no playwright')
++}
++function findChromium(chromium) {
++  try { const p = chromium.executablePath(); if (p && existsSync(p)) return p } catch {}
++  const dir = join(HOME, '.cache/ms-playwright')
++  const vs = readdirSync(dir).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]))
++  for (const v of vs) for (const rel of ['chrome-linux64/chrome', 'chrome-linux/chrome']) { const p = join(dir, v, rel); if (existsSync(p)) return p }
++}
++async function hostResolverRules() {
++  const maps = []
++  for (const h of ['identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'firestore.googleapis.com', 'www.googleapis.com']) {
++    try { const [ip] = await dns.resolve4(h); if (ip) maps.push(`MAP ${h} ${ip}`) } catch {}
++  }
++  return maps.length ? `--host-resolver-rules=${maps.join(',')}` : null
++}
++
++const { chromium } = await loadPlaywright()
++const args = ['--enable-unsafe-swiftshader']
++const rule = MP ? await hostResolverRules() : null
++if (rule) args.push(rule)
++const browser = await chromium.launch({ executablePath: findChromium(chromium), headless: true, args })
++
++async function newPlayer(tag) {
++  const ctx = await browser.newContext({ viewport: { width: Number(opt('--width', '1280')), height: Number(opt('--height', '800')) } })
++  await ctx.addInitScript(() => {
++    const realNow = performance.now.bind(performance); let off = 0
++    performance.now = () => realNow() + off
++    window.__QA_SKIP = (ms) => { off += ms }
++    // 送出端計數：每則 DataChannel 訊息依 type 分桶（只量頻率，不改內容）
++    const sendOrig = RTCDataChannel.prototype.send
++    window.__QA_NET = { sent: {}, log: [] }
++    RTCDataChannel.prototype.send = function (d) {
++      try { if (typeof d === 'string') { const m = d.match(/"type":"([A-Za-z]+)"/); const k = m ? m[1] : '?'; window.__QA_NET.sent[k] = (window.__QA_NET.sent[k] ?? 0) + 1; if (k === 'botState' || k === 'own') window.__QA_NET.log.push([k, Math.round(realNow())]) } } catch {}
++      try { if (typeof d === 'string' && /"type":"(bullet|bounce|hit|crate|close|destroyed)"/.test(d)) window.__QA_NET.wire.push([Math.round(realNow()), Date.now(), 'S', d]) } catch {}
++      return sendOrig.call(this, d)
++    }
++    window.__QA_NET.wire = []
++    const desc = Object.getOwnPropertyDescriptor(RTCDataChannel.prototype, 'onmessage')
++    Object.defineProperty(RTCDataChannel.prototype, 'onmessage', { configurable: true, get() { return desc.get.call(this) }, set(fn) {
++      desc.set.call(this, fn ? (ev) => { try { const d = ev.data; if (typeof d === 'string' && /"type":"(bullet|bounce|hit|crate|close|destroyed)"/.test(d)) window.__QA_NET.wire.push([Math.round(realNow()), Date.now(), 'R', d]) } catch {} return fn(ev) } : fn)
++    } })
++    let frames = 0; const loop = () => { frames++; requestAnimationFrame(loop) }; requestAnimationFrame(loop)
++    setInterval(() => { window.__QA_FPS = frames; frames = 0 }, 1000)
++    // 頁內收集器：__TANK_STATE 每 250ms 換一個新物件，換了就記一筆（含高精度時間）
++    const buf = []; let last = null; let lastPh = null
++    window.__QA_BUF = buf
++    setInterval(() => {
++      const s = window.__TANK_STATE, ph = window.__BATTLE_PHASE
++      if (s !== last || ph !== lastPh) { last = s; lastPh = ph; buf.push({ t: Math.round(performance.now()), w: Date.now(), d: { __TANK_STATE: s ?? null, __BATTLE_PHASE: ph ?? null, __BATTLE_POS: window.__BATTLE_POS ?? null, fps: window.__QA_FPS ?? null } }) }
++    }, 40)
++  })
++  const page = await ctx.newPage()
++  const p = { tag, ctx, page, info: [], errors: [], pageErrors: [], shots: [], samples: [] }
++  page.on('console', (m) => {
++    const t = m.text()
++    if (m.type() === 'error' || m.type() === 'warning') p.errors.push(`[${m.type()}] ${t}`)
++    else if (/^\[tank\]/.test(t)) p.info.push(`${Date.now()} ${t}`)
++  })
++  page.on('pageerror', (e) => p.pageErrors.push(String(e)))
++  return p
++}
++const dump = (p) => p.page.evaluate(() => Object.fromEntries(Object.keys(window).filter((k) => /^__(BATTLE|TANK)/.test(k)).map((k) => [k, window[k]])))
++const phase = (p) => p.page.evaluate(() => window.__BATTLE_PHASE ?? null)
++const overlay = (p) => p.page.evaluate(() => document.querySelector('[data-testid=battle-overlay]')?.innerText ?? null)
++async function shot(p, label) { const f = `${OUT}-${label}-${p.tag}.png`; await p.page.screenshot({ path: f }); p.shots.push(f) }
++async function waitPhase(ps, want, timeout) {
++  const t0 = Date.now()
++  while (Date.now() - t0 < timeout) { if ((await Promise.all(ps.map(phase))).every((x) => want.includes(x))) return true; await wait(250) }
++  return false
++}
++const url = `${BASE}${QUERY ? `?${QUERY}` : ''}#/battle`
++
++const ps = []
++const r = { mode: MP ? 'mp' : 'solo', url }
++try {
++  const A = await newPlayer('A'); ps.push(A)
++  await A.page.goto(url, { waitUntil: 'load' })
++  await A.page.click('[data-testid="battle-game-card-tank"]')
++  if (!MP) {
++    await A.page.click('[data-testid="battle-solo-btn"]')
++  } else {
++    const B = await newPlayer('B'); ps.push(B)
++    await B.page.goto(url, { waitUntil: 'load' })
++    await A.page.fill('[data-testid="battle-name-input"]', 'QA-A')
++    await A.page.click('[data-testid="battle-create-btn"]')
++    await A.page.waitForSelector('[data-testid="battle-room-code"]', { timeout: 30000 })
++    r.code = ((await A.page.innerText('[data-testid="battle-room-code"]')).match(/[A-Z0-9]{4,8}/) ?? [])[0]
++    await B.page.click('[data-testid="battle-game-card-tank"]')
++    await B.page.fill('[data-testid="battle-name-input"]', 'QA-B')
++    await B.page.fill('[data-testid="battle-code-input"]', r.code)
++    await B.page.click('[data-testid="battle-join-btn"]')
++    await B.page.waitForSelector('[data-testid="battle-room"]', { timeout: 30000 })
++    await A.page.waitForFunction(() => document.querySelectorAll('[data-testid=battle-player-list] li').length >= 2, null, { timeout: 30000 })
++    await A.page.click('[data-testid="battle-start-btn"]')
++  }
++  await Promise.all(ps.map((p) => p.page.waitForSelector('[data-testid="battle-canvas"]', { timeout: 30000 })))
++  await waitPhase(ps, ['countdown', 'playing'], 30000)
++  await Promise.all(ps.map((p) => shot(p, '0-countdown')))
++  r.playing = await waitPhase(ps, ['playing'], 40000)
++  const t0 = Date.now()
++  let lastShot = -SHOT_EVERY
++  let lastTurn = 0
++  let results = 0
++  let playingAt = 0
++  let skipped = false
++  let inResult = false
++  const held = new Map()
++  const DIRS = ['w', 'a', 's', 'd']
++  while (Date.now() - t0 < SECS * 1000) {
++    const t = Date.now() - t0
++    if (WANDER && t - lastTurn > 1500) {
++      lastTurn = t
++      for (const p of ps) {
++        if (held.get(p)) await p.page.keyboard.up(held.get(p))
++        const k = DIRS[Math.floor(Math.random() * 4)]
++        await p.page.keyboard.down(k); held.set(p, k)
++        await p.page.keyboard.down(Math.random() < 0.5 ? 'q' : 'e'); await wait(120); await p.page.keyboard.up('q'); await p.page.keyboard.up('e')
++      }
++    }
++    if (FIRE) for (const p of ps) { await p.page.keyboard.down(' '); await wait(30); await p.page.keyboard.up(' ') }
++    for (const p of ps) p.samples.push(...(await p.page.evaluate(() => window.__QA_BUF.splice(0))))
++    if (t - lastShot >= SHOT_EVERY) { lastShot = t; await Promise.all(ps.map((p) => shot(p, `t${String(Math.round(t / 1000)).padStart(3, '0')}`))) }
++    const phs = await Promise.all(ps.map(phase))
++    if (SKIP_MS && phs.every((x) => x === 'playing')) {
++      if (!playingAt) { playingAt = Date.now(); if (GOTO) { await goAxis(ps[0], 'x', GOTO[0]); await goAxis(ps[0], 'z', GOTO[1]); r.gotoPos = r.gotoPos ?? []; r.gotoPos.push(await ps[0].page.evaluate(() => window.__BATTLE_POS)) } }
++      else if (!skipped && Date.now() - playingAt >= SKIP_AFTER) { skipped = true; await Promise.all(ps.map((p) => p.page.evaluate((ms) => window.__QA_SKIP(ms), SKIP_MS))); r.skips = (r.skips ?? 0) + 1
++        if (PROBE_MOVE) { await wait(PROBE_MOVE); const pr = { before: await ps[0].page.evaluate(() => ({ pos: window.__BATTLE_POS, closed: window.__TANK_STATE?.closed })) , steps: [] }
++          for (const k of ['d', 'w', 'a']) { await ps[0].page.keyboard.down(k); await wait(800); await ps[0].page.keyboard.up(k); pr.steps.push([k, await ps[0].page.evaluate(() => window.__BATTLE_POS)]) }
++          r.probes = r.probes ?? []; r.probes.push(pr) } }
++    } else if (!phs.every((x) => x === 'playing')) { playingAt = 0; skipped = false }
++    if (phs.every((x) => x === 'result') && !inResult) { inResult = true; results++; r.overlays = r.overlays ?? []; await wait(1200); r.overlays.push(await Promise.all(ps.map(overlay))); await Promise.all(ps.map((p) => shot(p, `result${results}`))); if (results >= ROUNDS) break }
++    if (!phs.every((x) => x === 'result')) inResult = false
++    await wait(EVERY)
++  }
++  for (const p of ps) if (held.get(p)) await p.page.keyboard.up(held.get(p))
++  r.overlay = await Promise.all(ps.map(overlay))
++  await Promise.all(ps.map((p) => shot(p, 'z-end')))
++} catch (e) {
++  r.error = String(e)
++  await Promise.all(ps.map((p) => shot(p, 'error').catch(() => {})))
++}
++r.net = await Promise.all(ps.map((p) => p.page.evaluate(() => window.__QA_NET).catch(() => null)))
++r.contexts = ps.map((p) => ({ tag: p.tag, shots: p.shots, info: p.info, errors: p.errors, pageErrors: p.pageErrors, samples: p.samples }))
++await browser.close()
++console.log(JSON.stringify(r, null, 2))
+diff --git a/src/babylon/games/tank.ts b/src/babylon/games/tank.ts
+index b39dfb7..e4a836f 100644
+--- a/src/babylon/games/tank.ts
++++ b/src/babylon/games/tank.ts
+@@ -17,21 +17,21 @@ import {
+   isStr,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
+ } from '@/babylon/net'
+ import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
+ import { perfLogLine } from '@/babylon/fx/perfLog'
+ import { tierQuery } from '@/babylon/fx/quality'
+ import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
+ import { validateShootReq } from '@/babylon/games/tankNet'
+-import { stepBullet } from '@/babylon/games/tankFx/bounce'
++import { advanceBullet } from '@/babylon/games/tankFx/bulletLife'
+ import { CLOSE_INTERVAL_MS, CLOSE_WARN_MS, SUDDEN_DEATH_MS, closeDue, crushedIds, spiralCells } from '@/babylon/games/tankFx/closing'
+ import {
+   INVULN_MS,
+   ITEM_KINDS,
+   KNOCKBACK,
+   SHIELD_MS,
+   TRIPLE_MS,
+   buffRemainSec,
+   knockback,
+   pickItemKind,
+@@ -87,21 +87,22 @@ interface TankState {
+ }
+ 
+ interface BulletInfo {
+   id: string
+   owner: string
+   x: number
+   z: number
+   vx: number
+   vz: number
+   bounces: number
+-  createdAt: number
++  /** 已飛行的模擬時間（ms），各端以 tick 累計，見 tankFx/bulletLife */
++  age: number
+ }
+ 
+ interface TankVisual {
+   rig: TankRig
+   root: Mesh
+   turret: Mesh
+   /** 護盾泡泡與三連發光環（spec §6，平常收起） */
+   shield: Mesh
+   aura: Mesh
+   /** 護盾被打破的時刻（播碎裂用） */
+@@ -505,21 +506,21 @@ class TankScene implements GameModule {
+   private hostFire(owner: string, x: number, z: number, vx: number, vz: number): void {
+     const s = this.statOf(owner)
+     const vels: [number, number][] = s.tripleUntil > performance.now() ? tripleVelocities(vx, vz) : [[vx, vz]]
+     for (const [bvx, bvz] of vels) {
+       this.hostBroadcast('bullet', { id: `b${this.bulletSeq++}`, owner, x, z, vx: bvx, vz: bvz })
+     }
+   }
+ 
+   private spawnBullet(id: string, owner: string, x: number, z: number, vx: number, vz: number): void {
+     const now = performance.now()
+-    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, createdAt: now })
++    this.bullets.set(id, { id, owner, x, z, vx, vz, bounces: 0, age: 0 })
+     this.board.putBullet(id, x, z, false)
+     // 開砲後座＋車身擠壓回彈＋砲口焰（三連發同一刻的三發共用一次；第一發是中央那發）
+     const v = this.visualOf(owner)
+     if (v && now - v.rig.fireAt > 40) {
+       v.rig.fireAt = now
+       const len = Math.hypot(vx, vz) || 1
+       const dx = vx / len
+       const dz = vz / len
+       const p = v.root.position
+       this.fx.muzzle(p.x + dx * MUZZLE_DIST, MUZZLE_Y, p.z + dz * MUZZLE_DIST, dx, dz, now)
+@@ -539,31 +540,29 @@ class TankScene implements GameModule {
+   private removeBullet(id: string): void {
+     if (!this.bullets.delete(id)) return
+     this.board.removeBullet(id)
+   }
+ 
+   private visualOf(id: string): TankVisual | undefined {
+     if (id === this.ctx.selfId) return this.selfVisual
+     return this.peerVisuals.get(id) ?? this.botVisuals.get(id)
+   }
+ 
+-  /** 各端推進子彈（同一支 stepBullet）；host 另判反彈廣播、木箱、命中 */
++  /** 各端推進子彈（同一支 advanceBullet）；host 另判反彈廣播、木箱、命中 */
+   private stepBullets(dt: number, now: number): void {
+     const host = this.ctx.role === 'host'
+     for (const [id, b] of [...this.bullets]) {
+       if (!this.bullets.has(id)) continue
+-      if (now - b.createdAt > BULLET_LIFETIME_MS) {
+-        this.removeBullet(id)
+-        continue
+-      }
+-      const r = stepBullet(b, dt, this.isWall, this.isCrate)
+-      if (r.kind === 'expire') {
++      // 壽命以模擬時間計（補步被截斷時不提早到期，host 與 guest 同 tick 數同壽命）
++      const { age, step: r } = advanceBullet(b, dt, BULLET_LIFETIME_MS, this.isWall, this.isCrate)
++      b.age = age
++      if (r.kind === 'timeout' || r.kind === 'expire') {
+         this.removeBullet(id)
+         continue
+       }
+       if (r.kind === 'crate') {
+         this.removeBullet(id)
+         if (host) {
+           const ci = cellIdx(r.cx, r.cy)
+           this.hostBroadcast('crate', { ci, bulletId: id })
+           if (Math.random() < CRATE_DROP_CHANCE) {
+             this.hostBroadcast('item', { cx: r.cx, cy: r.cy, kind: pickItemKind(Math.random()) })
+diff --git a/src/babylon/games/tankFx/bulletLife.test.ts b/src/babylon/games/tankFx/bulletLife.test.ts
+new file mode 100644
+index 0000000..4f19fc1
+--- /dev/null
++++ b/src/babylon/games/tankFx/bulletLife.test.ts
+@@ -0,0 +1,89 @@
++import { describe, it, expect } from 'vitest'
++import { advanceBullet, type AgedBullet } from '@/babylon/games/tankFx/bulletLife'
++import { GRID_H, GRID_W, cellToWorld } from '@/babylon/games/tankFx/grid'
++
++const DT = 1000 / 30 / 1000 // 與 createFixedTicker(30) 的 stepMs / 1000 同算法
++const SPEED = 12
++const LIFE = 2000
++const wx = (c: number) => cellToWorld(c, GRID_W)
++const wz = (c: number) => cellToWorld(c, GRID_H)
++const none = () => false
++const only = (...cells: [number, number][]) => (cx: number, cy: number) =>
++  cells.some(([x, y]) => x === cx && y === cy)
++
++/** 從左側往 +x 飛：場地 x ∈ [-16, 16]，2 秒飛 24 單位不出界 */
++const fresh = (): AgedBullet => ({ x: -12.5, z: wz(4), vx: SPEED, vz: 0, bounces: 0, age: 0 })
++
++/** 跑到到期為止，回傳活著走過的 tick 數與最後狀態 */
++function flyUntilTimeout(b: AgedBullet, isWall: (cx: number, cy: number) => boolean = none) {
++  let cur = b
++  for (let tick = 1; tick < 1000; tick++) {
++    const r = advanceBullet(cur, DT, LIFE, isWall, none)
++    if (r.step.kind === 'timeout') return { lived: tick - 1, last: cur }
++    if (r.step.kind !== 'move' && r.step.kind !== 'bounce') throw new Error(`unexpected ${r.step.kind}`)
++    cur = { ...r.step, age: r.age }
++  }
++  throw new Error('never timed out')
++}
++
++describe('advanceBullet — 子彈壽命以模擬時間計算', () => {
++  it('壽命按 tick 累計：30Hz 飛滿 60 tick（2 秒）後第 61 tick 才到期', () => {
++    const { lived, last } = flyUntilTimeout(fresh())
++    expect(lived).toBe(60)
++    expect(last.age).toBeCloseTo(LIFE, 6)
++    expect(last.x - -12.5).toBeCloseTo(SPEED * DT * 60, 6)
++  })
++
++  it('host 與 guest 同起點、同 tick 數：每 tick 的位置、反彈與壽命完全一致', () => {
++    // 撞右側牆反彈一次後繼續飛，兩端各自推進
++    const wall = only([12, 4])
++    let host: AgedBullet = { x: wx(9), z: wz(4) + 0.2, vx: SPEED, vz: 1.5, bounces: 0, age: 0 }
++    let guest: AgedBullet = { ...host }
++    let bounced = false
++    let timedOutAt = 0
++    for (let tick = 1; tick <= 80; tick++) {
++      const h = advanceBullet(host, DT, LIFE, wall, none)
++      const g = advanceBullet(guest, DT, LIFE, wall, none)
++      expect(g).toEqual(h)
++      if (h.step.kind === 'bounce') bounced = true
++      if (h.step.kind === 'timeout') timedOutAt = tick
++      if (h.step.kind !== 'move' && h.step.kind !== 'bounce') break
++      if (g.step.kind !== 'move' && g.step.kind !== 'bounce') break
++      host = { ...h.step, age: h.age }
++      guest = { ...g.step, age: g.age }
++    }
++    expect(bounced).toBe(true)
++    expect(timedOutAt).toBe(61)
++  })
++
++  it('補步被截斷（host 卡頓，真實時間 3 秒只跑 40 tick）：壽命不提早到期，飛行距離不被吃掉', () => {
++    // fixedTick 的 MAX_ACCUM_MS 截斷補步時，host 只推進了 40 tick；壽命只看推進過的模擬時間
++    let b: AgedBullet = fresh()
++    for (let tick = 1; tick <= 40; tick++) {
++      const r = advanceBullet(b, DT, LIFE, none, none)
++      expect(r.step.kind).toBe('move')
++      if (r.step.kind !== 'move') return
++      b = { ...r.step, age: r.age }
++    }
++    expect(b.age).toBeCloseTo(40 * DT * 1000, 6)
++    // 之後恢復正常：仍要再飛滿 20 tick 才到期，總飛行距離 = 完整 2 秒
++    const { lived, last } = flyUntilTimeout(b)
++    expect(lived).toBe(20)
++    expect(last.x - -12.5).toBeCloseTo(SPEED * DT * 60, 6)
++  })
++
++  it('反彈不重置壽命', () => {
++    // x=3 往右撞格 12（左緣 x=8）反彈，掉頭到外圈 x=-16 還有 24 單位，壽命先到
++    const wall = only([12, 4])
++    const { lived, last } = flyUntilTimeout({ x: wx(9), z: wz(4), vx: SPEED, vz: 0, bounces: 0, age: 0 }, wall)
++    expect(last.bounces).toBe(1)
++    expect(lived).toBe(60)
++  })
++
++  it('撞牆／木箱等非飛行結果原樣帶出，age 仍累加', () => {
++    const crate = only([5, 4])
++    const r = advanceBullet({ x: wx(4) + 0.8, z: wz(4), vx: SPEED, vz: 0, bounces: 0, age: 100 }, DT, LIFE, none, crate)
++    expect(r.step).toEqual({ kind: 'crate', cx: 5, cy: 4 })
++    expect(r.age).toBeCloseTo(100 + DT * 1000, 6)
++  })
++})
+diff --git a/src/babylon/games/tankFx/bulletLife.ts b/src/babylon/games/tankFx/bulletLife.ts
+new file mode 100644
+index 0000000..498ff2d
+--- /dev/null
++++ b/src/babylon/games/tankFx/bulletLife.ts
+@@ -0,0 +1,27 @@
++/**
++ * 子彈壽命（純函式）：以模擬時間累計，不看真實時間。
++ * host 掉幀時 fixedTick 會截斷補步，子彈少飛的那段壽命也跟著不算；
++ * host 與 guest 同起點、同 tick 數即同壽命，guest 的反彈預測不會跑出 host 不存在的幽靈彈。
++ */
++import { stepBullet, type BulletKin, type BulletStep } from '@/babylon/games/tankFx/bounce'
++import type { CellPred } from '@/babylon/games/tankFx/grid'
++
++export interface AgedBullet extends BulletKin {
++  /** 已飛行的模擬時間（ms） */
++  age: number
++}
++
++export type AgedStep = BulletStep | { kind: 'timeout' }
++
++/** 推進一個 tick：先累加壽命，超過 lifetimeMs 即到期（不再移動），否則照 stepBullet 推進 */
++export function advanceBullet(
++  b: AgedBullet,
++  dt: number,
++  lifetimeMs: number,
++  isWall: CellPred,
++  isCrate: CellPred,
++): { age: number; step: AgedStep } {
++  const age = b.age + dt * 1000
++  if (age > lifetimeMs) return { age, step: { kind: 'timeout' } }
++  return { age, step: stepBullet(b, dt, isWall, isCrate) }
++}
+
