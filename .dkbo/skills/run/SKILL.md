@@ -7,7 +7,7 @@ description: 只在使用者明確要求啟動 dkbo 團隊流程（或明確指�
 先讀 `.dkbo/LEADER.md`，再照本篇。
 
 ## 不停車（交棒之後的總原則）
-`/dkbo-run` 開跑後**不停下來等人**：人常在睡覺，一題選擇題就能讓任務停一整晚，而 panova autofold 執行中途問人的 4 題，人 4 題都選了推薦項。選擇題、規格缺口、reviewer 意見矛盾、修法取捨、要超過某個上限，一律**自己裁定**：選若錯代價最小、最容易回退的那個，記 `dk-process "ruling: [自主] <決定> — <原因> — <若錯代價>"`，繼續跑。不用 AskUserQuestion、不問「要繼續嗎」、不為報進度停下來。裁錯了人在關卡③看得到、改得回來；卡在一個問題上，人整晚什麼都拿不到。人自己打字插話照做（改需求走「跑一波」第 9 步），只是你不主動等他回覆。只有這幾種會停：關卡③（合併）、不可逆或破壞性的操作、影響 worktree 以外的動作（push、發佈、動共用服務）、brief 壞到每一條路都只能猜——最後一種寫進 report.md 遺留段、停在關卡③、結束 turn，不開著問題空等。
+`/dkbo-run` 開跑後**不停下來等人**：人常在睡覺，一題選擇題就能讓任務停一整晚，而下游專案 A 的 autofold 執行中途問人的 4 題，人 4 題都選了推薦項。選擇題、規格缺口、reviewer 意見矛盾、修法取捨、要超過某個上限，一律**自己裁定**：選若錯代價最小、最容易回退的那個，記 `dk-process "ruling: [自主] <決定> — <原因> — <若錯代價>"`，繼續跑。不用 AskUserQuestion、不問「要繼續嗎」、不為報進度停下來。裁錯了人在關卡③看得到、改得回來；卡在一個問題上，人整晚什麼都拿不到。人自己打字插話照做（改需求走「跑一波」第 9 步），只是你不主動等他回覆。只有這幾種會停：關卡③（合併）、不可逆或破壞性的操作、影響 worktree 以外的動作（push、發佈、動共用服務）、brief 壞到每一條路都只能猜——最後一種寫進 report.md 遺留段、停在關卡③、結束 turn，不開著問題空等。
 
 ## 第 0 步：交棒（每次進本篇先看這一條）
 `.task.env` 的 `DK_WORKTREE` 為空（任務還沒實體化）或 `HERDR_PANE_ID` 不等於 `DK_ROOT_PANE`（你不是任務根 tab 根 pane 上的執行領導）：跑 `dk-leader <short> --run`，然後**結束這個 turn**。它會切 worktree、跑 `DK_SETUP_CMD` 依賴鉤子、用 `herdr tab create` 在你叫 `/dkbo-run` 當下所在的 workspace（`HERDR_WORKSPACE_ID`，空才退回 `.task.env` 的 `DK_WORKSPACE`；兩者不同時回寫 `DK_WORKSPACE` 並記 process）開一個 label 為 `dk/<short>` 的任務根 tab、在它的根 pane 起執行領導並改綁 `.sessions`；`agent start` 之前任一步失敗會把 worktree、分支、tab 與 `.task.env` 全部還原，重跑是幂等的。交棒之後人的 session 不再是領導，員工的訊息都送到執行領導那裡（人要看進度用 `dk-resume <任務>`，唯讀）。

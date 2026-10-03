@@ -84,7 +84,7 @@ if [ "$current" != "leader-$short" ]; then
     echo "dk-task-new: agent rename failed (pane without agent?)" >&2
     dk_process "rename failed (pane without agent?)"
   elif [ "$(pane_agent_name "$HERDR_PANE_ID")" != "leader-$short" ]; then
-    # rc=0 不等於生效：panova2/sportswitch 的領導 pane 是人手開的 claude，這行回了成功、
+    # rc=0 不等於生效：下游專案 A 的 sw 任務的領導 pane 是人手開的 claude，這行回了成功、
     # process.md 一片乾淨，而整場 12 筆訊息全打在一個不存在的 leader-<short> 上。
     # dk-msg 的 pane id 退路接得住，但領導得知道自己是靠退路在跑。
     echo "dk-task-new: agent rename reported success but the pane is still not leader-$short; dk-msg will fall back to $HERDR_PANE_ID" >&2

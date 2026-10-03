@@ -20,7 +20,7 @@ KIND_PROMPT_QUEUES=unknown
 # 員工會看不到自己的 worktree（cat 回 No such file，寫入落到 scratch）。
 
 # 卡住時畫面上會出現的字。herdr 0.9.0 對 agy 的審批 UI 回的是 idle 而不是 blocked
-# （0.6.2 在 panova2 實測：畫面明明停在 "Requesting permission for: rg …"），所以
+# （0.6.2 在下游專案 A 實測：畫面明明停在 "Requesting permission for: rg …"），所以
 # agent_status 對這個 kind 是空的，畫面文字才是守望唯一認得出它卡住的依據。
 # 跳過工具審批之後這條仍然要留：資料夾信任詢問（新 worktree 每次都是新的未信任工作區，
 # trustedWorkspaces 逐路徑精確比對、不繼承上層）走的不是工具審批那條路。它實際的畫面字樣

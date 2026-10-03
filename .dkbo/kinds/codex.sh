@@ -6,9 +6,9 @@ KIND_PROMPT_QUEUES=unknown
 # -s workspace-write 的 primary workspace 只有員工的 cwd（worktree），而切片、state、report、
 # diff pack 都在主樹的 .dkbo/ 下 —— --add-dir 把主樹補進可寫範圍（同 claude.sh 的理由）。
 
-# codex 走 -a never，照理不該停在審批，但真停了也要認得。額度那行是 panova2 撞到的原文：
+# codex 走 -a never，照理不該停在審批，但真停了也要認得。額度那行是下游專案 A 撞到的原文：
 # "You've hit your usage limit. Upgrade to Plus to continue using Codex" —— 它同樣回 idle。
-# 「Approaching rate limits / Switch model」選單也會停住等人按 Enter（gamemore 實測）。收的是
+# 「Approaching rate limits / Switch model」選單也會停住等人按 Enter（下游專案 B 實測）。收的是
 # `Press enter to` 這段前綴而不是整句：窄 pane 會把尾巴截掉，實測原文是 `Press enter to confir`
 # 與 `Press enter to con`，整句 `Press enter to confirm` 兩個都認不得。
 KIND_BLOCK_RE='Allow command|Run this command\?|Do you want|Press enter to'

@@ -47,7 +47,7 @@ dk_brief_constraints() { dk_brief_section "$1" "## 全域約束"; }
 # 契約|擁有者|消費者|形狀／簽名|變更流程。0.9.0 之前的 brief 這一段是自由文字，回空。
 dk_brief_interfaces() { dk__brief_rows "$1" "## 共用契約"; }
 # 同一波的成員是同時 spawn 的，所以 group: review 的成員（qa）會在 dev 還在寫的時候就
-# 讀到 worktree。panova2 的 paramleak 實跑：qa 07:27 對著寫到一半的 helper 收斂判定 AC5
+# 讀到 worktree。下游專案 A 的 paramleak 實跑：qa 07:27 對著寫到一半的 helper 收斂判定 AC5
 # 沒過、發 [QUESTION]，然後停在那裡等到 07:39 才收到「你看到的是收斂前快照」。12 分鐘
 # 空轉，外加一份假的驗收失敗。閘門不該是「延後 spawn」（qa 有一大段不依賴 dev 產出的
 # 前置：起環境、測試帳號、探測腳本骨架），該是讓它知道自己在等誰。

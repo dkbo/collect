@@ -51,7 +51,7 @@ dk_repos_check() { # [--no-clean] — 驗名字、唯一性、第一個是主 re
     [ "$(git -C "$p" rev-parse --show-toplevel 2>/dev/null)" = "$p" ] \
       || dk_die "DK_REPOS: repo「$n」的路徑 $p 不是 git repo 的根"
     # 只看已追蹤檔（領導 2026-09-20T09:41 ruling）：員工的 worktree 是從 HEAD 切出來的，
-    # 未追蹤檔本來就不影響它；把未追蹤也算髒的話，.dkbo/ 不進版控的專案（panova 那一類）
+    # 未追蹤檔本來就不影響它；把未追蹤也算髒的話，.dkbo/ 不進版控的專案（下游專案 A 那一類）
     # 每一次 dk-leader --run 都會被自己的 .dkbo/ 擋下來。
     # 主 repo 排除 .dkbo/ 底下的路徑（reviewer-a Important 1）：dkbo 自己的任務記帳
     # （INDEX.md／process.md…）從 dk-task-new 到 dk-task-close 之間永遠是已追蹤且已修改，

@@ -7,7 +7,7 @@
 - Godot 匯出：只准 `pnpm godot:export`／`pnpm candy:export`（含 `--headless --import`）；產物 `public/godot/`、`public/candy/`；地圖 JSON 改動由 hook 自動 `sync:maps` 到 `public/godot/maps/`（gitignore）。任務 worktree 第一次匯出會整包重 import（`.godot/` gitignore），屬正常、只發生一次。
 - 目錄慣例：`@/*` 路徑別名；`src/store/` Zustand（非同步寫在 action）；`src/components/ui/` shadcn；Tailwind v4 自訂 class 用 `@apply`；圖片一律 WebP。
 - 瀏覽器驗證：本機沒 Chrome、Playwright MCP 已移除，一律 `node .claude/skills/verify-web/scripts/shot.mjs`（`--contexts N` 多人、`--messages godot-rpg|godot-candy` 收 bridge）。截圖與臨時檔只寫 scratchpad。
-- /battle：Firebase 專案 test-73ce3，Firestore **具名資料庫 `dkbo-collect`**，`.env.local` 的 `VITE_FIREBASE_FIRESTORE_DB` 必填（worktree 內 hook 會自動 symlink `.env.local` 與 `node_modules`）。
+- /battle：Firebase 專案 test-73ce3，Firestore `(default)` 資料庫（2026-10 commit bb5b7db 起；`dkbo-collect` 不存在）（worktree 內 hook 會自動 symlink `.env.local` 與 `node_modules`）。
 - Hooks（`.claude/settings.json`）：PreToolUse 擋 `pkill -f`／手動 godot export／jpg/png 進 `src/`；PostToolUse 單檔 eslint --fix、`godot --check-only`、地圖 JSON 驗證；Stop 在改過 `src/` 時跑 lint+typecheck+vitest、改糖果跑 board_test。完成定義以 hooks 為準。
 - 獨佔資源（同波不可重疊）：`dev:5173`、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`。
 - 專案領域知識：各領域架構重點在 `.claude/agents/<name>.md`（babylon-game-dev、react-ui-dev、godot-dev、rpg-map-builder、web-verifier、build-runner、arch-security-reviewer），角色檔會指定要讀哪一份。

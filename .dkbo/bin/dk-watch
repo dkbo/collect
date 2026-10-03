@@ -103,7 +103,7 @@ agent_status() { printf '%s' "$2" | jq -r --arg a "$1" '(.result.agents // [])[]
 # 不寫 delivered，下一 tick 重試。桌面通知與熔斷不受影響，各自只做一次。
 # fallback 是 pane id：DK_LEADER_PANE（領導在哪），缺席的舊任務退回版面錨點 DK_ROOT_PANE。
 # 交棒之後兩者不同格，而每輪都重讀 .task.env，所以訂閱器與輪詢都自動跟上。
-# leader-<short> 靠 dk-task-new 的 rename 生出來，而那一步在 panova2 回了
+# leader-<short> 靠 dk-task-new 的 rename 生出來，而那一步在下游專案 A 回了
 # rc=0 卻沒生效 —— herdr 從此回 agent_not_found，守望的 BLOCKED／TIMEOUT 三個出口一起靜默失效，
 # 標記檔永遠等不到 delivered。pane id 不靠 rename，是唯一不會掉的把手。
 notify_leader() { # target fallback text — bounded wait for idle, then prompt; non-zero when it did not land
