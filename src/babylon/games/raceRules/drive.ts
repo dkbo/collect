@@ -48,7 +48,7 @@ export const DRIFT_STEER_MIN = 0.2
 
 // 尾流
 export const SLIP_DIST = 6
-export const SLIP_CONE_DEG = 15
+export const SLIP_CONE_DEG = 25
 export const SLIP_CHARGE_MS = 1200
 export const SLIP_BOOST_MS = 1000
 export const SLIP_SPEED_MULT = 1.15

@@ -1,5 +1,5 @@
 import { PLAYER_PALETTE } from '@/babylon/fx/palette'
-import type { GameHud, KitchenHud, TankBuffKind, TankHud, TankHudFeed, TankHudPlayer } from '@/babylon/types'
+import type { AnyGameHud, TankBuffKind, TankHud, TankHudFeed, TankHudPlayer } from '@/babylon/types'
 import { timerView, type TimerMode } from '@/pages/Battle/bomberHud'
 import type { TouchAction } from '@/pages/Battle/TouchControls'
 
@@ -32,7 +32,7 @@ export const TANK_TOUCH_ACTIONS: TouchAction[] = [
 ]
 
 /** setHud 收到的是不是坦克 HUD（沒有 kind 的一律當 bomber） */
-export function isTankHud(hud: GameHud | KitchenHud | TankHud | null): hud is TankHud {
+export function isTankHud(hud: AnyGameHud | null): hud is TankHud {
   return hud !== null && 'kind' in hud && hud.kind === 'tank'
 }
 

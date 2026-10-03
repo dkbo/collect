@@ -1936,3 +1936,321 @@ html {
     @apply animate-none;
   }
 }
+
+/* ===== 極速賽車 HUD（A · Toy Racer，race spec §9）：960×540 設計尺寸，--race-scale 由 JS 依容器等比縮放；token 與 bomber／tank 同套 ===== */
+.race-hud {
+  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--race-ink) [--race-ink:#2b2440] [--race-paper:#fff6e3] [--race-plate:#f3e6cc] [--race-cell:56px];
+}
+.race-num {
+  @apply font-['Fredoka',_var(--font-sans)] font-bold leading-none tabular-nums;
+}
+
+/* 左上：道具欄＋圈數／時間欄 */
+.race-tl {
+  @apply absolute left-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-left))] top-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-top))] flex origin-top-left items-start gap-2.5 [scale:var(--race-scale)];
+}
+.race-tl-col {
+  @apply flex flex-col items-start gap-1.5;
+}
+.race-item {
+  @apply relative size-[76px] rounded-2xl border-[2.5px] border-(--race-ink) bg-(--race-paper) p-[6px] shadow-[0_5px_0_rgba(0,0,0,.4)];
+}
+.race-item-well {
+  @apply relative flex size-full items-center justify-center overflow-hidden rounded-xl bg-(--race-plate) shadow-[inset_0_3px_0_rgba(0,0,0,.12)];
+}
+.race-item-icon {
+  @apply size-[46px] animate-[race-item-pop_0.24s_ease-out];
+}
+.race-item-empty {
+  @apply size-[26px] text-[#cdbfa6];
+}
+.race-item-rolling {
+  @apply absolute inset-x-0 top-[calc((100%_-_var(--race-cell))_/_2)] flex flex-col animate-[race-roll_0.28s_linear_infinite];
+}
+.race-item-reel-cell {
+  @apply flex h-(--race-cell) w-full shrink-0 items-center justify-center;
+}
+.race-item-reel-icon {
+  @apply size-[calc(var(--race-cell)_-_10px)];
+}
+.race-item-flash {
+  @apply pointer-events-none absolute -inset-[2.5px] rounded-2xl opacity-0 ring-4 ring-white animate-[race-item-flash_0.12s_ease-out];
+}
+
+.race-lap {
+  @apply flex h-[40px] items-baseline gap-1 rounded-full border-[2.5px] border-(--race-ink) bg-(--race-paper) px-3.5 pt-[7px] shadow-[0_5px_0_rgba(0,0,0,.4)];
+}
+.race-lap-label {
+  @apply text-[13px] font-black tracking-wide text-[#8a7a66];
+}
+.race-lap-cur {
+  @apply text-[28px];
+}
+.race-lap-total {
+  @apply text-[17px] text-[#8a7a66];
+}
+.race-lap-final {
+  @apply bg-[#ffc21a];
+}
+.race-lap-final .race-lap-cur {
+  @apply text-white [paint-order:stroke_fill] [-webkit-text-stroke:5px_var(--race-ink)];
+}
+.race-lap-final .race-lap-label,
+.race-lap-final .race-lap-total {
+  @apply text-(--race-ink);
+}
+
+.race-time {
+  @apply w-[132px] rounded-xl border-[2.5px] border-(--race-ink) bg-(--race-paper) px-2.5 py-1 shadow-[0_4px_0_rgba(0,0,0,.4)];
+}
+.race-time-row {
+  @apply flex items-center gap-1.5;
+}
+.race-time-icon {
+  @apply size-[14px] shrink-0 stroke-[2.5] text-[#ff7a1a];
+}
+.race-time-cur {
+  @apply text-[20px];
+}
+.race-time-best {
+  @apply mt-0.5 flex items-baseline gap-1.5;
+}
+.race-time-best-label {
+  @apply text-[10px] font-black text-[#8a7a66];
+}
+.race-time-best-num {
+  @apply text-[13px];
+}
+.race-time-best-new {
+  @apply animate-[race-best-flash_1.2s_ease-out];
+}
+
+/* 左下：小地圖 */
+.race-map {
+  @apply absolute bottom-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-bottom))] left-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-left))] h-[148px] w-[168px] origin-bottom-left rounded-2xl border-[2.5px] border-(--race-ink) bg-(--race-paper)/90 p-2 shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--race-scale)];
+}
+.race-map-svg {
+  @apply block size-full overflow-visible;
+}
+
+/* 右下：名次大字 */
+.race-rank {
+  @apply absolute right-[calc(24px_*_var(--race-scale)_+_env(safe-area-inset-right))] bottom-[calc(12px_*_var(--race-scale)_+_env(safe-area-inset-bottom))] flex origin-bottom-right items-end [scale:var(--race-scale)];
+}
+.race-rank-num {
+  @apply flex origin-bottom items-baseline font-['Fredoka',_var(--font-sans)] text-[96px] font-bold leading-none text-(--race-rank-fill) [paint-order:stroke_fill] [-webkit-text-stroke:8px_var(--race-ink)] [text-shadow:0_5px_0_rgba(0,0,0,.4)] animate-[race-rank-bump_0.3s_ease-out];
+}
+.race-rank-suffix {
+  @apply text-[40px];
+}
+.race-rank-total {
+  @apply mb-3 ml-1 font-['Fredoka',_var(--font-sans)] text-[22px] font-bold leading-none text-white [paint-order:stroke_fill] [-webkit-text-stroke:4px_var(--race-ink)];
+}
+
+/* 中上：逆向警告 */
+.race-wrongway {
+  @apply absolute left-1/2 top-[calc(112px_*_var(--race-scale))] flex h-[56px] -translate-x-1/2 origin-top items-center gap-2.5 whitespace-nowrap rounded-full border-[3px] border-(--race-ink) bg-[#ff3b4e] px-6 text-[26px] font-black text-white shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--race-scale)] animate-[race-pulse_0.6s_ease-in-out_infinite];
+}
+.race-wrongway-icon {
+  @apply size-7 stroke-[3];
+}
+
+/* 中央：最後一圈大字（finalLap 轉 true 時掛 2.2 秒） */
+.race-finallap {
+  @apply absolute left-1/2 top-[calc(150px_*_var(--race-scale))] flex -translate-x-1/2 items-center justify-center [scale:var(--race-scale)];
+}
+.race-finallap-ribbon {
+  @apply absolute h-[46px] w-[420px] -skew-x-12 rounded-lg border-[2.5px] border-(--race-ink) bg-[#ffc21a] shadow-[0_5px_0_rgba(0,0,0,.4)];
+}
+.race-finallap-text {
+  @apply relative whitespace-nowrap text-[52px] font-black leading-none text-white [paint-order:stroke_fill] [-webkit-text-stroke:8px_var(--race-ink)];
+}
+.race-finallap-ribbon,
+.race-finallap-text {
+  @apply animate-[race-banner_2.2s_ease-out_forwards];
+}
+
+/* 衝線後名次表 */
+.race-results {
+  @apply absolute left-1/2 top-1/2 w-[440px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border-[3px] border-(--race-ink) bg-(--race-paper) shadow-[0_6px_0_rgba(0,0,0,.4)] [scale:var(--race-scale)];
+}
+.race-results-flagbar {
+  @apply h-2 bg-[repeating-linear-gradient(90deg,#2b2440_0_12px,#fff_12px_24px)];
+}
+.race-results-head {
+  @apply flex h-[44px] items-center justify-center gap-2 border-b-[2.5px] border-(--race-ink) text-[28px] font-black;
+}
+.race-results-flag {
+  @apply size-6 stroke-[2.5];
+}
+.race-results-row {
+  @apply grid h-[44px] grid-cols-[40px_14px_1fr_92px_78px] items-center gap-2 px-4 even:bg-(--race-plate);
+}
+.race-results-row-pending {
+  @apply opacity-60;
+}
+.race-results-badge {
+  @apply flex size-8 items-center justify-center rounded-full border-[2.5px] border-(--race-ink) font-['Fredoka',_var(--font-sans)] text-[17px] font-bold leading-none text-white [paint-order:stroke_fill] [-webkit-text-stroke:3px_var(--race-ink)];
+}
+.race-results-dot {
+  @apply size-3 rounded-full border-[1.5px] border-(--race-ink);
+}
+.race-results-name {
+  @apply flex min-w-0 items-center text-[16px] font-black;
+}
+.race-results-name-text {
+  @apply truncate;
+}
+.race-ai-tag {
+  @apply mr-1 shrink-0 rounded-[4px] bg-[#39e6ff] px-1 font-['Fredoka',_var(--font-sans)] text-[10px] font-bold leading-[14px] text-(--race-ink);
+}
+.race-results-time {
+  @apply text-right text-[17px];
+}
+.race-results-pending {
+  @apply text-right text-[13px] font-black;
+}
+.race-results-best {
+  @apply text-right text-[13px] text-[#8a7a66];
+}
+
+@keyframes race-roll {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-4 * var(--race-cell))); }
+}
+@keyframes race-item-pop {
+  from { transform: scale(1.25); }
+  to { transform: scale(1); }
+}
+@keyframes race-item-flash {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes race-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+@keyframes race-rank-bump {
+  from { transform: scale(1.3); }
+  to { transform: scale(1); }
+}
+@keyframes race-best-flash {
+  0%, 80% { color: #2fcf5e; }
+  100% { color: inherit; }
+}
+@keyframes race-banner {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  8% { opacity: 1; transform: translateY(0) scale(1.1); }
+  14% { opacity: 1; transform: translateY(0) scale(1); }
+  86% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-20px) scale(1); }
+}
+
+/* 矮畫面（手機橫向）：道具欄縮小、圈數＋時間併一條膠囊、小地圖移到道具欄下、名次移到右上全螢幕鈕左邊 */
+@media (max-height: 500px) {
+  .race-hud {
+    @apply [--race-cell:42px];
+  }
+  .race-tl {
+    @apply left-[calc(12px_+_env(safe-area-inset-left))] top-[calc(12px_+_env(safe-area-inset-top))] items-center gap-2 [scale:1];
+  }
+  .race-item {
+    @apply size-[56px] rounded-xl p-[4px];
+  }
+  .race-item-well {
+    @apply rounded-lg;
+  }
+  .race-item-icon {
+    @apply size-[36px];
+  }
+  .race-item-flash {
+    @apply rounded-xl;
+  }
+  .race-tl-col {
+    @apply h-[40px] flex-row items-center gap-0 rounded-full border-[2.5px] border-(--race-ink) bg-(--race-paper) pr-3 shadow-[0_4px_0_rgba(0,0,0,.4)];
+  }
+  .race-lap {
+    @apply h-full items-center rounded-full border-0 bg-transparent px-3 pt-0 shadow-none;
+  }
+  .race-lap-final {
+    @apply bg-[#ffc21a];
+  }
+  .race-lap-cur {
+    @apply text-[22px];
+  }
+  .race-lap-total {
+    @apply text-[14px];
+  }
+  .race-time {
+    @apply flex w-auto items-center gap-2 rounded-none border-0 border-l-2 border-l-(--race-ink)/20 bg-transparent py-0 pl-2.5 pr-0 shadow-none;
+  }
+  .race-time-cur {
+    @apply text-[17px];
+  }
+  .race-time-best {
+    @apply mt-0;
+  }
+  .race-time-best-num {
+    @apply text-[12px];
+  }
+  .race-map {
+    @apply bottom-auto left-[calc(12px_+_env(safe-area-inset-left))] top-[calc(76px_+_env(safe-area-inset-top))] h-[96px] w-[112px] origin-top-left rounded-xl p-1 [scale:1];
+  }
+  .race-rank {
+    @apply bottom-auto right-[calc(max(12px,env(safe-area-inset-right))_+_2.25rem_+_8px)] top-[max(8px,env(safe-area-inset-top))] origin-top-right [scale:1];
+  }
+  .race-rank-num {
+    @apply text-[56px] [-webkit-text-stroke:6px_var(--race-ink)] [text-shadow:0_3px_0_rgba(0,0,0,.4)];
+  }
+  .race-rank-suffix {
+    @apply text-[24px];
+  }
+  .race-rank-total {
+    @apply mb-1.5 text-[15px] [-webkit-text-stroke:3px_var(--race-ink)];
+  }
+  .race-wrongway {
+    @apply top-[64px] [scale:0.8];
+  }
+  .race-finallap {
+    @apply top-[110px] [scale:1];
+  }
+  .race-finallap-ribbon {
+    @apply h-[32px] w-[280px];
+  }
+  .race-finallap-text {
+    @apply text-[34px] [-webkit-text-stroke:6px_var(--race-ink)];
+  }
+  .race-results {
+    @apply [scale:1];
+  }
+  .race-results-head {
+    @apply h-[38px] text-[22px];
+  }
+  .race-results-row {
+    @apply h-[32px];
+  }
+  .race-results-badge {
+    @apply size-6 text-[14px];
+  }
+}
+
+/* 觸控大螢幕（平板橫向，高度 > 500）：底部讓給搖桿與四顆觸控鈕，小地圖移到左上群下方、名次移到右上全螢幕鈕左邊 */
+@media (pointer: coarse) and (min-height: 501px) {
+  .race-map {
+    @apply bottom-auto top-[calc(128px_*_var(--race-scale)_+_env(safe-area-inset-top))] origin-top-left;
+  }
+  .race-rank {
+    @apply bottom-auto right-[calc(max(12px,env(safe-area-inset-right))_+_2.25rem_+_8px)] top-[max(8px,env(safe-area-inset-top))] origin-top-right;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .race-wrongway,
+  .race-rank-num,
+  .race-item-rolling,
+  .race-item-icon,
+  .race-finallap-ribbon,
+  .race-finallap-text {
+    @apply animate-none;
+  }
+}

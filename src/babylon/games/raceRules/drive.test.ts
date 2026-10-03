@@ -10,6 +10,7 @@ import {
   RESPAWN_GHOST_MS,
   SLIP_BOOST_MS,
   SLIP_CHARGE_MS,
+  SLIP_CONE_DEG,
   SLIP_SPEED_MULT,
   STUCK_MS,
   JUMP_G,
@@ -93,7 +94,7 @@ describe('slipCharge — 尾流', () => {
     return got
   }
 
-  it(`前方 6 單位、15° 內持續 ${SLIP_CHARGE_MS}ms 給 ${SLIP_BOOST_MS}ms`, () => {
+  it(`前方 6 單位、${SLIP_CONE_DEG}° 內持續 ${SLIP_CHARGE_MS}ms 給 ${SLIP_BOOST_MS}ms`, () => {
     expect(run([{ x: 0, z: 5 }], SLIP_CHARGE_MS - 100)).toBe(0)
     expect(run([{ x: 0, z: 5 }], SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
     const a = (14 * Math.PI) / 180
@@ -101,11 +102,22 @@ describe('slipCharge — 尾流', () => {
   })
 
   it('太遠、角度太大、在後方或自己太慢都不累計', () => {
-    const a = (16 * Math.PI) / 180
+    const a = ((SLIP_CONE_DEG + 1) * Math.PI) / 180
     expect(run([{ x: 0, z: 6.5 }], 3000)).toBe(0)
     expect(run([{ x: Math.sin(a) * 4, z: Math.cos(a) * 4 }], 3000)).toBe(0)
     expect(run([{ x: 0, z: -3 }], 3000)).toBe(0)
     expect(run([{ x: 0, z: 4 }], 3000, { ...self, speed: 3 })).toBe(0)
+  })
+
+  it('夾角門檻放寬為 25°（波 2 qa 實測 15° 鍵盤難觸發）：24° 內累計、26° 外不累計', () => {
+    expect(SLIP_CONE_DEG).toBe(25)
+    const at = (deg: number) => {
+      const a = (deg * Math.PI) / 180
+      return [{ x: Math.sin(a) * 5, z: Math.cos(a) * 5 }]
+    }
+    expect(run(at(24), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+    expect(run(at(-24), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+    expect(run(at(26), 3000)).toBe(0)
   })
 
   it('中途離開條件即歸零', () => {
