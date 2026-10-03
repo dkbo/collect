@@ -1,6 +1,6 @@
 import { PLAYER_PALETTE } from '@/babylon/fx/palette'
 import { ORDER_LIFE_MS, RECIPES, SCORE_SERVE } from '@/babylon/games/overcookedKitchen'
-import type { GameHud, KitchenHud, KitchenHudGone, KitchenHudOrder, KitchenHudPlayer, KitchenIng } from '@/babylon/types'
+import type { GameHud, KitchenHud, KitchenHudGone, KitchenHudOrder, KitchenHudPlayer, KitchenIng, TankHud } from '@/babylon/types'
 import { formatTimer } from '@/pages/Battle/bomberHud'
 
 /** 固定 4 色（kitchen spec §4），與 3D 廚師同源；索引 = colorIndex */
@@ -16,7 +16,7 @@ const DANGER_RATIO = 0.25
 export const KITCHEN_LEAVE_MS = { served: 600, expired: 400 } as const
 
 /** setHud 收到的是不是廚房 HUD（沒有 kind 的一律當 bomber） */
-export function isKitchenHud(hud: GameHud | KitchenHud | null): hud is KitchenHud {
+export function isKitchenHud(hud: GameHud | KitchenHud | TankHud | null): hud is KitchenHud {
   return hud !== null && 'kind' in hud && hud.kind === 'kitchen'
 }
 

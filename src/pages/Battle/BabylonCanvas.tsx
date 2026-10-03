@@ -3,7 +3,7 @@ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
 import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { NetTransport } from '@/core/webrtc'
-import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder } from '@/babylon/types'
+import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder, TankHud } from '@/babylon/types'
 import { getGameFactory } from '@/babylon/games'
 import type { GameType } from '@/core/room'
 import { TouchControls, type TouchAction } from './TouchControls'
@@ -11,6 +11,16 @@ import { BomberHud } from '@/pages/Battle/BomberHud'
 import { sameHud } from '@/pages/Battle/bomberHud'
 import { KitchenHud as KitchenHudPanel } from '@/pages/Battle/KitchenHud'
 import { KITCHEN_LEAVE_MS, collectLeaving, freshGone, isKitchenHud, type LeavingOrder } from '@/pages/Battle/kitchenHud'
+import { TankHud as TankHudPanel } from '@/pages/Battle/TankHud'
+import {
+  TANK_FEED_LEAVE_MS,
+  TANK_FEED_MAX,
+  TANK_FEED_SHOW_MS,
+  TANK_TOUCH_ACTIONS,
+  freshFeed,
+  isTankHud,
+  type TankFeedItem,
+} from '@/pages/Battle/tankHud'
 
 interface BabylonCanvasProps {
   gameType: GameType
@@ -27,7 +37,7 @@ interface BabylonCanvasProps {
  * key 對應遊戲端 e.key.toLowerCase() 後的比對值。
  */
 const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
-  tank: [{ label: '🔥', key: ' ' }],
+  tank: TANK_TOUCH_ACTIONS,
   race: [],
   bomber: [
     { label: '💣', key: ' ' },
@@ -44,9 +54,11 @@ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
 export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
-  const [hud, setHudState] = useState<GameHud | KitchenHud | null>(null)
+  const [hud, setHudState] = useState<GameHud | KitchenHud | TankHud | null>(null)
   // 廚房 HUD 正在播離場動畫的訂單卡（gone 只出現在一次 setHud，另存起來播完才移除）
   const [leaving, setLeaving] = useState<LeavingOrder[]>([])
+  // 坦克 HUD 畫面上的擊殺通知：每則從第一次收到起顯示 3 秒、淡出後移除
+  const [tankFeed, setTankFeed] = useState<TankFeedItem[]>([])
   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
   const isTouch = useMemo(() => window.matchMedia?.('(pointer: coarse)')?.matches ?? false, [])
   // 觸控裝置強制橫向：直向時以提示蓋住遊戲，並嘗試原生鎖定方向
@@ -107,11 +119,35 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
         leaveTimers.add(t)
       }
     }
+    // 坦克擊殺通知：只收沒看過的 id；feed 清空（新的一局）時重置已看過的集合
+    const tankSeen = new Set<number>()
+    const queueTankFeed = (next: TankHud) => {
+      if (next.feed.length === 0) {
+        tankSeen.clear()
+        return
+      }
+      const fresh = freshFeed(tankSeen, next.feed)
+      if (fresh.length === 0) return
+      for (const f of fresh) tankSeen.add(f.id)
+      setTankFeed((prev) => [...prev, ...fresh.map((f) => ({ ...f, leaving: false }))].slice(-TANK_FEED_MAX))
+      const later = (ms: number, fn: () => void) => {
+        const t = window.setTimeout(() => {
+          leaveTimers.delete(t)
+          fn()
+        }, ms)
+        leaveTimers.add(t)
+      }
+      for (const f of fresh) {
+        later(TANK_FEED_SHOW_MS, () => setTankFeed((prev) => prev.map((x) => (x.id === f.id ? { ...x, leaving: true } : x))))
+        later(TANK_FEED_SHOW_MS + TANK_FEED_LEAVE_MS, () => setTankFeed((prev) => prev.filter((x) => x.id !== f.id)))
+      }
+    }
     // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪；沒有 kind 的一律當 bomber
-    const setHud = (next: GameHud | KitchenHud | null) => {
+    const setHud = (next: GameHud | KitchenHud | TankHud | null) => {
       if (isKitchenHud(next)) queueLeaving(next)
       else prevKitchenOrders = []
-      setHudState((prev) => (sameHud<GameHud | KitchenHud>(prev, next) ? prev : next))
+      if (isTankHud(next)) queueTankFeed(next)
+      setHudState((prev) => (sameHud<GameHud | KitchenHud | TankHud>(prev, next) ? prev : next))
     }
     game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
 
@@ -174,6 +210,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
       setOverlay(null)
       setHudState(null)
       setLeaving([])
+      setTankFeed([])
       ;(window as unknown as Record<string, unknown>).__BATTLE_READY = false
     }
   }, [gameType, net, selfId, role, hostId])
@@ -186,7 +223,14 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
         className="block size-full bg-slate-950 outline-none touch-none"
         tabIndex={0}
       />
-      {hud && (isKitchenHud(hud) ? <KitchenHudPanel hud={hud} leaving={leaving} /> : <BomberHud hud={hud} />)}
+      {hud &&
+        (isKitchenHud(hud) ? (
+          <KitchenHudPanel hud={hud} leaving={leaving} />
+        ) : isTankHud(hud) ? (
+          <TankHudPanel hud={hud} feed={tankFeed} />
+        ) : (
+          <BomberHud hud={hud} />
+        ))}
       {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
       {isTouch && portrait && (
         <div

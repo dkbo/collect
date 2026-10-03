@@ -96,6 +96,49 @@ export interface KitchenHud {
   players: KitchenHudPlayer[]
 }
 
+/** 坦克的計時 buff（護盾另以 shield 旗標表示）；remainSec 量化到整秒 */
+export type TankBuffKind = 'speed' | 'rapid' | 'triple'
+
+export interface TankHudBuff {
+  kind: TankBuffKind
+  remainSec: number
+}
+
+/** 坦克 HUD 玩家卡（含 bot）；colorIndex = 在「ctx.players 依序＋bots 依序」的序號，P 編號 = colorIndex + 1 */
+export interface TankHudPlayer {
+  id: string
+  name: string
+  colorIndex: 0 | 1 | 2 | 3
+  isSelf: boolean
+  isBot: boolean
+  alive: boolean
+  hp: number
+  maxHp: number
+  kills: number
+  shield: boolean
+  buffs: TankHudBuff[]
+}
+
+/** 擊殺通知一則：id 單調遞增（React key）；killer 為 null 表示落牆；名字為顯示名 */
+export interface TankHudFeed {
+  id: number
+  killer: string | null
+  victim: string
+}
+
+/**
+ * 坦克的 React HUD 資料（共用契約：欄位只增不改）。
+ * remainSec 為到突然死亡的剩餘秒數（量化到整秒），進入後為 0 且 suddenDeath 為 true；feed 為最近 3 則擊殺。
+ */
+export interface TankHud {
+  kind: 'tank'
+  remainSec: number
+  suddenDeath: boolean
+  aliveCount: number
+  players: TankHudPlayer[]
+  feed: TankHudFeed[]
+}
+
 /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
 export interface GameContext {
   scene: Scene
@@ -109,9 +152,9 @@ export interface GameContext {
   setOverlay?: (overlay: GameOverlay | null) => void
   /**
    * 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件）。
-   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD。
+   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD、'tank' 走坦克 HUD。
    */
-  setHud?: (hud: GameHud | KitchenHud | null) => void
+  setHud?: (hud: GameHud | KitchenHud | TankHud | null) => void
 }
 
 /**
