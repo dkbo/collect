@@ -1,5 +1,6 @@
 import type { Scene } from '@/babylon/babylonCore'
 import type { GameNetMessage, NetTransport } from '@/core/webrtc'
+import type { ItemKind } from '@/babylon/games/raceRules/items'
 
 /** 對戰中的玩家精簡資訊（由房間玩家列表帶入） */
 export interface GamePlayer {
@@ -142,6 +143,51 @@ export interface TankHud {
   feed: TankHudFeed[]
 }
 
+/** 賽車小地圖上的一台車；座標量化到 0.1，colorIndex = 在「ctx.players 依序＋bots 依序」的序號 */
+export interface RaceHudCar {
+  id: string
+  colorIndex: 0 | 1 | 2 | 3
+  x: number
+  z: number
+  isSelf: boolean
+}
+
+/** 衝線名次表一列；totalMs 為 null 表示還在衝線（時間量化到 10ms） */
+export interface RaceHudResult {
+  id: string
+  name: string
+  colorIndex: 0 | 1 | 2 | 3
+  rank: number
+  totalMs: number | null
+  bestLapMs: number | null
+}
+
+/**
+ * 極速賽車的 React HUD 資料（共用契約：欄位只增不改）。
+ * lap 為目前第幾圈（1..laps，由遊戲端算好，HUD 直接顯示）；時間量化到 10ms；
+ * map.pts 開局傳一次後不變（React 以參照比對不重算賽道輪廓）。
+ */
+export interface RaceHud {
+  kind: 'race'
+  rank: number
+  total: number
+  lap: number
+  laps: number
+  lapMs: number
+  bestLapMs: number | null
+  item: ItemKind | null
+  /** 道具欄轉盤中（撿到道具箱到落定之間） */
+  rolling: boolean
+  wrongWay: boolean
+  finalLap: boolean
+  finished: boolean
+  map: { pts: [number, number][]; cars: RaceHudCar[] }
+  results: RaceHudResult[]
+}
+
+/** setHud 可收的所有 HUD：沒有 kind 的是 bomber，其餘依 kind 分流 */
+export type AnyGameHud = GameHud | KitchenHud | TankHud | RaceHud
+
 /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
 export interface GameContext {
   scene: Scene
@@ -155,9 +201,9 @@ export interface GameContext {
   setOverlay?: (overlay: GameOverlay | null) => void
   /**
    * 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件）。
-   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD、'tank' 走坦克 HUD。
+   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD、'tank' 走坦克 HUD、'race' 走賽車 HUD。
    */
-  setHud?: (hud: GameHud | KitchenHud | TankHud | null) => void
+  setHud?: (hud: AnyGameHud | null) => void
 }
 
 /**

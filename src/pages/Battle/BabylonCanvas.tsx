@@ -3,7 +3,7 @@ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
 import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { NetTransport } from '@/core/webrtc'
-import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder, TankHud } from '@/babylon/types'
+import type { AnyGameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder, TankHud } from '@/babylon/types'
 import { getGameFactory } from '@/babylon/games'
 import type { GameType } from '@/core/room'
 import { TouchControls, type TouchAction } from './TouchControls'
@@ -12,6 +12,9 @@ import { sameHud } from '@/pages/Battle/bomberHud'
 import { KitchenHud as KitchenHudPanel } from '@/pages/Battle/KitchenHud'
 import { KITCHEN_LEAVE_MS, collectLeaving, freshGone, isKitchenHud, type LeavingOrder } from '@/pages/Battle/kitchenHud'
 import { TankHud as TankHudPanel } from '@/pages/Battle/TankHud'
+import { RaceHud as RaceHudPanel } from '@/pages/Battle/RaceHud'
+import { RACE_TOUCH_ACTIONS, isRaceHud } from '@/pages/Battle/raceHud'
+import type { JoyAxes } from '@/pages/Battle/touchDirs'
 import {
   TANK_FEED_LEAVE_MS,
   TANK_FEED_MAX,
@@ -39,12 +42,17 @@ interface BabylonCanvasProps {
  */
 const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
   tank: TANK_TOUCH_ACTIONS,
-  race: [],
+  race: RACE_TOUCH_ACTIONS,
   bomber: [
     { label: '💣', key: ' ' },
     { label: '🧤', key: 'f' },
   ],
   overcooked: [{ label: '✋', key: 'e' }],
+}
+
+/** 觸控版面例外：賽車搖桿只轉向、四顆鈕排 2×2（AC8）；沒列的遊戲維持上下左右＋橫排 */
+const TOUCH_LAYOUT: Partial<Record<GameType, { axes: JoyAxes; grid: boolean }>> = {
+  race: { axes: 'x', grid: true },
 }
 
 /**
@@ -55,7 +63,7 @@ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
 export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
-  const [hud, setHudState] = useState<GameHud | KitchenHud | TankHud | null>(null)
+  const [hud, setHudState] = useState<AnyGameHud | null>(null)
   // 廚房 HUD 正在播離場動畫的訂單卡（gone 只出現在一次 setHud，另存起來播完才移除）
   const [leaving, setLeaving] = useState<LeavingOrder[]>([])
   // 坦克 HUD 畫面上的擊殺通知：每則從第一次收到起顯示 3 秒、淡出後移除
@@ -142,11 +150,11 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
       }
     }
     // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪；沒有 kind 的一律當 bomber
-    const setHud = (next: GameHud | KitchenHud | TankHud | null) => {
+    const setHud = (next: AnyGameHud | null) => {
       if (isKitchenHud(next)) queueLeaving(next)
       else prevKitchenOrders = []
       if (isTankHud(next)) queueTankFeed(next)
-      setHudState((prev) => (sameHud<GameHud | KitchenHud | TankHud>(prev, next) ? prev : next))
+      setHudState((prev) => (sameHud<AnyGameHud>(prev, next) ? prev : next))
     }
     game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
 
@@ -227,10 +235,12 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
           <KitchenHudPanel hud={hud} leaving={leaving} />
         ) : isTankHud(hud) ? (
           <TankHudPanel hud={hud} feed={tankFeed} />
+        ) : isRaceHud(hud) ? (
+          <RaceHudPanel hud={hud} />
         ) : (
           <BomberHud hud={hud} />
         ))}
-      {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
+      {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} {...TOUCH_LAYOUT[gameType]} />}
       {isTouch && portrait && (
         <div
           className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/95 p-6 text-center"

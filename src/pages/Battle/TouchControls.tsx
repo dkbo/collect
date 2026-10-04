@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { joyDirs, type JoyAxes } from '@/pages/Battle/touchDirs'
 
 /** 動作鈕：點按時對 window 派發對應按鍵事件 */
 export interface TouchAction {
@@ -14,7 +15,17 @@ export interface TouchAction {
  * 所有遊戲既有的鍵盤監聽（window + e.key.toLowerCase()）即可直接吃到，
  * 因此新增遊戲無須改動輸入邏輯，只要在 BabylonCanvas 登記動作鈕。
  */
-export function TouchControls({ actions }: { actions: TouchAction[] }) {
+export function TouchControls({
+  actions,
+  axes = 'xy',
+  grid = false,
+}: {
+  actions: TouchAction[]
+  /** 搖桿派發的軸：'x' 只派發左右（賽車），預設 'xy' */
+  axes?: JoyAxes
+  /** 動作鈕排成 2×2（依 actions 順序左上、右上、左下、右下），預設橫排 */
+  grid?: boolean
+}) {
   const baseRef = useRef<HTMLDivElement>(null)
   const thumbRef = useRef<HTMLDivElement>(null)
   const activeDirs = useRef<Set<string>>(new Set())
@@ -44,18 +55,10 @@ export function TouchControls({ actions }: { actions: TouchAction[] }) {
     const clamped = Math.min(mag, radius)
     const ang = Math.atan2(dy, dx)
     const tx = Math.cos(ang) * clamped
-    const ty = Math.sin(ang) * clamped
+    const ty = axes === 'x' ? 0 : Math.sin(ang) * clamped
     if (thumbRef.current) thumbRef.current.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px))`
 
-    const nx = dx / radius
-    const ny = dy / radius
-    const dz = 0.35 // 死區，避免輕觸誤判
-    const next = new Set<string>()
-    if (ny < -dz) next.add('arrowup')
-    else if (ny > dz) next.add('arrowdown')
-    if (nx < -dz) next.add('arrowleft')
-    else if (nx > dz) next.add('arrowright')
-    setDirs(next)
+    setDirs(joyDirs(dx / radius, dy / radius, axes))
   }
 
   const onJoyDown = (e: React.PointerEvent) => {
@@ -118,7 +121,10 @@ export function TouchControls({ actions }: { actions: TouchAction[] }) {
 
       {/* 動作鈕（右下） */}
       {actions.length > 0 && (
-        <div className="pointer-events-auto absolute flex gap-3 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))]">
+        <div
+          className={`pointer-events-auto absolute ${grid ? 'grid grid-cols-2' : 'flex'} gap-3 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))]`}
+          data-touch-layout={grid ? 'grid' : 'row'}
+        >
           {actions.map((a) => (
             <button
               key={a.key}
