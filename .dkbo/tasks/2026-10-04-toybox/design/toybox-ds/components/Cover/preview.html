@@ -1,0 +1,59 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>DKBO Toybox</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--surface); color: var(--ink); font-family: var(--font-display); overflow: hidden; }
+  .cover { position: relative; height: 288px; overflow: hidden; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; width: 520px; height: 288px; }
+  .ink { fill: var(--ink); }
+  .pop { fill: var(--pop); }
+  .action { fill: var(--action); }
+  .sky { fill: var(--sky); }
+  .mint { fill: var(--mint); }
+  .inverse { fill: var(--inverse); }
+  .fillink { fill: var(--on-fill); }
+  .edge { stroke: var(--line); stroke-width: 3; }
+  .md { rx: var(--radius-md); }
+  .xl { rx: var(--radius-xl); }
+  .sm { rx: var(--radius-sm); }
+  .words { position: absolute; left: var(--space-8); bottom: var(--space-8); max-width: 440px; }
+  .name { margin: 0; font-size: 100px; line-height: .95; font-weight: 900; letter-spacing: -0.01em; color: var(--ink); }
+  .tag { margin: var(--space-3) 0 0 4px; font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 500; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 520 288" width="520" height="288">
+<!--
+  blocks      pop 168×232 bled off the top (the brand, largest) · action 120×112 · sky 96×64 · mint 72×32 · inverse 168×216 bleeding off the right edge — ≈35% of 960×288
+  arrangement one tall pop slab with satellites; each block outlined border-m in line and backed by an ink copy offset 8px (shadow-hard-l) — the system's hard shadow is its signature shape
+  pattern     a literal motif, "the site is a handheld console": a D-pad cross cut into the pop slab and A/B discs on the inverse block, built from radius-sm bars and full discs
+  scales      sides and gaps in space-2/space-6 multiples; offsets 8 (shadow-hard-l); corners radius-md, radius-xl, radius-sm; strokes border-m
+-->
+<rect class="ink md" x="32" y="-16" width="168" height="232" rx="14"/>
+<rect class="pop edge md" x="24" y="-24" width="168" height="232" rx="14"/>
+<rect class="fillink sm" x="96" y="64" width="24" height="72" rx="8"/>
+<rect class="fillink sm" x="72" y="88" width="72" height="24" rx="8"/>
+<rect class="ink md" x="224" y="120" width="120" height="112" rx="14"/>
+<rect class="action edge md" x="216" y="112" width="120" height="112" rx="14"/>
+<rect class="ink sm" x="224" y="32" width="96" height="64" rx="8"/>
+<rect class="sky edge sm" x="216" y="24" width="96" height="64" rx="8"/>
+<rect class="mint edge sm" x="24" y="232" width="72" height="32" rx="8"/>
+<rect class="inverse edge xl" x="360" y="40" width="168" height="216" rx="26"/>
+<circle class="action edge" cx="408" cy="200" r="20"/>
+<circle class="action edge" cx="460" cy="176" r="20"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">DKBO<br>Toybox</h1>
+<p class="tag">把新技術拿來做有趣的東西，按下去會陷進去。</p>
+</div>
+</div>
+</body>
+</html>

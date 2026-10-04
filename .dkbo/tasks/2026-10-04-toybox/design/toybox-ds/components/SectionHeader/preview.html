@@ -1,0 +1,14 @@
+<!-- @dsCard group="Page sections" height=150 width=1152 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>SectionHeader</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { padding: 'var(--space-6)' } },
+    h(T.SectionHeader, { eyebrow: '— SELECT GAME —', title: '作品卡帶' },
+      h(T.SegmentedControl, { label: '篩選作品', options: [{ value: 'all', label: '全部' }, { value: 'game', label: '遊戲' }, { value: 'tool', label: '工具' }] }))));
+</script>
+</body>
+</html>

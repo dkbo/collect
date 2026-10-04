@@ -1,0 +1,15 @@
+<!-- @dsCard group="Cards" height=300 width=1152 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>CtaPanel</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { padding: 'var(--space-6)' } },
+    h(T.CtaPanel, { eyebrow: 'CONTINUE? 10 … 9 … 8', title: '程式碼全部公開', body: '這個站本身也是作品之一。想看實作細節或聊聊 AI 協作開發，都歡迎。' },
+      h(T.Button, { variant: 'pop', href: '#', iconEnd: 'arrow-up-right' }, 'Blog'),
+      h(T.Button, { href: '#', iconEnd: 'arrow-up-right' }, 'Codepen'))));
+</script>
+</body>
+</html>

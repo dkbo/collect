@@ -1,0 +1,3839 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "YRj8G",
+      "x": 0,
+      "y": 0,
+      "name": "page-home-390",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 390,
+      "fill": "$surface",
+      "layout": "vertical",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "YEOja",
+          "name": "SiteHeader",
+          "width": "fill_container",
+          "fill": "$surface",
+          "stroke": "$line",
+          "strokeWidth": {
+            "bottom": 3
+          },
+          "strokeAlignment": "inner",
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "LNNAN",
+              "name": "in",
+              "width": "fill_container",
+              "padding": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "RvUns",
+                  "name": "Logo",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "K6Axg",
+                      "name": "mark",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xcCCH",
+                          "name": "D",
+                          "fill": "$on-fill",
+                          "content": "D",
+                          "lineHeight": 1.0666666666666667,
+                          "fontFamily": "VT323",
+                          "fontSize": 30
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "k22ID",
+                      "name": "DKBO",
+                      "fill": "$ink",
+                      "content": "DKBO",
+                      "lineHeight": 1.3636363636363635,
+                      "fontFamily": "Rubik",
+                      "fontSize": 22,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "nJmbO",
+                  "name": "nav",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "x3fxy",
+                      "name": "IconButton moon",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "Gj7Vx",
+                          "name": "icon moon",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "moon",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ksHMq",
+                      "name": "IconButton menu",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "UKduR",
+                          "name": "icon menu",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "menu",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "eSeVG",
+          "name": "tb-container",
+          "width": 390,
+          "layout": "vertical",
+          "padding": [
+            0,
+            16
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "HpocN",
+              "name": "Hero",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 56,
+              "padding": [
+                48,
+                0,
+                72,
+                0
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Z3ePn",
+                  "name": "文案",
+                  "width": 358,
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "GmV8S",
+                      "name": "StatusPill",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 999,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 8,
+                      "padding": [
+                        8,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "zf687",
+                          "name": "dot",
+                          "fill": "$success",
+                          "width": 12,
+                          "height": 12,
+                          "stroke": "$line",
+                          "strokeWidth": 2,
+                          "strokeAlignment": "inner"
+                        },
+                        {
+                          "type": "text",
+                          "id": "CVYZW",
+                          "name": "目前在做：Babylon.js 多人對戰",
+                          "fill": "$ink",
+                          "content": "目前在做：Babylon.js 多人對戰",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "x0ZBIH",
+                      "name": "H1",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "nbt3H",
+                          "name": "嗨，我是",
+                          "fill": "$ink",
+                          "content": "嗨，我是",
+                          "lineHeight": 1.1,
+                          "fontFamily": "Rubik",
+                          "fontSize": 44,
+                          "fontWeight": "900"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "NM1OA",
+                          "name": "名字貼紙 tilt-1",
+                          "rotation": 3.0000000000000004,
+                          "fill": "$pop",
+                          "cornerRadius": 18,
+                          "stroke": "$line",
+                          "strokeWidth": 4,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 6,
+                              "y": 6
+                            }
+                          },
+                          "padding": [
+                            0,
+                            18
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "PzId1",
+                              "name": "DKBO",
+                              "fill": "$on-fill",
+                              "content": "DKBO",
+                              "lineHeight": 1.2,
+                              "fontFamily": "Rubik",
+                              "fontSize": 44,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "XLAa8",
+                      "name": "把新技術拿來做有趣的東西",
+                      "fill": "$ink",
+                      "content": "把新技術拿來做有趣的東西",
+                      "lineHeight": 1.3076923076923077,
+                      "fontFamily": "Rubik",
+                      "fontSize": 26,
+                      "fontWeight": "900"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JqfN3",
+                      "name": "13 年前端資歷。這裡放的是我用 React、B",
+                      "fill": "$ink-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "13 年前端資歷。這裡放的是我用 React、Babylon.js、Godot 與 WebRTC 做出來的網頁遊戲和工具，全部純前端，打開就能玩。",
+                      "lineHeight": 1.7647058823529411,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 17,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QjYKc",
+                      "name": "buttons",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "QaQ91",
+                          "name": "Button ▶ 開始玩",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$action",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 5,
+                              "y": 5
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            24
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "R19hK",
+                              "name": "▶ 開始玩",
+                              "fill": "$on-fill",
+                              "content": "▶ 開始玩",
+                              "lineHeight": 1.25,
+                              "fontFamily": "Rubik",
+                              "fontSize": 16,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "G2dDY",
+                          "name": "Button E-履歷",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 5,
+                              "y": 5
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            24
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "IVSS0",
+                              "name": "E-履歷",
+                              "fill": "$ink",
+                              "content": "E-履歷",
+                              "lineHeight": 1.25,
+                              "fontFamily": "Rubik",
+                              "fontSize": 16,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "aMv0A",
+                              "name": "icon arrow-up-right",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "arrow-up-right",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QdKHG",
+                      "name": "StatTile ×4",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "FuNz6",
+                          "name": "r",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "So8n4",
+                              "name": "StatTile 年前端經驗",
+                              "width": "fill_container",
+                              "fill": "$surface-raised",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "layout": "vertical",
+                              "gap": 4,
+                              "padding": [
+                                12,
+                                16
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "bNgsg",
+                                  "name": "13+",
+                                  "fill": "$ink",
+                                  "content": "13+",
+                                  "lineHeight": 0.9130434782608695,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 46
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "fwhUx",
+                                  "name": "年前端經驗",
+                                  "fill": "$ink-muted",
+                                  "content": "年前端經驗",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "bN2Tj",
+                              "name": "StatTile 個站內作品",
+                              "width": "fill_container",
+                              "fill": "$surface-raised",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "layout": "vertical",
+                              "gap": 4,
+                              "padding": [
+                                12,
+                                16
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "GAtz8",
+                                  "name": "9",
+                                  "fill": "$ink",
+                                  "content": "9",
+                                  "lineHeight": 0.9130434782608695,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 46
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "SQWS5",
+                                  "name": "個站內作品",
+                                  "fill": "$ink-muted",
+                                  "content": "個站內作品",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "qJZE1",
+                          "name": "r",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "ykSXg",
+                              "name": "StatTile 款多人對戰遊戲",
+                              "width": "fill_container",
+                              "fill": "$surface-raised",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "layout": "vertical",
+                              "gap": 4,
+                              "padding": [
+                                12,
+                                16
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "mib20",
+                                  "name": "4",
+                                  "fill": "$ink",
+                                  "content": "4",
+                                  "lineHeight": 0.9130434782608695,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 46
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "t5AtNg",
+                                  "name": "款多人對戰遊戲",
+                                  "fill": "$ink-muted",
+                                  "content": "款多人對戰遊戲",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "jMGrO",
+                              "name": "StatTile 套遊戲引擎",
+                              "width": "fill_container",
+                              "fill": "$surface-raised",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "layout": "vertical",
+                              "gap": 4,
+                              "padding": [
+                                12,
+                                16
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "gbaGI",
+                                  "name": "2",
+                                  "fill": "$ink",
+                                  "content": "2",
+                                  "lineHeight": 0.9130434782608695,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 46
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "lfn19",
+                                  "name": "套遊戲引擎",
+                                  "fill": "$ink-muted",
+                                  "content": "套遊戲引擎",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "vOQQd",
+                  "name": "主視覺",
+                  "width": "fill_container",
+                  "height": 560,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "j9hZY",
+                      "x": 16,
+                      "y": 26,
+                      "name": "Handheld",
+                      "rotation": -3.0000000000000004,
+                      "width": 320,
+                      "fill": "$pop",
+                      "cornerRadius": [
+                        26,
+                        26,
+                        64,
+                        26
+                      ],
+                      "stroke": "$line",
+                      "strokeWidth": 4,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 8,
+                          "y": 8
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 20,
+                      "padding": [
+                        24,
+                        24,
+                        32,
+                        24
+                      ],
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "TIUCw",
+                          "name": "screen",
+                          "width": "fill_container",
+                          "fill": "$inverse",
+                          "cornerRadius": 14,
+                          "stroke": "$on-fill",
+                          "strokeWidth": 4,
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 8,
+                          "padding": [
+                            12,
+                            12,
+                            8,
+                            12
+                          ],
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "cPt7I",
+                              "name": "img works/battle.webp",
+                              "width": "fill_container",
+                              "height": 150,
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "../../../../public/works/battle.webp",
+                                "mode": "fill"
+                              },
+                              "cornerRadius": 4
+                            },
+                            {
+                              "type": "frame",
+                              "id": "stthG",
+                              "name": "caption",
+                              "width": "fill_container",
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "G4fqG",
+                                  "name": "NOW PLAYING",
+                                  "fill": "$pop",
+                                  "content": "NOW PLAYING",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 20
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "HJQAP",
+                                  "name": "多人對戰 ▸",
+                                  "fill": "$pop",
+                                  "content": "多人對戰 ▸",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 20
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Ck22J",
+                          "name": "pad",
+                          "width": "fill_container",
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "r9kwt",
+                              "name": "dpad",
+                              "width": 88,
+                              "height": 88,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "P4qGK",
+                                  "x": 30,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 28,
+                                  "height": 88,
+                                  "fill": "$on-fill",
+                                  "cornerRadius": 5
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "Z0Djh",
+                                  "x": 0,
+                                  "y": 30,
+                                  "name": "h",
+                                  "width": 88,
+                                  "height": 28,
+                                  "fill": "$on-fill",
+                                  "cornerRadius": 5
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "mhRdX",
+                              "name": "A/B",
+                              "rotation": 20,
+                              "gap": 12,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "CO9mr",
+                                  "name": "B",
+                                  "width": 52,
+                                  "height": 52,
+                                  "fill": "$action",
+                                  "cornerRadius": 999,
+                                  "stroke": "$on-fill",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "$on-fill",
+                                    "offset": {
+                                      "x": 3,
+                                      "y": 3
+                                    }
+                                  },
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "TFnqp",
+                                      "name": "B",
+                                      "fill": "$on-fill",
+                                      "content": "B",
+                                      "lineHeight": 1.0666666666666667,
+                                      "fontFamily": "VT323",
+                                      "fontSize": 26
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "fmKew",
+                                  "name": "A",
+                                  "width": 52,
+                                  "height": 52,
+                                  "fill": "$action",
+                                  "cornerRadius": 999,
+                                  "stroke": "$on-fill",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "$on-fill",
+                                    "offset": {
+                                      "x": 3,
+                                      "y": 3
+                                    }
+                                  },
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "dNiCi",
+                                      "name": "A",
+                                      "fill": "$on-fill",
+                                      "content": "A",
+                                      "lineHeight": 1.0666666666666667,
+                                      "fontFamily": "VT323",
+                                      "fontSize": 26
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "sHSHY",
+                          "name": "pills",
+                          "width": "fill_container",
+                          "gap": 16,
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "I5qWtl",
+                              "name": "p",
+                              "width": 54,
+                              "height": 12,
+                              "fill": "#17140fcc",
+                              "cornerRadius": 999
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Oeetu",
+                              "name": "p",
+                              "width": 54,
+                              "height": 12,
+                              "fill": "#17140fcc",
+                              "cornerRadius": 999
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "B0Rgj",
+                          "name": "model",
+                          "width": "fill_container",
+                          "justifyContent": "end",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "d1tCgJ",
+                              "name": "DKBO·BOY",
+                              "fill": "$on-fill",
+                              "content": "DKBO·BOY",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22,
+                              "letterSpacing": 2.6
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "tPPVx",
+          "name": "Marquee wrap",
+          "clip": true,
+          "width": 390,
+          "height": 90,
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "bIWbD",
+              "x": -20,
+              "y": 20,
+              "name": "Marquee tilt-band",
+              "rotation": 1,
+              "clip": true,
+              "width": 430,
+              "fill": "$inverse",
+              "stroke": "$line",
+              "strokeWidth": {
+                "top": 3,
+                "bottom": 3
+              },
+              "strokeAlignment": "inner",
+              "padding": [
+                12,
+                20
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "A4Ld8J",
+                  "name": "★ INSERT COIN ★ REACT 19",
+                  "fill": "$pop",
+                  "content": "★ INSERT COIN ★ REACT 19 ★ BABYLON.JS ★ GODOT 4 ★ WEBRTC ★ FIREBASE ★ ZUSTAND ★ TAILWIND ★ INSERT COIN ★ REACT 19 ★",
+                  "lineHeight": 1.0666666666666667,
+                  "fontFamily": "VT323",
+                  "fontSize": 30,
+                  "letterSpacing": 1.8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hn5CM",
+          "name": "tb-container",
+          "width": 390,
+          "layout": "vertical",
+          "padding": [
+            0,
+            16,
+            48,
+            16
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "jOaFG",
+              "name": "作品區",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 32,
+              "padding": [
+                72,
+                0,
+                48,
+                0
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "E2fTWg",
+                  "name": "SectionHeader",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 20,
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "JYvwf",
+                      "name": "text",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uuw8m",
+                          "name": "— SELECT GAME —",
+                          "fill": "$ink-muted",
+                          "content": "— SELECT GAME —",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "Q2SP7",
+                          "name": "作品卡帶",
+                          "fill": "$ink",
+                          "content": "作品卡帶",
+                          "lineHeight": 1.1764705882352942,
+                          "fontFamily": "Rubik",
+                          "fontSize": 34,
+                          "fontWeight": "900"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "tNbxe",
+                      "name": "SegmentedControl",
+                      "clip": true,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "hP5G5",
+                          "name": "opt 全部",
+                          "height": 44,
+                          "fill": "$inverse",
+                          "padding": [
+                            0,
+                            20
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "LueKH",
+                              "name": "全部",
+                              "fill": "$pop",
+                              "content": "全部",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Rubik",
+                              "fontSize": 15,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "VA3y9",
+                          "name": "opt 遊戲",
+                          "height": 44,
+                          "fill": "$surface-raised",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "left": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            0,
+                            20
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "D5L5Zw",
+                              "name": "遊戲",
+                              "fill": "$ink",
+                              "content": "遊戲",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Rubik",
+                              "fontSize": 15,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "f4iBMg",
+                          "name": "opt 工具",
+                          "height": 44,
+                          "fill": "$surface-raised",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "left": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            0,
+                            20
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "s1wzSG",
+                              "name": "工具",
+                              "fill": "$ink",
+                              "content": "工具",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Rubik",
+                              "fontSize": 15,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "O5VNs",
+                  "name": "FeatureCard",
+                  "clip": true,
+                  "width": "fill_container",
+                  "fill": "$surface-raised",
+                  "cornerRadius": 26,
+                  "stroke": "$line",
+                  "strokeWidth": 4,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 8,
+                      "y": 8
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "g5RAq8",
+                      "name": "media",
+                      "width": "fill_container",
+                      "height": 200,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "../../../../public/works/battle.webp",
+                        "mode": "fill"
+                      },
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "s0KaE",
+                          "x": 16,
+                          "y": 16,
+                          "name": "badge",
+                          "fill": "$action",
+                          "cornerRadius": 8,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            4,
+                            12
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "x48wMf",
+                              "name": "★ FEATURED",
+                              "fill": "$on-fill",
+                              "content": "★ FEATURED",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "rLXS0",
+                      "name": "panel",
+                      "width": "fill_container",
+                      "fill": "$pop",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "top": 4
+                      },
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 24,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "p5SuCV",
+                          "name": "No.01 · 2-4P · ONLINE",
+                          "fill": "$on-fill",
+                          "content": "No.01 · 2-4P · ONLINE",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "jdFZv",
+                          "name": "多人對戰",
+                          "fill": "$on-fill",
+                          "content": "多人對戰",
+                          "lineHeight": 1.3076923076923077,
+                          "fontFamily": "Rubik",
+                          "fontSize": 26,
+                          "fontWeight": "900"
+                        },
+                        {
+                          "type": "text",
+                          "id": "VJQs2",
+                          "name": "開房間邀朋友，WebRTC 點對點同步。坦克對戰",
+                          "fill": "$on-fill",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "開房間邀朋友，WebRTC 點對點同步。坦克對戰、極速賽車、炸彈超人、廚房快手四款遊戲，Host 權威架構。",
+                          "lineHeight": 1.75,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 16,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "sZvlS",
+                          "name": "tags",
+                          "layout": "vertical",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "G9GGvb",
+                              "name": "tag row",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "M6qvXW",
+                                  "name": "Tag Babylon.js",
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 8,
+                                  "stroke": "$line",
+                                  "strokeWidth": 2,
+                                  "strokeAlignment": "inner",
+                                  "gap": 6,
+                                  "padding": [
+                                    4,
+                                    12
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "lapzO",
+                                      "name": "Babylon.js",
+                                      "fill": "$ink",
+                                      "content": "Babylon.js",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "e4Kn8",
+                                  "name": "Tag WebRTC",
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 8,
+                                  "stroke": "$line",
+                                  "strokeWidth": 2,
+                                  "strokeAlignment": "inner",
+                                  "gap": 6,
+                                  "padding": [
+                                    4,
+                                    12
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "xC1d3",
+                                      "name": "WebRTC",
+                                      "fill": "$ink",
+                                      "content": "WebRTC",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "SKqTi",
+                              "name": "tag row",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "LjieD",
+                                  "name": "Tag Firebase",
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 8,
+                                  "stroke": "$line",
+                                  "strokeWidth": 2,
+                                  "strokeAlignment": "inner",
+                                  "gap": 6,
+                                  "padding": [
+                                    4,
+                                    12
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "FsxHc",
+                                      "name": "Firebase",
+                                      "fill": "$ink",
+                                      "content": "Firebase",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "q5Fcs",
+                                  "name": "Tag Zustand",
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 8,
+                                  "stroke": "$line",
+                                  "strokeWidth": 2,
+                                  "strokeAlignment": "inner",
+                                  "gap": 6,
+                                  "padding": [
+                                    4,
+                                    12
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "P5x2f",
+                                      "name": "Zustand",
+                                      "fill": "$ink",
+                                      "content": "Zustand",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "QDkjW",
+                          "name": "假按鈕",
+                          "height": 44,
+                          "fill": "$inverse",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            20
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "W1I7pR",
+                              "name": "▶ 開房間",
+                              "fill": "$pop",
+                              "content": "▶ 開房間",
+                              "lineHeight": 1.25,
+                              "fontFamily": "Rubik",
+                              "fontSize": 16,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "uErww",
+                  "name": "grid row",
+                  "width": "fill_container",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "b0Cwe4",
+                      "name": "Cartridge RPG 遊戲室",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "iaXpb",
+                          "name": "strip",
+                          "width": "fill_container",
+                          "fill": "$pop",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            4,
+                            16
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "dGjkG",
+                              "name": "No.02",
+                              "fill": "$on-fill",
+                              "content": "No.02",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "iMu5t",
+                              "name": "GAME ▸",
+                              "fill": "$on-fill",
+                              "content": "GAME ▸",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "XR9Sh",
+                          "name": "img works/rpgroom.webp",
+                          "width": "fill_container",
+                          "height": 201,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "../../../../public/works/rpgroom.webp",
+                            "mode": "fill"
+                          },
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "NX7xq",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": 20,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "uUOOG",
+                              "name": "head",
+                              "width": "fill_container",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "oMvzn",
+                                  "name": "RPG 遊戲室",
+                                  "fill": "$ink",
+                                  "content": "RPG 遊戲室",
+                                  "lineHeight": 1.3636363636363635,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 22,
+                                  "fontWeight": "900"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "B6AU2",
+                              "name": "從 2015 年的第一版一路重寫到現在，Canv",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "從 2015 年的第一版一路重寫到現在，Canvas 離屏預渲染的 2D 地圖與 NPC 對話。",
+                              "lineHeight": 1.7142857142857142,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yZPu1",
+                              "name": "tags",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "yl967",
+                                  "name": "tag row",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "v9oF5",
+                                      "name": "Tag Canvas",
+                                      "fill": "$mint",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "mmRAp",
+                                          "name": "Canvas",
+                                          "fill": "$on-fill",
+                                          "content": "Canvas",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "bBWQf",
+                                      "name": "Tag React",
+                                      "fill": "$pink",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "JOWhX",
+                                          "name": "React",
+                                          "fill": "$on-fill",
+                                          "content": "React",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tv5Nz",
+                  "name": "grid row",
+                  "width": "fill_container",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Up5mg",
+                      "name": "Cartridge 小遊戲",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "A7EbVO",
+                          "name": "strip",
+                          "width": "fill_container",
+                          "fill": "$pop",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            4,
+                            16
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "WZHqY",
+                              "name": "No.03",
+                              "fill": "$on-fill",
+                              "content": "No.03",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "HAS4q",
+                              "name": "GAME ▸",
+                              "fill": "$on-fill",
+                              "content": "GAME ▸",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "j3ecG",
+                          "name": "img works/minigame.webp",
+                          "width": "fill_container",
+                          "height": 201,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "../../../../public/works/minigame.webp",
+                            "mode": "fill"
+                          },
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "FXJPi",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": 20,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "PZCzm",
+                              "name": "head",
+                              "width": "fill_container",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "lmxAS",
+                                  "name": "小遊戲",
+                                  "fill": "$ink",
+                                  "content": "小遊戲",
+                                  "lineHeight": 1.3636363636363635,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 22,
+                                  "fontWeight": "900"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "L9QyO8",
+                              "name": "Babylon.js 3D 單機練手場，多人對戰",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Babylon.js 3D 單機練手場，多人對戰的原型都從這裡長出來。",
+                              "lineHeight": 1.7142857142857142,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "bnWsq",
+                              "name": "tags",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "bunTr",
+                                  "name": "tag row",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "CECCm",
+                                      "name": "Tag Babylon.js",
+                                      "fill": "$mint",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "HQMu2",
+                                          "name": "Babylon.js",
+                                          "fill": "$on-fill",
+                                          "content": "Babylon.js",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "f3tkao",
+                                      "name": "Tag WebGL",
+                                      "fill": "$pink",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "xKemw",
+                                          "name": "WebGL",
+                                          "fill": "$on-fill",
+                                          "content": "WebGL",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "v9vPMl",
+                  "name": "grid row",
+                  "width": "fill_container",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "dakxL",
+                      "name": "Cartridge Godot 遊戲",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "M0B26",
+                          "name": "strip",
+                          "width": "fill_container",
+                          "fill": "$pop",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            4,
+                            16
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "LAoUE",
+                              "name": "No.04",
+                              "fill": "$on-fill",
+                              "content": "No.04",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "KbhBA",
+                              "name": "GAME ▸",
+                              "fill": "$on-fill",
+                              "content": "GAME ▸",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "nQV3O",
+                          "name": "img works/godot.webp",
+                          "width": "fill_container",
+                          "height": 201,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "../../../../public/works/godot.webp",
+                            "mode": "fill"
+                          },
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Pq4rz",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": 20,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "GofOU",
+                              "name": "head",
+                              "width": "fill_container",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "wTgTW",
+                                  "name": "Godot 遊戲",
+                                  "fill": "$ink",
+                                  "content": "Godot 遊戲",
+                                  "lineHeight": 1.3636363636363635,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 22,
+                                  "fontWeight": "900"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "KhqdU",
+                              "name": "Godot 4 匯出 Web，React 透過 ",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Godot 4 匯出 Web，React 透過 bridge 與引擎互傳 NPC 對話與地圖狀態。",
+                              "lineHeight": 1.7142857142857142,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "IRt0C",
+                              "name": "tags",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "RprWr",
+                                  "name": "tag row",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "MRtgr",
+                                      "name": "Tag Godot 4",
+                                      "fill": "$mint",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "TJAvg",
+                                          "name": "Godot 4",
+                                          "fill": "$on-fill",
+                                          "content": "Godot 4",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "KJ4Ix",
+                                      "name": "Tag GDScript",
+                                      "fill": "$pink",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "T2gJN",
+                                          "name": "GDScript",
+                                          "fill": "$on-fill",
+                                          "content": "GDScript",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "QdOSo",
+                                  "name": "tag row",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "as6Oe",
+                                      "name": "Tag iframe bridge",
+                                      "fill": "$pop",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Y2bhmD",
+                                          "name": "iframe bridge",
+                                          "fill": "$on-fill",
+                                          "content": "iframe bridge",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "c8PugL",
+                  "name": "note",
+                  "fill": "#3d7bff",
+                  "cornerRadius": 8,
+                  "gap": 8,
+                  "padding": [
+                    6,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "F2DCLz",
+                      "name": "…其餘卡帶同樣式（1 欄）",
+                      "fill": "#ffffff",
+                      "content": "…其餘卡帶同樣式（1 欄）",
+                      "lineHeight": 1.3846153846153846,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 13,
+                      "fontWeight": "700"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "b0PKh",
+              "name": "home-about",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 32,
+              "padding": [
+                72,
+                0,
+                0,
+                0
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "aKFqz",
+                  "name": "SectionHeader",
+                  "width": "fill_container",
+                  "gap": 20,
+                  "justifyContent": "space_between",
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "qU9TL",
+                      "name": "text",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "fKJI5",
+                          "name": "— ABOUT —",
+                          "fill": "$ink-muted",
+                          "content": "— ABOUT —",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "EOqYf",
+                          "name": "關於我",
+                          "fill": "$ink",
+                          "content": "關於我",
+                          "lineHeight": 1.1764705882352942,
+                          "fontFamily": "Rubik",
+                          "fontSize": 34,
+                          "fontWeight": "900"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "W97bZ",
+                  "name": "grid",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "X6vJYV",
+                      "name": "home-about-card",
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 24,
+                      "padding": 24,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "kvd6I",
+                          "name": "資深前端工程師，13 年來用 Vue 與 Rea",
+                          "fill": "$ink",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "資深前端工程師，13 年來用 Vue 與 React 做過大型 B2B / B2C 平台、財務系統和 RWD 網頁遊戲，帶過團隊也規劃過架構。近兩年把重心放在 AI 輔助開發：讓 Claude Code 與 Agent 流程真的進到日常產出裡，而不只是 demo。",
+                          "lineHeight": 1.7647058823529411,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 17,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Ttxuo",
+                          "name": "Button 完整經歷看 E-履歷",
+                          "height": 44,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "RjbUg",
+                              "name": "完整經歷看 E-履歷",
+                              "fill": "$ink",
+                              "content": "完整經歷看 E-履歷",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Rubik",
+                              "fontSize": 15,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "K3AWP",
+                              "name": "icon arrow-right",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "arrow-right",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ESlqe",
+                      "name": "home-now",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "t3Xwel",
+                          "name": "strip",
+                          "width": "fill_container",
+                          "fill": "$pop",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            4,
+                            16
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "nvpxN",
+                              "name": "NOW PLAYING",
+                              "fill": "$on-fill",
+                              "content": "NOW PLAYING",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "uLf5v",
+                          "name": "list",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 16,
+                          "padding": 20,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "FQj19",
+                              "name": "li",
+                              "width": "fill_container",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "uwK0R",
+                                  "name": "dot",
+                                  "fill": "$sky",
+                                  "width": 12,
+                                  "height": 12,
+                                  "stroke": "$line",
+                                  "strokeWidth": 2,
+                                  "strokeAlignment": "inner"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "P8ZJbc",
+                                  "name": "多人對戰",
+                                  "fill": "$ink",
+                                  "content": "多人對戰",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "uGnhD",
+                                  "name": "收斂 host 權威與重連流程",
+                                  "fill": "$ink-muted",
+                                  "content": "收斂 host 權威與重連流程",
+                                  "lineHeight": 1.7142857142857142,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 14,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "zHGo9",
+                              "name": "li",
+                              "width": "fill_container",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "X1d709",
+                                  "name": "dot",
+                                  "fill": "$mint",
+                                  "width": 12,
+                                  "height": 12,
+                                  "stroke": "$line",
+                                  "strokeWidth": 2,
+                                  "strokeAlignment": "inner"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "JyVEH",
+                                  "name": "AI 協作",
+                                  "fill": "$ink",
+                                  "content": "AI 協作",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "KNKYG",
+                                  "name": "用 agent team 跑架構與安全審查",
+                                  "fill": "$ink-muted",
+                                  "content": "用 agent team 跑架構與安全審查",
+                                  "lineHeight": 1.7142857142857142,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 14,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "CZwGl",
+                              "name": "li",
+                              "width": "fill_container",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "ikKFk",
+                                  "name": "dot",
+                                  "fill": "$pink",
+                                  "width": 12,
+                                  "height": 12,
+                                  "stroke": "$line",
+                                  "strokeWidth": 2,
+                                  "strokeAlignment": "inner"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "pQCzn",
+                                  "name": "Side project",
+                                  "fill": "$ink",
+                                  "content": "Side project",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "c8U2XJ",
+                                  "name": "Web3 與量化交易 Bot",
+                                  "fill": "$ink-muted",
+                                  "content": "Web3 與量化交易 Bot",
+                                  "lineHeight": 1.7142857142857142,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 14,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Bs51Y",
+              "name": "home-journey",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 32,
+              "padding": [
+                72,
+                0,
+                0,
+                0
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "mOyWN",
+                  "name": "SectionHeader",
+                  "width": "fill_container",
+                  "gap": 20,
+                  "justifyContent": "space_between",
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "IIZrO",
+                      "name": "text",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "WkPCu",
+                          "name": "— HIGH SCORE —",
+                          "fill": "$ink-muted",
+                          "content": "— HIGH SCORE —",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "qQY2o",
+                          "name": "開發歷程",
+                          "fill": "$ink",
+                          "content": "開發歷程",
+                          "lineHeight": 1.1764705882352942,
+                          "fontFamily": "Rubik",
+                          "fontSize": 34,
+                          "fontWeight": "900"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Drdju",
+                  "name": "timeline",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "rNeR6",
+                      "name": "node 2015",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Q0qkIi",
+                          "name": "axis 左半",
+                          "width": 1,
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "xVqNf",
+                          "name": "content",
+                          "width": "fill_container",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "left": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            0,
+                            40,
+                            24
+                          ],
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "hTc1s",
+                              "layoutPosition": "absolute",
+                              "x": -8.5,
+                              "y": 2,
+                              "name": "dot",
+                              "fill": "$surface-raised",
+                              "width": 20,
+                              "height": 20,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner"
+                            },
+                            {
+                              "type": "text",
+                              "id": "dTieq",
+                              "name": "2015",
+                              "fill": "$ink-muted",
+                              "content": "2015",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "La8EA",
+                              "name": "jQuery + Bootstrap 的第一版首",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "jQuery + Bootstrap 的第一版首頁",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "ujtsX",
+                              "name": "當時最流行的組合。標題用 h1 到 h6 一路排",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "當時最流行的組合。標題用 h1 到 h6 一路排下去，只為了展示 Bootstrap 的級距。",
+                              "lineHeight": 1.75,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 16,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "LOpbk",
+                              "name": "actions",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "VbpNJ",
+                                  "name": "summary",
+                                  "height": 44,
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "$ink",
+                                    "offset": {
+                                      "x": 3,
+                                      "y": 3
+                                    }
+                                  },
+                                  "gap": 8,
+                                  "padding": [
+                                    0,
+                                    16
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "M2w6e",
+                                      "name": "icon chevron-right",
+                                      "width": 16,
+                                      "height": 16,
+                                      "icon": "chevron-right",
+                                      "library": "lucide",
+                                      "fill": "$ink"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "A06A0",
+                                      "name": "彩蛋：2015 年的首頁原始碼",
+                                      "fill": "$ink",
+                                      "content": "彩蛋：2015 年的首頁原始碼",
+                                      "lineHeight": 1.3333333333333333,
+                                      "fontFamily": "Rubik",
+                                      "fontSize": 15,
+                                      "fontWeight": "900"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "RIHiB",
+                      "name": "node 2016",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Y48JsB",
+                          "name": "axis 左半",
+                          "width": 1,
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "hx8Ke",
+                          "name": "content",
+                          "width": "fill_container",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "left": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            0,
+                            40,
+                            24
+                          ],
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "QwqPH",
+                              "layoutPosition": "absolute",
+                              "x": -8.5,
+                              "y": 2,
+                              "name": "dot",
+                              "fill": "$surface-raised",
+                              "width": 20,
+                              "height": 20,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner"
+                            },
+                            {
+                              "type": "text",
+                              "id": "idfYL",
+                              "name": "2016",
+                              "fill": "$ink-muted",
+                              "content": "2016",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "xmwZ9",
+                              "name": "邊學 React 邊做 RPG 遊戲室",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "邊學 React 邊做 RPG 遊戲室",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "RPZgX",
+                              "name": "仿 RPG 製作大師的風格，還不懂生命週期和 f",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "仿 RPG 製作大師的風格，還不懂生命週期和 flux，硬是做完了。",
+                              "lineHeight": 1.75,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 16,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "pR2mn",
+                              "name": "lessons",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 12,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "Ycfyd",
+                                  "name": "lesson",
+                                  "width": "fill_container",
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "layout": "vertical",
+                                  "gap": 4,
+                                  "padding": 16,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "RevrC",
+                                      "name": "問題",
+                                      "fill": "$ink-muted",
+                                      "content": "問題",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "fA6hs",
+                                      "name": "按住方向鍵，人物像打字一樣「a… a.a.a」一",
+                                      "fill": "$ink",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "按住方向鍵，人物像打字一樣「a… a.a.a」一頓一頓地走。",
+                                      "lineHeight": 1.7142857142857142,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 14,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "f36DiM",
+                                  "name": "lesson",
+                                  "width": "fill_container",
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "layout": "vertical",
+                                  "gap": 4,
+                                  "padding": 16,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "T8gYe",
+                                      "name": "解法",
+                                      "fill": "$ink-muted",
+                                      "content": "解法",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "XqrIx",
+                                      "name": "改用 requestAnimationFrame",
+                                      "fill": "$ink",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "改用 requestAnimationFrame 每幀讀取按鍵狀態，位移改 translate3d。",
+                                      "lineHeight": 1.7142857142857142,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 14,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "S35mw",
+                                  "name": "lesson",
+                                  "width": "fill_container",
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "layout": "vertical",
+                                  "gap": 4,
+                                  "padding": 16,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "OA6X1",
+                                      "name": "教訓",
+                                      "fill": "$ink-muted",
+                                      "content": "教訓",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "knvCO",
+                                      "name": "別用幾百個 div 加 background-p",
+                                      "fill": "$ink",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "別用幾百個 div 加 background-position 拼畫面，效能會很慘。",
+                                      "lineHeight": 1.7142857142857142,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 14,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "HK0z8",
+                              "name": "actions",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "z2z4tG",
+                                  "name": "summary",
+                                  "height": 44,
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "$ink",
+                                    "offset": {
+                                      "x": 3,
+                                      "y": 3
+                                    }
+                                  },
+                                  "gap": 8,
+                                  "padding": [
+                                    0,
+                                    16
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "dlznA",
+                                      "name": "icon chevron-right",
+                                      "width": 16,
+                                      "height": 16,
+                                      "icon": "chevron-right",
+                                      "library": "lucide",
+                                      "fill": "$ink"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "yeC97",
+                                      "name": "看 requestAnimationFrame ",
+                                      "fill": "$ink",
+                                      "content": "看 requestAnimationFrame 片段",
+                                      "lineHeight": 1.3333333333333333,
+                                      "fontFamily": "Rubik",
+                                      "fontSize": 15,
+                                      "fontWeight": "900"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "kqyIW",
+                                  "name": "Button Codepen 最早的實作",
+                                  "height": 44,
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "$ink",
+                                    "offset": {
+                                      "x": 3,
+                                      "y": 3
+                                    }
+                                  },
+                                  "gap": 8,
+                                  "padding": [
+                                    0,
+                                    16
+                                  ],
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "wZ2br",
+                                      "name": "icon arrow-up-right",
+                                      "width": 20,
+                                      "height": 20,
+                                      "icon": "arrow-up-right",
+                                      "library": "lucide",
+                                      "fill": "$ink"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "hRgPZ",
+                                      "name": "Codepen 最早的實作",
+                                      "fill": "$ink",
+                                      "content": "Codepen 最早的實作",
+                                      "lineHeight": 1.3333333333333333,
+                                      "fontFamily": "Rubik",
+                                      "fontSize": 15,
+                                      "fontWeight": "900"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "laMq1",
+                      "name": "node 2017 – 2023",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "r9eH7b",
+                          "name": "axis 左半",
+                          "width": 1,
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "QYuru",
+                          "name": "content",
+                          "width": "fill_container",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "left": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            0,
+                            40,
+                            24
+                          ],
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "n1KGIk",
+                              "layoutPosition": "absolute",
+                              "x": -8.5,
+                              "y": 2,
+                              "name": "dot",
+                              "fill": "$surface-raised",
+                              "width": 20,
+                              "height": 20,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner"
+                            },
+                            {
+                              "type": "text",
+                              "id": "nleCg",
+                              "name": "2017 – 2023",
+                              "fill": "$ink-muted",
+                              "content": "2017 – 2023",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "N4sFA",
+                              "name": "Vue / React 大型平台與團隊帶領",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Vue / React 大型平台與團隊帶領",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "ywMuT",
+                              "name": "B2B / B2C 平台、財務系統、RWD 網頁",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "B2B / B2C 平台、財務系統、RWD 網頁遊戲。前端架構規劃、效能優化，帶團隊。",
+                              "lineHeight": 1.75,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 16,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "nSNPF",
+                      "name": "node 2025",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "MGdbt",
+                          "name": "axis 左半",
+                          "width": 1,
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "u1ng38",
+                          "name": "content",
+                          "width": "fill_container",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "left": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            0,
+                            40,
+                            24
+                          ],
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "twUjd",
+                              "layoutPosition": "absolute",
+                              "x": -8.5,
+                              "y": 2,
+                              "name": "dot",
+                              "fill": "$surface-raised",
+                              "width": 20,
+                              "height": 20,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner"
+                            },
+                            {
+                              "type": "text",
+                              "id": "pzD7G",
+                              "name": "2025",
+                              "fill": "$ink-muted",
+                              "content": "2025",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "aaxy3",
+                              "name": "整站重寫：React 19 + Tailwind",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "整站重寫：React 19 + Tailwind v4 + Godot",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "lrk8M",
+                              "name": "RPG 遊戲室搬進 Canvas 離屏渲染，糖果",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "RPG 遊戲室搬進 Canvas 離屏渲染，糖果消消樂與 Godot 遊戲透過 iframe bridge 接進來。",
+                              "lineHeight": 1.75,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 16,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "SepjO",
+                      "name": "node 2026 · Now",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "q8h0Uo",
+                          "name": "axis 左半",
+                          "width": 1,
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "kvTQV",
+                          "name": "content",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            0,
+                            40,
+                            24
+                          ],
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "U5ppD",
+                              "layoutPosition": "absolute",
+                              "x": -10.5,
+                              "y": 2,
+                              "name": "dot",
+                              "fill": "$pop",
+                              "width": 24,
+                              "height": 24,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "effect": {
+                                "type": "shadow",
+                                "shadowType": "outer",
+                                "color": "$ink",
+                                "offset": {
+                                  "x": 3,
+                                  "y": 3
+                                }
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "id": "oOhk4",
+                              "name": "2026 · Now",
+                              "fill": "$ink",
+                              "content": "2026 · Now",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "V46yXp",
+                              "name": "Babylon.js 多人對戰 + AI 協作開",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Babylon.js 多人對戰 + AI 協作開發",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "uqFzc",
+                              "name": "WebRTC mesh、Host 權威同步、Fi",
+                              "fill": "$ink-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "WebRTC mesh、Host 權威同步、Firestore 房間。開發流程全面改成 Claude Code agent team 拆解、派工、審查。",
+                              "lineHeight": 1.75,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 16,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JrHlv",
+              "name": "CtaPanel",
+              "width": "fill_container",
+              "fill": "$inverse",
+              "cornerRadius": 26,
+              "stroke": "$line",
+              "strokeWidth": 4,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$action",
+                "offset": {
+                  "x": 8,
+                  "y": 8
+                }
+              },
+              "layout": "vertical",
+              "gap": 32,
+              "padding": [
+                32,
+                24
+              ],
+              "justifyContent": "space_between",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "J4m8Eo",
+                  "name": "text",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "C9Ti5",
+                      "name": "CONTINUE? 10 … 9 … 8",
+                      "fill": "$pop",
+                      "content": "CONTINUE? 10 … 9 … 8",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "nwHu8",
+                      "name": "程式碼全部公開",
+                      "fill": "$on-inverse",
+                      "content": "程式碼全部公開",
+                      "lineHeight": 1.3076923076923077,
+                      "fontFamily": "Rubik",
+                      "fontSize": 26,
+                      "fontWeight": "900"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Ei6mw",
+                      "name": "這個站本身也是作品之一。想看實作細節或聊聊 AI",
+                      "fill": "$on-inverse-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "這個站本身也是作品之一。想看實作細節或聊聊 AI 協作開發，都歡迎。",
+                      "lineHeight": 1.75,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 16,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "luUY8",
+                  "name": "actions",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "SRacI",
+                      "name": "Button GitHub",
+                      "width": "fill_container",
+                      "height": 52,
+                      "fill": "$pop",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$on-inverse",
+                        "offset": {
+                          "x": 4,
+                          "y": 4
+                        }
+                      },
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        24
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "wRStD",
+                          "name": "GitHub",
+                          "fill": "$on-fill",
+                          "content": "GitHub",
+                          "lineHeight": 1.25,
+                          "fontFamily": "Rubik",
+                          "fontSize": 16,
+                          "fontWeight": "900"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "bOyEH",
+                          "name": "icon arrow-up-right",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "arrow-up-right",
+                          "library": "lucide",
+                          "fill": "$on-fill"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "eaXI3",
+                      "name": "Button Blog",
+                      "width": "fill_container",
+                      "height": 52,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$on-inverse",
+                        "offset": {
+                          "x": 4,
+                          "y": 4
+                        }
+                      },
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        24
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "FP7GA",
+                          "name": "Blog",
+                          "fill": "$ink",
+                          "content": "Blog",
+                          "lineHeight": 1.25,
+                          "fontFamily": "Rubik",
+                          "fontSize": 16,
+                          "fontWeight": "900"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "w1I5sR",
+                          "name": "icon arrow-up-right",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "arrow-up-right",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Z0UPzW",
+                      "name": "Button Codepen",
+                      "width": "fill_container",
+                      "height": 52,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$on-inverse",
+                        "offset": {
+                          "x": 4,
+                          "y": 4
+                        }
+                      },
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        24
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "fniUK",
+                          "name": "Codepen",
+                          "fill": "$ink",
+                          "content": "Codepen",
+                          "lineHeight": 1.25,
+                          "fontFamily": "Rubik",
+                          "fontSize": 16,
+                          "fontWeight": "900"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "Q2eGA",
+                          "name": "icon arrow-up-right",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "arrow-up-right",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ce5sl",
+          "name": "Footer",
+          "width": "fill_container",
+          "stroke": "$line",
+          "strokeWidth": {
+            "top": 3
+          },
+          "strokeAlignment": "inner",
+          "padding": 24,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "m4Cu5",
+              "name": "© 2026 DKBO · GAME OVER?",
+              "fill": "$ink-muted",
+              "content": "© 2026 DKBO · GAME OVER? PRESS START",
+              "lineHeight": 1.0909090909090908,
+              "fontFamily": "VT323",
+              "fontSize": 22
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "surface": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#fffbf2",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#241f18",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-sunken": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#332c23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#4a4339",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "line": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "focus": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pop": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ff6b3d",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ff7a4f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-fill": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "sky": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "mint": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "success": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#2bb673",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#3fd18a",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#0b0907",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "fileToken": "2967a56d-37a4-49ed-9a65-fd7882912189"
+}

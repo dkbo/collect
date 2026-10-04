@@ -1,0 +1,14 @@
+<!-- @dsCard group="Actions" height=120 subtitle="可點：選中態為反白" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>SegmentedControl</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'tb-row' },
+    h(T.SegmentedControl, { label: '篩選作品', options: [{ value: 'all', label: '全部' }, { value: 'game', label: '遊戲' }, { value: 'tool', label: '工具' }] }),
+    h(T.SegmentedControl, { label: '排序', defaultValue: 'new', options: [{ value: 'new', label: '最新' }, { value: 'hot', label: '熱門' }] })));
+</script>
+</body>
+</html>

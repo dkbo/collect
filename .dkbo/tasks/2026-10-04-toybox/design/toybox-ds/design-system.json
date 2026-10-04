@@ -1,0 +1,27 @@
+{
+  "v": 3,
+  "layout": "files",
+  "createdOnFiles": { "v": 1, "at": "2026-10-04T11:00:00Z" },
+  "title": "DKBO Toybox",
+  "namespace": "Toybox",
+  "libraries": [
+    { "name": "react", "version": "18" },
+    { "name": "react-dom", "version": "18" }
+  ],
+  "sections": {},
+  "groups": ["Screens"],
+  "assetGroups": {
+    "Screens": {
+      "name": "Screens",
+      "tile": "l",
+      "order": ["battle.webp", "rpgroom.webp"],
+      "files": {
+        "battle.webp": { "name": "battle.webp", "blob": "6107829c0167813735dd1a63c2ced5c4", "size": 28342, "type": "image/webp" },
+        "rpgroom.webp": { "name": "rpgroom.webp", "blob": "fcb8fe12a24f40b7dc50a7b421278bbc", "size": 34850, "type": "image/webp" }
+      }
+    }
+  },
+  "blobs": {},
+  "docs": { "readme": "project/README.md", "sections": [] },
+  "lastChange": { "by": "dkbo", "at": "2026-10-04T11:00:00Z", "via": "Claude Code", "note": "初版：由玩具機風首頁 mockup 拆出 tokens、版面與 15 個元件" }
+}

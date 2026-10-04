@@ -1,0 +1,1784 @@
+# 全站改版（DKBO Toybox 玩具機風） — wave 1 since a4994aa — 2026-10-04T10:35
+# files changed: 24 (working tree included)
+
+## commits
+
+## stat
+ index.html                                 |   3 +
+ src/components/toybox/Button.tsx           |  50 ++++
+ src/components/toybox/CartridgeCard.tsx    |  62 +++++
+ src/components/toybox/CtaPanel.tsx         |  25 ++
+ src/components/toybox/FeatureCard.tsx      |  61 +++++
+ src/components/toybox/Handheld.tsx         | 105 ++++++++
+ src/components/toybox/IconBox.tsx          |  17 ++
+ src/components/toybox/IconButton.tsx       |  17 ++
+ src/components/toybox/Marquee.tsx          |  21 ++
+ src/components/toybox/NavLink.tsx          |  41 ++++
+ src/components/toybox/ScreenFrame.tsx      |  26 ++
+ src/components/toybox/SectionHeader.tsx    |  27 ++
+ src/components/toybox/SegmentedControl.tsx |  37 +++
+ src/components/toybox/StatTile.tsx         |  21 ++
+ src/components/toybox/StatusPill.tsx       |  18 ++
+ src/components/toybox/Tag.tsx              |  36 +++
+ src/components/toybox/cn.test.ts           |  29 +++
+ src/components/toybox/cn.ts                |  23 ++
+ src/components/toybox/index.ts             |  18 ++
+ src/components/toybox/link.tsx             |  24 ++
+ src/components/toybox/utils.ts             |  27 ++
+ src/components/ui/button.tsx               |  36 +--
+ src/index.css                              | 382 +++++++++++++++--------------
+ src/styles/toybox.css                      | 253 +++++++++++++++++++
+ 24 files changed, 1159 insertions(+), 200 deletions(-)
+
+## diff (-U10)
+diff --git a/index.html b/index.html
+index 4959e45..25dae4e 100644
+--- a/index.html
++++ b/index.html
+@@ -8,20 +8,23 @@
+     <meta name="description" content="網站由純前端建置，後端方面結合 firebase 的授權及即時資料庫的特性，重構昔日的作品。主要由 React + React-Router + Zustand 所構成，隨著經驗的累積會陸續把技術應用在此網頁上。" />
+     <meta name="keywords" content="React,firebase,DKBO,前端,front End,TypeScript,Vite" />
+     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://*.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://maps.gstatic.com https://*.googleapis.com https://avatars.githubusercontent.com https://api.dicebear.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://maps.googleapis.com https://*.googleapis.com https://api.github.com https://zh.wikipedia.org https://*.wikipedia.org; frame-src 'self';" />
+     
+     <!-- Preconnect / DNS-Prefetch for speed -->
+     <link rel="preconnect" href="https://fonts.googleapis.com" />
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+     <link rel="preconnect" href="https://maps.googleapis.com" />
+     <link rel="preconnect" href="https://api.dicebear.com" />
+ 
++    <!-- DKBO Toybox 字型：Rubik（標題）、Noto Sans TC（內文）、VT323（點陣） -->
++    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=Rubik:wght@500;700;900&family=VT323&display=swap" />
++
+     <!-- Open Graph / Facebook -->
+     <meta property="og:title" content="DKBO's Collect" />
+     <meta property="og:description" content="網站由純前端建置，重構昔日的作品。" />
+     <meta property="og:locale" content="zh_TW" />
+     <meta property="og:type" content="website" />
+     <meta property="og:image" content="/favicon.ico" />
+ 
+     <!-- Twitter -->
+     <meta name="twitter:card" content="summary_large_image" />
+     <meta name="twitter:title" content="DKBO's Collect" />
+diff --git a/src/components/toybox/Button.tsx b/src/components/toybox/Button.tsx
+new file mode 100644
+index 0000000..5f18095
+--- /dev/null
++++ b/src/components/toybox/Button.tsx
+@@ -0,0 +1,50 @@
++import type { AnchorHTMLAttributes, ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react'
++import { clsx } from 'clsx'
++import { ToyLink } from '@/components/toybox/link'
++
++export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
++  /** primary = action 橘紅（每畫面最多一顆）；secondary = 白底；pop = 品牌黃；ink = 反白 */
++  variant?: 'primary' | 'secondary' | 'pop' | 'ink'
++  /** l = 52px 高（預設）；s = 44px 高 */
++  size?: 'l' | 's'
++  icon?: ReactNode
++  iconEnd?: ReactNode
++  /** 有 href 時渲染成 react-router Link（站外為 <a>） */
++  href?: string
++}
++
++/** <a> 不認得的 button 專屬屬性 */
++const BUTTON_ONLY = ['form', 'formAction', 'formEncType', 'formMethod', 'formNoValidate', 'formTarget', 'name', 'value', 'type'] as const
++
++export function Button({ variant = 'secondary', size = 'l', icon, iconEnd, href, className, children, ...rest }: ButtonProps) {
++  const cls = clsx('tb-btn', size === 's' ? 'tb-lift-s' : 'tb-lift', `tb-btn--${variant}`, `tb-btn--${size}`, className)
++
++  if (href) {
++    const { disabled, ...props } = rest
++    const anchorProps: Record<string, unknown> = { ...props }
++    for (const key of BUTTON_ONLY) delete anchorProps[key]
++    const { onClick, tabIndex } = anchorProps as AnchorHTMLAttributes<HTMLAnchorElement>
++    return (
++      <ToyLink
++        {...(anchorProps as AnchorHTMLAttributes<HTMLAnchorElement>)}
++        href={href}
++        className={cls}
++        onClick={disabled ? (e: MouseEvent<HTMLAnchorElement>) => e.preventDefault() : onClick}
++        aria-disabled={disabled || undefined}
++        tabIndex={disabled ? -1 : tabIndex}
++      >
++        {icon}
++        {children}
++        {iconEnd}
++      </ToyLink>
++    )
++  }
++
++  return (
++    <button type="button" {...rest} className={cls}>
++      {icon}
++      {children}
++      {iconEnd}
++    </button>
++  )
++}
+diff --git a/src/components/toybox/CartridgeCard.tsx b/src/components/toybox/CartridgeCard.tsx
+new file mode 100644
+index 0000000..ded8645
+--- /dev/null
++++ b/src/components/toybox/CartridgeCard.tsx
+@@ -0,0 +1,62 @@
++import type { MouseEventHandler, ReactNode } from 'react'
++import { clsx } from 'clsx'
++import { IconBox, type IconBoxProps } from '@/components/toybox/IconBox'
++import { ToyLink } from '@/components/toybox/link'
++import { TagList } from '@/components/toybox/Tag'
++import { pickDataAttributes, type DataAttributes, type TagInput } from '@/components/toybox/utils'
++
++export interface CartridgeCardProps extends DataAttributes {
++  /** 卡帶編號（標籤條顯示 No.xx） */
++  no: string
++  title: string
++  desc?: string
++  /** game = 黃標籤條＋截圖；tool = 灰標籤條＋IconBox */
++  kind?: 'game' | 'tool'
++  /** 16:9 WebP 截圖 */
++  image?: string
++  imageAlt?: string
++  /** tool 用：標題左側 IconBox 的 lucide-react 圖示 */
++  icon?: ReactNode
++  iconTone?: IconBoxProps['tone']
++  tags?: TagInput[]
++  /** 整張卡是一個連結；不傳則為不可點的 article */
++  href?: string
++  onClick?: MouseEventHandler<HTMLAnchorElement>
++  className?: string
++}
++
++export function CartridgeCard(props: CartridgeCardProps) {
++  const { no, title, desc, kind = 'game', image, imageAlt, icon, iconTone, tags, href, onClick, className } = props
++  const tool = kind === 'tool'
++  const body = (
++    <>
++      <div className="tb-card__strip">
++        <span>No.{no}</span>
++        <span>{tool ? 'TOOL ▸' : 'GAME ▸'}</span>
++      </div>
++      {image && <img className="tb-card__media" src={image} alt={imageAlt ?? ''} loading="lazy" decoding="async" />}
++      <div className="tb-card__body">
++        <div className="tb-card__head">
++          {icon && <IconBox icon={icon} tone={iconTone} />}
++          <h3 className="tb-card__title">{title}</h3>
++        </div>
++        {desc && <p className="tb-card__desc">{desc}</p>}
++        <TagList tags={tags} />
++      </div>
++    </>
++  )
++  const data = pickDataAttributes(props)
++
++  if (!href) {
++    return (
++      <article {...data} className={clsx('tb-card', tool && 'tb-card--tool', className)}>
++        {body}
++      </article>
++    )
++  }
++  return (
++    <ToyLink {...data} href={href} onClick={onClick} className={clsx('tb-card', 'tb-lift', tool && 'tb-card--tool', className)}>
++      {body}
++    </ToyLink>
++  )
++}
+diff --git a/src/components/toybox/CtaPanel.tsx b/src/components/toybox/CtaPanel.tsx
+new file mode 100644
+index 0000000..69696d8
+--- /dev/null
++++ b/src/components/toybox/CtaPanel.tsx
+@@ -0,0 +1,25 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++
++export interface CtaPanelProps {
++  /** 點陣眉標（只用英數），例：CONTINUE? */
++  eyebrow?: string
++  title: string
++  body?: string
++  /** 按鈕（用 pop／secondary，陰影自動改 on-inverse） */
++  children?: ReactNode
++  className?: string
++}
++
++export function CtaPanel({ eyebrow, title, body, children, className }: CtaPanelProps) {
++  return (
++    <div className={clsx('tb-cta', 'tb-on-inverse', className)}>
++      <div className="tb-cta__text">
++        {eyebrow && <span className="tb-cta__eyebrow">{eyebrow}</span>}
++        <h2 className="tb-cta__title">{title}</h2>
++        {body && <p className="tb-cta__body">{body}</p>}
++      </div>
++      {children && <div className="tb-cta__actions">{children}</div>}
++    </div>
++  )
++}
+diff --git a/src/components/toybox/FeatureCard.tsx b/src/components/toybox/FeatureCard.tsx
+new file mode 100644
+index 0000000..e8a71ad
+--- /dev/null
++++ b/src/components/toybox/FeatureCard.tsx
+@@ -0,0 +1,61 @@
++import type { MouseEventHandler } from 'react'
++import { clsx } from 'clsx'
++import { Play } from 'lucide-react'
++import { ToyLink } from '@/components/toybox/link'
++import { TagList } from '@/components/toybox/Tag'
++import { pickDataAttributes, type DataAttributes, type TagInput } from '@/components/toybox/utils'
++
++export interface FeatureCardProps extends DataAttributes {
++  title: string
++  desc?: string
++  /** 面板上方點陣字 Meta（只用英數） */
++  meta?: string
++  /** 截圖左上角徽章（只用英數） */
++  badge?: string
++  /** 面板底部的假按鈕文字 */
++  cta?: string
++  image?: string
++  imageAlt?: string
++  tags?: TagInput[]
++  href?: string
++  onClick?: MouseEventHandler<HTMLAnchorElement>
++  className?: string
++}
++
++export function FeatureCard(props: FeatureCardProps) {
++  const { title, desc, meta, badge, cta, image, imageAlt, tags, href, onClick, className } = props
++  const body = (
++    <>
++      <div className="tb-feature__media">
++        {image && <img className="tb-feature__img" src={image} alt={imageAlt ?? ''} loading="lazy" decoding="async" />}
++        {badge && <span className="tb-feature__badge">{badge}</span>}
++      </div>
++      <div className="tb-feature__panel">
++        {meta && <span className="tb-feature__meta">{meta}</span>}
++        <h3 className="tb-feature__title">{title}</h3>
++        {desc && <p className="tb-feature__desc">{desc}</p>}
++        <TagList tags={tags} />
++        {cta && (
++          <span className="tb-feature__cta">
++            <Play strokeWidth={2.5} aria-hidden="true" />
++            {cta}
++          </span>
++        )}
++      </div>
++    </>
++  )
++  const data = pickDataAttributes(props)
++
++  if (!href) {
++    return (
++      <article {...data} className={clsx('tb-feature', className)}>
++        {body}
++      </article>
++    )
++  }
++  return (
++    <ToyLink {...data} href={href} onClick={onClick} className={clsx('tb-feature', 'tb-lift', className)}>
++      {body}
++    </ToyLink>
++  )
++}
+diff --git a/src/components/toybox/Handheld.tsx b/src/components/toybox/Handheld.tsx
+new file mode 100644
+index 0000000..e53318a
+--- /dev/null
++++ b/src/components/toybox/Handheld.tsx
+@@ -0,0 +1,105 @@
++import { useEffect, useState } from 'react'
++import { clsx } from 'clsx'
++
++export interface HandheldProps {
++  /** 單張螢幕截圖（WebP） */
++  image?: string
++  /** 多張截圖輪播；有它時忽略 image */
++  images?: string[]
++  imageAlt?: string
++  /** 每張截圖各自的 alt，缺的退回 imageAlt */
++  imageAlts?: string[]
++  /** 螢幕字幕左側（只用英數），預設 NOW PLAYING */
++  left?: string
++  /** 螢幕字幕右側；多張時預設顯示 1/N */
++  right?: string
++  /** 機身型號字 */
++  model?: string
++  /** 受控的目前張數；不傳則元件自管 */
++  index?: number
++  onIndexChange?: (index: number) => void
++  /** 自動換下一張的毫秒數；0 關閉。prefers-reduced-motion 時不自動換 */
++  autoPlayMs?: number
++  /** A 鍵：帶目前張數 */
++  onA?: (index: number) => void
++  /** B 鍵：有多張時先換下一張，再帶新的張數 */
++  onB?: (index: number) => void
++  aLabel?: string
++  bLabel?: string
++  className?: string
++}
++
++export function Handheld({
++  image,
++  images,
++  imageAlt,
++  imageAlts,
++  left = 'NOW PLAYING',
++  right,
++  model = 'DKBO·BOY',
++  index,
++  onIndexChange,
++  autoPlayMs = 4000,
++  onA,
++  onB,
++  aLabel = 'A 鍵',
++  bLabel = 'B 鍵',
++  className,
++}: HandheldProps) {
++  const list = images ?? (image ? [image] : [])
++  const count = list.length
++  const [inner, setInner] = useState(0)
++  const current = count ? (index ?? inner) % count : 0
++
++  const step = (from: number) => {
++    const next = count ? (from + 1) % count : 0
++    if (index === undefined) setInner(next)
++    onIndexChange?.(next)
++    return next
++  }
++
++  useEffect(() => {
++    if (!autoPlayMs || count < 2) return
++    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
++    const id = window.setTimeout(() => {
++      const next = (current + 1) % count
++      if (index === undefined) setInner(next)
++      onIndexChange?.(next)
++    }, autoPlayMs)
++    return () => window.clearTimeout(id)
++  }, [autoPlayMs, count, current, index, onIndexChange])
++
++  const src = list[current]
++  const caption = right ?? (count > 1 ? `${current + 1}/${count}` : undefined)
++
++  return (
++    <div className={clsx('tb-hand', className)}>
++      <div className="tb-hand__screen">
++        {src && <img className="tb-hand__img" src={src} alt={imageAlts?.[current] ?? imageAlt ?? ''} decoding="async" />}
++        <div className="tb-hand__caption">
++          <span>{left}</span>
++          {caption && <span>{caption}</span>}
++        </div>
++      </div>
++      <div className="tb-hand__pad">
++        <div className="tb-hand__dpad" aria-hidden="true">
++          <span className="tb-hand__dpad-v" />
++          <span className="tb-hand__dpad-h" />
++        </div>
++        <div className="tb-hand__ab">
++          <button type="button" className="tb-hand__key" aria-label={bLabel} onClick={() => onB?.(count > 1 ? step(current) : current)}>
++            B
++          </button>
++          <button type="button" className="tb-hand__key" aria-label={aLabel} onClick={() => onA?.(current)}>
++            A
++          </button>
++        </div>
++      </div>
++      <div className="tb-hand__pills" aria-hidden="true">
++        <span className="tb-hand__pill" />
++        <span className="tb-hand__pill" />
++      </div>
++      <div className="tb-hand__model">{model}</div>
++    </div>
++  )
++}
+diff --git a/src/components/toybox/IconBox.tsx b/src/components/toybox/IconBox.tsx
+new file mode 100644
+index 0000000..cd641ea
+--- /dev/null
++++ b/src/components/toybox/IconBox.tsx
+@@ -0,0 +1,17 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++
++export interface IconBoxProps {
++  /** lucide-react 圖示（strokeWidth={2.5}） */
++  icon: ReactNode
++  tone?: 'sky' | 'pop' | 'mint' | 'pink'
++  className?: string
++}
++
++export function IconBox({ icon, tone = 'sky', className }: IconBoxProps) {
++  return (
++    <span className={clsx('tb-iconbox', `tb-iconbox--${tone}`, className)} aria-hidden="true">
++      {icon}
++    </span>
++  )
++}
+diff --git a/src/components/toybox/IconButton.tsx b/src/components/toybox/IconButton.tsx
+new file mode 100644
+index 0000000..2968572
+--- /dev/null
++++ b/src/components/toybox/IconButton.tsx
+@@ -0,0 +1,17 @@
++import type { ButtonHTMLAttributes, ReactNode } from 'react'
++import { clsx } from 'clsx'
++
++export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
++  /** lucide-react 圖示（strokeWidth={2.5}） */
++  icon: ReactNode
++  /** 無障礙名稱 */
++  label: string
++}
++
++export function IconButton({ icon, label, className, ...rest }: IconButtonProps) {
++  return (
++    <button type="button" aria-label={label} {...rest} className={clsx('tb-iconbtn', 'tb-lift-s', className)}>
++      {icon}
++    </button>
++  )
++}
+diff --git a/src/components/toybox/Marquee.tsx b/src/components/toybox/Marquee.tsx
+new file mode 100644
+index 0000000..b908cfb
+--- /dev/null
++++ b/src/components/toybox/Marquee.tsx
+@@ -0,0 +1,21 @@
++import { clsx } from 'clsx'
++
++export interface MarqueeProps {
++  items: string[]
++  className?: string
++}
++
++/** 全寬跑馬燈：放在 tb-container 外；prefers-reduced-motion 時停住 */
++export function Marquee({ items, className }: MarqueeProps) {
++  const line = `★ ${items.join(' ★ ')} ★`
++  return (
++    <div className={clsx('tb-marquee', className)} role="note" aria-label={items.join('、')}>
++      <div className="tb-marquee__band">
++        <div className="tb-marquee__track" aria-hidden="true">
++          <span className="tb-marquee__seg">{line}</span>
++          <span className="tb-marquee__seg">{line}</span>
++        </div>
++      </div>
++    </div>
++  )
++}
+diff --git a/src/components/toybox/NavLink.tsx b/src/components/toybox/NavLink.tsx
+new file mode 100644
+index 0000000..e5e81de
+--- /dev/null
++++ b/src/components/toybox/NavLink.tsx
+@@ -0,0 +1,41 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++import { ChevronDown } from 'lucide-react'
++import { Link, NavLink as RouterNavLink, type LinkProps, type NavLinkProps as RouterNavLinkProps } from 'react-router-dom'
++
++export interface NavLinkProps extends Omit<RouterNavLinkProps, 'className' | 'style' | 'children'> {
++  /** 不傳時由路由決定；傳 true／false 則強制（例：下拉群組內有目前頁） */
++  current?: boolean
++  /** 後面加下拉箭頭 */
++  menu?: boolean
++  className?: string
++  children?: ReactNode
++}
++
++export function NavLink({ current, menu, className, children, ...rest }: NavLinkProps) {
++  const cls = clsx('tb-nav', className)
++  const content = (
++    <>
++      {children}
++      {menu && <ChevronDown strokeWidth={2.5} aria-hidden="true" />}
++    </>
++  )
++
++  if (current !== undefined) {
++    // end／caseSensitive 只有 RouterNavLink 認得
++    const linkProps: Record<string, unknown> = { ...rest }
++    delete linkProps.end
++    delete linkProps.caseSensitive
++    return (
++      <Link {...(linkProps as unknown as LinkProps)} className={cls} aria-current={current ? 'page' : undefined}>
++        {content}
++      </Link>
++    )
++  }
++
++  return (
++    <RouterNavLink {...rest} className={cls}>
++      {content}
++    </RouterNavLink>
++  )
++}
+diff --git a/src/components/toybox/ScreenFrame.tsx b/src/components/toybox/ScreenFrame.tsx
+new file mode 100644
+index 0000000..f85aa2b
+--- /dev/null
++++ b/src/components/toybox/ScreenFrame.tsx
+@@ -0,0 +1,26 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++
++export interface ScreenFrameProps {
++  /** 上方點陣標題列（只用英數大寫） */
++  title: string
++  /** 標題列右側資訊（只用英數大寫） */
++  meta?: string
++  className?: string
++  /** 畫面區（tb-screen__view）的 class：高度由頁面決定，例 h-[75dvh] sm:h-[80dvh]、aspect-video */
++  viewClassName?: string
++  children?: ReactNode
++}
++
++/** 遊戲畫面外框（pages-spec §1）：inverse 底、border-l、radius-md，canvas／iframe 放在 children */
++export function ScreenFrame({ title, meta, className, viewClassName, children }: ScreenFrameProps) {
++  return (
++    <div className={clsx('tb-screen', className)}>
++      <div className="tb-screen__bar">
++        <span className="tb-screen__title">{title}</span>
++        {meta && <span className="tb-screen__meta">{meta}</span>}
++      </div>
++      <div className={clsx('tb-screen__view', viewClassName)}>{children}</div>
++    </div>
++  )
++}
+diff --git a/src/components/toybox/SectionHeader.tsx b/src/components/toybox/SectionHeader.tsx
+new file mode 100644
+index 0000000..6617ac8
+--- /dev/null
++++ b/src/components/toybox/SectionHeader.tsx
+@@ -0,0 +1,27 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++
++export interface SectionHeaderProps {
++  /** 點陣眉標（只用英數），例：— SELECT GAME — */
++  eyebrow?: string
++  title: string
++  /** 給 h2 的 id（aria-labelledby 用） */
++  id?: string
++  /** 右側控制項（例：SegmentedControl） */
++  children?: ReactNode
++  className?: string
++}
++
++export function SectionHeader({ eyebrow, title, id, children, className }: SectionHeaderProps) {
++  return (
++    <div className={clsx('tb-sechead', className)}>
++      <div className="tb-sechead__text">
++        {eyebrow && <span className="tb-sechead__eyebrow">{eyebrow}</span>}
++        <h2 className="tb-sechead__title" id={id}>
++          {title}
++        </h2>
++      </div>
++      {children}
++    </div>
++  )
++}
+diff --git a/src/components/toybox/SegmentedControl.tsx b/src/components/toybox/SegmentedControl.tsx
+new file mode 100644
+index 0000000..56899c5
+--- /dev/null
++++ b/src/components/toybox/SegmentedControl.tsx
+@@ -0,0 +1,37 @@
++import { useState } from 'react'
++import { clsx } from 'clsx'
++
++export interface SegmentedControlProps {
++  options: { value: string; label: string }[]
++  /** 受控值；不傳則用 defaultValue（預設第一個選項）自管 */
++  value?: string
++  defaultValue?: string
++  onChange?: (value: string) => void
++  /** 群組的 aria-label */
++  label: string
++  className?: string
++}
++
++export function SegmentedControl({ options, value, defaultValue, onChange, label, className }: SegmentedControlProps) {
++  const [inner, setInner] = useState(defaultValue ?? options[0]?.value)
++  const current = value ?? inner
++
++  return (
++    <div className={clsx('tb-seg', className)} role="group" aria-label={label}>
++      {options.map((o) => (
++        <button
++          key={o.value}
++          type="button"
++          className="tb-seg__opt"
++          aria-pressed={o.value === current}
++          onClick={() => {
++            setInner(o.value)
++            onChange?.(o.value)
++          }}
++        >
++          {o.label}
++        </button>
++      ))}
++    </div>
++  )
++}
+diff --git a/src/components/toybox/StatTile.tsx b/src/components/toybox/StatTile.tsx
+new file mode 100644
+index 0000000..29ae4ec
+--- /dev/null
++++ b/src/components/toybox/StatTile.tsx
+@@ -0,0 +1,21 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++
++export interface StatTileProps {
++  value: ReactNode
++  suffix?: string
++  label: string
++  className?: string
++}
++
++export function StatTile({ value, suffix, label, className }: StatTileProps) {
++  return (
++    <div className={clsx('tb-stat', className)}>
++      <div className="tb-stat__num">
++        {value}
++        {suffix && <span>{suffix}</span>}
++      </div>
++      <div className="tb-stat__label">{label}</div>
++    </div>
++  )
++}
+diff --git a/src/components/toybox/StatusPill.tsx b/src/components/toybox/StatusPill.tsx
+new file mode 100644
+index 0000000..f221fee
+--- /dev/null
++++ b/src/components/toybox/StatusPill.tsx
+@@ -0,0 +1,18 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++
++export interface StatusPillProps {
++  /** 狀態點顏色：success（預設）／pop／action */
++  tone?: 'success' | 'pop' | 'action'
++  children?: ReactNode
++  className?: string
++}
++
++export function StatusPill({ tone, children, className }: StatusPillProps) {
++  return (
++    <span className={clsx('tb-status', tone && tone !== 'success' && `tb-status--${tone}`, className)}>
++      <span className="tb-status__dot" aria-hidden="true" />
++      {children}
++    </span>
++  )
++}
+diff --git a/src/components/toybox/Tag.tsx b/src/components/toybox/Tag.tsx
+new file mode 100644
+index 0000000..5b82534
+--- /dev/null
++++ b/src/components/toybox/Tag.tsx
+@@ -0,0 +1,36 @@
++import type { ReactNode } from 'react'
++import { clsx } from 'clsx'
++import { normTags, type StickerTone, type TagInput } from '@/components/toybox/utils'
++
++export interface TagProps {
++  tone?: StickerTone
++  /** s = 卡片內小標籤；l = 大貼紙（有硬陰影） */
++  size?: 's' | 'l'
++  /** 傾斜：1 = -3deg、2 = 3deg、3 = -7deg */
++  tilt?: 1 | 2 | 3
++  children?: ReactNode
++  className?: string
++}
++
++export function Tag({ tone = 'sky', size = 's', tilt, children, className }: TagProps) {
++  return (
++    <span className={clsx('tb-tag', `tb-tag--${tone}`, size === 'l' && 'tb-tag--l', tilt && `tb-tilt-${tilt}`, className)}>
++      {children}
++    </span>
++  )
++}
++
++/** 卡片內的標籤列；字串依序輪替貼紙色 */
++export function TagList({ tags, className }: { tags?: TagInput[]; className?: string }) {
++  const list = normTags(tags)
++  if (!list.length) return null
++  return (
++    <div className={clsx('tb-tags', className)}>
++      {list.map((t, i) => (
++        <Tag key={`${t.label}-${i}`} tone={t.tone}>
++          {t.label}
++        </Tag>
++      ))}
++    </div>
++  )
++}
+diff --git a/src/components/toybox/cn.test.ts b/src/components/toybox/cn.test.ts
+new file mode 100644
+index 0000000..2418c72
+--- /dev/null
++++ b/src/components/toybox/cn.test.ts
+@@ -0,0 +1,29 @@
++import { describe, expect, it } from 'vitest'
++import { cn } from '@/lib/utils'
++import { tbCn } from '@/components/toybox/cn'
++
++describe('tbCn（認得 toybox token 的 tailwind-merge）', () => {
++  it('字級 token 與文字色並存', () => {
++    expect(tbCn('text-heading-m text-ink')).toBe('text-heading-m text-ink')
++    expect(tbCn('text-button-s text-slate-100')).toBe('text-button-s text-slate-100')
++  })
++
++  it('硬陰影是陰影尺寸、不是陰影色', () => {
++    expect(tbCn('shadow-hard-s shadow-destructive')).toBe('shadow-hard-s shadow-destructive')
++    expect(tbCn('shadow-hard-s shadow-md')).toBe('shadow-md')
++  })
++
++  it('toybox 圓角互相覆寫', () => {
++    expect(tbCn('rounded-toy-md rounded-toy-sm')).toBe('rounded-toy-sm')
++    expect(tbCn('rounded-toy-md rounded-xl')).toBe('rounded-xl')
++  })
++
++  it('字族與 max-w-site 也認得', () => {
++    expect(tbCn('font-display font-body')).toBe('font-body')
++    expect(tbCn('max-w-site max-w-4xl')).toBe('max-w-4xl')
++  })
++
++  it('對照：原本的 cn 會把字級 token 當成文字色吃掉', () => {
++    expect(cn('text-heading-m text-ink')).toBe('text-ink')
++  })
++})
+diff --git a/src/components/toybox/cn.ts b/src/components/toybox/cn.ts
+new file mode 100644
+index 0000000..edc12fe
+--- /dev/null
++++ b/src/components/toybox/cn.ts
+@@ -0,0 +1,23 @@
++import { clsx, type ClassValue } from 'clsx'
++import { extendTailwindMerge } from 'tailwind-merge'
++
++/**
++ * 認得 toybox token 的 tailwind-merge。
++ * 預設的 twMerge 會把 text-heading-m 當成文字色、shadow-hard-s 當成陰影色，
++ * 跟 text-ink／shadow-destructive 合併時會被吃掉；混用 toybox utility 時改用這個。
++ */
++const twMergeToy = extendTailwindMerge({
++  extend: {
++    theme: {
++      text: ['display-xl', 'display-l', 'heading-l', 'heading-m', 'button', 'button-s', 'body-l', 'body', 'body-s', 'label', 'caption', 'pixel-xl', 'pixel-l', 'pixel-m'],
++      shadow: ['hard-s', 'hard-m', 'hard-l', 'hard-xl', 'hard-action'],
++      radius: ['toy-sm', 'toy-md', 'toy-lg', 'toy-xl', 'toy-console', 'toy-pill'],
++      font: ['display', 'body', 'pixel'],
++      container: ['site'],
++    },
++  },
++})
++
++export function tbCn(...inputs: ClassValue[]) {
++  return twMergeToy(clsx(inputs))
++}
+diff --git a/src/components/toybox/index.ts b/src/components/toybox/index.ts
+new file mode 100644
+index 0000000..b8b2b90
+--- /dev/null
++++ b/src/components/toybox/index.ts
+@@ -0,0 +1,18 @@
++// DKBO Toybox 共用元件（props 對應 toybox-ds components/index.d.ts；圖示一律 lucide-react、strokeWidth={2.5}）
++export { Button, type ButtonProps } from '@/components/toybox/Button'
++export { IconButton, type IconButtonProps } from '@/components/toybox/IconButton'
++export { NavLink, type NavLinkProps } from '@/components/toybox/NavLink'
++export { StatusPill, type StatusPillProps } from '@/components/toybox/StatusPill'
++export { Tag, TagList, type TagProps } from '@/components/toybox/Tag'
++export { StatTile, type StatTileProps } from '@/components/toybox/StatTile'
++export { IconBox, type IconBoxProps } from '@/components/toybox/IconBox'
++export { SegmentedControl, type SegmentedControlProps } from '@/components/toybox/SegmentedControl'
++export { CartridgeCard, type CartridgeCardProps } from '@/components/toybox/CartridgeCard'
++export { FeatureCard, type FeatureCardProps } from '@/components/toybox/FeatureCard'
++export { SectionHeader, type SectionHeaderProps } from '@/components/toybox/SectionHeader'
++export { Marquee, type MarqueeProps } from '@/components/toybox/Marquee'
++export { CtaPanel, type CtaPanelProps } from '@/components/toybox/CtaPanel'
++export { Handheld, type HandheldProps } from '@/components/toybox/Handheld'
++export { ScreenFrame, type ScreenFrameProps } from '@/components/toybox/ScreenFrame'
++export type { StickerTone, TagInput } from '@/components/toybox/utils'
++export { tbCn } from '@/components/toybox/cn'
+diff --git a/src/components/toybox/link.tsx b/src/components/toybox/link.tsx
+new file mode 100644
+index 0000000..369c37b
+--- /dev/null
++++ b/src/components/toybox/link.tsx
+@@ -0,0 +1,24 @@
++import type { AnchorHTMLAttributes } from 'react'
++import { Link } from 'react-router-dom'
++import { isExternalHref } from '@/components/toybox/utils'
++
++export interface ToyLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
++  href: string
++}
++
++/** 站內路由用 react-router Link，站外開新分頁 */
++export function ToyLink({ href, children, ...rest }: ToyLinkProps) {
++  if (isExternalHref(href)) {
++    const external = /^https?:|^\/\//i.test(href)
++    return (
++      <a href={href} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})} {...rest}>
++        {children}
++      </a>
++    )
++  }
++  return (
++    <Link to={href} {...rest}>
++      {children}
++    </Link>
++  )
++}
+diff --git a/src/components/toybox/utils.ts b/src/components/toybox/utils.ts
+new file mode 100644
+index 0000000..9557fc8
+--- /dev/null
++++ b/src/components/toybox/utils.ts
+@@ -0,0 +1,27 @@
++/** 貼紙色（Tag、IconBox 等色塊上的字一律 on-fill） */
++export type StickerTone = 'pop' | 'sky' | 'mint' | 'pink' | 'plain'
++export type TagInput = string | { label: string; tone?: StickerTone }
++
++/** 讓元件可以接 data-testid 等 data-* 屬性 */
++export type DataAttributes = { [key: `data-${string}`]: string | number | boolean | undefined }
++
++const TAG_TONES: StickerTone[] = ['sky', 'mint', 'pink', 'pop']
++
++/** 字串標籤依序輪替 sky／mint／pink／pop */
++export function normTags(tags: TagInput[] | undefined): { label: string; tone: StickerTone }[] {
++  return (tags ?? []).map((t, i) =>
++    typeof t === 'string' ? { label: t, tone: TAG_TONES[i % TAG_TONES.length] } : { label: t.label, tone: t.tone ?? 'sky' },
++  )
++}
++
++/** 站外連結（http、mailto、tel、//）用 <a>，其餘交給 react-router */
++export function isExternalHref(href: string): boolean {
++  return /^(https?:|mailto:|tel:|\/\/)/i.test(href)
++}
++
++/** 從 props 中挑出 data-* 屬性 */
++export function pickDataAttributes(props: object): DataAttributes {
++  const out: DataAttributes = {}
++  for (const [k, v] of Object.entries(props)) if (k.startsWith('data-')) out[k as `data-${string}`] = v
++  return out
++}
+diff --git a/src/components/ui/button.tsx b/src/components/ui/button.tsx
+index 8b8d301..cbeb95e 100644
+--- a/src/components/ui/button.tsx
++++ b/src/components/ui/button.tsx
+@@ -1,44 +1,52 @@
+ /* eslint-disable react-refresh/only-export-components */
+ import * as React from "react"
+ import { cva, type VariantProps } from "class-variance-authority"
+ import { Slot } from "radix-ui"
+ 
+-import { cn } from "@/lib/utils"
++import { tbCn } from "@/components/toybox/cn"
+ 
+ const buttonVariants = cva(
+-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
++  "group/button inline-flex shrink-0 items-center justify-center rounded-toy-md border-3 border-transparent font-display font-black whitespace-nowrap transition-[translate,box-shadow,background-color] duration-120 ease-out outline-none select-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus disabled:pointer-events-none disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted disabled:shadow-none aria-invalid:border-destructive motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+   {
+     variants: {
+       variant: {
+-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
++        // toybox secondary：白底墨框硬陰影，hover 浮起、active 陷入
++        default:
++          "border-line bg-surface-raised text-ink shadow-hard-s hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m active:translate-x-[3px] active:translate-y-[3px] active:shadow-none aria-expanded:bg-surface-sunken",
++        primary:
++          "border-line bg-action text-on-fill shadow-hard-s hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m active:translate-x-[3px] active:translate-y-[3px] active:shadow-none",
++        pop:
++          "border-line bg-pop text-on-fill shadow-hard-s hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m active:translate-x-[3px] active:translate-y-[3px] active:shadow-none",
++        ink:
++          "border-line bg-inverse text-pop shadow-hard-s hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m active:translate-x-[3px] active:translate-y-[3px] active:shadow-none",
+         outline:
+-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
++          "border-line bg-surface-raised text-ink shadow-hard-s hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m active:translate-x-[3px] active:translate-y-[3px] active:shadow-none aria-expanded:bg-surface-sunken",
+         secondary:
+-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
++          "border-line bg-surface-raised text-ink shadow-hard-s hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m active:translate-x-[3px] active:translate-y-[3px] active:shadow-none aria-expanded:bg-surface-sunken",
+         ghost:
+-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
++          "bg-transparent text-ink shadow-none hover:bg-surface-sunken aria-expanded:bg-surface-sunken",
+         destructive:
+-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
++          "border-destructive bg-surface-raised text-destructive shadow-hard-s shadow-destructive hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m active:translate-x-[3px] active:translate-y-[3px] active:shadow-none focus-visible:outline-destructive",
+         link: "text-primary underline-offset-4 hover:underline",
+       },
+       size: {
+         default:
+-          "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+-        lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
++          "h-8 gap-1.5 px-2.5 text-button-s has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
++        xs: "h-6 gap-1 rounded-toy-sm px-2 text-caption in-data-[slot=button-group]:rounded-toy-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
++        sm: "h-7 gap-1 rounded-toy-sm px-2.5 text-caption in-data-[slot=button-group]:rounded-toy-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
++        lg: "h-9 gap-1.5 px-2.5 text-button-s has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+         icon: "size-8",
+         "icon-xs":
+-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
++          "size-6 rounded-toy-sm in-data-[slot=button-group]:rounded-toy-md [&_svg:not([class*='size-'])]:size-3",
+         "icon-sm":
+-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
++          "size-7 rounded-toy-sm in-data-[slot=button-group]:rounded-toy-md",
+         "icon-lg": "size-9",
+       },
+     },
+     defaultVariants: {
+       variant: "default",
+       size: "default",
+     },
+   }
+ )
+ 
+@@ -52,17 +60,17 @@ function Button({
+   VariantProps<typeof buttonVariants> & {
+     asChild?: boolean
+   }) {
+   const Comp = asChild ? Slot.Root : "button"
+ 
+   return (
+     <Comp
+       data-slot="button"
+       data-variant={variant}
+       data-size={size}
+-      className={cn(buttonVariants({ variant, size, className }))}
++      className={tbCn(buttonVariants({ variant, size, className }))}
+       {...props}
+     />
+   )
+ }
+ 
+ export { Button, buttonVariants }
+diff --git a/src/index.css b/src/index.css
+index 40811fa..f521cd0 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1,146 +1,146 @@
+ @import "tailwindcss";
+ @import "tw-animate-css";
+ @import "shadcn/tailwind.css";
+ @import "@fontsource-variable/geist";
+ 
+ @custom-variant dark (&:is(.dark *));
+ 
++/* ═══════════════════════════════════════════════════════
++   DKBO TOYBOX TOKENS（toybox-ds tokens.json；淺色 :root、深色 .dark）
++   ═══════════════════════════════════════════════════════ */
+ :root {
+-  --text: #6b6375;
+-  --text-h: #08060d;
+-  --bg: #fff;
+-  --border: oklch(0.922 0 0);
+-  --code-bg: #f4f3ec;
+-  --accent: oklch(0.97 0 0);
+-  --accent-bg: rgba(170, 59, 255, 0.1);
+-  --accent-border: rgba(170, 59, 255, 0.5);
+-  --social-bg: rgba(244, 243, 236, 0.5);
+-  --shadow:
+-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+-
+-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+-  --mono: ui-monospace, Consolas, monospace;
+-
+-  font: 18px/145% var(--sans);
++  --surface: #fffbf2;
++  --surface-raised: #ffffff;
++  --surface-sunken: #e9e2d6;
++  --ink: #17140f;
++  --ink-muted: #4a4339;
++  --line: var(--ink);
++  --focus: var(--ink);
++  --pop: #ffce2e;
++  --action: #ff6b3d;
++  --on-fill: #17140f;
++  --sky: #8fd6ff;
++  --mint: #9be3b0;
++  --pink: #ffb3d1;
++  --success: #2bb673;
++  --inverse: #17140f;
++  --on-inverse: #ffffff;
++  --on-inverse-muted: #e9e2d6;
++
++  /* 會隨斷點變的字級（手機值見下方 @media） */
++  --tb-display-l: 48px;
++  --tb-display-l-lh: 53px;
++  --tb-heading-l: 36px;
++  --tb-heading-l-lh: 44px;
++  --tb-body-l: 17px;
++  --tb-body-l-lh: 30px;
++  --tb-pixel-xl: 46px;
++  --tb-pixel-xl-lh: 42px;
++  --tb-pixel-l: 30px;
++  --tb-pixel-l-lh: 32px;
++
++  /* shadcn 變數對應到 toybox（toybox-ds 04 §4；--radius 維持 shadcn 原值） */
++  --background: var(--surface);
++  --foreground: var(--ink);
++  --card: var(--surface-raised);
++  --card-foreground: var(--ink);
++  --popover: var(--surface-raised);
++  --popover-foreground: var(--ink);
++  --primary: var(--action);
++  --primary-foreground: var(--on-fill);
++  --secondary: var(--surface-raised);
++  --secondary-foreground: var(--ink);
++  --muted: var(--surface-sunken);
++  --muted-foreground: var(--ink-muted);
++  --accent: var(--surface-sunken);
++  --accent-foreground: var(--ink);
++  --destructive: oklch(0.577 0.245 27.325);
++  --border: var(--line);
++  --input: var(--line);
++  --ring: var(--focus);
++  --chart-1: oklch(0.87 0 0);
++  --chart-2: oklch(0.556 0 0);
++  --chart-3: oklch(0.439 0 0);
++  --chart-4: oklch(0.371 0 0);
++  --chart-5: oklch(0.269 0 0);
++  --radius: 0.625rem;
++  --sidebar: var(--surface-raised);
++  --sidebar-foreground: var(--ink);
++  --sidebar-primary: var(--action);
++  --sidebar-primary-foreground: var(--on-fill);
++  --sidebar-accent: var(--surface-sunken);
++  --sidebar-accent-foreground: var(--ink);
++  --sidebar-border: var(--line);
++  --sidebar-ring: var(--focus);
++
++  font-size: 18px;
++  line-height: 145%;
+   letter-spacing: 0.18px;
+-  color-scheme: light dark;
+-  color: var(--text);
+-  background: var(--bg);
++  color-scheme: light;
++  color: var(--ink);
++  background: var(--surface);
+   font-synthesis: none;
+   text-rendering: optimizeLegibility;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+ 
+   @media (max-width: 1024px) {
+     font-size: 16px;
+   }
+ 
+-  --background: oklch(1 0 0);
+-
+-  --foreground: oklch(0.145 0 0);
+-
+-  --card: oklch(1 0 0);
+-
+-  --card-foreground: oklch(0.145 0 0);
+-
+-  --popover: oklch(1 0 0);
+-
+-  --popover-foreground: oklch(0.145 0 0);
+-
+-  --primary: oklch(0.205 0 0);
+-
+-  --primary-foreground: oklch(0.985 0 0);
+-
+-  --secondary: oklch(0.97 0 0);
+-
+-  --secondary-foreground: oklch(0.205 0 0);
+-
+-  --muted: oklch(0.97 0 0);
+-
+-  --muted-foreground: oklch(0.556 0 0);
+-
+-  --accent-foreground: oklch(0.205 0 0);
+-
+-  --destructive: oklch(0.577 0.245 27.325);
+-
+-  --input: oklch(0.922 0 0);
+-
+-  --ring: oklch(0.708 0 0);
+-
+-  --chart-1: oklch(0.87 0 0);
+-
+-  --chart-2: oklch(0.556 0 0);
+-
+-  --chart-3: oklch(0.439 0 0);
+-
+-  --chart-4: oklch(0.371 0 0);
+-
+-  --chart-5: oklch(0.269 0 0);
+-
+-  --radius: 0.625rem;
+-
+-  --sidebar: oklch(0.985 0 0);
+-
+-  --sidebar-foreground: oklch(0.145 0 0);
+-
+-  --sidebar-primary: oklch(0.205 0 0);
+-
+-  --sidebar-primary-foreground: oklch(0.985 0 0);
+-
+-  --sidebar-accent: oklch(0.97 0 0);
+-
+-  --sidebar-accent-foreground: oklch(0.205 0 0);
+-
+-  --sidebar-border: oklch(0.922 0 0);
+-
+-  --sidebar-ring: oklch(0.708 0 0)
++  @media (max-width: 639px) {
++    --tb-display-l: 34px;
++    --tb-display-l-lh: 40px;
++    --tb-heading-l: 26px;
++    --tb-heading-l-lh: 34px;
++    --tb-body-l: 16px;
++    --tb-body-l-lh: 28px;
++    --tb-pixel-xl: 40px;
++    --tb-pixel-xl-lh: 38px;
++    --tb-pixel-l: 24px;
++    --tb-pixel-l-lh: 28px;
++  }
+ }
+ 
+-@media (prefers-color-scheme: dark) {
+-  :root {
+-    --text: #9ca3af;
+-    --text-h: #f3f4f6;
+-    --bg: #16171d;
+-    --border: #2e303a;
+-    --code-bg: #1f2028;
+-    --accent: #c084fc;
+-    --accent-bg: rgba(192, 132, 252, 0.15);
+-    --accent-border: rgba(192, 132, 252, 0.5);
+-    --social-bg: rgba(47, 48, 58, 0.5);
+-    --shadow:
+-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+-  }
++.dark {
++  --surface: #17140f;
++  --surface-raised: #241f18;
++  --surface-sunken: #332c23;
++  --ink: #fff8ec;
++  --ink-muted: #cfc5b5;
++  --action: #ff7a4f;
++  --success: #3fd18a;
++  --inverse: #0b0907;
++  --on-inverse: #fff8ec;
++  --on-inverse-muted: #cfc5b5;
+ 
+-  #social .button-icon {
+-    filter: invert(1) brightness(2);
+-  }
++  --destructive: oklch(0.704 0.191 22.216);
++
++  color-scheme: dark;
+ }
+ 
+ #root {
+   width: 100%;
+   max-width: 100%;
+   margin: 0 auto;
+   text-align: center;
+   min-height: 100svh;
+   display: flex;
+   flex-direction: column;
+   box-sizing: border-box;
+ }
+ 
+ html {
+   scroll-behavior: smooth;
+ }
+ 
+-
+-
+ @theme inline {
+   --font-heading: var(--font-sans);
+   --font-sans: 'Geist Variable', sans-serif;
+   --color-sidebar-ring: var(--sidebar-ring);
+   --color-sidebar-border: var(--sidebar-border);
+   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+   --color-sidebar-accent: var(--sidebar-accent);
+   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+   --color-sidebar-primary: var(--sidebar-primary);
+   --color-sidebar-foreground: var(--sidebar-foreground);
+@@ -168,81 +168,126 @@ html {
+   --color-card: var(--card);
+   --color-foreground: var(--foreground);
+   --color-background: var(--background);
+   --radius-sm: calc(var(--radius) * 0.6);
+   --radius-md: calc(var(--radius) * 0.8);
+   --radius-lg: var(--radius);
+   --radius-xl: calc(var(--radius) * 1.4);
+   --radius-2xl: calc(var(--radius) * 1.8);
+   --radius-3xl: calc(var(--radius) * 2.2);
+   --radius-4xl: calc(var(--radius) * 2.6);
+-}
+ 
+-.dark {
+-  --background: oklch(0.145 0 0);
+-  --foreground: oklch(0.985 0 0);
+-  --card: oklch(0.205 0 0);
+-  --card-foreground: oklch(0.985 0 0);
+-  --popover: oklch(0.205 0 0);
+-  --popover-foreground: oklch(0.985 0 0);
+-  --primary: oklch(0.922 0 0);
+-  --primary-foreground: oklch(0.205 0 0);
+-  --secondary: oklch(0.269 0 0);
+-  --secondary-foreground: oklch(0.985 0 0);
+-  --muted: oklch(0.269 0 0);
+-  --muted-foreground: oklch(0.708 0 0);
+-  --accent: oklch(0.269 0 0);
+-  --accent-foreground: oklch(0.985 0 0);
+-  --destructive: oklch(0.704 0.191 22.216);
+-  --border: oklch(1 0 0 / 10%);
+-  --input: oklch(1 0 0 / 15%);
+-  --ring: oklch(0.556 0 0);
+-  --chart-1: oklch(0.87 0 0);
+-  --chart-2: oklch(0.556 0 0);
+-  --chart-3: oklch(0.439 0 0);
+-  --chart-4: oklch(0.371 0 0);
+-  --chart-5: oklch(0.269 0 0);
+-  --sidebar: oklch(0.205 0 0);
+-  --sidebar-foreground: oklch(0.985 0 0);
+-  --sidebar-primary: oklch(0.488 0.243 264.376);
+-  --sidebar-primary-foreground: oklch(0.985 0 0);
+-  --sidebar-accent: oklch(0.269 0 0);
+-  --sidebar-accent-foreground: oklch(0.985 0 0);
+-  --sidebar-border: oklch(1 0 0 / 10%);
+-  --sidebar-ring: oklch(0.556 0 0);
+-
+-  /* Custom variables overrides for dark mode readability */
+-  --text: oklch(0.82 0.015 280);
+-  --text-h: oklch(0.985 0 0);
+-  --code-bg: oklch(0.28 0.02 280);
+-  --accent-bg: rgba(170, 59, 255, 0.15);
+-  --accent-border: rgba(170, 59, 255, 0.4);
+-  --social-bg: rgba(255, 255, 255, 0.05);
++  /* ── Toybox：色彩 ── */
++  --color-surface: var(--surface);
++  --color-surface-raised: var(--surface-raised);
++  --color-surface-sunken: var(--surface-sunken);
++  --color-ink: var(--ink);
++  --color-ink-muted: var(--ink-muted);
++  --color-line: var(--line);
++  --color-focus: var(--focus);
++  --color-pop: var(--pop);
++  --color-action: var(--action);
++  --color-on-fill: var(--on-fill);
++  --color-sky: var(--sky);
++  --color-mint: var(--mint);
++  --color-pink: var(--pink);
++  --color-success: var(--success);
++  --color-inverse: var(--inverse);
++  --color-on-inverse: var(--on-inverse);
++  --color-on-inverse-muted: var(--on-inverse-muted);
++
++  /* ── Toybox：字族（--font-sans 留給凍結的遊戲 HUD） ── */
++  --font-display: "Rubik", "Noto Sans TC", system-ui, sans-serif;
++  --font-body: "Noto Sans TC", "Rubik", system-ui, sans-serif;
++  --font-pixel: "VT323", ui-monospace, monospace;
++
++  /* ── Toybox：字級（手機值由 :root 的 --tb-* 切換；display-xl 以 clamp 縮放） ── */
++  --text-display-xl: clamp(44px, 6vw, 76px);
++  --text-display-xl--line-height: 1.08;
++  --text-display-xl--font-weight: 900;
++  --text-display-xl--letter-spacing: -0.01em;
++  --text-display-l: var(--tb-display-l);
++  --text-display-l--line-height: var(--tb-display-l-lh);
++  --text-display-l--font-weight: 900;
++  --text-heading-l: var(--tb-heading-l);
++  --text-heading-l--line-height: var(--tb-heading-l-lh);
++  --text-heading-l--font-weight: 900;
++  --text-heading-m: 22px;
++  --text-heading-m--line-height: 30px;
++  --text-heading-m--font-weight: 900;
++  --text-button: 16px;
++  --text-button--line-height: 20px;
++  --text-button--font-weight: 900;
++  --text-button-s: 15px;
++  --text-button-s--line-height: 20px;
++  --text-button-s--font-weight: 900;
++  --text-body-l: var(--tb-body-l);
++  --text-body-l--line-height: var(--tb-body-l-lh);
++  --text-body-l--font-weight: 500;
++  --text-body: 16px;
++  --text-body--line-height: 28px;
++  --text-body--font-weight: 500;
++  --text-body-s: 14px;
++  --text-body-s--line-height: 24px;
++  --text-body-s--font-weight: 500;
++  --text-label: 15px;
++  --text-label--line-height: 20px;
++  --text-label--font-weight: 700;
++  --text-caption: 13px;
++  --text-caption--line-height: 18px;
++  --text-caption--font-weight: 700;
++  --text-pixel-xl: var(--tb-pixel-xl);
++  --text-pixel-xl--line-height: var(--tb-pixel-xl-lh);
++  --text-pixel-xl--font-weight: 400;
++  --text-pixel-l: var(--tb-pixel-l);
++  --text-pixel-l--line-height: var(--tb-pixel-l-lh);
++  --text-pixel-l--font-weight: 400;
++  --text-pixel-m: 22px;
++  --text-pixel-m--line-height: 24px;
++  --text-pixel-m--font-weight: 400;
++
++  /* ── Toybox：圓角（不覆寫 shadcn 的 --radius-sm|md|lg|xl） ── */
++  --radius-toy-sm: 8px;
++  --radius-toy-md: 14px;
++  --radius-toy-lg: 18px;
++  --radius-toy-xl: 26px;
++  --radius-toy-console: 64px;
++  --radius-toy-pill: 9999px;
++
++  /* ── Toybox：硬陰影（0 模糊、往右下、顏色 ink） ── */
++  --shadow-hard-s: 3px 3px 0 var(--ink);
++  --shadow-hard-m: 5px 5px 0 var(--ink);
++  --shadow-hard-l: 8px 8px 0 var(--ink);
++  --shadow-hard-xl: 11px 11px 0 var(--ink);
++  --shadow-hard-action: 8px 8px 0 var(--action);
++
++  --container-site: 1200px;
+ }
+ 
+ @layer base {
+   * {
+     @apply border-border outline-ring/50;
+   }
+   body {
+     margin: 0;
+-    @apply bg-background text-foreground;
++    @apply bg-surface text-ink font-body;
+   }
+   html {
+     scroll-behavior: smooth;
+     @apply font-sans;
+   }
++  ::selection {
++    @apply bg-pop text-on-fill;
++  }
+   h1,
+   h2 {
+-    font-family: var(--heading);
+-    font-weight: 500;
+-    color: var(--text-h);
++    @apply font-display font-black text-ink;
+   }
+   h1 {
+     font-size: 56px;
+     letter-spacing: -1.68px;
+     margin: 32px 0;
+     @media (max-width: 1024px) {
+       font-size: 36px;
+       margin: 20px 0;
+     }
+   }
+@@ -253,46 +298,46 @@ html {
+     margin: 0 0 8px;
+     @media (max-width: 1024px) {
+       font-size: 20px;
+     }
+   }
+   p {
+     margin: 0;
+   }
+   code:not(pre code),
+   .counter {
+-    font-family: var(--mono);
+-    display: inline;
++    @apply inline font-mono text-ink;
+     border-radius: 4px;
+-    color: var(--text-h);
+   }
+   code:not(pre code) {
++    @apply bg-surface-sunken;
+     font-size: 15px;
+     line-height: 135%;
+     padding: 4px 8px;
+-    background: var(--code-bg);
+   }
+   pre code {
+     display: block;
+     white-space: pre-wrap !important;
+-    font-family: var(--mono);
++    @apply font-mono;
+     background: transparent;
+     padding: 0;
+     border-radius: 0;
+     color: inherit;
+   }
+   pre {
+     white-space: pre-wrap !important;
+     overflow-x: auto;
+   }
+ }
+ 
++@import "./styles/toybox.css";
++
+ /* ═══════════════════════════════════════════════════════
+    SCROLL-TRIGGERED ANIMATIONS (Motion-Driven Design)
+    ═══════════════════════════════════════════════════════ */
+ 
+ @keyframes fadeInUp {
+   from {
+     opacity: 0;
+     transform: translateY(32px);
+   }
+   to {
+@@ -327,35 +372,25 @@ html {
+   from {
+     opacity: 0;
+     transform: scale(0.92);
+   }
+   to {
+     opacity: 1;
+     transform: scale(1);
+   }
+ }
+ 
+-@keyframes shimmer {
+-  0% { background-position: -200% 0; }
+-  100% { background-position: 200% 0; }
+-}
+-
+ @keyframes floatSlow {
+   0%, 100% { transform: translateY(0); }
+   50% { transform: translateY(-12px); }
+ }
+ 
+-@keyframes pulse-glow {
+-  0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.15); }
+-  50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.3); }
+-}
+-
+ /* Scroll-triggered animation base */
+ .animate-on-scroll {
+   opacity: 0;
+   will-change: transform, opacity;
+ }
+ 
+ .animate-on-scroll.is-visible {
+   animation-fill-mode: both;
+   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+ }
+@@ -981,56 +1016,31 @@ html {
+     transform: translateY(15px) scale(0.95);
+     opacity: 0;
+   }
+ }
+ 
+ 
+ 
+ 
+ /* ═══════════════════════════════════════════════════════
+    UTILITY CLASSES
++   漸層文字、毛玻璃、光暈、shimmer 已刪（toybox 禁用）；仍被引用的保留同名、改 toybox 寫法
+    ═══════════════════════════════════════════════════════ */
+ 
+-/* Gradient text utility */
+-.gradient-text-purple {
+-  @apply bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 dark:from-purple-400 dark:via-indigo-400 dark:to-purple-400 bg-clip-text text-transparent;
+-}
+-
+-/* Glassmorphism card variant */
+-.glass-card {
+-  @apply bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/60 backdrop-blur-xl rounded-2xl shadow-lg transition-all duration-300;
+-}
+-
+-.glass-card:hover {
+-  @apply bg-white/70 dark:bg-slate-900/50 border-slate-300/60 dark:border-slate-700/60 shadow-xl;
+-}
+-
+ /* Floating animation */
+ .float-slow {
+   animation: floatSlow 6s ease-in-out infinite;
+ }
+ 
+-/* Pulse glow */
+-.pulse-glow {
+-  animation: pulse-glow 3s ease-in-out infinite;
+-}
+-
+-/* Shimmer loading effect */
+-.shimmer {
+-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+-  background-size: 200% 100%;
+-  animation: shimmer 2s infinite;
+-}
+-
+-/* Section divider gradient */
++/* Section divider：墨線分隔 */
+ .section-divider {
+-  @apply h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent;
++  @apply h-0 border-t-3 border-line;
+ }
+ /* ═══════════════════════════════════════════════════════
+    CANDY CRUSH（方向稿 A · Glossy Classic）
+    ═══════════════════════════════════════════════════════ */
+ @font-face {
+   font-family: 'Fredoka';
+   src: url('/fonts/Fredoka-Bold.woff2') format('woff2');
+   font-weight: 700;
+   font-style: normal;
+   font-display: swap;
+diff --git a/src/styles/toybox.css b/src/styles/toybox.css
+new file mode 100644
+index 0000000..b969f64
+--- /dev/null
++++ b/src/styles/toybox.css
+@@ -0,0 +1,253 @@
++/* ═══════════════════════════════════════════════════════
++   DKBO TOYBOX 共用元件（toybox-ds components/bundle.css 的 Tailwind 版）
++   由 src/index.css @import；只用 toybox token 對應的 utility。
++   ═══════════════════════════════════════════════════════ */
++
++@keyframes tb-marquee {
++  from { transform: translateX(0); }
++  to { transform: translateX(-50%); }
++}
++
++@layer components {
++  /* ── 版面容器：左右邊距與內容寬只透過它 ── */
++  .tb-container {
++    @apply mx-auto w-full max-w-site px-6 max-sm:px-4;
++  }
++
++  /* ── 共用互動狀態（01-foundations §6）：每個可點物件只掛其中一組 ── */
++  .tb-focus {
++    @apply focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus;
++  }
++  .tb-lift {
++    @apply cursor-pointer transition-[translate,box-shadow] duration-120 ease-out
++      hover:-translate-x-[3px] hover:-translate-y-[3px] hover:shadow-hard-l
++      active:translate-x-[5px] active:translate-y-[5px] active:shadow-none
++      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
++      disabled:translate-none disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted disabled:shadow-none
++      aria-disabled:translate-none aria-disabled:cursor-not-allowed aria-disabled:border-ink-muted aria-disabled:bg-surface-sunken aria-disabled:text-ink-muted aria-disabled:shadow-none
++      motion-reduce:transition-none;
++  }
++  .tb-lift-s {
++    @apply cursor-pointer transition-[translate,box-shadow] duration-120 ease-out
++      hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m
++      active:translate-x-[3px] active:translate-y-[3px] active:shadow-none
++      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
++      disabled:translate-none disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted disabled:shadow-none
++      aria-disabled:translate-none aria-disabled:cursor-not-allowed aria-disabled:border-ink-muted aria-disabled:bg-surface-sunken aria-disabled:text-ink-muted aria-disabled:shadow-none
++      motion-reduce:transition-none;
++  }
++
++  /* ── 傾斜（tilt-1／2／3／band） ── */
++  .tb-tilt-1 { @apply -rotate-3; }
++  .tb-tilt-2 { @apply rotate-3; }
++  .tb-tilt-3 { @apply -rotate-7; }
++  .tb-tilt-band { @apply -rotate-1; }
++
++  /* ── Button ── */
++  .tb-btn {
++    @apply inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-toy-md border-3 border-line
++      bg-surface-raised font-display text-button text-ink no-underline shadow-hard-m select-none
++      [&_svg]:size-5 [&_svg]:shrink-0;
++  }
++  .tb-btn--l { @apply h-13 px-6; }
++  .tb-btn--s { @apply h-11 px-4 text-button-s shadow-hard-s; }
++  .tb-btn--secondary { @apply bg-surface-raised text-ink; }
++  .tb-btn--primary { @apply bg-action text-on-fill; }
++  .tb-btn--pop { @apply bg-pop text-on-fill; }
++  .tb-btn--ink { @apply bg-inverse text-pop; }
++  /* 反白區內的按鈕：框與底同色、陰影改 on-inverse */
++  .tb-on-inverse .tb-btn { @apply border-inverse shadow-on-inverse; }
++
++  /* ── IconButton ── */
++  .tb-iconbtn {
++    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-toy-md border-3 border-line
++      bg-surface-raised p-0 text-ink shadow-hard-s [&_svg]:size-5 [&_svg]:shrink-0;
++  }
++
++  /* ── NavLink ── */
++  .tb-nav {
++    @apply inline-flex h-11 items-center gap-1 whitespace-nowrap rounded-toy-pill border-3 border-transparent px-4
++      font-body text-label text-ink no-underline transition-colors duration-120 ease-out
++      not-aria-[current=page]:hover:bg-surface-sunken
++      aria-[current=page]:border-line aria-[current=page]:bg-pop aria-[current=page]:text-on-fill
++      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
++      motion-reduce:transition-none [&_svg]:size-4 [&_svg]:shrink-0;
++  }
++
++  /* ── StatusPill ── */
++  .tb-status {
++    @apply inline-flex items-center gap-2 rounded-toy-pill border-3 border-line bg-surface-raised px-4 py-2
++      font-body text-label text-ink;
++  }
++  .tb-status__dot { @apply size-3 shrink-0 rounded-full border-2 border-line bg-success; }
++  .tb-status--pop .tb-status__dot { @apply bg-pop; }
++  .tb-status--action .tb-status__dot { @apply bg-action; }
++
++  /* ── Tag ── */
++  .tb-tag {
++    @apply inline-flex items-center whitespace-nowrap rounded-toy-sm border-2 border-line bg-sky px-3 py-1
++      font-body text-caption text-on-fill;
++  }
++  .tb-tag--l { @apply border-3 px-4 py-2 text-label shadow-hard-s; }
++  .tb-tag--pop { @apply bg-pop; }
++  .tb-tag--sky { @apply bg-sky; }
++  .tb-tag--mint { @apply bg-mint; }
++  .tb-tag--pink { @apply bg-pink; }
++  .tb-tag--plain { @apply bg-surface-raised text-ink; }
++  .tb-tags { @apply flex flex-wrap gap-2; }
++
++  /* ── StatTile ── */
++  .tb-stat {
++    @apply flex min-w-0 flex-col gap-1 rounded-toy-md border-3 border-line bg-surface-raised px-4 py-3 text-left;
++  }
++  .tb-stat__num { @apply font-pixel text-pixel-xl text-ink; }
++  .tb-stat__label { @apply font-body text-caption text-ink-muted; }
++
++  /* ── IconBox ── */
++  .tb-iconbox {
++    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-toy-md border-3 border-line bg-sky
++      text-on-fill [&_svg]:size-5 [&_svg]:shrink-0;
++  }
++  .tb-iconbox--sky { @apply bg-sky; }
++  .tb-iconbox--pop { @apply bg-pop; }
++  .tb-iconbox--mint { @apply bg-mint; }
++  .tb-iconbox--pink { @apply bg-pink; }
++
++  /* ── SegmentedControl ── */
++  .tb-seg {
++    @apply inline-flex max-w-full overflow-hidden rounded-toy-md border-3 border-line bg-surface-raised shadow-hard-s;
++  }
++  .tb-seg__opt {
++    @apply h-11 min-w-19 cursor-pointer border-0 border-line bg-surface-raised px-5 font-display text-button-s text-ink
++      transition-colors duration-120 ease-out not-first:border-l-3
++      not-aria-pressed:hover:bg-surface-sunken
++      aria-pressed:bg-inverse aria-pressed:text-pop
++      focus-visible:outline-3 focus-visible:-outline-offset-6 focus-visible:outline-focus
++      aria-pressed:focus-visible:outline-pop motion-reduce:transition-none;
++  }
++
++  /* ── CartridgeCard ── */
++  .tb-card {
++    @apply flex min-w-0 flex-col overflow-hidden rounded-toy-lg border-3 border-line bg-surface-raised text-left
++      text-ink no-underline shadow-hard-m;
++  }
++  .tb-card__strip {
++    @apply flex justify-between gap-3 border-b-3 border-line bg-pop px-4 py-1 font-pixel text-pixel-m text-on-fill;
++  }
++  .tb-card--tool .tb-card__strip { @apply bg-surface-sunken text-ink; }
++  .tb-card__media { @apply block aspect-video w-full border-b-3 border-line bg-inverse object-cover; }
++  .tb-card__body { @apply flex grow flex-col gap-3 p-5; }
++  .tb-card__head { @apply flex items-center gap-3; }
++  .tb-card__title { @apply m-0 font-display text-heading-m text-ink; }
++  .tb-card__desc { @apply m-0 font-body text-body-s text-ink-muted; }
++  .tb-card__body .tb-tags { @apply mt-auto pt-1; }
++
++  /* ── FeatureCard：≥1024 截圖 7／面板 5 左右分置，以下上下堆疊 ── */
++  .tb-feature {
++    @apply flex flex-col overflow-hidden rounded-toy-xl border-4 border-line bg-surface-raised text-left text-ink
++      no-underline shadow-hard-l lg:flex-row hover:shadow-hard-xl active:shadow-none;
++  }
++  .tb-feature__media { @apply relative aspect-video min-w-0 bg-inverse lg:aspect-auto lg:min-h-75 lg:flex-7; }
++  .tb-feature__img { @apply absolute inset-0 block size-full object-cover; }
++  .tb-feature__badge {
++    @apply absolute top-4 left-4 rounded-toy-sm border-3 border-line bg-action px-3 py-1 font-pixel text-pixel-m
++      text-on-fill;
++  }
++  .tb-feature__panel {
++    @apply flex min-w-0 flex-col gap-4 border-t-4 border-line bg-pop p-8 text-on-fill
++      lg:flex-5 lg:border-t-0 lg:border-l-4 max-sm:p-6;
++  }
++  .tb-feature__meta { @apply font-pixel text-pixel-m; }
++  .tb-feature__title { @apply m-0 font-display text-heading-l text-on-fill; }
++  .tb-feature__desc { @apply m-0 font-body text-body; }
++  .tb-feature__panel .tb-tag { @apply bg-surface-raised text-ink; }
++  .tb-feature__cta {
++    @apply mt-auto inline-flex h-11 items-center gap-2 self-start rounded-toy-md border-3 border-line bg-inverse px-5
++      font-display text-button text-pop [&_svg]:size-4;
++  }
++
++  /* ── SectionHeader ── */
++  .tb-sechead { @apply flex flex-wrap items-end justify-between gap-5 text-left; }
++  .tb-sechead__text { @apply flex min-w-0 flex-col gap-2; }
++  .tb-sechead__eyebrow { @apply font-pixel text-pixel-m text-ink-muted; }
++  .tb-sechead__title { @apply m-0 font-display text-display-l text-balance text-ink; }
++
++  /* ── Marquee：外層裁掉左右外推，內層傾斜 ── */
++  .tb-marquee { @apply overflow-x-clip py-2; }
++  .tb-marquee__band { @apply -mx-5 overflow-hidden border-y-3 border-line bg-inverse -rotate-1; }
++  .tb-marquee__track {
++    @apply flex w-max py-3 font-pixel text-pixel-l tracking-wider whitespace-nowrap text-pop
++      animate-[tb-marquee_40s_linear_infinite] motion-reduce:animate-none;
++  }
++  .tb-marquee__seg { @apply pr-6; }
++
++  /* ── CtaPanel ── */
++  .tb-cta {
++    @apply flex flex-wrap items-center justify-between gap-8 rounded-toy-xl border-4 border-line bg-inverse px-10 py-12
++      text-left shadow-hard-action max-sm:px-6 max-sm:py-8;
++  }
++  .tb-cta__text { @apply flex min-w-0 grow basis-105 flex-col gap-3; }
++  .tb-cta__eyebrow { @apply font-pixel text-pixel-m text-pop; }
++  .tb-cta__title { @apply m-0 font-display text-heading-l text-on-inverse; }
++  .tb-cta__body { @apply m-0 max-w-140 font-body text-body text-on-inverse-muted; }
++  .tb-cta__actions { @apply flex flex-wrap gap-4 max-sm:w-full max-sm:flex-col max-sm:*:w-full; }
++
++  /* ── Handheld ── */
++  .tb-hand {
++    @apply flex w-full max-w-95 flex-col gap-5 rounded-toy-xl rounded-br-toy-console border-4 border-line bg-pop px-6 pt-6
++      pb-8 text-left text-on-fill shadow-hard-l rotate-3;
++  }
++  .tb-hand__screen {
++    @apply flex flex-col gap-2 rounded-toy-md border-4 border-on-fill bg-inverse px-3 pt-3 pb-2;
++  }
++  .tb-hand__img { @apply block aspect-16/10 w-full rounded-toy-sm bg-inverse object-cover; }
++  .tb-hand__caption {
++    @apply flex min-w-0 justify-between gap-2 font-pixel text-pixel-m text-pop [&>span]:truncate;
++  }
++  .tb-hand__pad { @apply flex items-center justify-between px-2; }
++  .tb-hand__dpad { @apply relative size-22; }
++  .tb-hand__dpad-v { @apply absolute top-0 left-7.5 h-22 w-7 rounded-toy-sm bg-on-fill; }
++  .tb-hand__dpad-h { @apply absolute top-7.5 left-0 h-7 w-22 rounded-toy-sm bg-on-fill; }
++  .tb-hand__ab { @apply flex gap-3 -rotate-20; }
++  .tb-hand__key {
++    @apply size-13 cursor-pointer rounded-full border-3 border-on-fill bg-action font-pixel text-pixel-l text-on-fill
++      shadow-hard-s shadow-on-fill transition-[translate,box-shadow] duration-120 ease-out first:mt-5
++      active:translate-x-[3px] active:translate-y-[3px] active:shadow-none
++      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-on-fill
++      motion-reduce:transition-none;
++  }
++  .tb-hand__pills { @apply flex justify-center gap-4; }
++  .tb-hand__pill { @apply h-3 w-13.5 rounded-toy-pill bg-on-fill opacity-80; }
++  .tb-hand__model { @apply text-right font-pixel text-pixel-m tracking-widest; }
++
++  /* ── ScreenFrame（pages-spec §1）：外框不得加 transform／filter／contain（全螢幕 fallback 用 fixed） ── */
++  .tb-screen {
++    @apply flex min-w-0 flex-col gap-2 rounded-toy-md border-4 border-line bg-inverse p-3 text-left shadow-hard-l max-sm:p-2;
++  }
++  .tb-screen__bar {
++    @apply flex min-h-6 items-center justify-between gap-3 px-1 font-pixel text-pixel-m;
++  }
++  .tb-screen__title { @apply truncate text-pop; }
++  .tb-screen__meta { @apply shrink-0 text-on-inverse-muted; }
++  .tb-screen__view { @apply relative overflow-hidden rounded-toy-sm bg-inverse; }
++
++  /* ── 表單控制項（pages-spec §2）：凹槽不是按鍵，無陰影；invalid 不變色，由頁面顯示提示條 ── */
++  .tb-input {
++    @apply h-11 w-full min-w-0 rounded-toy-md border-3 border-line bg-surface-raised px-4 font-body text-body text-ink
++      placeholder:text-ink-muted
++      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
++      disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted;
++  }
++  .tb-select {
++    @apply h-11 w-full min-w-0 cursor-pointer appearance-none rounded-toy-md border-3 border-line bg-surface-raised pr-10 pl-4
++      font-body text-body text-ink
++      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
++      disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted;
++  }
++  .tb-textarea {
++    @apply h-auto min-h-28 w-full min-w-0 resize-y rounded-toy-md border-3 border-line bg-surface-raised px-4 py-3 font-body
++      text-body text-ink placeholder:text-ink-muted
++      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
++      disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted;
++  }
++}
+

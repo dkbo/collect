@@ -1,0 +1,65 @@
+# 全站改版（DKBO Toybox 玩具機風） — wave 4 since 96ab0a5 — 2026-10-04T12:23
+# files changed: 2 (working tree included)
+
+## commits
+
+## stat
+ src/pages/CandyCrush/index.tsx | 2 +-
+ src/pages/Home/HeroSection.tsx | 2 --
+ 2 files changed, 1 insertion(+), 3 deletions(-)
+
+## diff (-U10)
+diff --git a/src/pages/CandyCrush/index.tsx b/src/pages/CandyCrush/index.tsx
+index 4b95604..561cda1 100644
+--- a/src/pages/CandyCrush/index.tsx
++++ b/src/pages/CandyCrush/index.tsx
+@@ -159,21 +159,21 @@ export function CandyCrush() {
+                   data-testid="candy-iframe"
+                 />
+               </div>
+             </div>
+ 
+             {layout.mode === 'side' && <SideHud scale={layout.scale} />}
+ 
+             {!isReady && (
+               <div className="candy-loading" data-testid="candy-loading">
+                 <div className="candy-loading-icon">
+-                  <Candy className="size-10" aria-hidden="true" />
++                  <Candy className="size-10" strokeWidth={2.5} aria-hidden="true" />
+                 </div>
+                 <div className="candy-loading-text">糖果消消樂載入中...</div>
+               </div>
+             )}
+ 
+             {isPaused && !showInstructions && <PauseOverlay onResume={togglePause} />}
+ 
+             {isLevelEnd && !showInstructions && (
+               <ResultDialog maxLevel={MAX_LEVEL} onStart={(lv) => { startLevel(lv); focusGame() }} />
+             )}
+diff --git a/src/pages/Home/HeroSection.tsx b/src/pages/Home/HeroSection.tsx
+index 0ad5b99..041ad12 100644
+--- a/src/pages/Home/HeroSection.tsx
++++ b/src/pages/Home/HeroSection.tsx
+@@ -61,21 +61,19 @@ export function HeroSection() {
+       <div className="home-hero__console" data-testid="home-handheld">
+         <Tag tone="sky" size="l" tilt={3} className="home-hero__sticker top-0 left-4">WebRTC</Tag>
+         <Tag tone="mint" size="l" tilt={2} className="home-hero__sticker top-1/2 right-0">Godot 4</Tag>
+         <Tag tone="pink" size="l" tilt={1} className="home-hero__sticker bottom-6 left-0">Babylon.js</Tag>
+         <Handheld
+           images={HERO_IMAGES}
+           imageAlts={HERO_ALTS}
+           index={tile}
+           onIndexChange={setTile}
+           onA={(i) => navigate(HERO_TILES[i]?.to ?? '/')}
+-          // Handheld 以 onB?.(step()) 呼叫：不傳 onB 時 step 會被可選鏈短路而不換張，所以一定要給
+-          onB={() => {}}
+           aLabel={current ? `A 鍵：進入${current.title}` : 'A 鍵'}
+           bLabel="B 鍵：下一張"
+         />
+       </div>
+     </section>
+   )
+ }
+ 
+ export default HeroSection
+

@@ -1,0 +1,14 @@
+<!-- @dsCard group="Labels" height=90 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>Icon</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  var names = ['arrow-down', 'arrow-up-right', 'play', 'moon', 'sun', 'search', 'list', 'pin', 'grid', 'menu', 'chevron-down'];
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'tb-row' },
+    names.map(function (n) { return h(T.Icon, { key: n, name: n, size: 24 }); })));
+</script>
+</body>
+</html>

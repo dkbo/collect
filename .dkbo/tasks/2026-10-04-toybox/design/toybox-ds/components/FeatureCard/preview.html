@@ -1,0 +1,18 @@
+<!-- @dsCard group="Cards" height=440 width=1152 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>FeatureCard</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { padding: 'var(--space-6)' } },
+    h(T.FeatureCard, {
+      badge: '★ FEATURED', meta: 'No.01 · 2–4P · ONLINE', title: '多人對戰',
+      desc: '開房間邀朋友，WebRTC 點對點同步。坦克對戰、極速賽車、炸彈超人、廚房快手四款遊戲，Host 權威架構。',
+      tags: ['Babylon.js', 'WebRTC', 'Firebase', 'Zustand'], cta: '開房間',
+      image: '/_blob/6107829c0167813735dd1a63c2ced5c4', imageAlt: '多人對戰截圖'
+    })));
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!-- @dsCard group="Labels" height=140 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>StatTile</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'tb-row', style: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', maxWidth: '600px', gap: 'var(--space-3)' } },
+    h(T.StatTile, { value: 13, suffix: '+', label: '年前端經驗' }),
+    h(T.StatTile, { value: 9, label: '個站內作品' }),
+    h(T.StatTile, { value: 4, label: '款多人對戰遊戲' }),
+    h(T.StatTile, { value: 2, label: '套遊戲引擎' })));
+</script>
+</body>
+</html>

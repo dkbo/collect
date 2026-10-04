@@ -1,0 +1,10 @@
+const p = Page("page-not-found");
+Header(p, "");
+const c = Cont(p, { gap: 24, pad: [96, 24, 96, 24] });
+Update(c, { alignItems: "center" });
+const sc = F(c, Object.assign({ name: "迷你掌機螢幕 rotate-3", layout: "vertical", gap: 8, padding: [32, 40], alignItems: "center", rotation: -3 }, box(4, 26, "$inverse", 8)));
+T(sc, "404", "pxl", "$pop", { fontSize: 46 }); T(sc, "NO SIGNAL", "pm", "$on-inverse-muted");
+F(c, { name: "sp", width: 1, height: 16 });
+T(c, "找不到頁面", "hl"); TW(c, "抱歉，您所尋找的頁面似乎並不存在，或是已經被移除了。", "b", "$ink-muted", 384, { textAlign: "center" });
+const b = F(c, { name: "btns", gap: 16 }); Btn(b, "返回上頁", { icon: "arrow-left" }); Btn(b, "返回首頁", { v: "primary", icon: "house" });
+Footer(p);

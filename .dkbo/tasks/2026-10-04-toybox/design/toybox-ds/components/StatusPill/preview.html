@@ -1,0 +1,15 @@
+<!-- @dsCard group="Labels" height=100 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>StatusPill</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'tb-row' },
+    h(T.StatusPill, null, '目前在做：Babylon.js 多人對戰 + AI 協作開發'),
+    h(T.StatusPill, { tone: 'pop' }, '開發中'),
+    h(T.StatusPill, { tone: 'action' }, '徵求測試')));
+</script>
+</body>
+</html>

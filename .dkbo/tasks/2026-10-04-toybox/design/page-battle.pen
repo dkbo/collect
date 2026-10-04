@@ -1,0 +1,3959 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "GSgbT",
+      "x": 0,
+      "y": 0,
+      "name": "page-battle",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "fill": "$surface",
+      "layout": "vertical",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "q2kou3",
+          "name": "SiteHeader",
+          "width": "fill_container",
+          "fill": "$surface",
+          "stroke": "$line",
+          "strokeWidth": {
+            "bottom": 3
+          },
+          "strokeAlignment": "inner",
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "n12oGM",
+              "name": "in",
+              "width": 1200,
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "rktcb",
+                  "name": "Logo",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ZYVu0",
+                      "name": "mark",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "UvUJJ",
+                          "name": "D",
+                          "fill": "$on-fill",
+                          "content": "D",
+                          "lineHeight": 1.0666666666666667,
+                          "fontFamily": "VT323",
+                          "fontSize": 30
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "jdK1g",
+                      "name": "DKBO's Collect",
+                      "fill": "$ink",
+                      "content": "DKBO's Collect",
+                      "lineHeight": 1.3636363636363635,
+                      "fontFamily": "Rubik",
+                      "fontSize": 22,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "F539t",
+                  "name": "nav",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "mpOUP",
+                      "name": "NavLink 首頁",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "C2dUMD",
+                          "name": "首頁",
+                          "fill": "$ink",
+                          "content": "首頁",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BeqN7",
+                      "name": "NavLink E-履歷",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "rDGgn",
+                          "name": "E-履歷",
+                          "fill": "$ink",
+                          "content": "E-履歷",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QWbpv",
+                      "name": "NavLink 遊戲",
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 999,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "f0Vgn",
+                          "name": "遊戲",
+                          "fill": "$on-fill",
+                          "content": "遊戲",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "bQKir",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$on-fill"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Icefo",
+                      "name": "NavLink 工具",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "tH6q1",
+                          "name": "工具",
+                          "fill": "$ink",
+                          "content": "工具",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "HXy8M",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "oeQ3T",
+                      "name": "sp",
+                      "width": 8,
+                      "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Akkjq",
+                      "name": "IconButton moon",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "bBoam",
+                          "name": "icon moon",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "moon",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "duWCA",
+          "name": "tb-container",
+          "width": 1200,
+          "layout": "vertical",
+          "gap": 40,
+          "padding": [
+            48,
+            24,
+            72,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "w0olM",
+              "name": "SectionHeader",
+              "width": "fill_container",
+              "gap": 20,
+              "justifyContent": "space_between",
+              "alignItems": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ca6Qy",
+                  "name": "text",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "a1lYE",
+                      "name": "— VERSUS MODE —",
+                      "fill": "$ink-muted",
+                      "content": "— VERSUS MODE —",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "tOdg7",
+                      "name": "多人對戰",
+                      "fill": "$ink",
+                      "content": "多人對戰",
+                      "lineHeight": 1.1041666666666667,
+                      "fontFamily": "Rubik",
+                      "fontSize": 48,
+                      "fontWeight": "900"
+                    },
+                    {
+                      "type": "text",
+                      "id": "dXVgC",
+                      "name": "選一款遊戲，單人開玩或揪 1~4 人即時連線對戰",
+                      "fill": "$ink-muted",
+                      "textGrowth": "fixed-width",
+                      "width": 672,
+                      "content": "選一款遊戲，單人開玩或揪 1~4 人即時連線對戰。Firebase 管房間，WebRTC 點對點傳輸，Babylon.js 渲染戰場。",
+                      "lineHeight": 1.75,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 16,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "X8uBG",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "S7VbzG",
+                  "name": "① GameList — CartridgeCa",
+                  "fill": "#ffffff",
+                  "content": "① GameList — CartridgeCard 外觀的 <button>，auto-fill 260 → 4 欄",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WfKXI",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "r6HjKK",
+                  "name": "Cartridge 坦克對戰",
+                  "clip": true,
+                  "width": 270,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ENh0O",
+                      "name": "strip",
+                      "width": "fill_container",
+                      "fill": "$pop",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        4,
+                        16
+                      ],
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "h9xXi",
+                          "name": "No.01",
+                          "fill": "$on-fill",
+                          "content": "No.01",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "eMTxs",
+                          "name": "2-4P ▸",
+                          "fill": "$on-fill",
+                          "content": "2-4P ▸",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "W3xhe",
+                      "name": "img game-covers/tank.webp",
+                      "width": "fill_container",
+                      "height": 152,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "../../../../public/game-covers/tank.webp",
+                        "mode": "fill"
+                      },
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bPcEu",
+                      "name": "body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "mnhN5",
+                          "name": "head",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ssXVE",
+                              "name": "坦克對戰",
+                              "fill": "$ink",
+                              "content": "坦克對戰",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "SdfHH",
+                          "name": "Babylon.js 2.5D・移動 + 射擊 ",
+                          "fill": "$ink-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Babylon.js 2.5D・移動 + 射擊 + HP",
+                          "lineHeight": 1.7142857142857142,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "dBrk7",
+                  "name": "Cartridge 極速賽車",
+                  "clip": true,
+                  "width": 270,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 8,
+                      "y": 8
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "MTLGF",
+                      "name": "strip",
+                      "width": "fill_container",
+                      "fill": "$pop",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        4,
+                        16
+                      ],
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "r3CWq",
+                          "name": "No.02",
+                          "fill": "$on-fill",
+                          "content": "No.02",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "z1tbII",
+                          "name": "2-4P ▸",
+                          "fill": "$on-fill",
+                          "content": "2-4P ▸",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "prsDX",
+                      "name": "img game-covers/race.webp",
+                      "width": "fill_container",
+                      "height": 152,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "../../../../public/game-covers/race.webp",
+                        "mode": "fill"
+                      },
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BLoEx",
+                      "name": "body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "ZHkKh",
+                          "name": "head",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "WdjDp",
+                              "name": "極速賽車",
+                              "fill": "$ink",
+                              "content": "極速賽車",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "tY8rb",
+                          "name": "環道 3 圈衝線・WASD / 方向鍵駕駛",
+                          "fill": "$ink-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "環道 3 圈衝線・WASD / 方向鍵駕駛",
+                          "lineHeight": 1.7142857142857142,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "zQn1J",
+                  "name": "Cartridge 炸彈超人",
+                  "clip": true,
+                  "width": 270,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "FOVFZ",
+                      "name": "strip",
+                      "width": "fill_container",
+                      "fill": "$pop",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        4,
+                        16
+                      ],
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "U6LlLM",
+                          "name": "No.03",
+                          "fill": "$on-fill",
+                          "content": "No.03",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "I8abLk",
+                          "name": "2-4P ▸",
+                          "fill": "$on-fill",
+                          "content": "2-4P ▸",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Z5ea0N",
+                      "name": "img game-covers/bomber.webp",
+                      "width": "fill_container",
+                      "height": 152,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "../../../../public/game-covers/bomber.webp",
+                        "mode": "fill"
+                      },
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "B5w86f",
+                      "name": "body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "j00qB",
+                          "name": "head",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "SbWeW",
+                              "name": "炸彈超人",
+                              "fill": "$ink",
+                              "content": "炸彈超人",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "Yn7eP",
+                          "name": "放彈炸箱拼生存・空白鍵放炸彈",
+                          "fill": "$ink-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "放彈炸箱拼生存・空白鍵放炸彈",
+                          "lineHeight": 1.7142857142857142,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "hTqfX",
+                  "name": "Cartridge 廚房快手",
+                  "clip": true,
+                  "width": 270,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tZtEB",
+                      "name": "strip",
+                      "width": "fill_container",
+                      "fill": "$pop",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        4,
+                        16
+                      ],
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "w5Ul3",
+                          "name": "No.04",
+                          "fill": "$on-fill",
+                          "content": "No.04",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "BOzRD",
+                          "name": "2-4P ▸",
+                          "fill": "$on-fill",
+                          "content": "2-4P ▸",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "nK30D",
+                      "name": "no signal",
+                      "width": "fill_container",
+                      "height": 152,
+                      "fill": "$inverse",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "bwvXL",
+                          "name": "NO SIGNAL",
+                          "fill": "$pop",
+                          "content": "NO SIGNAL",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ptqeQ",
+                      "name": "body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "uv4Av",
+                          "name": "head",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "G3jpt",
+                              "name": "廚房快手",
+                              "fill": "$ink",
+                              "content": "廚房快手",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "h5Qh1",
+                          "name": "合作做菜拼出餐・E / 空白鍵互動",
+                          "fill": "$ink-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "合作做菜拼出餐・E / 空白鍵互動",
+                          "lineHeight": 1.7142857142857142,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ZQyo9",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Epzqq",
+                  "name": "第 2 張示意 hover（浮起 3＋shado",
+                  "fill": "#ffffff",
+                  "content": "第 2 張示意 hover（浮起 3＋shadow-hard-l）；第 4 張示意封面破圖 NO SIGNAL",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "vj6sd",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jgU4N",
+                  "name": "② GameMenu — 封面 7 欄＋面板 5",
+                  "fill": "#ffffff",
+                  "content": "② GameMenu — 封面 7 欄＋面板 5 欄；< 1024 堆疊",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "LOwrG",
+              "name": "Button 返回遊戲列表",
+              "height": 44,
+              "fill": "$surface-raised",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 3,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$ink",
+                "offset": {
+                  "x": 3,
+                  "y": 3
+                }
+              },
+              "gap": 8,
+              "padding": [
+                0,
+                16
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "iQJaB",
+                  "name": "icon arrow-left",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$ink"
+                },
+                {
+                  "type": "text",
+                  "id": "nKkqZ",
+                  "name": "返回遊戲列表",
+                  "fill": "$ink",
+                  "content": "返回遊戲列表",
+                  "lineHeight": 1.3333333333333333,
+                  "fontFamily": "Rubik",
+                  "fontSize": 15,
+                  "fontWeight": "900"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "X0G4X",
+              "name": "alert info",
+              "width": "fill_container",
+              "fill": "$sky",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 3,
+              "strokeAlignment": "inner",
+              "gap": 12,
+              "padding": [
+                12,
+                16
+              ],
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "M7u7k1",
+                  "name": "icon info",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "info",
+                  "library": "lucide",
+                  "fill": "$on-fill"
+                },
+                {
+                  "type": "text",
+                  "id": "qZKWP",
+                  "name": "Firebase 已連線，房號 6 碼，最多 4",
+                  "fill": "$on-fill",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Firebase 已連線，房號 6 碼，最多 4 人同場。（notice 範例：資訊提示條 bg-sky）",
+                  "lineHeight": 1.7142857142857142,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "R6hsd",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AtG2a",
+                  "name": "battle-cover",
+                  "clip": true,
+                  "width": 662,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 26,
+                  "stroke": "$line",
+                  "strokeWidth": 4,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 8,
+                      "y": 8
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "VDoH4",
+                      "name": "img game-covers/tank.webp",
+                      "width": "fill_container",
+                      "height": 372,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "../../../../public/game-covers/tank.webp",
+                        "mode": "fill"
+                      },
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 4
+                      },
+                      "strokeAlignment": "inner"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "hajgy",
+                      "name": "pop panel",
+                      "width": "fill_container",
+                      "fill": "$pop",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 32,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "o9JY3",
+                          "name": "No.01 · 1-4P",
+                          "fill": "$on-fill",
+                          "content": "No.01 · 1-4P",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "text",
+                          "id": "SI4m4",
+                          "name": "坦克對戰",
+                          "fill": "$on-fill",
+                          "content": "坦克對戰",
+                          "lineHeight": 1.2222222222222223,
+                          "fontFamily": "Rubik",
+                          "fontSize": 36,
+                          "fontWeight": "900"
+                        },
+                        {
+                          "type": "text",
+                          "id": "sS224",
+                          "name": "Babylon.js 2.5D・移動 + 射擊 ",
+                          "fill": "$on-fill",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Babylon.js 2.5D・移動 + 射擊 + HP",
+                          "lineHeight": 1.75,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 16,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "O9f6Q",
+                  "name": "col",
+                  "width": 466,
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "HaFOj",
+                      "name": "battle-panel",
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 20,
+                      "padding": 24,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "VqE22",
+                          "name": "field 你的暱稱",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "o0lmHd",
+                              "name": "你的暱稱",
+                              "fill": "$ink",
+                              "content": "你的暱稱",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "N5fSVv",
+                              "name": "tb-input",
+                              "width": "fill_container",
+                              "height": 44,
+                              "fill": "$surface-raised",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                16
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "hjHfa",
+                                  "name": "輸入暱稱（選填）",
+                                  "fill": "$ink-muted",
+                                  "content": "輸入暱稱（選填）",
+                                  "lineHeight": 1.75,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 16,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "o562AN",
+                          "name": "Button 單人遊玩",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$action",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 5,
+                              "y": 5
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            24
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "LFTdh",
+                              "name": "icon user",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "user",
+                              "library": "lucide",
+                              "fill": "$on-fill"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Y5mBwB",
+                              "name": "單人遊玩",
+                              "fill": "$on-fill",
+                              "content": "單人遊玩",
+                              "lineHeight": 1.25,
+                              "fontFamily": "Rubik",
+                              "fontSize": 16,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Cfemp",
+                          "name": "divider",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "j0nCM",
+                              "name": "l",
+                              "width": "fill_container",
+                              "height": 3,
+                              "fill": "$line"
+                            },
+                            {
+                              "type": "text",
+                              "id": "DyLxJ",
+                              "name": "或揪人連線對戰",
+                              "fill": "$ink-muted",
+                              "content": "或揪人連線對戰",
+                              "lineHeight": 1.3846153846153846,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "j4yGp",
+                              "name": "r",
+                              "width": "fill_container",
+                              "height": 3,
+                              "fill": "$line"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "NjOpr",
+                          "name": "alert warn",
+                          "width": "fill_container",
+                          "fill": "$pop",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 12,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "LpXgb",
+                              "name": "icon triangle-alert",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "triangle-alert",
+                              "library": "lucide",
+                              "fill": "$on-fill"
+                            },
+                            {
+                              "type": "text",
+                              "id": "RgSYu",
+                              "name": "尚未設定 Firebase，無法建立 / 加入房",
+                              "fill": "$on-fill",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "尚未設定 Firebase，無法建立 / 加入房間；單人遊玩不受影響。",
+                              "lineHeight": 1.7142857142857142,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "XTHgO",
+                          "name": "Button 建立房間",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$surface-sunken",
+                          "cornerRadius": 14,
+                          "stroke": "$ink-muted",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            24
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "wIvKA",
+                              "name": "icon plus",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "plus",
+                              "library": "lucide",
+                              "fill": "$ink-muted"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Wp94b",
+                              "name": "建立房間",
+                              "fill": "$ink-muted",
+                              "content": "建立房間",
+                              "lineHeight": 1.25,
+                              "fontFamily": "Rubik",
+                              "fontSize": 16,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "D4lrQ",
+                          "name": "join row",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "bbn49",
+                              "name": "tb-input",
+                              "width": "fill_container",
+                              "height": 44,
+                              "fill": "$surface-sunken",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                16
+                              ],
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "b5nwhr",
+                                  "name": "房號",
+                                  "fill": "$ink-muted",
+                                  "content": "房號",
+                                  "lineHeight": 1.0666666666666667,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 30,
+                                  "letterSpacing": 3
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "JiBKS",
+                              "name": "Button 加入",
+                              "height": 44,
+                              "fill": "$surface-sunken",
+                              "cornerRadius": 14,
+                              "stroke": "$ink-muted",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "gap": 8,
+                              "padding": [
+                                0,
+                                16
+                              ],
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "tMVC5",
+                                  "name": "icon log-in",
+                                  "width": 20,
+                                  "height": 20,
+                                  "icon": "log-in",
+                                  "library": "lucide",
+                                  "fill": "$ink-muted"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "Ro8Mb",
+                                  "name": "加入",
+                                  "fill": "$ink-muted",
+                                  "content": "加入",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 15,
+                                  "fontWeight": "900"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "uGL3f",
+                          "name": "alert error",
+                          "width": "fill_container",
+                          "fill": "$pink",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 12,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "IQjWN",
+                              "name": "icon triangle-alert",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "triangle-alert",
+                              "library": "lucide",
+                              "fill": "$on-fill"
+                            },
+                            {
+                              "type": "text",
+                              "id": "EePmY",
+                              "name": "找不到房間，請確認房號。（error 範例：錯誤",
+                              "fill": "$on-fill",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "找不到房間，請確認房號。（error 範例：錯誤提示條 bg-pink）",
+                              "lineHeight": 1.7142857142857142,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "recCQ",
+                      "name": "建立房間後將房號分享給朋友，最多 4 人同場；或",
+                      "fill": "$ink-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "建立房間後將房號分享給朋友，最多 4 人同場；或直接單人遊玩。",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JK9kz",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "q7UWyU",
+                  "name": "③ Room 未開局 — 左 5 欄（房號／玩家",
+                  "fill": "#ffffff",
+                  "content": "③ Room 未開局 — 左 5 欄（房號／玩家／遊戲）＋右 7 欄（開局／離開）",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Hvusb",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "EJJAV",
+                  "name": "col",
+                  "width": 466,
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "B2RLLv",
+                      "name": "battle-code",
+                      "width": "fill_container",
+                      "fill": "$pop",
+                      "cornerRadius": 26,
+                      "stroke": "$line",
+                      "strokeWidth": 4,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 8,
+                          "y": 8
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 8,
+                      "padding": 24,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "I9iwO",
+                          "name": "ROOM CODE",
+                          "fill": "$on-fill",
+                          "content": "ROOM CODE",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "frame",
+                          "id": "UNlRA",
+                          "name": "copy button",
+                          "gap": 16,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "cG5NZ",
+                              "name": "K7QX2M",
+                              "fill": "$on-fill",
+                              "content": "K7QX2M",
+                              "lineHeight": 0.9130434782608695,
+                              "fontFamily": "VT323",
+                              "fontSize": 46,
+                              "letterSpacing": 6
+                            },
+                            {
+                              "type": "frame",
+                              "id": "u9Swcc",
+                              "name": "IconButton copy",
+                              "width": 44,
+                              "height": 44,
+                              "fill": "$surface-raised",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "effect": {
+                                "type": "shadow",
+                                "shadowType": "outer",
+                                "color": "$ink",
+                                "offset": {
+                                  "x": 3,
+                                  "y": 3
+                                }
+                              },
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "obDiW",
+                                  "name": "icon copy",
+                                  "width": 20,
+                                  "height": 20,
+                                  "icon": "copy",
+                                  "library": "lucide",
+                                  "fill": "$ink"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "VCCdR",
+                          "name": "點擊複製，分享給朋友加入",
+                          "fill": "$on-fill",
+                          "content": "點擊複製，分享給朋友加入",
+                          "lineHeight": 1.3846153846153846,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "a5XBS",
+                      "name": "battle-card 玩家",
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "KqsKo",
+                          "name": "head",
+                          "width": "fill_container",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "L13nuL",
+                              "name": "icon users",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "users",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            },
+                            {
+                              "type": "text",
+                              "id": "LCDZj",
+                              "name": "玩家",
+                              "fill": "$ink",
+                              "content": "玩家",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "text",
+                              "id": "GWMjx",
+                              "name": "3 / 4",
+                              "fill": "$ink-muted",
+                              "content": "3 / 4",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "x7DV9",
+                          "name": "battle-player DKBO",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$surface",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "k9HffV",
+                              "name": "IconBox",
+                              "width": 44,
+                              "height": 44,
+                              "fill": "$sky",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "y5Tvdl",
+                                  "name": "D",
+                                  "fill": "$on-fill",
+                                  "content": "D",
+                                  "lineHeight": 1.0666666666666667,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 30
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "F3xYMJ",
+                              "name": "DKBO",
+                              "fill": "$ink",
+                              "content": "DKBO",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "zCqgS",
+                              "name": "Tag 房主",
+                              "fill": "$pop",
+                              "cornerRadius": 8,
+                              "stroke": "$line",
+                              "strokeWidth": 2,
+                              "strokeAlignment": "inner",
+                              "gap": 4,
+                              "padding": [
+                                4,
+                                12
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "j3I9x",
+                                  "name": "icon crown",
+                                  "width": 14,
+                                  "height": 14,
+                                  "icon": "crown",
+                                  "library": "lucide",
+                                  "fill": "$on-fill"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "NcjcL",
+                                  "name": "房主",
+                                  "fill": "$on-fill",
+                                  "content": "房主",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "aj8Ag",
+                              "name": "Tag 你",
+                              "fill": "$surface-raised",
+                              "cornerRadius": 8,
+                              "stroke": "$line",
+                              "strokeWidth": 2,
+                              "strokeAlignment": "inner",
+                              "gap": 6,
+                              "padding": [
+                                4,
+                                12
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "psRGp",
+                                  "name": "你",
+                                  "fill": "$ink",
+                                  "content": "你",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "iTqGI",
+                          "name": "battle-player Alice",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$surface",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "yPfAh",
+                              "name": "IconBox",
+                              "width": 44,
+                              "height": 44,
+                              "fill": "$mint",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "IgEfI",
+                                  "name": "A",
+                                  "fill": "$on-fill",
+                                  "content": "A",
+                                  "lineHeight": 1.0666666666666667,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 30
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "lxj9O",
+                              "name": "Alice",
+                              "fill": "$ink",
+                              "content": "Alice",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ajCU1",
+                          "name": "battle-player Bob",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$surface",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 12,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "Oz2FT",
+                              "name": "IconBox",
+                              "width": 44,
+                              "height": 44,
+                              "fill": "$pink",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "CKyv0",
+                                  "name": "B",
+                                  "fill": "$on-fill",
+                                  "content": "B",
+                                  "lineHeight": 1.0666666666666667,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 30
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "acBfO",
+                              "name": "Bob",
+                              "fill": "$ink",
+                              "content": "Bob",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "b2hnFs",
+                      "name": "battle-card 遊戲",
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "QC8th",
+                          "name": "head",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "duAyA",
+                              "name": "icon gamepad-2",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "gamepad-2",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            },
+                            {
+                              "type": "text",
+                              "id": "ong3G",
+                              "name": "遊戲",
+                              "fill": "$ink",
+                              "content": "遊戲",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "QgiOx",
+                          "name": "game row",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "zrhiG",
+                              "name": "IconBox",
+                              "width": 44,
+                              "height": 44,
+                              "fill": "$pop",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "drkua",
+                                  "name": "icon gamepad-2",
+                                  "width": 20,
+                                  "height": 20,
+                                  "icon": "gamepad-2",
+                                  "library": "lucide",
+                                  "fill": "$on-fill"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "gQjWg",
+                              "name": "t",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "kOgUF",
+                                  "name": "坦克對戰",
+                                  "fill": "$ink",
+                                  "content": "坦克對戰",
+                                  "lineHeight": 1.3636363636363635,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 22,
+                                  "fontWeight": "900"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "jEvge",
+                                  "name": "Babylon.js 2.5D・移動 + 射擊 ",
+                                  "fill": "$ink-muted",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Babylon.js 2.5D・移動 + 射擊 + HP",
+                                  "lineHeight": 1.7142857142857142,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 14,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "UvEq6",
+                  "name": "col",
+                  "width": 662,
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "L2s2J",
+                      "name": "Button 開始對戰",
+                      "width": "fill_container",
+                      "height": 52,
+                      "fill": "$action",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        24
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "C1eu5",
+                          "name": "icon swords",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "swords",
+                          "library": "lucide",
+                          "fill": "$on-fill"
+                        },
+                        {
+                          "type": "text",
+                          "id": "P6cttb",
+                          "name": "開始對戰",
+                          "fill": "$on-fill",
+                          "content": "開始對戰",
+                          "lineHeight": 1.25,
+                          "fontFamily": "Rubik",
+                          "fontSize": 16,
+                          "fontWeight": "900"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Brlc1",
+                      "name": "note",
+                      "fill": "#3d7bff",
+                      "cornerRadius": 8,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "c25JzO",
+                          "name": "非房主：開始鈕換成下方 battle-wait（",
+                          "fill": "#ffffff",
+                          "content": "非房主：開始鈕換成下方 battle-wait（虛線空插槽）",
+                          "lineHeight": 1.3846153846153846,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "E1mdm",
+                      "name": "battle-wait",
+                      "width": "fill_container",
+                      "height": 160,
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "vAd85",
+                          "name": "StatusPill",
+                          "fill": "$surface-raised",
+                          "cornerRadius": 999,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 8,
+                          "padding": [
+                            8,
+                            16
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "q40X7",
+                              "name": "dot",
+                              "fill": "$pop",
+                              "width": 12,
+                              "height": 12,
+                              "stroke": "$line",
+                              "strokeWidth": 2,
+                              "strokeAlignment": "inner"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Evp57",
+                              "name": "等待房主開始對戰…",
+                              "fill": "$ink",
+                              "content": "等待房主開始對戰…",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "af4ya",
+                      "name": "Button 離開房間",
+                      "width": "fill_container",
+                      "height": 52,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        24
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "ez1jD",
+                          "name": "icon log-out",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "log-out",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        },
+                        {
+                          "type": "text",
+                          "id": "A3eAu",
+                          "name": "離開房間",
+                          "fill": "$ink",
+                          "content": "離開房間",
+                          "lineHeight": 1.25,
+                          "fontFamily": "Rubik",
+                          "fontSize": 16,
+                          "fontWeight": "900"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AZj86",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "cI2g5",
+                  "name": "④ Room 開局 — 單欄：ScreenFra",
+                  "fill": "#ffffff",
+                  "content": "④ Room 開局 — 單欄：ScreenFrame → 連線列 → 三卡 → 離開",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "x3ecK",
+              "name": "ScreenFrame tb-screen",
+              "width": "fill_container",
+              "fill": "$inverse",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 4,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$ink",
+                "offset": {
+                  "x": 8,
+                  "y": 8
+                }
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "CdeHC",
+                  "name": "tb-screen__bar",
+                  "width": "fill_container",
+                  "padding": [
+                    0,
+                    4
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "c03lPq",
+                      "name": "NOW PLAYING",
+                      "fill": "$pop",
+                      "content": "NOW PLAYING",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "COMmJ",
+                      "name": "ROOM K7QX2M · 3P",
+                      "fill": "$on-inverse-muted",
+                      "content": "ROOM K7QX2M · 3P",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qTBDI",
+                  "name": "tb-screen__view",
+                  "clip": true,
+                  "width": "fill_container",
+                  "height": 560,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "../../../../public/game-covers/tank.webp",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "qRtY1",
+                      "x": 1092,
+                      "y": 8,
+                      "name": "IconButton maximize-2",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "Qf3EW",
+                          "name": "icon maximize-2",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "maximize-2",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mjMyl",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "m2dlnV",
+                  "name": "left",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "V7x4c",
+                      "name": "StatusPill",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 999,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 8,
+                      "padding": [
+                        8,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "HSHyw",
+                          "name": "dot",
+                          "fill": "$success",
+                          "width": 12,
+                          "height": 12,
+                          "stroke": "$line",
+                          "strokeWidth": 2,
+                          "strokeAlignment": "inner"
+                        },
+                        {
+                          "type": "text",
+                          "id": "fu1b3",
+                          "name": "P2P 已連線",
+                          "fill": "$ink",
+                          "content": "P2P 已連線",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "Pd7dx",
+                      "name": "2 / 2",
+                      "fill": "$ink-muted",
+                      "content": "2 / 2",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "gepty",
+                      "name": "對端",
+                      "fill": "$ink-muted",
+                      "content": "對端",
+                      "lineHeight": 1.3846153846153846,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 13,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "CvQfv",
+                  "name": "Button Ping",
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "n5n9yg",
+                      "name": "icon send",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "send",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "O7DqV",
+                      "name": "Ping",
+                      "fill": "$ink",
+                      "content": "Ping",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "U9EQlV",
+              "name": "net-connect-timeout",
+              "width": "fill_container",
+              "fill": "$pink",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 3,
+              "strokeAlignment": "inner",
+              "gap": 12,
+              "padding": [
+                8,
+                8,
+                8,
+                16
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "T8kE4",
+                  "name": "l",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "Izbnx",
+                      "name": "icon triangle-alert",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "triangle-alert",
+                      "library": "lucide",
+                      "fill": "$on-fill"
+                    },
+                    {
+                      "type": "text",
+                      "id": "U6Jqgu",
+                      "name": "連線逾時，請確認網路後重試",
+                      "fill": "$on-fill",
+                      "content": "連線逾時，請確認網路後重試",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "k8m1KI",
+                  "name": "Button 重試",
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "oUrZ3",
+                      "name": "icon refresh-cw",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "refresh-cw",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "xVsBq",
+                      "name": "重試",
+                      "fill": "$ink",
+                      "content": "重試",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "f2Dr9",
+              "name": "WASD / 方向鍵操作（先點一下畫面取得焦點）",
+              "fill": "$ink-muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "WASD / 方向鍵操作（先點一下畫面取得焦點），手機用虛擬搖桿與動作鈕。",
+              "lineHeight": 1.7142857142857142,
+              "fontFamily": "Noto Sans TC",
+              "fontSize": 14,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "zUYaj",
+              "name": "net log",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "x4gdW",
+                  "name": "summary",
+                  "height": 44,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ujhuI",
+                      "name": "網路訊息 (3)",
+                      "fill": "$ink",
+                      "content": "網路訊息 (3)",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "I5dpx",
+                      "name": "icon chevron-down",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "chevron-down",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ZEdN6",
+                  "name": "log",
+                  "width": "fill_container",
+                  "fill": "$inverse",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "pfCxv",
+                      "name": "li",
+                      "stroke": "$pop",
+                      "strokeWidth": {
+                        "left": 2
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        8
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "YLxu9",
+                          "name": "peer Alice open",
+                          "fill": "$on-inverse-muted",
+                          "content": "peer Alice open",
+                          "lineHeight": 1.3846153846153846,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Uur4y",
+                      "name": "li",
+                      "stroke": "$pop",
+                      "strokeWidth": {
+                        "left": 2
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        8
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "x9LqY",
+                          "name": "peer Bob open",
+                          "fill": "$on-inverse-muted",
+                          "content": "peer Bob open",
+                          "lineHeight": 1.3846153846153846,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "trOV2",
+                      "name": "li",
+                      "stroke": "$pop",
+                      "strokeWidth": {
+                        "left": 2
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        8
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "mMaxy",
+                          "name": "ping 42ms",
+                          "fill": "$on-inverse-muted",
+                          "content": "ping 42ms",
+                          "lineHeight": 1.3846153846153846,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "c750eX",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "SWzko",
+                  "name": "battle-code 縮版",
+                  "width": "fill_container",
+                  "fill": "$pop",
+                  "cornerRadius": 26,
+                  "stroke": "$line",
+                  "strokeWidth": 4,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 8,
+                      "y": 8
+                    }
+                  },
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "J0dDR",
+                      "name": "ROOM CODE",
+                      "fill": "$on-fill",
+                      "content": "ROOM CODE",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "frame",
+                      "id": "G3hxoC",
+                      "name": "r",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ADk6T",
+                          "name": "K7QX2M",
+                          "fill": "$on-fill",
+                          "content": "K7QX2M",
+                          "lineHeight": 1.0666666666666667,
+                          "fontFamily": "VT323",
+                          "fontSize": 30,
+                          "letterSpacing": 4
+                        },
+                        {
+                          "type": "frame",
+                          "id": "j1ZQNC",
+                          "name": "IconButton copy",
+                          "width": 44,
+                          "height": 44,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "twr5i",
+                              "name": "icon copy",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "copy",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "D8C8RE",
+                  "name": "玩家",
+                  "width": "fill_container",
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "lS3gW",
+                      "name": "h",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "wlNk4",
+                          "name": "icon users",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "users",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        },
+                        {
+                          "type": "text",
+                          "id": "e3c05C",
+                          "name": "玩家",
+                          "fill": "$ink",
+                          "content": "玩家",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "f9zSg",
+                          "name": "3 / 4",
+                          "fill": "$ink-muted",
+                          "content": "3 / 4",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "fToFz",
+                      "name": "DKBO・Alice・Bob",
+                      "fill": "$ink-muted",
+                      "content": "DKBO・Alice・Bob",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rgoNh",
+                  "name": "遊戲",
+                  "width": "fill_container",
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Q5EXNq",
+                      "name": "h",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "t5WToW",
+                          "name": "icon gamepad-2",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "gamepad-2",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ANDQF",
+                          "name": "遊戲",
+                          "fill": "$ink",
+                          "content": "遊戲",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "mpiMe",
+                      "name": "坦克對戰",
+                      "fill": "$ink",
+                      "content": "坦克對戰",
+                      "lineHeight": 1.3636363636363635,
+                      "fontFamily": "Rubik",
+                      "fontSize": 22,
+                      "fontWeight": "900"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kBOMP",
+              "name": "Button 離開房間",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "$surface-raised",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 3,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$ink",
+                "offset": {
+                  "x": 5,
+                  "y": 5
+                }
+              },
+              "gap": 8,
+              "padding": [
+                0,
+                24
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "R59FH2",
+                  "name": "icon log-out",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "log-out",
+                  "library": "lucide",
+                  "fill": "$ink"
+                },
+                {
+                  "type": "text",
+                  "id": "KzFdR",
+                  "name": "離開房間",
+                  "fill": "$ink",
+                  "content": "離開房間",
+                  "lineHeight": 1.25,
+                  "fontFamily": "Rubik",
+                  "fontSize": 16,
+                  "fontWeight": "900"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Za2cn",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "QH1QA",
+                  "name": "⑤ SoloGame — 頂列＋ScreenFr",
+                  "fill": "#ffffff",
+                  "content": "⑤ SoloGame — 頂列＋ScreenFrame；畫面內示意浮層卡（setOverlay）與觸控搖桿／動作鈕",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "pCbR2",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "MJLgO",
+                  "name": "Button 返回",
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "c1QEq6",
+                      "name": "icon arrow-left",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "arrow-left",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ppO9J",
+                      "name": "返回",
+                      "fill": "$ink",
+                      "content": "返回",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "VYwfY",
+                  "name": "Tag 炸彈超人・單人",
+                  "fill": "$pop",
+                  "cornerRadius": 8,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "I42Id",
+                      "name": "炸彈超人・單人",
+                      "fill": "$on-fill",
+                      "content": "炸彈超人・單人",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "HsZzk",
+              "name": "ScreenFrame tb-screen",
+              "width": "fill_container",
+              "fill": "$inverse",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 4,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$ink",
+                "offset": {
+                  "x": 8,
+                  "y": 8
+                }
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "kvTQD",
+                  "name": "tb-screen__bar",
+                  "width": "fill_container",
+                  "padding": [
+                    0,
+                    4
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Z45TQ",
+                      "name": "NOW PLAYING",
+                      "fill": "$pop",
+                      "content": "NOW PLAYING",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "itMv7",
+                      "name": "BOMBER · SOLO",
+                      "fill": "$on-inverse-muted",
+                      "content": "BOMBER · SOLO",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LR8Ug",
+                  "name": "tb-screen__view",
+                  "clip": true,
+                  "width": "fill_container",
+                  "height": 560,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "../../../../public/game-covers/bomber.webp",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "h2hkU2",
+                      "x": 1092,
+                      "y": 8,
+                      "name": "IconButton maximize-2",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "l7Dueb",
+                          "name": "icon maximize-2",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "maximize-2",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "F5JbHP",
+                      "x": 412,
+                      "y": 150,
+                      "name": "battle-overlay 卡",
+                      "width": 320,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 4,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 8,
+                          "y": 8
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 24,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "rJ7Qv",
+                          "name": "你贏了",
+                          "fill": "$ink",
+                          "content": "你贏了",
+                          "lineHeight": 1.3636363636363635,
+                          "fontFamily": "Rubik",
+                          "fontSize": 22,
+                          "fontWeight": "900"
+                        },
+                        {
+                          "type": "text",
+                          "id": "i6XpYx",
+                          "name": "存活到最後一人",
+                          "fill": "$ink-muted",
+                          "content": "存活到最後一人",
+                          "lineHeight": 1.7142857142857142,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Olt69",
+                          "name": "Button 再來一局",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$action",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 5,
+                              "y": 5
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            24
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "urlsR",
+                              "name": "再來一局",
+                              "fill": "$on-fill",
+                              "content": "再來一局",
+                              "lineHeight": 1.25,
+                              "fontFamily": "Rubik",
+                              "fontSize": 16,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ROdlx",
+                          "name": "Button 回大廳",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 5,
+                              "y": 5
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            24
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "E8ssni",
+                              "name": "回大廳",
+                              "fill": "$ink",
+                              "content": "回大廳",
+                              "lineHeight": 1.25,
+                              "fontFamily": "Rubik",
+                              "fontSize": 16,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "XnRP5",
+                      "x": 24,
+                      "y": 400,
+                      "name": "搖桿底座",
+                      "width": 112,
+                      "height": 112,
+                      "fill": "#17140f66",
+                      "cornerRadius": 999,
+                      "stroke": "$on-inverse",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "W66oKX",
+                          "x": 32,
+                          "y": 32,
+                          "name": "搖桿頭",
+                          "width": 48,
+                          "height": 48,
+                          "fill": "$pop",
+                          "cornerRadius": 999,
+                          "stroke": "$on-fill",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "I75PN",
+                      "x": 960,
+                      "y": 432,
+                      "name": "動作鈕",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "zEeza",
+                          "name": "act B",
+                          "width": 64,
+                          "height": 64,
+                          "fill": "$action",
+                          "cornerRadius": 999,
+                          "stroke": "$on-fill",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "A3PvdF",
+                              "name": "B",
+                              "fill": "$on-fill",
+                              "content": "B",
+                              "lineHeight": 1.0666666666666667,
+                              "fontFamily": "VT323",
+                              "fontSize": 30
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Zk62a",
+                          "name": "act A",
+                          "width": 64,
+                          "height": 64,
+                          "fill": "$action",
+                          "cornerRadius": 999,
+                          "stroke": "$on-fill",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "JsauZ",
+                              "name": "A",
+                              "fill": "$on-fill",
+                              "content": "A",
+                              "lineHeight": 1.0666666666666667,
+                              "fontFamily": "VT323",
+                              "fontSize": 30
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "GKEsu",
+              "name": "先點一下畫面取得焦點，再以 WASD / 方向鍵",
+              "fill": "$ink-muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "先點一下畫面取得焦點，再以 WASD / 方向鍵操作。",
+              "lineHeight": 1.7142857142857142,
+              "textAlign": "center",
+              "fontFamily": "Noto Sans TC",
+              "fontSize": 14,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "tWfkP",
+          "name": "Footer",
+          "width": "fill_container",
+          "stroke": "$line",
+          "strokeWidth": {
+            "top": 3
+          },
+          "strokeAlignment": "inner",
+          "padding": 24,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "o1GtOW",
+              "name": "© 2026 DKBO · GAME OVER?",
+              "fill": "$ink-muted",
+              "content": "© 2026 DKBO · GAME OVER? PRESS START",
+              "lineHeight": 1.0909090909090908,
+              "fontFamily": "VT323",
+              "fontSize": 22
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "surface": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#fffbf2",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#241f18",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-sunken": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#332c23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#4a4339",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "line": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "focus": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pop": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ff6b3d",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ff7a4f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-fill": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "sky": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "mint": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "success": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#2bb673",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#3fd18a",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#0b0907",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "fileToken": "48f7116f-62c2-4fd2-acb6-ae7ccaf4ddb9"
+}

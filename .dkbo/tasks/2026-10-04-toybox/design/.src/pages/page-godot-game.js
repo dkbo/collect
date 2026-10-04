@@ -1,0 +1,18 @@
+const p = Page("page-godot-game");
+Header(p, "games");
+const g = GameCol(p);
+SecHead(g, "GODOT 4", "Godot 遊戲", { lead: "以 Godot 4 遊戲引擎重構的 RPG 遊戲室。引擎於 iframe 內運行，與 React 透過 postMessage 雙向通訊。", leadW: 820 });
+Toolbar(g, [["遊戲說明", "circle-help"]]);
+const sc = Screen(g, "GODOT GAME", "GODOT 4", 550, { img: "works/godot.webp" });
+FsBtns(sc.view, 784, ["maximize-2", "circle-help"]);
+ChatBox(sc.view, 86, 380, 700, "村長", "歡迎來到新手村！往北走可以找到道具店，記得先跟商人說話。");
+Note(g, "載入、暫停兩種浮層（§4）");
+const r = Row(g);
+const a = Screen(r, "GODOT GAME", "GODOT 4", 220, { sh: 5 }); const la = F(a.view, { name: "loading", x: 0, y: 0, width: 400, height: 220, layout: "vertical", gap: 8, alignItems: "center", justifyContent: "center" }); T(la, "LOADING", "pl", "$pop"); T(la, "Godot 載入中", "lab", "$on-inverse");
+const b = Screen(r, "GODOT GAME", "GODOT 4", 220, { sh: 5, img: "works/godot.webp" }); const pb = F(b.view, { name: "pause", x: 0, y: 0, width: 400, height: 220, layout: "vertical", gap: 8, alignItems: "center", justifyContent: "center", fill: "#17140fcc" }); T(pb, "PAUSE", "pxl", "$pop"); T(pb, "遊戲暫停中・點擊畫面或按 P 鍵恢復", "bs", "$on-inverse-muted");
+Note(g, "說明對話框（§4）");
+const dl = Dialog(g, "Godot 遊戲說明");
+KeyRow(dl, "移動角色", "W A S D / 方向鍵"); KeyRow(dl, "對話/互動", "SPACE / ENTER"); KeyRow(dl, "暫停遊戲", "P 鍵"); KeyRow(dl, "開啟本選單", "ESC 鍵", true);
+Alert(dl, "info", "小訣竅：走到特定的門口、樓梯或地圖邊界會自動切換地圖。面向告示牌、稻草人或NPC按對話鍵即可觸發交談。");
+Btn(dl, "開始遊戲", { v: "primary", w: "fill_container" });
+Footer(p);

@@ -1,0 +1,24 @@
+<!-- @dsCard group="Actions" height=260 subtitle="primary／secondary／pop／ink × l／s，含 hover、active、focus、disabled" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>Button</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  function cell(cap, el) { return h('div', null, h('span', { className: 'tb-cap' }, cap), el); }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h('div', { className: 'tb-row' },
+      cell('primary', h(T.Button, { variant: 'primary', icon: 'play' }, '開始玩')),
+      cell('secondary', h(T.Button, { iconEnd: 'arrow-up-right' }, 'E-履歷')),
+      cell('pop', h(T.Button, { variant: 'pop' }, 'Blog')),
+      cell('ink', h(T.Button, { variant: 'ink', icon: 'play' }, '開房間')),
+      cell('size s', h(T.Button, { size: 's' }, '更多'))),
+    h('div', { className: 'tb-row' },
+      cell('hover', h(T.Button, { variant: 'primary', state: 'hover' }, '開始玩')),
+      cell('active（按下）', h(T.Button, { variant: 'primary', state: 'active' }, '開始玩')),
+      cell('focus-visible', h(T.Button, { state: 'focus' }, 'E-履歷')),
+      cell('disabled', h(T.Button, { variant: 'primary', disabled: true }, '開始玩')))));
+</script>
+</body>
+</html>

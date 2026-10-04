@@ -1,0 +1,3132 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "ard6r",
+      "x": 0,
+      "y": 0,
+      "name": "page-map-developer",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "fill": "$surface",
+      "layout": "vertical",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "v3Q8Tk",
+          "name": "SiteHeader",
+          "width": "fill_container",
+          "fill": "$surface",
+          "stroke": "$line",
+          "strokeWidth": {
+            "bottom": 3
+          },
+          "strokeAlignment": "inner",
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "CpeeZ",
+              "name": "in",
+              "width": 1200,
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "DcL9U",
+                  "name": "Logo",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "RO02P",
+                      "name": "mark",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "S25Ah",
+                          "name": "D",
+                          "fill": "$on-fill",
+                          "content": "D",
+                          "lineHeight": 1.0666666666666667,
+                          "fontFamily": "VT323",
+                          "fontSize": 30
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "AgHiZ",
+                      "name": "DKBO's Collect",
+                      "fill": "$ink",
+                      "content": "DKBO's Collect",
+                      "lineHeight": 1.3636363636363635,
+                      "fontFamily": "Rubik",
+                      "fontSize": 22,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kqp4S",
+                  "name": "nav",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "VG9Y7",
+                      "name": "NavLink 首頁",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "lPaOw",
+                          "name": "首頁",
+                          "fill": "$ink",
+                          "content": "首頁",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dGBkH",
+                      "name": "NavLink E-履歷",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "e3r6W",
+                          "name": "E-履歷",
+                          "fill": "$ink",
+                          "content": "E-履歷",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "h4XvSb",
+                      "name": "NavLink 遊戲",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "bI3Bp",
+                          "name": "遊戲",
+                          "fill": "$ink",
+                          "content": "遊戲",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "MOJaU",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "pmEaJ",
+                      "name": "NavLink 工具",
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 999,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "CdDDZ",
+                          "name": "工具",
+                          "fill": "$on-fill",
+                          "content": "工具",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "BRMa2",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$on-fill"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "M92sm",
+                      "name": "sp",
+                      "width": 8,
+                      "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "upPpG",
+                      "name": "IconButton moon",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "kj7V4",
+                          "name": "icon moon",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "moon",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "WMbE8",
+          "name": "tb-container",
+          "width": 1200,
+          "layout": "vertical",
+          "gap": 24,
+          "padding": [
+            48,
+            24,
+            72,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "nvDfS",
+              "name": "SectionHeader",
+              "width": "fill_container",
+              "gap": 20,
+              "justifyContent": "space_between",
+              "alignItems": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "O63ai",
+                  "name": "text",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "f1ooL",
+                      "name": "— MAP EDITOR —",
+                      "fill": "$ink-muted",
+                      "content": "— MAP EDITOR —",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "AWiRf",
+                      "name": "2D 地圖與場景開發器",
+                      "fill": "$ink",
+                      "content": "2D 地圖與場景開發器",
+                      "lineHeight": 1.1041666666666667,
+                      "fontFamily": "Rubik",
+                      "fontSize": 48,
+                      "fontWeight": "900"
+                    },
+                    {
+                      "type": "text",
+                      "id": "H8H6TK",
+                      "name": "React 19 等寬網格圖層場景編輯工具",
+                      "fill": "$ink-muted",
+                      "textGrowth": "fixed-width",
+                      "width": 672,
+                      "content": "React 19 等寬網格圖層場景編輯工具",
+                      "lineHeight": 1.75,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 16,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "p1cWDM",
+              "name": "工具列",
+              "width": "fill_container",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "APQQy",
+                  "name": "tb-input",
+                  "width": 240,
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "rUX6L",
+                      "name": "載入現有地圖...",
+                      "fill": "$ink-muted",
+                      "content": "載入現有地圖...",
+                      "lineHeight": 1.75,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 16,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "RPhAi",
+                      "name": "spacer",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "icon",
+                      "id": "OTnC7",
+                      "name": "icon chevron-down",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "chevron-down",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kHfHg",
+                  "name": "Button 快速鍵說明",
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "O90qWW",
+                      "name": "icon circle-help",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "circle-help",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "UwUPH",
+                      "name": "快速鍵說明",
+                      "fill": "$ink",
+                      "content": "快速鍵說明",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "DABQd",
+                  "name": "Button 導入 / 導出 JSON",
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "ogOeg",
+                      "name": "icon file-json",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-json",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "awgMr",
+                      "name": "導入 / 導出 JSON",
+                      "fill": "$ink",
+                      "content": "導入 / 導出 JSON",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Y3vgzO",
+                  "name": "Button 讀取暫存 (Alt+L)",
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "ggs8Y",
+                      "name": "icon folder-open",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "folder-open",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SIfC5",
+                      "name": "讀取暫存 (Alt+L)",
+                      "fill": "$ink",
+                      "content": "讀取暫存 (Alt+L)",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "KkTch",
+                  "name": "Button 全螢幕開發",
+                  "height": 44,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "yUOb0",
+                      "name": "icon maximize-2",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "maximize-2",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "brWv8",
+                      "name": "全螢幕開發",
+                      "fill": "$ink",
+                      "content": "全螢幕開發",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "He00q",
+                  "name": "Button 儲存地圖 (Alt+S)",
+                  "height": 44,
+                  "fill": "$action",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "ZMMTF",
+                      "name": "icon save",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "save",
+                      "library": "lucide",
+                      "fill": "$on-fill"
+                    },
+                    {
+                      "type": "text",
+                      "id": "msjab",
+                      "name": "儲存地圖 (Alt+S)",
+                      "fill": "$on-fill",
+                      "content": "儲存地圖 (Alt+S)",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Rubik",
+                      "fontSize": 15,
+                      "fontWeight": "900"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "OUl1Z",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "C5HFPV",
+                  "name": "mapdev-panel 圖庫拼圖區",
+                  "clip": true,
+                  "width": 270,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "L1YXL",
+                      "name": "head",
+                      "width": "fill_container",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "gap": 8,
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "uoPTn",
+                          "name": "l",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "p9lRjw",
+                              "name": "icon layers",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "layers",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            },
+                            {
+                              "type": "text",
+                              "id": "bmooF",
+                              "name": "圖庫拼圖區",
+                              "fill": "$ink",
+                              "content": "圖庫拼圖區",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "p3eDi",
+                          "name": "tb-input",
+                          "width": 110,
+                          "height": 36,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 10,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "CJem3",
+                              "name": "拼圖一",
+                              "fill": "$ink",
+                              "content": "拼圖一",
+                              "lineHeight": 1.75,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 16,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "jcHji",
+                              "name": "spacer",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "icon",
+                              "id": "ogm4e",
+                              "name": "icon chevron-down",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "chevron-down",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "FYaIb",
+                      "name": "圖庫捲動區",
+                      "width": "fill_container",
+                      "fill": "$surface-sunken",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "SWPlg",
+                          "name": "tileset",
+                          "clip": true,
+                          "width": "fill_container",
+                          "height": 360,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "kVddW",
+                              "x": 4,
+                              "y": 4,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "IMr6p",
+                              "x": 4,
+                              "y": 44,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "MoPoH",
+                              "x": 4,
+                              "y": 84,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "t7rReN",
+                              "x": 4,
+                              "y": 124,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "nvtEH",
+                              "x": 4,
+                              "y": 164,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "kimvp",
+                              "x": 4,
+                              "y": 204,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "w06Kf",
+                              "x": 4,
+                              "y": 244,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "RqTV2",
+                              "x": 4,
+                              "y": 284,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ukTzL",
+                              "x": 4,
+                              "y": 324,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "FbRgh",
+                              "x": 44,
+                              "y": 4,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "u73a2f",
+                              "x": 44,
+                              "y": 44,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "PMFBy",
+                              "x": 44,
+                              "y": 84,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "JbU7b",
+                              "x": 44,
+                              "y": 124,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "LW5c8",
+                              "x": 44,
+                              "y": 164,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Kugw5",
+                              "x": 44,
+                              "y": 204,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "lOhDY",
+                              "x": 44,
+                              "y": 244,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "I2yV3",
+                              "x": 44,
+                              "y": 284,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "i2VY1",
+                              "x": 44,
+                              "y": 324,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "FupDD",
+                              "x": 84,
+                              "y": 4,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "YRyUx",
+                              "x": 84,
+                              "y": 44,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "X3Id4o",
+                              "x": 84,
+                              "y": 84,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yy3am",
+                              "x": 84,
+                              "y": 124,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "y7S5P",
+                              "x": 84,
+                              "y": 164,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "dSeb3",
+                              "x": 84,
+                              "y": 204,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "mtOkr",
+                              "x": 84,
+                              "y": 244,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "z0HBBy",
+                              "x": 84,
+                              "y": 284,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yZ0ou",
+                              "x": 84,
+                              "y": 324,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "SIdFi",
+                              "x": 124,
+                              "y": 4,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "B9ft9",
+                              "x": 124,
+                              "y": 44,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "x7vhKn",
+                              "x": 124,
+                              "y": 84,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "TkNYp",
+                              "x": 124,
+                              "y": 124,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "EN3my",
+                              "x": 124,
+                              "y": 164,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Vjo0n",
+                              "x": 124,
+                              "y": 204,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ANvGk",
+                              "x": 124,
+                              "y": 244,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "D36wx",
+                              "x": 124,
+                              "y": 284,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "gmny5",
+                              "x": 124,
+                              "y": 324,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "aNzY5",
+                              "x": 164,
+                              "y": 4,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "e8wGbN",
+                              "x": 164,
+                              "y": 44,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "dvMtS",
+                              "x": 164,
+                              "y": 84,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "VEwuU",
+                              "x": 164,
+                              "y": 124,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "H95Hx",
+                              "x": 164,
+                              "y": 164,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ANj0i",
+                              "x": 164,
+                              "y": 204,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "z3BwV",
+                              "x": 164,
+                              "y": 244,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "CWXd9",
+                              "x": 164,
+                              "y": 284,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "mj7Yn",
+                              "x": 164,
+                              "y": 324,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "VuVci",
+                              "x": 204,
+                              "y": 4,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "CsPzq",
+                              "x": 204,
+                              "y": 44,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "OsPf0",
+                              "x": 204,
+                              "y": 84,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "RzJrO",
+                              "x": 204,
+                              "y": 124,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#c8a26b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "zPIQ8",
+                              "x": 204,
+                              "y": 164,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#8d6e63",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "rKYYc",
+                              "x": 204,
+                              "y": 204,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#90a4ae",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "bsNyZ",
+                              "x": 204,
+                              "y": 244,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#e0c48a",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "g7PNu",
+                              "x": 204,
+                              "y": 284,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#7cb36b",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "WXUGq",
+                              "x": 204,
+                              "y": 324,
+                              "name": "t",
+                              "width": 36,
+                              "height": 36,
+                              "fill": "#9ccc65",
+                              "cornerRadius": 3
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ESEjL",
+                              "x": 84,
+                              "y": 124,
+                              "name": "選取框",
+                              "width": 76,
+                              "height": 36,
+                              "stroke": "$action",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "w1fPt",
+                          "name": "alert info",
+                          "width": "fill_container",
+                          "fill": "$sky",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "gap": 12,
+                          "padding": [
+                            8,
+                            12
+                          ],
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "A1ung",
+                              "name": "icon info",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "info",
+                              "library": "lucide",
+                              "fill": "$on-fill"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Y5Ta8",
+                              "name": "選取提示：拖曳框選多格素材，放到畫布上。",
+                              "fill": "$on-fill",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "選取提示：拖曳框選多格素材，放到畫布上。",
+                              "lineHeight": 1.7142857142857142,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cdgb7",
+                  "name": "畫布欄",
+                  "width": 564,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "lNJwe",
+                      "name": "畫布工具列",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "vXVnW",
+                          "name": "IconButton minus",
+                          "width": 36,
+                          "height": 36,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "d6nl1",
+                              "name": "icon minus",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "minus",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "k4qjp",
+                          "name": "100%",
+                          "fill": "$ink",
+                          "content": "100%",
+                          "lineHeight": 1.0909090909090908,
+                          "fontFamily": "VT323",
+                          "fontSize": 22
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Dxju0",
+                          "name": "IconButton plus",
+                          "width": 36,
+                          "height": 36,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "jNjR2",
+                              "name": "icon plus",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "plus",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "h62ut",
+                          "name": "背景層",
+                          "gap": 6,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Dj0Pt",
+                              "name": "背景層",
+                              "fill": "$ink-muted",
+                              "content": "背景層",
+                              "lineHeight": 1.3846153846153846,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "REsXO",
+                              "name": "mapdev-range",
+                              "width": 56,
+                              "height": 12,
+                              "fill": "$surface-sunken",
+                              "cornerRadius": 999,
+                              "stroke": "$line",
+                              "strokeWidth": 2,
+                              "strokeAlignment": "inner",
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "JrDnK",
+                                  "x": 30,
+                                  "y": -4,
+                                  "name": "thumb",
+                                  "width": 14,
+                                  "height": 14,
+                                  "fill": "$ink",
+                                  "cornerRadius": 999
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "tT2YS",
+                          "name": "前景層",
+                          "gap": 6,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "jM0nd",
+                              "name": "前景層",
+                              "fill": "$ink-muted",
+                              "content": "前景層",
+                              "lineHeight": 1.3846153846153846,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "FcItJ",
+                              "name": "mapdev-range",
+                              "width": 56,
+                              "height": 12,
+                              "fill": "$surface-sunken",
+                              "cornerRadius": 999,
+                              "stroke": "$line",
+                              "strokeWidth": 2,
+                              "strokeAlignment": "inner",
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "Gac5g",
+                                  "x": 30,
+                                  "y": -4,
+                                  "name": "thumb",
+                                  "width": 14,
+                                  "height": 14,
+                                  "fill": "$ink",
+                                  "cornerRadius": 999
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "UyAvq",
+                          "name": "碰撞層",
+                          "gap": 6,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "N32Sg4",
+                              "name": "碰撞層",
+                              "fill": "$ink-muted",
+                              "content": "碰撞層",
+                              "lineHeight": 1.3846153846153846,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "e5jSa",
+                              "name": "mapdev-range",
+                              "width": 56,
+                              "height": 12,
+                              "fill": "$surface-sunken",
+                              "cornerRadius": 999,
+                              "stroke": "$line",
+                              "strokeWidth": 2,
+                              "strokeAlignment": "inner",
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "O8IVS3",
+                                  "x": 30,
+                                  "y": -4,
+                                  "name": "thumb",
+                                  "width": 14,
+                                  "height": 14,
+                                  "fill": "$ink",
+                                  "cornerRadius": 999
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "lpDbg",
+                          "name": "Tag 繪製模式",
+                          "fill": "$mint",
+                          "cornerRadius": 8,
+                          "stroke": "$line",
+                          "strokeWidth": 2,
+                          "strokeAlignment": "inner",
+                          "gap": 6,
+                          "padding": [
+                            4,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "wzB7O",
+                              "name": "繪製模式",
+                              "fill": "$on-fill",
+                              "content": "繪製模式",
+                              "lineHeight": 1.3846153846153846,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "uSiml",
+                      "name": "ScreenFrame tb-screen",
+                      "width": "fill_container",
+                      "fill": "$inverse",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 4,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 8,
+                          "y": 8
+                        }
+                      },
+                      "layout": "vertical",
+                      "gap": 8,
+                      "padding": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "GYXBD",
+                          "name": "tb-screen__bar",
+                          "width": "fill_container",
+                          "padding": [
+                            0,
+                            4
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "rPFNC",
+                              "name": "MAP EDITOR",
+                              "fill": "$pop",
+                              "content": "MAP EDITOR",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            },
+                            {
+                              "type": "text",
+                              "id": "G2g2B",
+                              "name": "20×15",
+                              "fill": "$on-inverse-muted",
+                              "content": "20×15",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ypxi4",
+                          "name": "tb-screen__view",
+                          "clip": true,
+                          "width": "fill_container",
+                          "height": 520,
+                          "fill": {
+                            "type": "image",
+                            "enabled": true,
+                            "url": "../../../../public/works/godot.webp",
+                            "mode": "fill"
+                          },
+                          "cornerRadius": 8,
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "P7CCaN",
+                              "x": 0,
+                              "y": 0,
+                              "name": "grid",
+                              "width": 540,
+                              "height": 520,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "q6WnL",
+                                  "x": 40,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "IKKu4",
+                                  "x": 80,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "PQ76t",
+                                  "x": 120,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "rot3X",
+                                  "x": 160,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "klsHA",
+                                  "x": 200,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "ph6HO",
+                                  "x": 240,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "d0Anh",
+                                  "x": 280,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "hbcPc",
+                                  "x": 320,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "sF6f8",
+                                  "x": 360,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "RpGq5",
+                                  "x": 400,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "asZg0",
+                                  "x": 440,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "sUq0d",
+                                  "x": 480,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "BEPVS",
+                                  "x": 520,
+                                  "y": 0,
+                                  "name": "v",
+                                  "width": 1,
+                                  "height": 520,
+                                  "fill": "#ffffff55"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "G5viIV",
+                          "name": "狀態列",
+                          "width": "fill_container",
+                          "padding": [
+                            0,
+                            4
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "zQaAA",
+                              "name": "a",
+                              "gap": 6,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "l80DvW",
+                                  "name": "放置名稱:",
+                                  "fill": "$on-inverse-muted",
+                                  "content": "放置名稱:",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "E62fG",
+                                  "name": "tree_01",
+                                  "fill": "$pop",
+                                  "content": "tree_01",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 22
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "N8ggl",
+                              "name": "b",
+                              "gap": 6,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "BfzVz",
+                                  "name": "選定元素種類:",
+                                  "fill": "$on-inverse-muted",
+                                  "content": "選定元素種類:",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "Hh8k2",
+                                  "name": "地圖貼圖",
+                                  "fill": "$pop",
+                                  "content": "地圖貼圖",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "wOIe6",
+                                  "name": "縮放:",
+                                  "fill": "$on-inverse-muted",
+                                  "content": "縮放:",
+                                  "lineHeight": 1.3846153846153846,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 13,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "CVKhU",
+                                  "name": "100%",
+                                  "fill": "$pop",
+                                  "content": "100%",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 22
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MNAdZ",
+                  "name": "mapdev-panel 屬性視察器",
+                  "clip": true,
+                  "width": 270,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "K9EpYf",
+                      "name": "head",
+                      "width": "fill_container",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "gap": 8,
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "F7w4fO",
+                          "name": "l",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "E1PNwN",
+                              "name": "icon settings",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "settings",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            },
+                            {
+                              "type": "text",
+                              "id": "yZyNN",
+                              "name": "屬性視察器",
+                              "fill": "$ink",
+                              "content": "屬性視察器",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ONPlm",
+                      "name": "body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "cSRHR",
+                          "name": "SegmentedControl 直排",
+                          "clip": true,
+                          "width": "fill_container",
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "tCxxF",
+                              "name": "opt",
+                              "width": "fill_container",
+                              "height": 44,
+                              "fill": "$inverse",
+                              "padding": [
+                                0,
+                                16
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "WRkw2",
+                                  "name": "地圖貼圖 (12)",
+                                  "fill": "$pop",
+                                  "content": "地圖貼圖 (12)",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 15,
+                                  "fontWeight": "900"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "lSGVI",
+                              "name": "opt",
+                              "width": "fill_container",
+                              "height": 44,
+                              "fill": "$surface-raised",
+                              "stroke": "$line",
+                              "strokeWidth": {
+                                "top": 3
+                              },
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                0,
+                                16
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "edwbp",
+                                  "name": "碰撞區域 (4)",
+                                  "fill": "$ink",
+                                  "content": "碰撞區域 (4)",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 15,
+                                  "fontWeight": "900"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "fwy5F",
+                              "name": "opt",
+                              "width": "fill_container",
+                              "height": 44,
+                              "fill": "$surface-raised",
+                              "stroke": "$line",
+                              "strokeWidth": {
+                                "top": 3
+                              },
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                0,
+                                16
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "C1sqsD",
+                                  "name": "NPC (2)",
+                                  "fill": "$ink",
+                                  "content": "NPC (2)",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Rubik",
+                                  "fontSize": 15,
+                                  "fontWeight": "900"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "N7YHmH",
+                          "name": "h4",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "x7r5g",
+                              "name": "icon settings",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "settings",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            },
+                            {
+                              "type": "text",
+                              "id": "BUHJp",
+                              "name": "地圖全域設定",
+                              "fill": "$ink",
+                              "content": "地圖全域設定",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "aqDuT",
+                          "name": "r",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "Jvgri",
+                              "name": "field 地圖索引 (Index)",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "u97AnQ",
+                                  "name": "地圖索引 (Index)",
+                                  "fill": "$ink",
+                                  "content": "地圖索引 (Index)",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "VH2IO",
+                                  "name": "tb-input",
+                                  "width": "fill_container",
+                                  "height": 44,
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "gap": 10,
+                                  "padding": [
+                                    0,
+                                    16
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "tM935",
+                                      "name": "1",
+                                      "fill": "$ink",
+                                      "content": "1",
+                                      "lineHeight": 1.75,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 16,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "keIcH",
+                              "name": "field 地圖名稱 (Name)",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "B2f7ni",
+                                  "name": "地圖名稱 (Name)",
+                                  "fill": "$ink",
+                                  "content": "地圖名稱 (Name)",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "psT6p",
+                                  "name": "tb-input",
+                                  "width": "fill_container",
+                                  "height": 44,
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "gap": 10,
+                                  "padding": [
+                                    0,
+                                    16
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "M20Uh",
+                                      "name": "town",
+                                      "fill": "$ink",
+                                      "content": "town",
+                                      "lineHeight": 1.75,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 16,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "C6MPv",
+                          "name": "r",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "i2aFi9",
+                              "name": "field 地圖寬度 (Width)",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "W8vVg",
+                                  "name": "地圖寬度 (Width)",
+                                  "fill": "$ink",
+                                  "content": "地圖寬度 (Width)",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "YP0wr",
+                                  "name": "tb-input",
+                                  "width": "fill_container",
+                                  "height": 44,
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "gap": 10,
+                                  "padding": [
+                                    0,
+                                    16
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "V8jxS",
+                                      "name": "20",
+                                      "fill": "$ink",
+                                      "content": "20",
+                                      "lineHeight": 1.75,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 16,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "w12Auy",
+                              "name": "field 地圖高度 (Height)",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "eiFOM",
+                                  "name": "地圖高度 (Height)",
+                                  "fill": "$ink",
+                                  "content": "地圖高度 (Height)",
+                                  "lineHeight": 1.3333333333333333,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "uOegi",
+                                  "name": "tb-input",
+                                  "width": "fill_container",
+                                  "height": 44,
+                                  "fill": "$surface-raised",
+                                  "cornerRadius": 14,
+                                  "stroke": "$line",
+                                  "strokeWidth": 3,
+                                  "strokeAlignment": "inner",
+                                  "gap": 10,
+                                  "padding": [
+                                    0,
+                                    16
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Hjls9",
+                                      "name": "15",
+                                      "fill": "$ink",
+                                      "content": "15",
+                                      "lineHeight": 1.75,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 16,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "CIkUd",
+                          "name": "field 前後層屬性",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "cIV5o",
+                              "name": "前後層屬性",
+                              "fill": "$ink",
+                              "content": "前後層屬性",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "B0iaKy",
+                              "name": "tb-input",
+                              "width": "fill_container",
+                              "height": 44,
+                              "fill": "$surface-raised",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "gap": 10,
+                              "padding": [
+                                0,
+                                16
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "v6y55h",
+                                  "name": "背景層",
+                                  "fill": "$ink",
+                                  "content": "背景層",
+                                  "lineHeight": 1.75,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 16,
+                                  "fontWeight": "500"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "yWSdf",
+                                  "name": "spacer",
+                                  "width": "fill_container",
+                                  "height": 1
+                                },
+                                {
+                                  "type": "icon",
+                                  "id": "j8IaNq",
+                                  "name": "icon chevron-down",
+                                  "width": 16,
+                                  "height": 16,
+                                  "icon": "chevron-down",
+                                  "library": "lucide",
+                                  "fill": "$ink"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "q6sk1e",
+                          "name": "h4",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "a2YNSL",
+                              "name": "icon camera",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "camera",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            },
+                            {
+                              "type": "text",
+                              "id": "A2WkQ3",
+                              "name": "匯出場景快照",
+                              "fill": "$ink",
+                              "content": "匯出場景快照",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 15,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "o813qz",
+                          "name": "Button 導出背景層 (.png)",
+                          "width": "fill_container",
+                          "height": 44,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "n5zmbG",
+                              "name": "導出背景層 (.png)",
+                              "fill": "$ink",
+                              "content": "導出背景層 (.png)",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Rubik",
+                              "fontSize": 15,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "tppcs",
+                          "name": "Button 導出前景層 (.png)",
+                          "width": "fill_container",
+                          "height": 44,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "X8Gypp",
+                              "name": "導出前景層 (.png)",
+                              "fill": "$ink",
+                              "content": "導出前景層 (.png)",
+                              "lineHeight": 1.3333333333333333,
+                              "fontFamily": "Rubik",
+                              "fontSize": 15,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "RqbMf",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MfdxR",
+                  "name": "JSON 面板（導入 / 導出 JSON 展開時",
+                  "fill": "#ffffff",
+                  "content": "JSON 面板（導入 / 導出 JSON 展開時，位於工具列下方）",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "BXL1y",
+              "name": "JSON 面板",
+              "width": "fill_container",
+              "fill": "$surface-raised",
+              "cornerRadius": 18,
+              "stroke": "$line",
+              "strokeWidth": 3,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$ink",
+                "offset": {
+                  "x": 5,
+                  "y": 5
+                }
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "DcKzY",
+                  "name": "h",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "rojLT",
+                      "name": "icon file-json",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "file-json",
+                      "library": "lucide",
+                      "fill": "$ink"
+                    },
+                    {
+                      "type": "text",
+                      "id": "WE4BM",
+                      "name": "地圖 JSON 代碼工具",
+                      "fill": "$ink",
+                      "content": "地圖 JSON 代碼工具",
+                      "lineHeight": 1.3636363636363635,
+                      "fontFamily": "Rubik",
+                      "fontSize": 22,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ha8hg",
+                  "name": "tb-textarea",
+                  "width": "fill_container",
+                  "height": 140,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    12,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Eb7Wd",
+                      "name": "{ \"map\": { \"index\": 1, \"",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "{ \"map\": { \"index\": 1, \"name\": \"town\", \"width\": 20, \"height\": 15 }, \"objects\": [ … ] }",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "bvAWR",
+          "name": "Footer",
+          "width": "fill_container",
+          "stroke": "$line",
+          "strokeWidth": {
+            "top": 3
+          },
+          "strokeAlignment": "inner",
+          "padding": 24,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "oTEGc",
+              "name": "© 2026 DKBO · GAME OVER?",
+              "fill": "$ink-muted",
+              "content": "© 2026 DKBO · GAME OVER? PRESS START",
+              "lineHeight": 1.0909090909090908,
+              "fontFamily": "VT323",
+              "fontSize": 22
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "surface": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#fffbf2",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#241f18",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-sunken": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#332c23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#4a4339",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "line": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "focus": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pop": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ff6b3d",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ff7a4f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-fill": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "sky": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "mint": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "success": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#2bb673",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#3fd18a",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#0b0907",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "fileToken": "e56a6ace-0703-48e9-b625-c6f08adb1dcb"
+}

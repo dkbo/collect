@@ -1,0 +1,11 @@
+const p = Page("page-home-390", { w: 390 });
+Header(p, "home", { mobile: true });
+const c = Cont(p, { gap: 0, w: 390, pad: [0, 16, 0, 16] });
+Hero(c, true);
+Marquee(p, 390);
+const c2 = Cont(p, { gap: 0, w: 390, pad: [0, 16, 48, 16] });
+Works(c2, true, 3);
+About(c2, true);
+Journey(c2, true, false);
+Cta(c2, true);
+Footer(p);

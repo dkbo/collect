@@ -1,0 +1,16 @@
+const p = Page("page-rpgroom");
+Header(p, "games");
+const g = GameCol(p);
+SecHead(g, "RPG ROOM", "RPG 遊戲室", { lead: "以經典 2D RPG 角色扮演大師風格實作的個人虛擬展間。探索地圖並與地标/NPC進行對話互動。", leadW: 820 });
+Toolbar(g, [["遊戲說明", "circle-help"]]);
+const sc = Screen(g, "RPG ROOM", "TOWN", 550, { img: "works/rpgroom.webp" });
+FsBtns(sc.view, 784, ["maximize-2", "circle-help"]);
+const info = F(sc.view, { name: "座標籤", x: 16, y: 16, layout: "vertical", gap: 4, padding: [8, 12], fill: "$inverse", stroke: "$on-inverse", strokeWidth: 3, strokeAlignment: "inner", cornerRadius: 14 });
+const ir = F(info, { name: "r", gap: 6, alignItems: "center" }); I(ir, "info", 16, "$pop"); T(ir, "X 12 · Y 08", "pm", "$on-inverse"); T(info, "MAP 01", "pm", "$on-inverse-muted");
+ChatBox(sc.view, 86, 380, 700, "古文琦", "作者本名叫盧宏寶，在家排名老二，畢業於高雄市正修科技大學電機工程系，在網路世界中暱稱為 DKBO。");
+const joy = F(sc.view, { name: "rpg-joy", x: 24, y: 300, width: 112, height: 112, cornerRadius: 999, fill: "#17140f66", stroke: "$on-inverse", strokeWidth: 3, strokeAlignment: "inner", layout: "none" });
+F(joy, { name: "rpg-knob", x: 32, y: 32, width: 48, height: 48, cornerRadius: 999, fill: "$pop", stroke: "$on-fill", strokeWidth: 3, strokeAlignment: "inner" });
+const act = F(sc.view, { name: "rpg-act", x: 776, y: 310, width: 64, height: 64, cornerRadius: 999, alignItems: "center", justifyContent: "center", fill: "$action", stroke: "$on-fill", strokeWidth: 3, strokeAlignment: "inner", effect: SH(3) }); T(act, "A", "pl", "$on-fill");
+Note(g, "觸控搖桿與動作鈕只在觸控裝置顯示；此稿一併示意");
+Controller(g, "對話/互動：SPACE / ENTER");
+Footer(p);

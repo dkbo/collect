@@ -1,0 +1,18 @@
+<!-- @dsCard group="Actions" height=130 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>IconButton</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  function cell(cap, el) { return h('div', null, h('span', { className: 'tb-cap' }, cap), el); }
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'tb-row' },
+    cell('default', h(T.IconButton, { icon: 'moon', label: '切換深色模式' })),
+    cell('hover', h(T.IconButton, { icon: 'moon', label: '切換深色模式', state: 'hover' })),
+    cell('active', h(T.IconButton, { icon: 'moon', label: '切換深色模式', state: 'active' })),
+    cell('focus', h(T.IconButton, { icon: 'menu', label: '開啟選單', state: 'focus' })),
+    cell('disabled', h(T.IconButton, { icon: 'menu', label: '開啟選單', disabled: true }))));
+</script>
+</body>
+</html>

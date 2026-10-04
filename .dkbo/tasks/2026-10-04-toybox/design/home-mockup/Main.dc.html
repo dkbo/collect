@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>DKBO 首頁 玩具機風</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&amp;family=Noto+Sans+TC:wght@500;700;900&amp;family=VT323&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFBF2}
+a{color:#17140F}a:hover{color:#000}
+.pop{transition:transform .12s ease,box-shadow .12s ease}
+.pop:hover{transform:translate(-3px,-3px);box-shadow:9px 9px 0 #17140F !important}
+.pop:active{transform:translate(4px,4px);box-shadow:0 0 0 #17140F !important}
+.press{transition:transform .08s ease,box-shadow .08s ease}
+.press:active{transform:translate(4px,4px);box-shadow:0 0 0 #17140F !important}
+</style>
+</helmet>
+<div style="font-family: 'Rubik', 'Noto Sans TC', sans-serif; color: #17140F; background: #FFFBF2; min-height: 100vh; overflow-x: hidden">
+
+  <!-- 導覽列 -->
+  <header style="border-bottom: 3px solid #17140F; background: #FFFBF2">
+    <nav aria-label="主選單" style="max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <a href="#" style="display: flex; align-items: center; gap: 12px; text-decoration: none">
+        <span style="width: 44px; height: 44px; box-sizing: border-box; border: 3px solid #17140F; border-radius: 12px; background: {{pop}}; box-shadow: 3px 3px 0 #17140F; display: flex; align-items: center; justify-content: center; font-family: 'VT323', monospace; font-size: 30px; line-height: 1">D</span>
+        <span style="font-weight: 900; font-size: 22px; letter-spacing: 0.02em">DKBO</span>
+      </a>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 15px">
+        <a href="#" style="text-decoration: none; padding: 10px 16px; border: 3px solid #17140F; border-radius: 999px; background: {{pop}}">首頁</a>
+        <a href="#" style="text-decoration: none; padding: 10px 16px; border: 3px solid transparent; border-radius: 999px">E-履歷</a>
+        <a href="#works" style="text-decoration: none; padding: 10px 16px; border: 3px solid transparent; border-radius: 999px">遊戲 ▾</a>
+        <a href="#works" style="text-decoration: none; padding: 10px 16px; border: 3px solid transparent; border-radius: 999px">工具 ▾</a>
+        <button type="button" class="press" aria-label="切換深色模式" style="width: 44px; height: 44px; box-sizing: border-box; border: 3px solid #17140F; border-radius: 12px; background: #FFFFFF; box-shadow: 3px 3px 0 #17140F; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-left: 8px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17140F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section style="max-width: 1200px; margin: 0 auto; padding: 72px 24px 88px; display: flex; flex-wrap: wrap; align-items: center; gap: 56px">
+    <div style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <div style="align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px; border: 3px solid #17140F; border-radius: 999px; background: #FFFFFF; font-size: 14px; font-weight: 700">
+        <span style="width: 12px; height: 12px; border-radius: 50%; background: #2BB673; border: 2px solid #17140F"></span>
+        目前在做：Babylon.js 多人對戰 + AI 協作開發
+      </div>
+      <h1 style="margin: 0; font-family: 'Noto Sans TC', 'Rubik', sans-serif; font-weight: 900; font-size: clamp(44px, 6vw, 76px); line-height: 1.08; letter-spacing: -0.01em">
+        嗨，我是
+        <span style="display: inline-block; font-family: 'Rubik', sans-serif; padding: 0 18px; margin-left: 6px; background: {{pop}}; border: 4px solid #17140F; border-radius: 16px; box-shadow: 6px 6px 0 #17140F; transform: rotate(-3deg)">DKBO</span>
+      </h1>
+      <p style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 900; font-size: clamp(24px, 3vw, 34px); line-height: 1.3">把新技術拿來做<span style="background: linear-gradient(transparent 58%, {{accentSoft}} 58%)">有趣的東西</span></p>
+      <p style="margin: 0; max-width: 520px; font-family: 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 17px; line-height: 1.75; color: #3D372E">13 年前端資歷。這裡放的是我用 React、Babylon.js、Godot 與 WebRTC 做出來的網頁遊戲和工具，全部純前端，打開就能玩。</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 4px">
+        <a href="#works" class="pop" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; box-sizing: border-box; padding: 0 26px; border: 3px solid #17140F; border-radius: 14px; background: {{accent}}; box-shadow: 5px 5px 0 #17140F; font-weight: 900; font-size: 17px; text-decoration: none; color: #17140F">
+          ▶ 開始玩
+        </a>
+        <a href="#" class="pop" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; box-sizing: border-box; padding: 0 26px; border: 3px solid #17140F; border-radius: 14px; background: #FFFFFF; box-shadow: 5px 5px 0 #17140F; font-weight: 700; font-size: 17px; text-decoration: none; color: #17140F">
+          E-履歷 ↗
+        </a>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 12px; margin-top: 12px">
+        <div style="border: 3px solid #17140F; border-radius: 14px; background: #FFFFFF; padding: 12px 14px">
+          <div style="font-family: 'VT323', monospace; font-size: 46px; line-height: 0.9">13<span style="color: {{accentText}}">+</span></div>
+          <div style="font-size: 13px; font-weight: 700; color: #4A4339; font-family: 'Noto Sans TC', sans-serif">年前端經驗</div>
+        </div>
+        <div style="border: 3px solid #17140F; border-radius: 14px; background: #FFFFFF; padding: 12px 14px">
+          <div style="font-family: 'VT323', monospace; font-size: 46px; line-height: 0.9">9</div>
+          <div style="font-size: 13px; font-weight: 700; color: #4A4339; font-family: 'Noto Sans TC', sans-serif">個站內作品</div>
+        </div>
+        <div style="border: 3px solid #17140F; border-radius: 14px; background: #FFFFFF; padding: 12px 14px">
+          <div style="font-family: 'VT323', monospace; font-size: 46px; line-height: 0.9">4</div>
+          <div style="font-size: 13px; font-weight: 700; color: #4A4339; font-family: 'Noto Sans TC', sans-serif">款多人對戰遊戲</div>
+        </div>
+        <div style="border: 3px solid #17140F; border-radius: 14px; background: #FFFFFF; padding: 12px 14px">
+          <div style="font-family: 'VT323', monospace; font-size: 46px; line-height: 0.9">2</div>
+          <div style="font-size: 13px; font-weight: 700; color: #4A4339; font-family: 'Noto Sans TC', sans-serif">套遊戲引擎</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 掌機 -->
+    <div style="flex: 1 1 360px; min-width: 0; display: flex; justify-content: center; position: relative; padding: 24px 0">
+      <span style="position: absolute; top: 0; left: 4%; z-index: 2; padding: 6px 14px; border: 3px solid #17140F; border-radius: 10px; background: #8FD6FF; font-weight: 700; font-size: 14px; transform: rotate(-8deg); box-shadow: 3px 3px 0 #17140F">WebRTC</span>
+      <span style="position: absolute; top: 46%; right: 0; z-index: 2; padding: 6px 14px; border: 3px solid #17140F; border-radius: 10px; background: #9BE3B0; font-weight: 700; font-size: 14px; transform: rotate(7deg); box-shadow: 3px 3px 0 #17140F">Godot 4</span>
+      <span style="position: absolute; bottom: 6%; left: 0; z-index: 2; padding: 6px 14px; border: 3px solid #17140F; border-radius: 10px; background: #FFB3D1; font-weight: 700; font-size: 14px; transform: rotate(-4deg); box-shadow: 3px 3px 0 #17140F">Babylon.js</span>
+      <div style="width: 100%; max-width: 380px; box-sizing: border-box; padding: 26px 26px 30px; border: 4px solid #17140F; border-radius: 28px 28px 64px 28px; background: {{pop}}; box-shadow: 10px 10px 0 #17140F; transform: rotate(3deg); display: flex; flex-direction: column; gap: 22px">
+        <div style="border: 4px solid #17140F; border-radius: 14px; background: #2B2620; padding: 14px 14px 10px; display: flex; flex-direction: column; gap: 8px">
+          <img src="/_blob/b2afcefc0b1dcc202f58e593caeef93c" alt="多人對戰遊戲畫面" style="width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 4px; display: block; image-rendering: auto">
+          <div style="display: flex; justify-content: space-between; font-family: 'VT323', monospace; font-size: 20px; color: {{pop}}">
+            <span>NOW PLAYING</span><span>多人對戰 ▸</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 8px">
+          <div aria-hidden="true" style="position: relative; width: 88px; height: 88px">
+            <div style="position: absolute; left: 30px; top: 0; width: 28px; height: 88px; background: #17140F; border-radius: 5px"></div>
+            <div style="position: absolute; top: 30px; left: 0; width: 88px; height: 28px; background: #17140F; border-radius: 5px"></div>
+          </div>
+          <div style="display: flex; gap: 14px; transform: rotate(-20deg)">
+            <button type="button" class="press" aria-label="B 鍵" style="width: 52px; height: 52px; border: 3px solid #17140F; border-radius: 50%; background: {{accent}}; box-shadow: 3px 3px 0 #17140F; font-family: 'VT323', monospace; font-size: 26px; cursor: pointer; margin-top: 22px">B</button>
+            <button type="button" class="press" aria-label="A 鍵" style="width: 52px; height: 52px; border: 3px solid #17140F; border-radius: 50%; background: {{accent}}; box-shadow: 3px 3px 0 #17140F; font-family: 'VT323', monospace; font-size: 26px; cursor: pointer">A</button>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 18px">
+          <span style="width: 54px; height: 12px; border-radius: 999px; background: #17140F; opacity: 0.8"></span>
+          <span style="width: 54px; height: 12px; border-radius: 999px; background: #17140F; opacity: 0.8"></span>
+        </div>
+        <div style="font-family: 'VT323', monospace; font-size: 22px; letter-spacing: 0.12em; text-align: right">DKBO·BOY</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 跑馬燈 -->
+  <div style="background: #17140F; border-top: 3px solid #17140F; border-bottom: 3px solid #17140F; transform: rotate(-1deg); margin: 0 -20px; overflow: hidden">
+    <div style="white-space: nowrap; padding: 14px 0; font-family: 'VT323', monospace; font-size: 30px; color: {{pop}}; letter-spacing: 0.06em">★ INSERT COIN ★ REACT 19 ★ BABYLON.JS ★ GODOT 4 ★ WEBRTC ★ FIREBASE ★ ZUSTAND ★ TAILWIND ★ INSERT COIN ★ REACT 19 ★ BABYLON.JS ★ GODOT 4 ★ WEBRTC ★</div>
+  </div>
+
+  <!-- 作品 -->
+  <section id="works" style="max-width: 1200px; margin: 0 auto; padding: 96px 24px 80px; display: flex; flex-direction: column; gap: 32px">
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font-family: 'VT323', monospace; font-size: 24px; color: #4A4339">— SELECT GAME —</span>
+        <h2 style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 900; font-size: 48px; line-height: 1.1">作品卡帶</h2>
+      </div>
+      <div role="group" aria-label="篩選作品" style="display: flex; gap: 0; border: 3px solid #17140F; border-radius: 14px; overflow: hidden; background: #FFFFFF; box-shadow: 4px 4px 0 #17140F">
+        <sc-for list="{{tabs}}" as="tab" hint-placeholder-count="3">
+          <button type="button" onClick="{{tab.pick}}" aria-pressed="{{tab.pressed}}" style="{{tab.style}}">{{tab.label}}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- 主打卡帶 -->
+    <sc-if value="{{showFeatured}}" hint-placeholder-val="{{ true }}">
+      <a href="#" class="pop" style="display: flex; flex-wrap: wrap; text-decoration: none; color: #17140F; border: 4px solid #17140F; border-radius: 22px; background: #FFFFFF; box-shadow: 7px 7px 0 #17140F; overflow: hidden">
+        <div style="flex: 1 1 520px; min-width: 0; position: relative; background: #17140F">
+          <img src="/_blob/b2afcefc0b1dcc202f58e593caeef93c" alt="多人對戰截圖" style="width: 100%; height: 100%; min-height: 300px; object-fit: cover; display: block">
+          <span style="position: absolute; top: 16px; left: 16px; padding: 4px 12px; border: 3px solid #17140F; border-radius: 8px; background: {{accent}}; font-family: 'VT323', monospace; font-size: 22px">★ FEATURED</span>
+        </div>
+        <div style="flex: 1 1 340px; min-width: 0; padding: 32px; display: flex; flex-direction: column; gap: 16px; border-left: 4px solid #17140F; background: {{pop}}">
+          <span style="font-family: 'VT323', monospace; font-size: 22px">No.01 · 2–4P · ONLINE</span>
+          <h3 style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 900; font-size: 36px">多人對戰</h3>
+          <p style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 16px; line-height: 1.7">開房間邀朋友，WebRTC 點對點同步。坦克對戰、極速賽車、炸彈超人、廚房快手四款遊戲，Host 權威架構。</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <span style="padding: 4px 10px; border: 2px solid #17140F; border-radius: 8px; background: #FFFFFF; font-size: 13px; font-weight: 700">Babylon.js</span>
+            <span style="padding: 4px 10px; border: 2px solid #17140F; border-radius: 8px; background: #FFFFFF; font-size: 13px; font-weight: 700">WebRTC</span>
+            <span style="padding: 4px 10px; border: 2px solid #17140F; border-radius: 8px; background: #FFFFFF; font-size: 13px; font-weight: 700">Firebase</span>
+            <span style="padding: 4px 10px; border: 2px solid #17140F; border-radius: 8px; background: #FFFFFF; font-size: 13px; font-weight: 700">Zustand</span>
+          </div>
+          <span style="margin-top: auto; align-self: flex-start; padding: 12px 20px; border: 3px solid #17140F; border-radius: 12px; background: #17140F; color: {{pop}}; font-weight: 900; font-size: 16px">▶ 開房間</span>
+        </div>
+      </a>
+    </sc-if>
+
+    <!-- 其餘卡帶 -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px">
+      <sc-for list="{{works}}" as="w" hint-placeholder-count="8">
+        <a href="#" class="pop" style="display: flex; flex-direction: column; text-decoration: none; color: #17140F; border: 3px solid #17140F; border-radius: 18px; background: #FFFFFF; box-shadow: 5px 5px 0 #17140F; overflow: hidden">
+          <div style="{{w.stripStyle}}">
+            <span>No.{{w.no}}</span><span>{{w.kindLabel}}</span>
+          </div>
+          <sc-if value="{{w.hasShot}}" hint-placeholder-val="{{ true }}">
+            <img src="{{w.shot}}" alt="{{w.title}} 截圖" style="width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; border-bottom: 3px solid #17140F">
+          </sc-if>
+          <div style="padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <sc-if value="{{w.isTool}}" hint-placeholder-val="{{ false }}">
+                <span style="width: 44px; height: 44px; flex-shrink: 0; box-sizing: border-box; border: 3px solid #17140F; border-radius: 12px; background: #8FD6FF; display: flex; align-items: center; justify-content: center">
+                  <sc-if value="{{w.iconSearch}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17140F" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg></sc-if>
+                  <sc-if value="{{w.iconList}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17140F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l2 2 3-3M3 13l2 2 3-3M11 6h10M11 13h10M11 20h10"></path></svg></sc-if>
+                  <sc-if value="{{w.iconPin}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17140F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"></path><circle cx="12" cy="10" r="2.5"></circle></svg></sc-if>
+                  <sc-if value="{{w.iconGrid}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17140F" stroke-width="2.5" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg></sc-if>
+                </span>
+              </sc-if>
+              <h3 style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 900; font-size: 22px">{{w.title}}</h3>
+            </div>
+            <p style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 14.5px; line-height: 1.7; color: #3D372E">{{w.desc}}</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px">
+              <sc-for list="{{w.tags}}" as="t" hint-placeholder-count="2">
+                <span style="{{t.style}}">{{t.label}}</span>
+              </sc-for>
+            </div>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- 結尾 CTA -->
+  <section style="max-width: 1200px; margin: 0 auto; padding: 0 24px 72px">
+    <div style="border: 4px solid #17140F; border-radius: 26px; background: #17140F; box-shadow: 8px 8px 0 {{accent}}; padding: 48px 40px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 28px">
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-family: 'VT323', monospace; font-size: 26px; color: {{pop}}">CONTINUE? 10 … 9 … 8</span>
+        <h2 style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 900; font-size: 40px; color: #FFFFFF">程式碼全部公開</h2>
+        <p style="margin: 0; font-family: 'Noto Sans TC', sans-serif; font-weight: 500; font-size: 16px; line-height: 1.7; color: #E9E2D6">這個站本身也是作品之一。想看實作細節或聊聊 AI 協作開發，都歡迎。</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 14px">
+        <a href="#" class="press" style="display: inline-flex; align-items: center; min-height: 52px; box-sizing: border-box; padding: 0 26px; border: 3px solid #17140F; border-radius: 14px; background: {{pop}}; box-shadow: 4px 4px 0 #FFFFFF; font-weight: 900; text-decoration: none; color: #17140F">Blog ↗</a>
+        <a href="#" class="press" style="display: inline-flex; align-items: center; min-height: 52px; box-sizing: border-box; padding: 0 26px; border: 3px solid #17140F; border-radius: 14px; background: #FFFFFF; box-shadow: 4px 4px 0 {{pop}}; font-weight: 900; text-decoration: none; color: #17140F">Codepen ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <footer style="border-top: 3px solid #17140F; padding: 24px; text-align: center; font-family: 'VT323', monospace; font-size: 22px; color: #4A4339">© DKBO · GAME OVER? PRESS START</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"pop":{"editor":"color","default":"#FFCE2E","options":["#FFCE2E","#8FD6FF","#9BE3B0","#FFB3D1"],"section":"配色"},"accent":{"editor":"color","default":"#FF6B3D","options":["#FF6B3D","#FF5C8A","#3DDC97","#FFCE2E"],"section":"配色"},"$preview":{"width":1280,"height":2700}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { filter: 'all' };
+  }
+  renderVals() {
+    const pop = this.props.pop ?? '#FFCE2E';
+    const accent = this.props.accent ?? '#FF6B3D';
+    const filter = this.state.filter;
+    const tagColors = ['#FFCE2E', '#8FD6FF', '#9BE3B0', '#FFB3D1'];
+    const all = [
+      { id: 'rpgroom', title: 'RPG 遊戲室', desc: '從 2015 年的第一版一路重寫到現在，Canvas 離屏預渲染的 2D 地圖與 NPC 對話。', tags: ['Canvas', 'React'], kind: 'game', shot: '/_blob/1d17fe70d0938bc3eb52f5480fbe5af4' },
+      { id: 'minigame', title: '小遊戲', desc: 'Babylon.js 3D 單機練手場，多人對戰的原型都從這裡長出來。', tags: ['Babylon.js', 'WebGL'], kind: 'game', shot: '/_blob/f587b488925f9ca9aba95fcecb785d48' },
+      { id: 'godot', title: 'Godot 遊戲', desc: 'Godot 4 匯出 Web，React 透過 bridge 與引擎互傳 NPC 對話與地圖狀態。', tags: ['Godot 4', 'GDScript', 'iframe bridge'], kind: 'game', shot: '/_blob/acecc04d0626d53ca5c8ef8401189c4f' },
+      { id: 'candy', title: '糖果消消樂', desc: '三消玩法、關卡 JSON 驗證與 board 單元測試，Godot 引擎第二作。', tags: ['Godot 4', '關卡 JSON'], kind: 'game', shot: '/_blob/be0ada59d2e23cf3cf953aabf1af03e1' },
+      { id: 'search', title: '外部查詢', desc: 'GitHub 倉庫與維基百科條目搜尋，Axios 封裝與 Store 非同步流程。', tags: ['REST API'], kind: 'tool', icon: 'search' },
+      { id: 'todos', title: 'Todos', desc: '待辦清單，Zustand 狀態與路由參數篩選。', tags: ['Zustand'], kind: 'tool', icon: 'list' },
+      { id: 'directions', title: '地圖導覽', desc: 'Google Maps 路線規劃與自訂資訊視窗。', tags: ['Maps API'], kind: 'tool', icon: 'pin' },
+      { id: 'mapdev', title: '地圖開發', desc: 'RPG 遊戲室的地圖編輯器，畫完直接匯出場景 JSON。', tags: ['Canvas', 'JSON'], kind: 'tool', icon: 'grid' },
+    ];
+    const works = all
+      .map((w, i) => ({ ...w, no: String(i + 2).padStart(2, '0') }))
+      .filter((w) => filter === 'all' || w.kind === filter)
+      .map((w) => ({
+        ...w,
+        hasShot: !!w.shot,
+        isTool: w.kind === 'tool',
+        iconSearch: w.icon === 'search',
+        iconList: w.icon === 'list',
+        iconPin: w.icon === 'pin',
+        iconGrid: w.icon === 'grid',
+        kindLabel: w.kind === 'game' ? 'GAME ▸' : 'TOOL ▸',
+        stripStyle: 'display: flex; justify-content: space-between; padding: 6px 14px; border-bottom: 3px solid #17140F; font-family: VT323, monospace; font-size: 20px; background: ' + (w.kind === 'game' ? pop : '#E9E2D6'),
+        tags: w.tags.map((t, j) => ({ label: t, style: 'padding: 3px 9px; border: 2px solid #17140F; border-radius: 7px; font-size: 12.5px; font-weight: 700; background: ' + tagColors[(j + 1) % tagColors.length] })),
+      }));
+    const tabDefs = [{ id: 'all', label: '全部' }, { id: 'game', label: '遊戲' }, { id: 'tool', label: '工具' }];
+    const tabs = tabDefs.map((t, i) => {
+      const on = t.id === filter;
+      return {
+        label: t.label,
+        pressed: on ? 'true' : 'false',
+        pick: () => this.setState({ filter: t.id }),
+        style: 'min-width: 76px; min-height: 46px; padding: 0 18px; border: none; ' + (i > 0 ? 'border-left: 3px solid #17140F; ' : '') + 'font-family: Noto Sans TC, sans-serif; font-weight: 900; font-size: 15px; cursor: pointer; color: ' + (on ? pop : '#17140F') + '; background: ' + (on ? '#17140F' : '#FFFFFF'),
+      };
+    });
+    return {
+      pop,
+      accent,
+      accentSoft: accent + '88',
+      accentText: '#17140F',
+      tabs,
+      works,
+      showFeatured: filter !== 'tool',
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+const p = Page("page-home-dark", { dark: true });
+Header(p, "home", { dark: true });
+const c = Cont(p, { gap: 0, pad: [0, 24, 0, 24] });
+Hero(c, false);
+Marquee(p, 1440);
+const c2 = Cont(p, { gap: 0, pad: [0, 24, 72, 24] });
+Works(c2, false);
+About(c2, false);
+F(c2, { name: "sp", width: 1, height: 96 });
+Cta(c2, false);
+Footer(p);

@@ -1,0 +1,94 @@
+const p = Page("page-battle");
+Header(p, "games");
+const c = Cont(p, { gap: 40 });
+SecHead(c, "VERSUS MODE", "多人對戰", { lead: "選一款遊戲，單人開玩或揪 1~4 人即時連線對戰。Firebase 管房間，WebRTC 點對點傳輸，Babylon.js 渲染戰場。" });
+
+Note(c, "① GameList — CartridgeCard 外觀的 <button>，auto-fill 260 → 4 欄");
+const g = Row(c);
+[["01", "tank", "坦克對戰", "Babylon.js 2.5D・移動 + 射擊 + HP"], ["02", "race", "極速賽車", "環道 3 圈衝線・WASD / 方向鍵駕駛"], ["03", "bomber", "炸彈超人", "放彈炸箱拼生存・空白鍵放炸彈"], ["04", "overcooked", "廚房快手", "合作做菜拼出餐・E / 空白鍵互動"]]
+  .forEach(([no, id, t, d], i) => Cart(g, { no: no, right: "2-4P ▸", title: t, desc: d, img: i < 3 ? "game-covers/" + id + ".webp" : null, nosignal: i === 3, ih: 152, w: 270, ex: i === 1 ? { effect: SH(8), x: -3, y: -3 } : {} }));
+Note(c, "第 2 張示意 hover（浮起 3＋shadow-hard-l）；第 4 張示意封面破圖 NO SIGNAL");
+
+Note(c, "② GameMenu — 封面 7 欄＋面板 5 欄；< 1024 堆疊");
+Btn(c, "返回遊戲列表", { s: "s", icon: "arrow-left" });
+Alert(c, "info", "Firebase 已連線，房號 6 碼，最多 4 人同場。（notice 範例：資訊提示條 bg-sky）");
+const m = Row(c, { alignItems: "start" });
+const cov = F(m, Object.assign({ name: "battle-cover", layout: "vertical", width: 662, clip: true }, box(4, 26, "$surface-raised", 8)));
+Img(cov, "game-covers/tank.webp", "fill_container", 372, { stroke: "$line", strokeWidth: { bottom: 4 }, strokeAlignment: "inner" });
+const cp = F(cov, { name: "pop panel", layout: "vertical", gap: 12, padding: 32, width: "fill_container", fill: "$pop" });
+T(cp, "No.01 · 1-4P", "pm", "$on-fill"); T(cp, "坦克對戰", "hl", "$on-fill"); TW(cp, "Babylon.js 2.5D・移動 + 射擊 + HP", "b", "$on-fill");
+const rc = Col(m, 466, { gap: 16 });
+const pn = Panel(rc, { name: "battle-panel", gap: 20 });
+Field(pn, "你的暱稱", "輸入暱稱（選填）");
+Btn(pn, "單人遊玩", { v: "primary", icon: "user", w: "fill_container" });
+Divider(pn, "或揪人連線對戰");
+Alert(pn, "warn", "尚未設定 Firebase，無法建立 / 加入房間；單人遊玩不受影響。");
+Btn(pn, "建立房間", { v: "ink", icon: "plus", w: "fill_container", disabled: true });
+const jr = F(pn, { name: "join row", gap: 12, width: "fill_container" });
+Input(jr, "房號", { pixel: true, center: true, disabled: true }); Btn(jr, "加入", { s: "s", icon: "log-in", disabled: true });
+Alert(pn, "error", "找不到房間，請確認房號。（error 範例：錯誤提示條 bg-pink）");
+TW(rc, "建立房間後將房號分享給朋友，最多 4 人同場；或直接單人遊玩。", "bs", "$ink-muted");
+
+Note(c, "③ Room 未開局 — 左 5 欄（房號／玩家／遊戲）＋右 7 欄（開局／離開）");
+const r = Row(c, { alignItems: "start" });
+const rl = Col(r, 466);
+const code = F(rl, Object.assign({ name: "battle-code", layout: "vertical", gap: 8, padding: 24, width: "fill_container" }, box(4, 26, "$pop", 8)));
+T(code, "ROOM CODE", "pm", "$on-fill");
+const cr = F(code, { name: "copy button", gap: 16, alignItems: "center" });
+T(cr, "K7QX2M", "pxl", "$on-fill", { letterSpacing: 6 });
+IBtn(cr, "copy");
+T(code, "點擊複製，分享給朋友加入", "cap", "$on-fill");
+const pl = Panel(rl, { name: "battle-card 玩家", gap: 16, p: 20 });
+const ph = F(pl, { name: "head", gap: 8, alignItems: "center", width: "fill_container" });
+I(ph, "users", 20); T(ph, "玩家", "lab"); T(ph, "3 / 4", "pm", "$ink-muted");
+[["D", "DKBO", "sky", true, true], ["A", "Alice", "mint"], ["B", "Bob", "pink"]].forEach(([ini, n, tone, host, me]) => {
+  const li = F(pl, Object.assign({ name: "battle-player " + n, height: 52, padding: [0, 12], gap: 12, alignItems: "center", width: "fill_container" }, box(3, 14, "$surface")));
+  IBox(li, null, tone, ini); T(li, n, "lab");
+  if (host) { const t = F(li, Object.assign({ name: "Tag 房主", padding: [4, 12], gap: 4, alignItems: "center" }, box(2, 8, "$pop"))); I(t, "crown", 14, "$on-fill"); T(t, "房主", "cap", "$on-fill"); }
+  if (me) Tag(li, "你", "plain");
+});
+const gm = Panel(rl, { name: "battle-card 遊戲", gap: 16, p: 20 });
+const gh = F(gm, { name: "head", gap: 8, alignItems: "center" }); I(gh, "gamepad-2", 20); T(gh, "遊戲", "lab");
+const gr = F(gm, { name: "game row", gap: 12, alignItems: "center", width: "fill_container" });
+IBox(gr, "gamepad-2", "pop"); const gt = F(gr, { name: "t", layout: "vertical", gap: 2, width: "fill_container" }); T(gt, "坦克對戰", "hm"); TW(gt, "Babylon.js 2.5D・移動 + 射擊 + HP", "bs", "$ink-muted");
+const rr = Col(r, 662);
+Btn(rr, "開始對戰", { v: "primary", icon: "swords", w: "fill_container" });
+Note(rr, "非房主：開始鈕換成下方 battle-wait（虛線空插槽）");
+const wt = F(rr, { name: "battle-wait", width: "fill_container", height: 160, alignItems: "center", justifyContent: "center", cornerRadius: 18, stroke: "$line", strokeWidth: 3, strokeAlignment: "inner" });
+Pill(wt, "等待房主開始對戰…", "pop");
+Btn(rr, "離開房間", { icon: "log-out", w: "fill_container" });
+
+Note(c, "④ Room 開局 — 單欄：ScreenFrame → 連線列 → 三卡 → 離開");
+const sc = Screen(c, "NOW PLAYING", "ROOM K7QX2M · 3P", 560, { img: "game-covers/tank.webp" });
+IBtn(sc.view, "maximize-2", { z: 36, ex: { x: 1092, y: 8 } });
+const st = Row(c, { justifyContent: "space_between", alignItems: "center" });
+const stl = F(st, { name: "left", gap: 12, alignItems: "center" }); Pill(stl, "P2P 已連線", "success"); T(stl, "2 / 2", "pm", "$ink-muted"); T(stl, "對端", "cap", "$ink-muted");
+Btn(st, "Ping", { s: "s", icon: "send" });
+const to = F(c, Object.assign({ name: "net-connect-timeout", gap: 12, padding: [8, 8, 8, 16], width: "fill_container", alignItems: "center", justifyContent: "space_between" }, box(3, 14, "$pink")));
+const tol = F(to, { name: "l", gap: 12, alignItems: "center" }); I(tol, "triangle-alert", 20, "$on-fill"); T(tol, "連線逾時，請確認網路後重試", "lab", "$on-fill");
+Btn(to, "重試", { s: "s", icon: "refresh-cw" });
+TW(c, "WASD / 方向鍵操作（先點一下畫面取得焦點），手機用虛擬搖桿與動作鈕。", "bs", "$ink-muted");
+const lg = F(c, { name: "net log", layout: "vertical", gap: 8, width: "fill_container" });
+const sm = F(lg, { name: "summary", gap: 8, alignItems: "center", height: 44 }); T(sm, "網路訊息 (3)", "lab"); I(sm, "chevron-down", 16);
+const lb = F(lg, Object.assign({ name: "log", layout: "vertical", gap: 4, padding: 12, width: "fill_container" }, box(3, 14, "$inverse")));
+["peer Alice open", "peer Bob open", "ping 42ms"].forEach((x) => { const li = F(lb, { name: "li", padding: [0, 0, 0, 8], stroke: "$pop", strokeWidth: { left: 2 }, strokeAlignment: "inner" }); T(li, x, "cap", "$on-inverse-muted"); });
+const ss = Row(c, { alignItems: "start" });
+const c1 = F(ss, Object.assign({ name: "battle-code 縮版", layout: "vertical", gap: 8, padding: 20, width: "fill_container" }, box(4, 26, "$pop", 8))); T(c1, "ROOM CODE", "pm", "$on-fill"); const c1r = F(c1, { name: "r", gap: 12, alignItems: "center" }); T(c1r, "K7QX2M", "pl", "$on-fill", { letterSpacing: 4 }); IBtn(c1r, "copy");
+const c2 = Panel(ss, { name: "玩家", p: 20, gap: 12 }); const c2h = F(c2, { name: "h", gap: 8, alignItems: "center" }); I(c2h, "users", 20); T(c2h, "玩家", "lab"); T(c2h, "3 / 4", "pm", "$ink-muted"); T(c2, "DKBO・Alice・Bob", "bs", "$ink-muted");
+const c3 = Panel(ss, { name: "遊戲", p: 20, gap: 12 }); const c3h = F(c3, { name: "h", gap: 8, alignItems: "center" }); I(c3h, "gamepad-2", 20); T(c3h, "遊戲", "lab"); T(c3, "坦克對戰", "hm");
+Btn(c, "離開房間", { icon: "log-out", w: "fill_container" });
+
+Note(c, "⑤ SoloGame — 頂列＋ScreenFrame；畫面內示意浮層卡（setOverlay）與觸控搖桿／動作鈕");
+const tb = Row(c, { justifyContent: "space_between", alignItems: "center" });
+Btn(tb, "返回", { s: "s", icon: "arrow-left" }); Tag(tb, "炸彈超人・單人", "pop", "l");
+const s2 = Screen(c, "NOW PLAYING", "BOMBER · SOLO", 560, { img: "game-covers/bomber.webp" });
+IBtn(s2.view, "maximize-2", { z: 36, ex: { x: 1092, y: 8 } });
+const ov = F(s2.view, Object.assign({ name: "battle-overlay 卡", layout: "vertical", gap: 12, padding: 24, width: 320, x: 412, y: 150, alignItems: "center" }, box(4, 18, "$surface-raised", 8)));
+T(ov, "你贏了", "hm"); T(ov, "存活到最後一人", "bs", "$ink-muted");
+Btn(ov, "再來一局", { v: "primary", w: "fill_container" }); Btn(ov, "回大廳", { w: "fill_container" });
+const joy = F(s2.view, { name: "搖桿底座", x: 24, y: 400, width: 112, height: 112, cornerRadius: 999, fill: "#17140f66", stroke: "$on-inverse", strokeWidth: 3, strokeAlignment: "inner", layout: "none" });
+F(joy, { name: "搖桿頭", x: 32, y: 32, width: 48, height: 48, cornerRadius: 999, fill: "$pop", stroke: "$on-fill", strokeWidth: 3, strokeAlignment: "inner" });
+const acts = F(s2.view, { name: "動作鈕", x: 960, y: 432, gap: 12 });
+["B", "A"].forEach((k) => { const b = F(acts, Object.assign({ name: "act " + k, width: 64, height: 64, cornerRadius: 999, alignItems: "center", justifyContent: "center", fill: "$action", stroke: "$on-fill", strokeWidth: 3, strokeAlignment: "inner", effect: SH(3) })); T(b, k, "pl", "$on-fill"); });
+TW(c, "先點一下畫面取得焦點，再以 WASD / 方向鍵操作。", "bs", "$ink-muted", "fill_container", { textAlign: "center" });
+Footer(p);

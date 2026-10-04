@@ -1,0 +1,18 @@
+<!-- @dsCard group="Navigation" height=110 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>NavLink</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  function cell(cap, el) { return h('div', null, h('span', { className: 'tb-cap' }, cap), el); }
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { className: 'tb-row' },
+    cell('current', h(T.NavLink, { href: '#', current: true }, '首頁')),
+    cell('default', h(T.NavLink, { href: '#' }, 'E-履歷')),
+    cell('hover', h(T.NavLink, { href: '#', state: 'hover' }, '遊戲')),
+    cell('有下拉', h(T.NavLink, { href: '#', menu: true }, '工具')),
+    cell('focus', h(T.NavLink, { href: '#', state: 'focus' }, 'E-履歷'))));
+</script>
+</body>
+</html>

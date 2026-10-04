@@ -1,0 +1,1508 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "kJXih",
+      "x": 0,
+      "y": 0,
+      "name": "page-directions",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "fill": "$surface",
+      "layout": "vertical",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "gMzNV",
+          "name": "SiteHeader",
+          "width": "fill_container",
+          "fill": "$surface",
+          "stroke": "$line",
+          "strokeWidth": {
+            "bottom": 3
+          },
+          "strokeAlignment": "inner",
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "VydE6",
+              "name": "in",
+              "width": 1200,
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "F7SIB",
+                  "name": "Logo",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "cASpN",
+                      "name": "mark",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "JRvHg",
+                          "name": "D",
+                          "fill": "$on-fill",
+                          "content": "D",
+                          "lineHeight": 1.0666666666666667,
+                          "fontFamily": "VT323",
+                          "fontSize": 30
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "ds5bD",
+                      "name": "DKBO's Collect",
+                      "fill": "$ink",
+                      "content": "DKBO's Collect",
+                      "lineHeight": 1.3636363636363635,
+                      "fontFamily": "Rubik",
+                      "fontSize": 22,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "zwYQM",
+                  "name": "nav",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "JAcWe",
+                      "name": "NavLink 首頁",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "N7zjgN",
+                          "name": "首頁",
+                          "fill": "$ink",
+                          "content": "首頁",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "zxKSR",
+                      "name": "NavLink E-履歷",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "z9U0I2",
+                          "name": "E-履歷",
+                          "fill": "$ink",
+                          "content": "E-履歷",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "CFCRZ",
+                      "name": "NavLink 遊戲",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "v3DYNn",
+                          "name": "遊戲",
+                          "fill": "$ink",
+                          "content": "遊戲",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "Vqy8r",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "l6YRz",
+                      "name": "NavLink 工具",
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 999,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "wLKp7",
+                          "name": "工具",
+                          "fill": "$on-fill",
+                          "content": "工具",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "MKtFE",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$on-fill"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "x42pf",
+                      "name": "sp",
+                      "width": 8,
+                      "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "LhOVZ",
+                      "name": "IconButton moon",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "EfF4U",
+                          "name": "icon moon",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "moon",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "QV1fB",
+          "name": "tb-container",
+          "width": 1200,
+          "layout": "vertical",
+          "gap": 32,
+          "padding": [
+            48,
+            24,
+            72,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "G4a7wD",
+              "name": "SectionHeader",
+              "width": "fill_container",
+              "gap": 20,
+              "justifyContent": "space_between",
+              "alignItems": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "eJMjp",
+                  "name": "text",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "MGL3T",
+                      "name": "— ROUTE PLANNER —",
+                      "fill": "$ink-muted",
+                      "content": "— ROUTE PLANNER —",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "HgKZX",
+                      "name": "地圖導覽",
+                      "fill": "$ink",
+                      "content": "地圖導覽",
+                      "lineHeight": 1.1041666666666667,
+                      "fontFamily": "Rubik",
+                      "fontSize": 48,
+                      "fontWeight": "900"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Bl9OW",
+              "name": "dir-map",
+              "clip": true,
+              "width": "fill_container",
+              "height": 640,
+              "fill": "#e9e4d8",
+              "cornerRadius": 26,
+              "stroke": "$line",
+              "strokeWidth": 4,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$ink",
+                "offset": {
+                  "x": 8,
+                  "y": 8
+                }
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "B5cN9",
+                  "x": -40,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "xRDNx",
+                  "x": 70,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "l17Bq",
+                  "x": 180,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "D8aRU7",
+                  "x": 290,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "uFxJY",
+                  "x": 400,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "LEgov",
+                  "x": 510,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "Z5y6s",
+                  "x": 620,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "O3P4El",
+                  "x": 730,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "k5Xi9",
+                  "x": 840,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "CnxPU",
+                  "x": 950,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "EH0nL",
+                  "x": 1060,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "M8WYW8",
+                  "x": 1170,
+                  "y": 0,
+                  "name": "road",
+                  "rotation": -12.000000000000002,
+                  "width": 10,
+                  "height": 640,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "MD9zC",
+                  "x": 0,
+                  "y": 20,
+                  "name": "road",
+                  "width": 1152,
+                  "height": 12,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "mfAuD",
+                  "x": 0,
+                  "y": 120,
+                  "name": "road",
+                  "width": 1152,
+                  "height": 12,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "CD7p3",
+                  "x": 0,
+                  "y": 220,
+                  "name": "road",
+                  "width": 1152,
+                  "height": 12,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "vGmDe",
+                  "x": 0,
+                  "y": 320,
+                  "name": "road",
+                  "width": 1152,
+                  "height": 12,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "M7PeeF",
+                  "x": 0,
+                  "y": 420,
+                  "name": "road",
+                  "width": 1152,
+                  "height": 12,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "zzfkB",
+                  "x": 0,
+                  "y": 520,
+                  "name": "road",
+                  "width": 1152,
+                  "height": 12,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "q1Bd3",
+                  "x": 0,
+                  "y": 620,
+                  "name": "road",
+                  "width": 1152,
+                  "height": 12,
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "frame",
+                  "id": "x79FG",
+                  "x": 120,
+                  "y": 360,
+                  "name": "park",
+                  "width": 220,
+                  "height": 160,
+                  "fill": "#c9e7c0",
+                  "cornerRadius": 30
+                },
+                {
+                  "type": "frame",
+                  "id": "lPZ9l",
+                  "x": 300,
+                  "y": 250,
+                  "name": "route",
+                  "rotation": -18,
+                  "width": 420,
+                  "height": 8,
+                  "fill": "#3d7bff"
+                },
+                {
+                  "type": "frame",
+                  "id": "R8zVor",
+                  "x": 366,
+                  "y": 24,
+                  "name": "mapControl",
+                  "width": 420,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 18,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 5,
+                      "y": 5
+                    }
+                  },
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "VrKmT",
+                      "name": "tb-input",
+                      "width": "fill_container",
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 10,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "d1ZQH",
+                          "name": "icon compass",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "compass",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        },
+                        {
+                          "type": "text",
+                          "id": "uELbN",
+                          "name": "中壢火車站",
+                          "fill": "$ink",
+                          "content": "中壢火車站",
+                          "lineHeight": 1.75,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 16,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "R9Zt6z",
+                      "name": "tb-input",
+                      "width": "fill_container",
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 10,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "A0zuw",
+                          "name": "icon map-pin",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "map-pin",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        },
+                        {
+                          "type": "text",
+                          "id": "GXYII",
+                          "name": "中原大學",
+                          "fill": "$ink",
+                          "content": "中原大學",
+                          "lineHeight": 1.75,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 16,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "VoMwB",
+                      "name": "alert error",
+                      "width": "fill_container",
+                      "fill": "$pink",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 12,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "U9h4l",
+                          "name": "icon triangle-alert",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "triangle-alert",
+                          "library": "lucide",
+                          "fill": "$on-fill"
+                        },
+                        {
+                          "type": "text",
+                          "id": "nfY77",
+                          "name": "無法定位該地址",
+                          "fill": "$on-fill",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "無法定位該地址",
+                          "lineHeight": 1.7142857142857142,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "L9prM",
+                  "x": 520,
+                  "y": 300,
+                  "name": "marker",
+                  "width": 44,
+                  "height": 44,
+                  "fill": "$sky",
+                  "cornerRadius": 999,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "YDI2Z",
+                      "name": "A",
+                      "fill": "$on-fill",
+                      "content": "A",
+                      "lineHeight": 1.0666666666666667,
+                      "fontFamily": "VT323",
+                      "fontSize": 30
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eLaPP",
+                  "x": 660,
+                  "y": 210,
+                  "name": "marker",
+                  "width": 44,
+                  "height": 44,
+                  "fill": "$mint",
+                  "cornerRadius": 999,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hqeuD",
+                      "name": "B",
+                      "fill": "$on-fill",
+                      "content": "B",
+                      "lineHeight": 1.0666666666666667,
+                      "fontFamily": "VT323",
+                      "fontSize": 30
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IdLjk",
+                  "x": 440,
+                  "y": 190,
+                  "name": "對話泡",
+                  "width": 200,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "$ink",
+                    "offset": {
+                      "x": 3,
+                      "y": 3
+                    }
+                  },
+                  "layout": "vertical",
+                  "gap": 4,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "A4anO",
+                      "name": "Alice",
+                      "fill": "$ink",
+                      "content": "Alice",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "dSJDs",
+                      "name": "哈囉！我正在附近的星巴克喝咖啡！☕",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "哈囉！我正在附近的星巴克喝咖啡！☕",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "b8DP3",
+                      "name": "1 分鐘前",
+                      "fill": "$ink-muted",
+                      "content": "1 分鐘前",
+                      "lineHeight": 1.3846153846153846,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 13,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "D1n4Y",
+                  "x": 798,
+                  "y": 0,
+                  "name": "#panel 導航面板",
+                  "width": 350,
+                  "height": 640,
+                  "fill": "$surface-raised",
+                  "stroke": "$line",
+                  "strokeWidth": {
+                    "left": 4
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ImYag",
+                      "name": "head",
+                      "width": "fill_container",
+                      "stroke": "$line",
+                      "strokeWidth": {
+                        "bottom": 3
+                      },
+                      "strokeAlignment": "inner",
+                      "padding": [
+                        0,
+                        0,
+                        12,
+                        0
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "eKO91",
+                          "name": "t",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "e5KH0",
+                              "name": "icon navigation",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "navigation",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            },
+                            {
+                              "type": "text",
+                              "id": "lhIwc",
+                              "name": "導航指引",
+                              "fill": "$ink",
+                              "content": "導航指引",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "p7MUm",
+                          "name": "IconButton x",
+                          "width": 36,
+                          "height": 36,
+                          "fill": "$surface-raised",
+                          "cornerRadius": 14,
+                          "stroke": "$line",
+                          "strokeWidth": 3,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "$ink",
+                            "offset": {
+                              "x": 3,
+                              "y": 3
+                            }
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "xBf6Z",
+                              "name": "icon x",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "x",
+                              "library": "lucide",
+                              "fill": "$ink"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "aFNJs",
+                      "name": "3.8 公里・約 8 分鐘",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "3.8 公里・約 8 分鐘",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "naRYo",
+                      "name": "1. 往北走中正路",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "1. 往北走中正路",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ShxhP",
+                      "name": "2. 右轉進入中北路",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "2. 右轉進入中北路",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "iTFro",
+                      "name": "3. 目的地在左側",
+                      "fill": "$ink",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "3. 目的地在左側",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "iICzw",
+              "name": "note",
+              "fill": "#3d7bff",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                6,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "hhWBH",
+                  "name": "文字模式（地圖載入逾時）",
+                  "fill": "#ffffff",
+                  "content": "文字模式（地圖載入逾時）",
+                  "lineHeight": 1.3846153846153846,
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "fWiU9",
+              "name": "文字模式",
+              "width": "fill_container",
+              "height": 420,
+              "fill": "$inverse",
+              "cornerRadius": 26,
+              "stroke": "$line",
+              "strokeWidth": 4,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "$ink",
+                "offset": {
+                  "x": 8,
+                  "y": 8
+                }
+              },
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 32,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "Vg3XM",
+                  "name": "icon info",
+                  "width": 40,
+                  "height": 40,
+                  "icon": "info",
+                  "library": "lucide",
+                  "fill": "$pop"
+                },
+                {
+                  "type": "text",
+                  "id": "F7gmU",
+                  "name": "地圖服務載入逾時",
+                  "fill": "$on-inverse",
+                  "content": "地圖服務載入逾時",
+                  "lineHeight": 1.3636363636363635,
+                  "fontFamily": "Rubik",
+                  "fontSize": 22,
+                  "fontWeight": "900"
+                },
+                {
+                  "type": "text",
+                  "id": "i0M1gS",
+                  "name": "由於無法正常載入 Google Maps API",
+                  "fill": "$on-inverse-muted",
+                  "textGrowth": "fixed-width",
+                  "width": 480,
+                  "content": "由於無法正常載入 Google Maps API，已自動切換為「文字路線導覽模式」。您仍可於上方輸入起迄點進行模擬規劃。",
+                  "lineHeight": 1.7142857142857142,
+                  "textAlign": "center",
+                  "fontFamily": "Noto Sans TC",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "PoIKA",
+                  "name": "路線卡",
+                  "width": 448,
+                  "fill": "$surface-raised",
+                  "cornerRadius": 14,
+                  "stroke": "$line",
+                  "strokeWidth": 3,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aQbnX",
+                      "name": "預估路程：約 3.8 公里 (8 分鐘)",
+                      "fill": "$ink",
+                      "content": "預估路程：約 3.8 公里 (8 分鐘)",
+                      "lineHeight": 1.3333333333333333,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 15,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "iDGbX",
+                      "name": "文字行車指引（模擬）：",
+                      "fill": "$ink",
+                      "content": "文字行車指引（模擬）：",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "aafXD",
+                      "name": "1. 由起點出發往北 …",
+                      "fill": "$ink-muted",
+                      "content": "1. 由起點出發往北 …",
+                      "lineHeight": 1.7142857142857142,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "D68oO",
+          "name": "Footer",
+          "width": "fill_container",
+          "stroke": "$line",
+          "strokeWidth": {
+            "top": 3
+          },
+          "strokeAlignment": "inner",
+          "padding": 24,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "gG8Mf",
+              "name": "© 2026 DKBO · GAME OVER?",
+              "fill": "$ink-muted",
+              "content": "© 2026 DKBO · GAME OVER? PRESS START",
+              "lineHeight": 1.0909090909090908,
+              "fontFamily": "VT323",
+              "fontSize": 22
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "surface": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#fffbf2",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#241f18",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-sunken": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#332c23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#4a4339",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "line": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "focus": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pop": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ff6b3d",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ff7a4f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-fill": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "sky": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "mint": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "success": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#2bb673",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#3fd18a",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#0b0907",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "fileToken": "d4abe2b7-cb3e-4018-b259-575992228a4e"
+}

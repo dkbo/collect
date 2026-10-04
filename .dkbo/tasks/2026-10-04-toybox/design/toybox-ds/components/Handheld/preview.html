@@ -1,0 +1,13 @@
+<!-- @dsCard group="Page sections" height=600 subtitle="Hero 右欄的主視覺；A／B 可接互動" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>Handheld</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { padding: 'var(--space-10) var(--space-8)', display: 'flex', justifyContent: 'center' } },
+    h(T.Handheld, { image: '/_blob/6107829c0167813735dd1a63c2ced5c4', imageAlt: '多人對戰遊戲畫面', left: 'NOW PLAYING', right: '多人對戰 ▸' })));
+</script>
+</body>
+</html>

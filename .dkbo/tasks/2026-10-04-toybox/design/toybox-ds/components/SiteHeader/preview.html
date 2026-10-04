@@ -1,0 +1,15 @@
+<!-- @dsCard group="Navigation" height=120 width=1200 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>SiteHeader</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(T.SiteHeader, {
+    name: 'DKBO', letter: 'D',
+    links: [{ label: '首頁', current: true }, { label: 'E-履歷' }, { label: '遊戲', menu: true }, { label: '工具', menu: true }]
+  }));
+</script>
+</body>
+</html>

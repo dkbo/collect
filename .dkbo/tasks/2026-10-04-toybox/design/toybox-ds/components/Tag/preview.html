@@ -1,0 +1,22 @@
+<!-- @dsCard group="Labels" height=190 subtitle="s = 卡帶上的技術標籤；l + tilt = 漂浮貼紙" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>Tag</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h('div', { className: 'tb-row' },
+      h(T.Tag, { tone: 'pop' }, 'Babylon.js'),
+      h(T.Tag, { tone: 'sky' }, 'WebRTC'),
+      h(T.Tag, { tone: 'mint' }, 'Firebase'),
+      h(T.Tag, { tone: 'pink' }, 'Zustand'),
+      h(T.Tag, { tone: 'plain' }, 'Canvas')),
+    h('div', { className: 'tb-row' },
+      h(T.Tag, { size: 'l', tone: 'sky', tilt: 3 }, 'WebRTC'),
+      h(T.Tag, { size: 'l', tone: 'mint', tilt: 2 }, 'Godot 4'),
+      h(T.Tag, { size: 'l', tone: 'pink', tilt: 1 }, 'Babylon.js'))));
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+const p = Page("page-candy-crush");
+Header(p, "games");
+const g = GameCol(p);
+const h = SecHead(g, "MATCH 3", "糖果消消樂", {});
+const lead = F(Get(h.id, { depth: 1 }).children[0].id, { name: "lead", gap: 6, alignItems: "center" });
+T(lead, "以", "b", "$ink-muted"); T(lead, "GODOT 4", "pm"); T(lead, "打造的", "b", "$ink-muted"); T(lead, "MATCH-3", "pm"); T(lead, "三消遊戲。引擎於", "b", "$ink-muted"); T(lead, "IFRAME", "pm"); T(lead, "內運行，與", "b", "$ink-muted"); T(lead, "REACT", "pm"); T(lead, "透過", "b", "$ink-muted"); T(lead, "POSTMESSAGE", "pm"); T(lead, "雙向通訊。", "b", "$ink-muted");
+Note(g, "candy-page-num：英數詞用 font-pixel text-pixel-m（實作保留原大小寫，稿中為點陣字示意）");
+Toolbar(g, [["遊戲說明", "circle-help"]]);
+const sc = Screen(g, "CANDY CRUSH", null, 550, { img: "works/candy.webp" });
+const hud = F(sc.view, { name: "HUD 區（凍結，不畫）", x: 0, y: 0, width: 864, height: 550, alignItems: "center", justifyContent: "center", stroke: "#3d7bff", strokeWidth: 3, strokeAlignment: "inner", cornerRadius: 8 });
+Note(hud, "畫面區內：iframe、TopBar／SideHud、HudButtons、暫停／結算／說明浮層、candy-loading — 全部維持現狀");
+Footer(p);

@@ -1,0 +1,3860 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "verT2",
+      "x": 0,
+      "y": 0,
+      "name": "page-resume",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "fill": "$surface",
+      "layout": "vertical",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "u9yvR",
+          "name": "SiteHeader",
+          "width": "fill_container",
+          "fill": "$surface",
+          "stroke": "$line",
+          "strokeWidth": {
+            "bottom": 3
+          },
+          "strokeAlignment": "inner",
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "mNGuJ",
+              "name": "in",
+              "width": 1200,
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "XaoCF",
+                  "name": "Logo",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "iLt0m",
+                      "name": "mark",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "MMomC",
+                          "name": "D",
+                          "fill": "$on-fill",
+                          "content": "D",
+                          "lineHeight": 1.0666666666666667,
+                          "fontFamily": "VT323",
+                          "fontSize": 30
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "aHFhF",
+                      "name": "DKBO's Collect",
+                      "fill": "$ink",
+                      "content": "DKBO's Collect",
+                      "lineHeight": 1.3636363636363635,
+                      "fontFamily": "Rubik",
+                      "fontSize": 22,
+                      "fontWeight": "900"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fQXYA",
+                  "name": "nav",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "QeAku",
+                      "name": "NavLink 首頁",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "XPWbK",
+                          "name": "首頁",
+                          "fill": "$ink",
+                          "content": "首頁",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "yZARl",
+                      "name": "NavLink E-履歷",
+                      "height": 44,
+                      "fill": "$pop",
+                      "cornerRadius": 999,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "HwQM3",
+                          "name": "E-履歷",
+                          "fill": "$on-fill",
+                          "content": "E-履歷",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "WNLOb",
+                      "name": "NavLink 遊戲",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "BX69a",
+                          "name": "遊戲",
+                          "fill": "$ink",
+                          "content": "遊戲",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "s6diD",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Venfc",
+                      "name": "NavLink 工具",
+                      "height": 44,
+                      "fill": "#00000000",
+                      "cornerRadius": 999,
+                      "stroke": "#00000000",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "DGyXI",
+                          "name": "工具",
+                          "fill": "$ink",
+                          "content": "工具",
+                          "lineHeight": 1.3333333333333333,
+                          "fontFamily": "Noto Sans TC",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "UU08r",
+                          "name": "icon chevron-down",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "B0RVEb",
+                      "name": "sp",
+                      "width": 8,
+                      "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "z3Yffq",
+                      "name": "IconButton moon",
+                      "width": 44,
+                      "height": 44,
+                      "fill": "$surface-raised",
+                      "cornerRadius": 14,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 3,
+                          "y": 3
+                        }
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "OwKH5",
+                          "name": "icon moon",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "moon",
+                          "library": "lucide",
+                          "fill": "$ink"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "KcyUy",
+          "name": "tb-container",
+          "width": 1200,
+          "layout": "vertical",
+          "gap": 32,
+          "padding": [
+            48,
+            24,
+            72,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "r6GHWI",
+              "name": "SectionHeader",
+              "width": "fill_container",
+              "gap": 20,
+              "justifyContent": "space_between",
+              "alignItems": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "C2gKf",
+                  "name": "text",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "L2podV",
+                      "name": "— PLAYER PROFILE —",
+                      "fill": "$ink-muted",
+                      "content": "— PLAYER PROFILE —",
+                      "lineHeight": 1.0909090909090908,
+                      "fontFamily": "VT323",
+                      "fontSize": 22
+                    },
+                    {
+                      "type": "text",
+                      "id": "z6dI3Y",
+                      "name": "E-履歷 (E-Resume)",
+                      "fill": "$ink",
+                      "content": "E-履歷 (E-Resume)",
+                      "lineHeight": 1.1041666666666667,
+                      "fontFamily": "Rubik",
+                      "fontSize": 48,
+                      "fontWeight": "900"
+                    },
+                    {
+                      "type": "text",
+                      "id": "K2wYQX",
+                      "name": "以互動式的圖表、時序線以及動態標籤雲，呈現個人開",
+                      "fill": "$ink-muted",
+                      "textGrowth": "fixed-width",
+                      "width": 672,
+                      "content": "以互動式的圖表、時序線以及動態標籤雲，呈現個人開發歷程與專業技能組合。",
+                      "lineHeight": 1.75,
+                      "fontFamily": "Noto Sans TC",
+                      "fontSize": 16,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "qaelU",
+              "name": "row",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AWTJO",
+                  "name": "col",
+                  "width": 564,
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "S9ScJ",
+                      "name": "resume-panel 關於我 (About Me)",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "AMMSK",
+                          "name": "head",
+                          "width": "fill_container",
+                          "fill": "$pop",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            8,
+                            20
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "cfUqs",
+                              "name": "關於我 (About Me)",
+                              "fill": "$on-fill",
+                              "content": "關於我 (About Me)",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "a8HUC4",
+                              "name": "P1",
+                              "fill": "$on-fill",
+                              "content": "P1",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "LHSAj",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 24,
+                          "padding": 24,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "VHiAs",
+                              "name": "profile",
+                              "width": "fill_container",
+                              "gap": 24,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "EUge4",
+                                  "name": "avatar -rotate-3",
+                                  "rotation": 3.0000000000000004,
+                                  "clip": true,
+                                  "width": 128,
+                                  "height": 128,
+                                  "fill": "$sky",
+                                  "cornerRadius": 18,
+                                  "stroke": "$line",
+                                  "strokeWidth": 4,
+                                  "strokeAlignment": "inner",
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "$ink",
+                                    "offset": {
+                                      "x": 5,
+                                      "y": 5
+                                    }
+                                  },
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "iUIoa",
+                                      "name": "DK",
+                                      "fill": "$on-fill",
+                                      "content": "DK",
+                                      "lineHeight": 0.9130434782608695,
+                                      "fontFamily": "VT323",
+                                      "fontSize": 46
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "C2YHLo",
+                                  "name": "t",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 10,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "tu2yf",
+                                      "name": "name",
+                                      "gap": 12,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "t4mjG",
+                                          "name": "盧宏寶",
+                                          "fill": "$ink",
+                                          "content": "盧宏寶",
+                                          "lineHeight": 1.2222222222222223,
+                                          "fontFamily": "Rubik",
+                                          "fontSize": 36,
+                                          "fontWeight": "900"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "MCca8",
+                                          "name": "icon award",
+                                          "width": 20,
+                                          "height": 20,
+                                          "icon": "award",
+                                          "library": "lucide",
+                                          "fill": "$ink"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "mYRpq",
+                                      "name": "StatusPill",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 999,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "gap": 8,
+                                      "padding": [
+                                        8,
+                                        16
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "ellipse",
+                                          "id": "lEKdN",
+                                          "name": "dot",
+                                          "fill": "$success",
+                                          "width": 12,
+                                          "height": 12,
+                                          "stroke": "$line",
+                                          "strokeWidth": 2,
+                                          "strokeAlignment": "inner"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "VYnk3",
+                                          "name": "Open to Work / 歡迎聯繫",
+                                          "fill": "$ink",
+                                          "content": "Open to Work / 歡迎聯繫",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "UledI",
+                                      "name": "SENIOR FRONTEND ARCHITEC",
+                                      "fill": "$ink-muted",
+                                      "content": "SENIOR FRONTEND ARCHITECT",
+                                      "lineHeight": 1.0909090909090908,
+                                      "fontFamily": "VT323",
+                                      "fontSize": 22
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "t9dikr",
+                              "name": "擁有超過 13 年資訊相關經驗，其中 10 年以",
+                              "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "擁有超過 13 年資訊相關經驗，其中 10 年以上專注於前端開發與系統架構設計。熟悉 Vue、React、Nuxt、Next.js 等主流框架，參與過大型 B2B / B2C 平台、財務系統與遊戲平台開發，並擔任技術帶領角色，負責程式碼審查與新人培訓。",
+                              "lineHeight": 1.75,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 16,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "atpSE",
+                              "name": "能力環",
+                              "width": "fill_container",
+                              "fill": "$surface",
+                              "cornerRadius": 14,
+                              "stroke": "$line",
+                              "strokeWidth": 3,
+                              "strokeAlignment": "inner",
+                              "gap": 12,
+                              "padding": 16,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "S3T2Uu",
+                                  "name": "ring 前端架構",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 6,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "Zdu4U",
+                                      "name": "r",
+                                      "width": 72,
+                                      "height": 72,
+                                      "layout": "none",
+                                      "children": [
+                                        {
+                                          "type": "ellipse",
+                                          "id": "Y9dDt8",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "track",
+                                          "innerRadius": 0.82,
+                                          "fill": "$surface-sunken",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "ellipse",
+                                          "id": "TPS5M",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "progress",
+                                          "innerRadius": 0.82,
+                                          "startAngle": 90,
+                                          "sweepAngle": -342,
+                                          "fill": "$ink",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "ptlyD",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "pct",
+                                          "width": 72,
+                                          "height": 72,
+                                          "layout": "vertical",
+                                          "gap": 4,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "EOYpK",
+                                              "name": "95%",
+                                              "fill": "$ink",
+                                              "content": "95%",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "wiOvw",
+                                      "name": "前端架構",
+                                      "fill": "$ink-muted",
+                                      "content": "前端架構",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "M1Ma7",
+                                  "name": "ring 介面互動",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 6,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "OCVHc",
+                                      "name": "r",
+                                      "width": 72,
+                                      "height": 72,
+                                      "layout": "none",
+                                      "children": [
+                                        {
+                                          "type": "ellipse",
+                                          "id": "Urk9c",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "track",
+                                          "innerRadius": 0.82,
+                                          "fill": "$surface-sunken",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "ellipse",
+                                          "id": "AZSpC",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "progress",
+                                          "innerRadius": 0.82,
+                                          "startAngle": 90,
+                                          "sweepAngle": -324,
+                                          "fill": "$ink",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "V9r73P",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "pct",
+                                          "width": 72,
+                                          "height": 72,
+                                          "layout": "vertical",
+                                          "gap": 4,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "TpyBE",
+                                              "name": "90%",
+                                              "fill": "$ink",
+                                              "content": "90%",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "V1ICs",
+                                      "name": "介面互動",
+                                      "fill": "$ink-muted",
+                                      "content": "介面互動",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "j3QWZ",
+                                  "name": "ring 效能優化",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 6,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "o4QFiD",
+                                      "name": "r",
+                                      "width": 72,
+                                      "height": 72,
+                                      "layout": "none",
+                                      "children": [
+                                        {
+                                          "type": "ellipse",
+                                          "id": "LND13",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "track",
+                                          "innerRadius": 0.82,
+                                          "fill": "$surface-sunken",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "ellipse",
+                                          "id": "UvKY8",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "progress",
+                                          "innerRadius": 0.82,
+                                          "startAngle": 90,
+                                          "sweepAngle": -316.8,
+                                          "fill": "$ink",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "M9RTh",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "pct",
+                                          "width": 72,
+                                          "height": 72,
+                                          "layout": "vertical",
+                                          "gap": 4,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "Bh4Ou",
+                                              "name": "88%",
+                                              "fill": "$ink",
+                                              "content": "88%",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "gu1Ar",
+                                      "name": "效能優化",
+                                      "fill": "$ink-muted",
+                                      "content": "效能優化",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "QM2hg",
+                                  "name": "ring AI 協作開發",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 6,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "cBh5n",
+                                      "name": "r",
+                                      "width": 72,
+                                      "height": 72,
+                                      "layout": "none",
+                                      "children": [
+                                        {
+                                          "type": "ellipse",
+                                          "id": "bWMO8",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "track",
+                                          "innerRadius": 0.82,
+                                          "fill": "$surface-sunken",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "ellipse",
+                                          "id": "B3Ldmw",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "progress",
+                                          "innerRadius": 0.82,
+                                          "startAngle": 90,
+                                          "sweepAngle": -331.2,
+                                          "fill": "$ink",
+                                          "width": 72,
+                                          "height": 72
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "mkxnp",
+                                          "x": 0,
+                                          "y": 0,
+                                          "name": "pct",
+                                          "width": 72,
+                                          "height": 72,
+                                          "layout": "vertical",
+                                          "gap": 4,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "VQfQw",
+                                              "name": "92%",
+                                              "fill": "$ink",
+                                              "content": "92%",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "vzS29",
+                                      "name": "AI 協作開發",
+                                      "fill": "$ink-muted",
+                                      "content": "AI 協作開發",
+                                      "lineHeight": 1.3846153846153846,
+                                      "fontFamily": "Noto Sans TC",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Klluw",
+                              "name": "資訊四格",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 12,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "jCdt4",
+                                  "name": "r",
+                                  "width": "fill_container",
+                                  "gap": 12,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "wNNmo",
+                                      "name": "tile CLASS",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "gap": 12,
+                                      "padding": 12,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "Ol8ae",
+                                          "name": "IconBox",
+                                          "width": 44,
+                                          "height": 44,
+                                          "fill": "$sky",
+                                          "cornerRadius": 14,
+                                          "stroke": "$line",
+                                          "strokeWidth": 3,
+                                          "strokeAlignment": "inner",
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "Iesng",
+                                              "name": "icon user",
+                                              "width": 20,
+                                              "height": 20,
+                                              "icon": "user",
+                                              "library": "lucide",
+                                              "fill": "$on-fill"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "EmO1q",
+                                          "name": "t",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 2,
+                                          "children": [
+                                            {
+                                              "type": "frame",
+                                              "id": "qKAHq",
+                                              "name": "k",
+                                              "gap": 4,
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "E6fx3L",
+                                                  "name": "CLASS",
+                                                  "fill": "$ink-muted",
+                                                  "content": "CLASS",
+                                                  "lineHeight": 1.0909090909090908,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 22
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "f1U1P",
+                                              "name": "資深前端工程師",
+                                              "fill": "$ink",
+                                              "content": "資深前端工程師",
+                                              "lineHeight": 1.3333333333333333,
+                                              "fontFamily": "Noto Sans TC",
+                                              "fontSize": 15,
+                                              "fontWeight": "700"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "cefiC",
+                                      "name": "tile LEVEL",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "gap": 12,
+                                      "padding": 12,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "HZWUH",
+                                          "name": "IconBox",
+                                          "width": 44,
+                                          "height": 44,
+                                          "fill": "$mint",
+                                          "cornerRadius": 14,
+                                          "stroke": "$line",
+                                          "strokeWidth": 3,
+                                          "strokeAlignment": "inner",
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "C0ZHDL",
+                                              "name": "icon calendar",
+                                              "width": 20,
+                                              "height": 20,
+                                              "icon": "calendar",
+                                              "library": "lucide",
+                                              "fill": "$on-fill"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "rZEfj",
+                                          "name": "t",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 2,
+                                          "children": [
+                                            {
+                                              "type": "frame",
+                                              "id": "N0rkEm",
+                                              "name": "k",
+                                              "gap": 4,
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "dnlTA",
+                                                  "name": "LEVEL",
+                                                  "fill": "$ink-muted",
+                                                  "content": "LEVEL",
+                                                  "lineHeight": 1.0909090909090908,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 22
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "a2fJs",
+                                              "name": "13+ 年資歷",
+                                              "fill": "$ink",
+                                              "content": "13+ 年資歷",
+                                              "lineHeight": 1.3333333333333333,
+                                              "fontFamily": "Noto Sans TC",
+                                              "fontSize": 15,
+                                              "fontWeight": "700"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "T0uKnC",
+                                  "name": "r",
+                                  "width": "fill_container",
+                                  "gap": 12,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "ZWuwI",
+                                      "name": "tile EMAIL",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "effect": {
+                                        "type": "shadow",
+                                        "shadowType": "outer",
+                                        "color": "$ink",
+                                        "offset": {
+                                          "x": 3,
+                                          "y": 3
+                                        }
+                                      },
+                                      "gap": 12,
+                                      "padding": 12,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "otKKR",
+                                          "name": "IconBox",
+                                          "width": 44,
+                                          "height": 44,
+                                          "fill": "$pink",
+                                          "cornerRadius": 14,
+                                          "stroke": "$line",
+                                          "strokeWidth": 3,
+                                          "strokeAlignment": "inner",
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "tBi5v",
+                                              "name": "icon mail",
+                                              "width": 20,
+                                              "height": 20,
+                                              "icon": "mail",
+                                              "library": "lucide",
+                                              "fill": "$on-fill"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "JnpuQ",
+                                          "name": "t",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 2,
+                                          "children": [
+                                            {
+                                              "type": "frame",
+                                              "id": "vL6dg",
+                                              "name": "k",
+                                              "gap": 4,
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "cWf0k",
+                                                  "name": "EMAIL",
+                                                  "fill": "$ink-muted",
+                                                  "content": "EMAIL",
+                                                  "lineHeight": 1.0909090909090908,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 22
+                                                },
+                                                {
+                                                  "type": "icon",
+                                                  "id": "o5U8B7",
+                                                  "name": "icon arrow-up-right",
+                                                  "width": 16,
+                                                  "height": 16,
+                                                  "icon": "arrow-up-right",
+                                                  "library": "lucide",
+                                                  "fill": "$ink"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "ctZxQ",
+                                              "name": "dk880842@gmail.com",
+                                              "fill": "$ink",
+                                              "content": "dk880842@gmail.com",
+                                              "lineHeight": 1.3333333333333333,
+                                              "fontFamily": "Noto Sans TC",
+                                              "fontSize": 15,
+                                              "fontWeight": "700"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "Bhu4I",
+                                      "name": "tile LOCATION",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "gap": 12,
+                                      "padding": 12,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "cTWxw",
+                                          "name": "IconBox",
+                                          "width": 44,
+                                          "height": 44,
+                                          "fill": "$pop",
+                                          "cornerRadius": 14,
+                                          "stroke": "$line",
+                                          "strokeWidth": 3,
+                                          "strokeAlignment": "inner",
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "CJ7Ye",
+                                              "name": "icon map-pin",
+                                              "width": 20,
+                                              "height": 20,
+                                              "icon": "map-pin",
+                                              "library": "lucide",
+                                              "fill": "$on-fill"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "go8aQ",
+                                          "name": "t",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 2,
+                                          "children": [
+                                            {
+                                              "type": "frame",
+                                              "id": "Na5UT",
+                                              "name": "k",
+                                              "gap": 4,
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "oljU1",
+                                                  "name": "LOCATION",
+                                                  "fill": "$ink-muted",
+                                                  "content": "LOCATION",
+                                                  "lineHeight": 1.0909090909090908,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 22
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "bYM2o",
+                                              "name": "台灣高雄市",
+                                              "fill": "$ink",
+                                              "content": "台灣高雄市",
+                                              "lineHeight": 1.3333333333333333,
+                                              "fontFamily": "Noto Sans TC",
+                                              "fontSize": 15,
+                                              "fontWeight": "700"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ucauS",
+                      "name": "resume-panel 經歷",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "fW3LQ",
+                          "name": "head",
+                          "width": "fill_container",
+                          "fill": "$surface-sunken",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            8,
+                            20
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "J5g4C",
+                              "name": "經歷",
+                              "fill": "$ink",
+                              "content": "經歷",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "ea3qE",
+                              "name": "LOG",
+                              "fill": "$ink-muted",
+                              "content": "LOG",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "f5rqhW",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 24,
+                          "padding": 24,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "XdBwQ",
+                              "name": "resume-timeline",
+                              "width": "fill_container",
+                              "stroke": "$line",
+                              "strokeWidth": {
+                                "left": 3
+                              },
+                              "strokeAlignment": "inner",
+                              "layout": "vertical",
+                              "gap": 12,
+                              "padding": [
+                                0,
+                                0,
+                                0,
+                                8
+                              ],
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "SaASx",
+                                  "name": "item",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "I46uxN",
+                                      "name": "dot",
+                                      "fill": "$pop",
+                                      "width": 20,
+                                      "height": 20,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "i3WFRt",
+                                      "name": "card",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "padding": 16,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "D1emvT",
+                                          "name": "中華系統整合股份有限公司",
+                                          "fill": "$ink",
+                                          "content": "中華系統整合股份有限公司",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "NUMVY",
+                                          "name": "資深前端工程師",
+                                          "fill": "$ink-muted",
+                                          "content": "資深前端工程師",
+                                          "lineHeight": 1.7142857142857142,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 14,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "XLmVE",
+                                          "name": "Tag 2022-2025",
+                                          "fill": "$surface-raised",
+                                          "cornerRadius": 8,
+                                          "stroke": "$line",
+                                          "strokeWidth": 2,
+                                          "strokeAlignment": "inner",
+                                          "gap": 6,
+                                          "padding": [
+                                            4,
+                                            12
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "rBhZH",
+                                              "name": "2022-2025",
+                                              "fill": "$ink",
+                                              "content": "2022-2025",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "xrzow",
+                                  "name": "item",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "e3AigK",
+                                      "name": "dot",
+                                      "fill": "$surface-raised",
+                                      "width": 20,
+                                      "height": 20,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "cEGgW",
+                                      "name": "card",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "padding": 16,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "lXsZW",
+                                          "name": "光曳資訊有限公司",
+                                          "fill": "$ink",
+                                          "content": "光曳資訊有限公司",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "xdtJ4",
+                                          "name": "資深前端工程師",
+                                          "fill": "$ink-muted",
+                                          "content": "資深前端工程師",
+                                          "lineHeight": 1.7142857142857142,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 14,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "kQKZ1",
+                                          "name": "Tag 2017-2022",
+                                          "fill": "$surface-raised",
+                                          "cornerRadius": 8,
+                                          "stroke": "$line",
+                                          "strokeWidth": 2,
+                                          "strokeAlignment": "inner",
+                                          "gap": 6,
+                                          "padding": [
+                                            4,
+                                            12
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "gX86C",
+                                              "name": "2017-2022",
+                                              "fill": "$ink",
+                                              "content": "2017-2022",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "xmzX0",
+                                  "name": "item",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "LPg9R",
+                                      "name": "dot",
+                                      "fill": "$surface-raised",
+                                      "width": 20,
+                                      "height": 20,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "f05JHO",
+                                      "name": "card",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "padding": 16,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Kbx4w",
+                                          "name": "中冠資訊股份有限公司",
+                                          "fill": "$ink",
+                                          "content": "中冠資訊股份有限公司",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "h2V762",
+                                          "name": "前端工程師",
+                                          "fill": "$ink-muted",
+                                          "content": "前端工程師",
+                                          "lineHeight": 1.7142857142857142,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 14,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "Oi0ky",
+                                          "name": "Tag 2016-2017",
+                                          "fill": "$surface-raised",
+                                          "cornerRadius": 8,
+                                          "stroke": "$line",
+                                          "strokeWidth": 2,
+                                          "strokeAlignment": "inner",
+                                          "gap": 6,
+                                          "padding": [
+                                            4,
+                                            12
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "MdPdn",
+                                              "name": "2016-2017",
+                                              "fill": "$ink",
+                                              "content": "2016-2017",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "q6yNh",
+                                  "name": "item",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "uWbaH",
+                                      "name": "dot",
+                                      "fill": "$surface-raised",
+                                      "width": 20,
+                                      "height": 20,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "zKOrR",
+                                      "name": "card",
+                                      "width": "fill_container",
+                                      "fill": "$surface",
+                                      "cornerRadius": 14,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "padding": 16,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "eVYUG",
+                                          "name": "台灣惠多笑有限公司",
+                                          "fill": "$ink",
+                                          "content": "台灣惠多笑有限公司",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "M6bDQ",
+                                          "name": "前端工程師",
+                                          "fill": "$ink-muted",
+                                          "content": "前端工程師",
+                                          "lineHeight": 1.7142857142857142,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 14,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "QL0UC",
+                                          "name": "Tag 2013-2016",
+                                          "fill": "$surface-raised",
+                                          "cornerRadius": 8,
+                                          "stroke": "$line",
+                                          "strokeWidth": 2,
+                                          "strokeAlignment": "inner",
+                                          "gap": 6,
+                                          "padding": [
+                                            4,
+                                            12
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "BWUsZ",
+                                              "name": "2013-2016",
+                                              "fill": "$ink",
+                                              "content": "2013-2016",
+                                              "lineHeight": 1.0909090909090908,
+                                              "fontFamily": "VT323",
+                                              "fontSize": 22
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "coFpH",
+                              "name": "…其餘 3 筆同樣式",
+                              "fill": "$ink-muted",
+                              "content": "…其餘 3 筆同樣式",
+                              "lineHeight": 1.3846153846153846,
+                              "fontFamily": "Noto Sans TC",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "aHZeM",
+                  "name": "col",
+                  "width": 564,
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "m6WjNk",
+                      "name": "resume-panel 人物介紹",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "m9rHED",
+                          "name": "head",
+                          "width": "fill_container",
+                          "fill": "$surface-sunken",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            8,
+                            20
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "zPcQq",
+                              "name": "人物介紹",
+                              "fill": "$ink",
+                              "content": "人物介紹",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "cCpWX",
+                              "name": "BIO",
+                              "fill": "$ink-muted",
+                              "content": "BIO",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "THaWT",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 24,
+                          "padding": 24,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "MZ53d",
+                              "name": "p",
+                              "width": "fill_container",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "Y0f7nt",
+                                  "name": "01",
+                                  "fill": "$ink-muted",
+                                  "content": "01",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 22
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "pQH4y",
+                                  "name": "個性率真不做作，平常喜歡聽聽音樂哼哼歌、玩玩遊戲",
+                                  "fill": "$ink",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "個性率真不做作，平常喜歡聽聽音樂哼哼歌、玩玩遊戲、吸收新知等來紓解壓力，不喜歡拖泥帶水的事情纏身。",
+                                  "lineHeight": 1.75,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 16,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "vOfwl",
+                              "name": "p",
+                              "width": "fill_container",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "iMaWW",
+                                  "name": "02",
+                                  "fill": "$ink-muted",
+                                  "content": "02",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 22
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "y55m3Y",
+                                  "name": "以 JavaScript / TypeScrip",
+                                  "fill": "$ink",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "以 JavaScript / TypeScript 為核心，跨足前端架構、後端服務與網頁遊戲開發，並運用 Docker、Nginx、CI/CD 等工具確保開發與部署的穩定性。",
+                                  "lineHeight": 1.75,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 16,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "C0Tb8",
+                              "name": "p",
+                              "width": "fill_container",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "rys9v",
+                                  "name": "03",
+                                  "fill": "$ink-muted",
+                                  "content": "03",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 22
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "O5qQ9x",
+                                  "name": "長期維持 Side Project 開發習慣，涵",
+                                  "fill": "$ink",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "長期維持 Side Project 開發習慣，涵蓋 Web3、遊戲資料分析、自動化 Bot、量化交易與 Firebase 即時應用，持續將新技術實踐於實際產品中。",
+                                  "lineHeight": 1.75,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 16,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "H3n11c",
+                              "name": "p",
+                              "width": "fill_container",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "dWUVH",
+                                  "name": "04",
+                                  "fill": "$ink-muted",
+                                  "content": "04",
+                                  "lineHeight": 1.0909090909090908,
+                                  "fontFamily": "VT323",
+                                  "fontSize": 22
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "FshvX",
+                                  "name": "近兩年積極投入 AI 輔助開發，熟悉 Claud",
+                                  "fill": "$ink",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "近兩年積極投入 AI 輔助開發，熟悉 Claude Code、Codex CLI、Copilot 等工具，運用 AI Agent Workflow 與 Vibe Coding 加速產品原型驗證與系統建置。",
+                                  "lineHeight": 1.75,
+                                  "fontFamily": "Noto Sans TC",
+                                  "fontSize": 16,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TNatf",
+                      "name": "resume-panel 狀態",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "G0GpeV",
+                          "name": "head",
+                          "width": "fill_container",
+                          "fill": "$surface-sunken",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            8,
+                            20
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "jGybb",
+                              "name": "狀態",
+                              "fill": "$ink",
+                              "content": "狀態",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "FLa0P",
+                              "name": "STATS",
+                              "fill": "$ink-muted",
+                              "content": "STATS",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "STG36",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 24,
+                          "padding": 24,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "wL18G",
+                              "name": "grid",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "UDMVQ",
+                                  "name": "r",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "vP5sJ",
+                                      "name": "ring Vue",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 6,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "j7hjb",
+                                          "name": "r",
+                                          "width": 120,
+                                          "height": 120,
+                                          "layout": "none",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "Wbyva",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "track",
+                                              "innerRadius": 0.82,
+                                              "fill": "$surface-sunken",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "ellipse",
+                                              "id": "WeOIa",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "progress",
+                                              "innerRadius": 0.82,
+                                              "startAngle": 90,
+                                              "sweepAngle": -331.2,
+                                              "fill": "$ink",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "N7KRy",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "pct",
+                                              "width": 120,
+                                              "height": 120,
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "F2gzIn",
+                                                  "name": "92%",
+                                                  "fill": "$ink",
+                                                  "content": "92%",
+                                                  "lineHeight": 1.0666666666666667,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 30
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "hKOdm",
+                                                  "name": "Tag Vue",
+                                                  "fill": "$mint",
+                                                  "cornerRadius": 8,
+                                                  "stroke": "$line",
+                                                  "strokeWidth": 2,
+                                                  "strokeAlignment": "inner",
+                                                  "gap": 6,
+                                                  "padding": [
+                                                    4,
+                                                    12
+                                                  ],
+                                                  "alignItems": "center",
+                                                  "children": [
+                                                    {
+                                                      "type": "text",
+                                                      "id": "BEHuu",
+                                                      "name": "Vue",
+                                                      "fill": "$on-fill",
+                                                      "content": "Vue",
+                                                      "lineHeight": 1.3846153846153846,
+                                                      "fontFamily": "Noto Sans TC",
+                                                      "fontSize": 13,
+                                                      "fontWeight": "700"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "hscd1",
+                                      "name": "ring React",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 6,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "MbJ40",
+                                          "name": "r",
+                                          "width": 120,
+                                          "height": 120,
+                                          "layout": "none",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "IDiaz",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "track",
+                                              "innerRadius": 0.82,
+                                              "fill": "$surface-sunken",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "ellipse",
+                                              "id": "uBEQM",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "progress",
+                                              "innerRadius": 0.82,
+                                              "startAngle": 90,
+                                              "sweepAngle": -306,
+                                              "fill": "$ink",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "m3iAP0",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "pct",
+                                              "width": 120,
+                                              "height": 120,
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "Z3AjO",
+                                                  "name": "85%",
+                                                  "fill": "$ink",
+                                                  "content": "85%",
+                                                  "lineHeight": 1.0666666666666667,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 30
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "slc8P",
+                                                  "name": "Tag React",
+                                                  "fill": "$sky",
+                                                  "cornerRadius": 8,
+                                                  "stroke": "$line",
+                                                  "strokeWidth": 2,
+                                                  "strokeAlignment": "inner",
+                                                  "gap": 6,
+                                                  "padding": [
+                                                    4,
+                                                    12
+                                                  ],
+                                                  "alignItems": "center",
+                                                  "children": [
+                                                    {
+                                                      "type": "text",
+                                                      "id": "L6bUv",
+                                                      "name": "React",
+                                                      "fill": "$on-fill",
+                                                      "content": "React",
+                                                      "lineHeight": 1.3846153846153846,
+                                                      "fontFamily": "Noto Sans TC",
+                                                      "fontSize": 13,
+                                                      "fontWeight": "700"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "bJ7Dn",
+                                      "name": "ring TypeScript",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 6,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "aCB9k",
+                                          "name": "r",
+                                          "width": 120,
+                                          "height": 120,
+                                          "layout": "none",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "N91Op",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "track",
+                                              "innerRadius": 0.82,
+                                              "fill": "$surface-sunken",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "ellipse",
+                                              "id": "rM1uZ",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "progress",
+                                              "innerRadius": 0.82,
+                                              "startAngle": 90,
+                                              "sweepAngle": -295.2,
+                                              "fill": "$ink",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "M2jPp",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "pct",
+                                              "width": 120,
+                                              "height": 120,
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "tZLZo",
+                                                  "name": "82%",
+                                                  "fill": "$ink",
+                                                  "content": "82%",
+                                                  "lineHeight": 1.0666666666666667,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 30
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "Q8eHAJ",
+                                                  "name": "Tag TypeScript",
+                                                  "fill": "$pink",
+                                                  "cornerRadius": 8,
+                                                  "stroke": "$line",
+                                                  "strokeWidth": 2,
+                                                  "strokeAlignment": "inner",
+                                                  "gap": 6,
+                                                  "padding": [
+                                                    4,
+                                                    12
+                                                  ],
+                                                  "alignItems": "center",
+                                                  "children": [
+                                                    {
+                                                      "type": "text",
+                                                      "id": "xgcpd",
+                                                      "name": "TypeScript",
+                                                      "fill": "$on-fill",
+                                                      "content": "TypeScript",
+                                                      "lineHeight": 1.3846153846153846,
+                                                      "fontFamily": "Noto Sans TC",
+                                                      "fontSize": 13,
+                                                      "fontWeight": "700"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "CDg52",
+                                  "name": "r",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "RjKLn",
+                                      "name": "ring HTML / CSS",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 6,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "UD0Yv",
+                                          "name": "r",
+                                          "width": 120,
+                                          "height": 120,
+                                          "layout": "none",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "FxQOr",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "track",
+                                              "innerRadius": 0.82,
+                                              "fill": "$surface-sunken",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "ellipse",
+                                              "id": "VENtL",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "progress",
+                                              "innerRadius": 0.82,
+                                              "startAngle": 90,
+                                              "sweepAngle": -316.8,
+                                              "fill": "$ink",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "DaV70",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "pct",
+                                              "width": 120,
+                                              "height": 120,
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "cddLG",
+                                                  "name": "88%",
+                                                  "fill": "$ink",
+                                                  "content": "88%",
+                                                  "lineHeight": 1.0666666666666667,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 30
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "NDMMP",
+                                                  "name": "Tag HTML / CSS",
+                                                  "fill": "$pink",
+                                                  "cornerRadius": 8,
+                                                  "stroke": "$line",
+                                                  "strokeWidth": 2,
+                                                  "strokeAlignment": "inner",
+                                                  "gap": 6,
+                                                  "padding": [
+                                                    4,
+                                                    12
+                                                  ],
+                                                  "alignItems": "center",
+                                                  "children": [
+                                                    {
+                                                      "type": "text",
+                                                      "id": "RmvmE",
+                                                      "name": "HTML / CSS",
+                                                      "fill": "$on-fill",
+                                                      "content": "HTML / CSS",
+                                                      "lineHeight": 1.3846153846153846,
+                                                      "fontFamily": "Noto Sans TC",
+                                                      "fontSize": 13,
+                                                      "fontWeight": "700"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "UHkII",
+                                      "name": "ring Javascript",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 6,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "xq12k",
+                                          "name": "r",
+                                          "width": 120,
+                                          "height": 120,
+                                          "layout": "none",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "GUF4i",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "track",
+                                              "innerRadius": 0.82,
+                                              "fill": "$surface-sunken",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "ellipse",
+                                              "id": "UNbgf",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "progress",
+                                              "innerRadius": 0.82,
+                                              "startAngle": 90,
+                                              "sweepAngle": -324,
+                                              "fill": "$ink",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "K3Rrmn",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "pct",
+                                              "width": 120,
+                                              "height": 120,
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "KosVa",
+                                                  "name": "90%",
+                                                  "fill": "$ink",
+                                                  "content": "90%",
+                                                  "lineHeight": 1.0666666666666667,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 30
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "cx0Sw",
+                                                  "name": "Tag Javascript",
+                                                  "fill": "$mint",
+                                                  "cornerRadius": 8,
+                                                  "stroke": "$line",
+                                                  "strokeWidth": 2,
+                                                  "strokeAlignment": "inner",
+                                                  "gap": 6,
+                                                  "padding": [
+                                                    4,
+                                                    12
+                                                  ],
+                                                  "alignItems": "center",
+                                                  "children": [
+                                                    {
+                                                      "type": "text",
+                                                      "id": "DURcG",
+                                                      "name": "Javascript",
+                                                      "fill": "$on-fill",
+                                                      "content": "Javascript",
+                                                      "lineHeight": 1.3846153846153846,
+                                                      "fontFamily": "Noto Sans TC",
+                                                      "fontSize": 13,
+                                                      "fontWeight": "700"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "A71yMj",
+                                      "name": "ring AI 協作",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 6,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "HHElG",
+                                          "name": "r",
+                                          "width": 120,
+                                          "height": 120,
+                                          "layout": "none",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "J36bW",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "track",
+                                              "innerRadius": 0.82,
+                                              "fill": "$surface-sunken",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "ellipse",
+                                              "id": "rKK39",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "progress",
+                                              "innerRadius": 0.82,
+                                              "startAngle": 90,
+                                              "sweepAngle": -324,
+                                              "fill": "$ink",
+                                              "width": 120,
+                                              "height": 120
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "kqgOb",
+                                              "x": 0,
+                                              "y": 0,
+                                              "name": "pct",
+                                              "width": 120,
+                                              "height": 120,
+                                              "layout": "vertical",
+                                              "gap": 4,
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "g2hGMH",
+                                                  "name": "90%",
+                                                  "fill": "$ink",
+                                                  "content": "90%",
+                                                  "lineHeight": 1.0666666666666667,
+                                                  "fontFamily": "VT323",
+                                                  "fontSize": 30
+                                                },
+                                                {
+                                                  "type": "frame",
+                                                  "id": "R99IMW",
+                                                  "name": "Tag AI 協作",
+                                                  "fill": "$sky",
+                                                  "cornerRadius": 8,
+                                                  "stroke": "$line",
+                                                  "strokeWidth": 2,
+                                                  "strokeAlignment": "inner",
+                                                  "gap": 6,
+                                                  "padding": [
+                                                    4,
+                                                    12
+                                                  ],
+                                                  "alignItems": "center",
+                                                  "children": [
+                                                    {
+                                                      "type": "text",
+                                                      "id": "RzDzS",
+                                                      "name": "AI 協作",
+                                                      "fill": "$on-fill",
+                                                      "content": "AI 協作",
+                                                      "lineHeight": 1.3846153846153846,
+                                                      "fontFamily": "Noto Sans TC",
+                                                      "fontSize": 13,
+                                                      "fontWeight": "700"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "UXPcX",
+                      "name": "resume-panel 技能",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$surface-raised",
+                      "cornerRadius": 18,
+                      "stroke": "$line",
+                      "strokeWidth": 3,
+                      "strokeAlignment": "inner",
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "$ink",
+                        "offset": {
+                          "x": 5,
+                          "y": 5
+                        }
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "CTBCh",
+                          "name": "head",
+                          "width": "fill_container",
+                          "fill": "$surface-sunken",
+                          "stroke": "$line",
+                          "strokeWidth": {
+                            "bottom": 3
+                          },
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            8,
+                            20
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "GWlP2",
+                              "name": "技能",
+                              "fill": "$ink",
+                              "content": "技能",
+                              "lineHeight": 1.3636363636363635,
+                              "fontFamily": "Rubik",
+                              "fontSize": 22,
+                              "fontWeight": "900"
+                            },
+                            {
+                              "type": "text",
+                              "id": "rFAJn",
+                              "name": "SKILLS",
+                              "fill": "$ink-muted",
+                              "content": "SKILLS",
+                              "lineHeight": 1.0909090909090908,
+                              "fontFamily": "VT323",
+                              "fontSize": 22
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "lDAaJ",
+                          "name": "body",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 24,
+                          "padding": 24,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "JNalT",
+                              "name": "cloud",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "aQuQA",
+                                  "name": "r",
+                                  "gap": 12,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "N4pTFK",
+                                      "name": "Tag Vue2 / Vue3",
+                                      "fill": "$pop",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "effect": {
+                                        "type": "shadow",
+                                        "shadowType": "outer",
+                                        "color": "$ink",
+                                        "offset": {
+                                          "x": 3,
+                                          "y": 3
+                                        }
+                                      },
+                                      "gap": 6,
+                                      "padding": [
+                                        8,
+                                        16
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "g9dCy",
+                                          "name": "Vue2 / Vue3",
+                                          "fill": "$on-fill",
+                                          "content": "Vue2 / Vue3",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "I5Dp5b",
+                                      "name": "Tag React",
+                                      "fill": "$pop",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "effect": {
+                                        "type": "shadow",
+                                        "shadowType": "outer",
+                                        "color": "$ink",
+                                        "offset": {
+                                          "x": 3,
+                                          "y": 3
+                                        }
+                                      },
+                                      "gap": 6,
+                                      "padding": [
+                                        8,
+                                        16
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "NhWAl",
+                                          "name": "React",
+                                          "fill": "$on-fill",
+                                          "content": "React",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "lRwQd",
+                                      "name": "Tag TypeScript",
+                                      "fill": "$pop",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "effect": {
+                                        "type": "shadow",
+                                        "shadowType": "outer",
+                                        "color": "$ink",
+                                        "offset": {
+                                          "x": 3,
+                                          "y": 3
+                                        }
+                                      },
+                                      "gap": 6,
+                                      "padding": [
+                                        8,
+                                        16
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "x9dfNv",
+                                          "name": "TypeScript",
+                                          "fill": "$on-fill",
+                                          "content": "TypeScript",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "CFmaN",
+                                  "name": "r",
+                                  "gap": 12,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "imlPs",
+                                      "name": "Tag JavaScript (ES6+)",
+                                      "fill": "$pop",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "effect": {
+                                        "type": "shadow",
+                                        "shadowType": "outer",
+                                        "color": "$ink",
+                                        "offset": {
+                                          "x": 3,
+                                          "y": 3
+                                        }
+                                      },
+                                      "gap": 6,
+                                      "padding": [
+                                        8,
+                                        16
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "I85SXg",
+                                          "name": "JavaScript (ES6+)",
+                                          "fill": "$on-fill",
+                                          "content": "JavaScript (ES6+)",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "NDdGe",
+                                      "name": "Tag Claude Code",
+                                      "fill": "$pop",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 3,
+                                      "strokeAlignment": "inner",
+                                      "effect": {
+                                        "type": "shadow",
+                                        "shadowType": "outer",
+                                        "color": "$ink",
+                                        "offset": {
+                                          "x": 3,
+                                          "y": 3
+                                        }
+                                      },
+                                      "gap": 6,
+                                      "padding": [
+                                        8,
+                                        16
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "L06Og",
+                                          "name": "Claude Code",
+                                          "fill": "$on-fill",
+                                          "content": "Claude Code",
+                                          "lineHeight": 1.3333333333333333,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 15,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "d4tpC",
+                                      "name": "Tag Nuxt.js",
+                                      "fill": "$sky",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "PP8He",
+                                          "name": "Nuxt.js",
+                                          "fill": "$on-fill",
+                                          "content": "Nuxt.js",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "TADes",
+                                      "name": "Tag Next.js",
+                                      "fill": "$mint",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "n9yAm",
+                                          "name": "Next.js",
+                                          "fill": "$on-fill",
+                                          "content": "Next.js",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "bx22H",
+                                  "name": "r",
+                                  "gap": 12,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "XRQRh",
+                                      "name": "Tag Pinia",
+                                      "fill": "$pink",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "LtuTC",
+                                          "name": "Pinia",
+                                          "fill": "$on-fill",
+                                          "content": "Pinia",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "XFwyS",
+                                      "name": "Tag Vuex",
+                                      "fill": "$sky",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "T8H06S",
+                                          "name": "Vuex",
+                                          "fill": "$on-fill",
+                                          "content": "Vuex",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "a3OI9U",
+                                      "name": "Tag TailwindCSS",
+                                      "fill": "$mint",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Py1aL",
+                                          "name": "TailwindCSS",
+                                          "fill": "$on-fill",
+                                          "content": "TailwindCSS",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "S4F4gz",
+                                      "name": "Tag Vite",
+                                      "fill": "$pink",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "xWwFY",
+                                          "name": "Vite",
+                                          "fill": "$on-fill",
+                                          "content": "Vite",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "dIlbU",
+                                      "name": "Tag Webpack",
+                                      "fill": "$sky",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "uO8hR",
+                                          "name": "Webpack",
+                                          "fill": "$on-fill",
+                                          "content": "Webpack",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "DVWhr",
+                                      "name": "Tag Node.js",
+                                      "fill": "$mint",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "bBSVS",
+                                          "name": "Node.js",
+                                          "fill": "$on-fill",
+                                          "content": "Node.js",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "G9DuG",
+                                  "name": "r",
+                                  "gap": 12,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "Vgn1C",
+                                      "name": "Tag SSR / SPA",
+                                      "fill": "$pink",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "S2w88e",
+                                          "name": "SSR / SPA",
+                                          "fill": "$on-fill",
+                                          "content": "SSR / SPA",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "qmAtQ",
+                                      "name": "Tag Micro Frontend",
+                                      "fill": "$sky",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "H4C8j",
+                                          "name": "Micro Frontend",
+                                          "fill": "$on-fill",
+                                          "content": "Micro Frontend",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "H0iJj7",
+                                      "name": "Tag AI Agent Workflow",
+                                      "fill": "$mint",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "GbiFX",
+                                          "name": "AI Agent Workflow",
+                                          "fill": "$on-fill",
+                                          "content": "AI Agent Workflow",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "jq64u",
+                                      "name": "Tag Codex CLI",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "J5Ghep",
+                                          "name": "Codex CLI",
+                                          "fill": "$ink",
+                                          "content": "Codex CLI",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "pZLD7",
+                                  "name": "r",
+                                  "gap": 12,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "F1WNFp",
+                                      "name": "Tag HTML",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "eXrwS",
+                                          "name": "HTML",
+                                          "fill": "$ink",
+                                          "content": "HTML",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "Noa60",
+                                      "name": "Tag CSS / Sass",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "g1nPr",
+                                          "name": "CSS / Sass",
+                                          "fill": "$ink",
+                                          "content": "CSS / Sass",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "ZsnBk",
+                                      "name": "Tag Docker",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "QuFI0",
+                                          "name": "Docker",
+                                          "fill": "$ink",
+                                          "content": "Docker",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "uaPAU",
+                                      "name": "Tag Nginx",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "E0Cet5",
+                                          "name": "Nginx",
+                                          "fill": "$ink",
+                                          "content": "Nginx",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "g2nKqG",
+                                      "name": "Tag Git",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "QTIuH",
+                                          "name": "Git",
+                                          "fill": "$ink",
+                                          "content": "Git",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "mzwSu",
+                                      "name": "Tag 效能優化",
+                                      "fill": "$surface-raised",
+                                      "cornerRadius": 8,
+                                      "stroke": "$line",
+                                      "strokeWidth": 2,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        4,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "ulj2u",
+                                          "name": "效能優化",
+                                          "fill": "$ink",
+                                          "content": "效能優化",
+                                          "lineHeight": 1.3846153846153846,
+                                          "fontFamily": "Noto Sans TC",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "uiiSL",
+          "name": "Footer",
+          "width": "fill_container",
+          "stroke": "$line",
+          "strokeWidth": {
+            "top": 3
+          },
+          "strokeAlignment": "inner",
+          "padding": 24,
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "zYvKv",
+              "name": "© 2026 DKBO · GAME OVER?",
+              "fill": "$ink-muted",
+              "content": "© 2026 DKBO · GAME OVER? PRESS START",
+              "lineHeight": 1.0909090909090908,
+              "fontFamily": "VT323",
+              "fontSize": 22
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "mode": [
+      "light",
+      "dark"
+    ]
+  },
+  "variables": {
+    "surface": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#fffbf2",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-raised": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#241f18",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "surface-sunken": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#332c23",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "ink-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#4a4339",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "line": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "focus": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pop": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffce2e",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ff6b3d",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ff7a4f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-fill": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "sky": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#8fd6ff",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "mint": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#9be3b0",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "pink": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#ffb3d1",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "success": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#2bb673",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#3fd18a",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#17140f",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#0b0907",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#ffffff",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#fff8ec",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    },
+    "on-inverse-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#e9e2d6",
+          "theme": {
+            "mode": "light"
+          }
+        },
+        {
+          "value": "#cfc5b5",
+          "theme": {
+            "mode": "dark"
+          }
+        }
+      ]
+    }
+  },
+  "fileToken": "3d786720-f15c-47cd-816b-2c8a90721e4d"
+}

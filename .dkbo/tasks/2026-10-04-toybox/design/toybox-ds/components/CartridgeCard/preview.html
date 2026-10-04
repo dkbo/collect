@@ -1,0 +1,16 @@
+<!-- @dsCard group="Cards" height=520 width=1000 subtitle="game（截圖）／tool（IconBox），含 hover、active" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>CartridgeCard</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var T = window.Toybox, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-min), 1fr))', gap: 'var(--grid-gutter)', padding: 'var(--space-6)' } },
+    h(T.CartridgeCard, { no: '02', title: 'RPG 遊戲室', desc: '從 2015 年的第一版一路重寫到現在，Canvas 離屏預渲染的 2D 地圖與 NPC 對話。', tags: ['Canvas', 'React'], image: '/_blob/fcb8fe12a24f40b7dc50a7b421278bbc', imageAlt: 'RPG 遊戲室截圖' }),
+    h(T.CartridgeCard, { no: '02', title: 'hover', desc: '浮起 3px，陰影加深到 shadow-hard-l。', tags: ['Canvas'], image: '/_blob/fcb8fe12a24f40b7dc50a7b421278bbc', imageAlt: '', state: 'hover' }),
+    h(T.CartridgeCard, { no: '06', kind: 'tool', icon: 'search', title: '外部查詢', desc: 'GitHub 倉庫與維基百科條目搜尋，Axios 封裝與 Store 非同步流程。', tags: ['REST API'] }),
+    h(T.CartridgeCard, { no: '07', kind: 'tool', icon: 'list', iconTone: 'mint', title: 'active', desc: '按下時位移 5px、陰影歸零。', tags: ['Zustand'], state: 'active' })));
+</script>
+</body>
+</html>
