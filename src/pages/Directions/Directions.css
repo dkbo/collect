@@ -1,0 +1,83 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   DIRECTIONS PAGE（pages-spec §10）
+   ═══════════════════════════════════════════════════════ */
+@layer components {
+  .dir-page {
+    @apply flex flex-col gap-8 pt-12 pb-18 text-left max-sm:pt-8 max-sm:pb-12;
+  }
+
+  /* 地圖外框 */
+  .dir-map {
+    @apply relative h-[calc(100dvh-var(--layout-header-h,80px)-14rem)] min-h-[480px] w-full overflow-hidden rounded-toy-xl border-4 border-line bg-inverse shadow-hard-l;
+  }
+
+  /* 控制盒 */
+  .dir-control {
+    @apply absolute top-4 left-1/2 z-10 flex w-[90%] max-w-[420px] -translate-x-1/2 flex-col gap-3 rounded-toy-lg border-3 border-line bg-surface-raised p-4 shadow-hard-m sm:w-[50%] md:w-[40%];
+  }
+  .dir-field {
+    @apply relative;
+  }
+  .dir-field__icon {
+    @apply pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-ink;
+  }
+  .dir-field .dir-input {
+    @apply pl-11;
+  }
+  .dir-alert {
+    @apply flex items-start gap-3 rounded-toy-md border-3 border-line bg-pink px-4 py-2 font-body text-body-s text-on-fill;
+  }
+
+  /* 導航面板 */
+  .dir-panel {
+    @apply absolute top-0 right-0 z-20 h-full w-full overflow-y-auto border-l-4 border-line bg-surface-raised p-6 font-body text-body-s text-ink
+      transition-transform duration-500 ease-in-out motion-reduce:transition-none sm:w-[350px];
+  }
+  .dir-panel__head {
+    @apply sticky top-0 z-30 mb-4 flex items-center justify-between border-b-3 border-line bg-surface-raised pb-3;
+  }
+  .dir-panel__title {
+    @apply m-0 flex items-center gap-2 font-display text-heading-m text-ink;
+  }
+
+  /* 文字模式（地圖逾時） */
+  .dir-fallback {
+    @apply absolute inset-0 z-0 flex flex-col items-center justify-center gap-4 bg-inverse p-8 text-center text-on-inverse-muted select-text;
+  }
+  .dir-fallback__title {
+    @apply m-0 font-display text-heading-m text-on-inverse;
+  }
+  .dir-fallback__desc {
+    @apply m-0 max-w-sm font-body text-body-s;
+  }
+  .dir-route {
+    @apply flex w-full max-w-md flex-col gap-2 rounded-toy-md border-3 border-line bg-surface-raised p-4 text-left font-body text-ink;
+  }
+  .dir-route__label {
+    @apply text-label;
+  }
+  .dir-route__steps {
+    @apply m-0 flex list-inside list-decimal flex-col gap-1 p-0 text-body-s;
+  }
+
+  /* 地圖上的自訂標記（innerHTML 字串） */
+  .dir-marker {
+    @apply flex size-11 cursor-pointer items-center justify-center overflow-hidden rounded-full border-3 border-line bg-surface-raised p-0.5 shadow-hard-s
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus;
+  }
+  .dir-bubble {
+    @apply pointer-events-none absolute -top-[95px] left-1/2 z-50 max-w-[180px] -translate-x-1/2 rounded-toy-md border-3 border-line bg-surface-raised p-3
+      font-body text-body-s break-words whitespace-normal text-ink opacity-0 transition-opacity duration-300 motion-reduce:transition-none;
+  }
+  .dir-bubble__name {
+    @apply mb-0.5 text-label text-ink;
+  }
+  .dir-bubble__time {
+    @apply mt-1 text-caption text-ink-muted;
+  }
+  .dir-infowin {
+    @apply p-2 font-body text-label text-on-fill;
+  }
+}

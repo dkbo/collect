@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Tag } from '@/components/toybox'
+import PanelHead from '@/pages/Resume/PanelHead'
+import { CHART_TONE } from '@/pages/Resume/skills'
 
 interface ChartProps {
-  color: 'red' | 'blue' | 'green'
+  color: keyof typeof CHART_TONE
   percent: number
   text: string
 }
@@ -10,7 +13,6 @@ function Chart({ color, percent, text }: ChartProps) {
   const [animatedPercent, setAnimatedPercent] = useState(0)
 
   useEffect(() => {
-    // Stagger animation slightly for a natural progressive load feel
     const timer = setTimeout(() => {
       setAnimatedPercent(percent)
     }, 300)
@@ -21,63 +23,37 @@ function Chart({ color, percent, text }: ChartProps) {
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference - (animatedPercent / 100) * circumference
 
-  // Dynamic stroke colors for the three progress categories
-  const strokeColors = {
-    red: 'stroke-rose-500 dark:stroke-rose-400',
-    blue: 'stroke-sky-500 dark:stroke-sky-400',
-    green: 'stroke-emerald-500 dark:stroke-emerald-400',
-  }
-
-  const baseColors = {
-    red: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-    blue: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-    green: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  }
-
   return (
-    <div className="flex flex-col items-center p-2 group" role="img" aria-label={`${text} 熟練度 ${percent}%`}>
-      <div className="relative size-24 sm:size-28 md:size-32 transition-transform duration-300 group-hover:scale-105">
-        <svg className="size-full -rotate-90" viewBox="0 0 120 120">
-          {/* Background circle */}
+    <div className="flex flex-col items-center gap-2" role="img" aria-label={`${text} 熟練度 ${percent}%`}>
+      <div className="resume-chart">
+        <svg className="size-full -rotate-90" viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r={radius} className="resume-ring__track" strokeWidth="10" />
           <circle
             cx="60"
             cy="60"
             r={radius}
-            className="stroke-slate-100 dark:stroke-slate-800/80 fill-none"
+            className="resume-ring__bar"
             strokeWidth="10"
-          />
-          {/* Progress circle with smooth transition */}
-          <circle
-            cx="60"
-            cy="60"
-            r={radius}
-            className={`fill-none ${strokeColors[color]} transition-[stroke-dashoffset] duration-1000 ease-out`}
-            strokeWidth="8"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
+            strokeLinecap="butt"
           />
         </svg>
-        {/* Central progress label */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-base sm:text-lg md:text-xl font-extrabold text-slate-800 dark:text-slate-100">
-            {animatedPercent}%
-          </span>
-          <span className={`text-[9px] md:text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 border border-current/25 ${baseColors[color]}`}>
-            {text}
-          </span>
+        <div className="resume-chart__center">
+          <span className="resume-chart__pct">{animatedPercent}%</span>
         </div>
       </div>
+      <Tag tone={CHART_TONE[color]}>{text}</Tag>
     </div>
   )
 }
 
 export function StateSection() {
   return (
-    <section className="resume-card" data-testid="resume-state">
-      <h2 className="resume-card-header">狀態</h2>
-      <div className="p-6 md:p-8">
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 justify-items-center">
+    <section className="resume-panel" data-testid="resume-state">
+      <PanelHead title="狀態" code="STATS" />
+      <div className="resume-panel__body">
+        <div className="resume-charts">
           <Chart color="green" percent={92} text="Vue" />
           <Chart color="blue" percent={85} text="React" />
           <Chart color="red" percent={82} text="TypeScript" />

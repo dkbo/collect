@@ -1,0 +1,141 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   MAP DEVELOPER（pages-spec §11）— 前綴 mapdev-
+   ═══════════════════════════════════════════════════════ */
+/* 包在 components layer：className 上的 utility 一律蓋得過頁面 class；要蓋 toybox 元件 class 的規則用複合選擇器提高權重 */
+@layer components {
+  /* 頁面骨架（§0）：整頁也是全螢幕目標，自帶 surface 底 */
+  .mapdev-page {
+    @apply flex flex-col gap-6 bg-surface text-left pt-12 pb-18 text-ink select-none max-sm:pt-8 max-sm:pb-12;
+  }
+
+  .mapdev-page:fullscreen {
+    @apply overflow-y-auto;
+  }
+
+  .mapdev-toolbar {
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  /* 工具頁內容物件（JSON 面板） */
+  .mapdev-box {
+    @apply flex flex-col gap-4 rounded-toy-lg border-3 border-line bg-surface-raised p-6 shadow-hard-m max-sm:p-5;
+  }
+
+  /* 圖庫、屬性兩欄 */
+  .mapdev-panel {
+    @apply flex min-w-0 flex-col overflow-hidden rounded-toy-lg border-3 border-line bg-surface-raised shadow-hard-m;
+  }
+
+  .mapdev-panel__head {
+    @apply flex flex-wrap items-center justify-between gap-2 border-b-3 border-line px-4 py-3 text-label text-ink [&>span>svg]:size-4;
+  }
+
+  .mapdev-panel__body {
+    @apply flex flex-1 flex-col gap-5 overflow-y-auto p-4;
+  }
+
+  /* 欄位：標籤＋輸入框（§2） */
+  .mapdev-field {
+    @apply flex min-w-0 flex-col gap-2;
+  }
+
+  .mapdev-label {
+    @apply text-label text-ink;
+  }
+
+  .mapdev-help {
+    @apply text-body-s text-ink-muted;
+  }
+
+  .mapdev-h4 {
+    @apply flex items-center gap-2 text-label text-ink [&>svg]:size-4 [&>svg]:shrink-0;
+  }
+
+  .mapdev-section {
+    @apply flex flex-col gap-3 border-b-3 border-line pb-5;
+  }
+
+  .mapdev-grid2 {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  /* 唯讀欄位：凹槽色 */
+  .mapdev-readonly.tb-input {
+    @apply bg-surface-sunken text-ink-muted;
+  }
+
+  /* 下拉：tb-select＋右側 ChevronDown */
+  .mapdev-select {
+    @apply relative min-w-0;
+  }
+
+  .mapdev-select__icon {
+    @apply pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink;
+  }
+
+  /* 屬性分頁：SegmentedControl 外觀的直排版 */
+  .mapdev-tabs.tb-seg {
+    @apply flex w-full flex-col;
+  }
+
+  .mapdev-tab.tb-seg__opt {
+    @apply flex w-full items-center justify-start text-left not-first:border-t-3 not-first:border-l-0;
+  }
+
+  /* NPC 清單列 */
+  .mapdev-item {
+    @apply flex min-h-11 w-full cursor-pointer items-center rounded-toy-md border-3 border-line bg-surface px-3 py-2 text-left text-caption
+      text-ink transition-colors duration-120 hover:bg-surface-sunken focus-visible:outline-3 focus-visible:outline-offset-3
+      focus-visible:outline-focus aria-pressed:bg-pop aria-pressed:text-on-fill motion-reduce:transition-none;
+  }
+
+  /* 未選取物件時的空插槽 */
+  .mapdev-empty {
+    @apply flex h-48 flex-col items-center justify-center gap-2 rounded-toy-md border-3 border-dashed border-line px-4 text-center
+      text-body-s text-ink-muted;
+  }
+
+  /* 圖庫捲動區 */
+  .mapdev-palette {
+    @apply relative max-h-[500px] flex-1 overflow-y-auto bg-surface-sunken p-3 lg:max-h-[680px];
+  }
+
+  .mapdev-palette__frame {
+    @apply relative overflow-hidden rounded-toy-md border-3 border-line bg-surface-raised;
+  }
+
+  /* 畫布欄：工具列＋ScreenFrame */
+  .mapdev-canvas-col {
+    @apply flex min-h-[550px] min-w-0 flex-col gap-3 lg:min-h-[720px];
+  }
+
+  .mapdev-canvas-tools {
+    @apply flex flex-wrap items-center gap-3 text-caption text-ink;
+  }
+
+  .mapdev-range {
+    @apply h-3 w-20 cursor-pointer appearance-none rounded-toy-pill border-2 border-line bg-surface-sunken accent-ink;
+  }
+
+  .mapdev-screen {
+    @apply flex-1;
+  }
+
+  .mapdev-screen__view {
+    @apply flex-1 touch-none bg-inverse p-5 outline-none;
+  }
+
+  .mapdev-status {
+    @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 font-pixel text-pixel-m text-on-inverse-muted;
+  }
+
+  .mapdev-status__key {
+    @apply font-body text-caption;
+  }
+
+  .mapdev-status__val {
+    @apply text-pop;
+  }
+}

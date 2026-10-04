@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Swords } from 'lucide-react'
 import { useRoomStore } from '@/store/useRoomStore'
 import type { GameType } from '@/core/room'
-import GameList from './GameList'
-import GameMenu from './GameMenu'
-import SoloGame from './SoloGame'
-import Room from './Room'
+import GameList from '@/pages/Battle/GameList'
+import GameMenu from '@/pages/Battle/GameMenu'
+import SoloGame from '@/pages/Battle/SoloGame'
+import Room from '@/pages/Battle/Room'
+import '@/pages/Battle/Battle.css'
 
 /**
  * 多人對戰頁。流程：
@@ -41,15 +41,15 @@ export function Battle() {
   }
 
   return (
-    <div className="pb-12" data-testid="page-battle">
-      <header className="text-center mb-8">
-        <h1 className="text-3xl md:text-5xl font-extrabold bg-gradient-to-r from-indigo-500 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent leading-tight flex items-center justify-center gap-3">
-          <Swords className="size-8 md:size-10 text-indigo-400" aria-hidden="true" />
-          多人對戰
-        </h1>
-        <p className="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
-          選一款遊戲，單人開玩或揪 1~4 人即時連線對戰。Firebase 管房間，WebRTC 點對點傳輸，Babylon.js 渲染戰場。
-        </p>
+    <div className="tb-container battle-page" data-testid="page-battle">
+      <header className="tb-sechead">
+        <div className="tb-sechead__text">
+          <span className="tb-sechead__eyebrow">— VERSUS MODE —</span>
+          <h1 className="tb-sechead__title">多人對戰</h1>
+          <p className="battle-head__intro">
+            選一款遊戲，單人開玩或揪 1~4 人即時連線對戰。Firebase 管房間，WebRTC 點對點傳輸，Babylon.js 渲染戰場。
+          </p>
+        </div>
       </header>
 
       {content}

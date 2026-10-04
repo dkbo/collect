@@ -1,32 +1,28 @@
-import useScrollAnimation from '@/lib/useScrollAnimation'
+import { Marquee } from '@/components/toybox'
 import AboutSection from '@/pages/Home/AboutSection'
 import FooterCta from '@/pages/Home/FooterCta'
 import HeroSection from '@/pages/Home/HeroSection'
 import JourneySection from '@/pages/Home/JourneySection'
-import TechMarquee from '@/pages/Home/TechMarquee'
 import WorksSection from '@/pages/Home/WorksSection'
+import '@/pages/Home/Home.css'
+
+const MARQUEE_ITEMS = ['INSERT COIN', 'VUE', 'REACT 19', 'TYPESCRIPT', 'BABYLON.JS', 'GODOT 4', 'WEBRTC', 'FIREBASE', 'ZUSTAND', 'TAILWIND V4', 'CLAUDE CODE']
 
 export function Home() {
-  const containerRef = useScrollAnimation()
-
   return (
-    <div className="home-container relative" data-testid="page-home" ref={containerRef}>
-      <div className="hero-orb-a" aria-hidden="true" />
-      <div className="hero-orb-b" aria-hidden="true" />
-
-      <div className="relative z-10">
+    <div className="text-left" data-testid="page-home">
+      <div className="tb-container">
         <HeroSection />
-        <TechMarquee />
-        <div className="animate-on-scroll animate-fade-in-up">
-          <WorksSection />
-        </div>
-        <div className="animate-on-scroll animate-fade-in-up">
-          <AboutSection />
-        </div>
+      </div>
+      {/* 跑馬燈滿版，放在 tb-container 外 */}
+      <div data-testid="home-marquee">
+        <Marquee items={MARQUEE_ITEMS} />
+      </div>
+      <div className="tb-container">
+        <WorksSection />
+        <AboutSection />
         <JourneySection />
-        <div className="animate-on-scroll animate-fade-in-up">
-          <FooterCta />
-        </div>
+        <FooterCta />
       </div>
     </div>
   )

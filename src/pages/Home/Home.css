@@ -1,0 +1,103 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   HOME（首頁）— 前綴 home-；版面照 home-mockup 與 pages-spec §6
+   ═══════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ── Hero ── */
+  .home-hero {
+    @apply grid grid-cols-1 items-center gap-14 pt-18 pb-22 lg:grid-cols-12 max-sm:pt-10 max-sm:pb-14;
+  }
+  .home-hero__copy {
+    @apply flex min-w-0 flex-col items-start gap-6 lg:col-span-7;
+  }
+  .home-hero__title {
+    @apply m-0 font-display text-display-xl text-ink;
+  }
+  .home-hero__name {
+    @apply ml-1.5 inline-block rounded-toy-lg border-4 border-line bg-pop px-4 text-on-fill shadow-hard-m;
+  }
+  .home-hero__sub {
+    @apply m-0 font-display text-heading-l text-ink;
+  }
+  .home-hero__lead {
+    @apply m-0 max-w-130 text-body-l text-ink-muted;
+  }
+  .home-hero__actions {
+    @apply mt-1 flex w-full flex-col gap-4 sm:w-auto sm:flex-row;
+  }
+  .home-hero__stats {
+    @apply mt-3 grid w-full grid-cols-2 gap-3 lg:grid-cols-4;
+  }
+  /* 掌機欄：傾斜後的機身角與貼紙會外推，裁掉水平溢出（AC12） */
+  .home-hero__console {
+    @apply relative flex min-w-0 justify-center overflow-x-clip px-4 py-6 lg:col-span-5;
+  }
+  .home-hero__sticker {
+    @apply absolute z-10 hidden lg:inline-flex;
+  }
+
+  /* ── 作品區 ── */
+  .home-works {
+    @apply flex scroll-mt-6 flex-col gap-8 pt-24 pb-20 max-sm:pt-16 max-sm:pb-14;
+  }
+  .home-works__grid {
+    @apply grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+
+  /* ── About（§6.1） ── */
+  .home-about {
+    @apply flex flex-col gap-8 py-24 max-sm:py-18;
+  }
+  .home-about-card {
+    @apply flex flex-col items-start gap-6 rounded-toy-lg border-3 border-line bg-surface-raised p-8 shadow-hard-m
+      lg:col-span-7 max-sm:p-6;
+  }
+  .home-now {
+    @apply flex flex-col overflow-hidden rounded-toy-lg border-3 border-line bg-surface-raised shadow-hard-m lg:col-span-5;
+  }
+  .home-now__strip {
+    @apply m-0 border-b-3 border-line bg-pop px-4 py-1 font-pixel text-pixel-m text-on-fill;
+  }
+  .home-now__dot {
+    @apply mt-2 size-3 shrink-0 rounded-full border-2 border-line;
+  }
+
+  /* ── Journey（§6.2） ── */
+  .home-journey {
+    @apply flex flex-col gap-8 pb-24 max-sm:pb-18;
+  }
+  .home-journey__line {
+    @apply absolute top-2 bottom-2 left-[13px] w-0 border-l-3 border-line md:left-[129px];
+  }
+  .home-journey__dot {
+    @apply relative size-5 rounded-full border-3 border-line bg-surface-raised;
+  }
+  .home-journey__dot--current {
+    @apply size-6 bg-pop shadow-hard-s;
+  }
+  .home-journey__lesson {
+    @apply flex flex-col gap-1 rounded-toy-md border-3 border-line bg-surface-raised p-4;
+  }
+  .home-journey__summary {
+    @apply inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-toy-md border-3 border-line bg-surface-raised px-4 py-2
+      font-display text-button text-ink shadow-hard-s [&::-webkit-details-marker]:hidden;
+  }
+  .home-journey__loading {
+    @apply grid h-40 place-items-center rounded-toy-md border-3 border-line bg-inverse font-pixel text-pixel-m text-pop;
+  }
+
+  /* ── CodeSnippet（§6.3）：小一號 ScreenFrame ── */
+  .home-code {
+    @apply flex flex-col gap-2 rounded-toy-md border-3 border-line bg-inverse p-3 shadow-hard-m;
+  }
+  .home-code__bar {
+    @apply flex justify-between px-1 font-pixel text-pixel-m;
+  }
+
+  /* ── 結尾 CTA ── */
+  .home-cta {
+    @apply pb-18 max-sm:pb-12;
+  }
+}

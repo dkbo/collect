@@ -1,0 +1,153 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   RESUME PAGE（pages-spec §7）
+   ═══════════════════════════════════════════════════════ */
+@layer components {
+  .resume-page {
+    @apply flex flex-col gap-8 pt-12 pb-18 text-left max-sm:pt-8 max-sm:pb-12;
+  }
+  .resume-lead {
+    @apply m-0 max-w-2xl font-body text-body text-ink-muted;
+  }
+  .resume-columns {
+    @apply columns-1 gap-6 md:columns-2;
+  }
+  .resume-cell {
+    @apply mb-6 w-full break-inside-avoid;
+  }
+
+  /* ── 五張卡共用 ── */
+  .resume-panel {
+    @apply flex flex-col overflow-hidden rounded-toy-lg border-3 border-line bg-surface-raised shadow-hard-m;
+  }
+  .resume-panel__head {
+    @apply flex items-center justify-between gap-3 border-b-3 border-line bg-surface-sunken px-5 py-2 text-ink;
+  }
+  .resume-panel__head--pop {
+    @apply bg-pop text-on-fill;
+  }
+  .resume-panel__title {
+    @apply m-0 font-display text-heading-m text-ink;
+  }
+  .resume-panel__code {
+    @apply font-pixel text-pixel-m text-ink-muted;
+  }
+  .resume-panel__head--pop .resume-panel__title,
+  .resume-panel__head--pop .resume-panel__code {
+    @apply text-on-fill;
+  }
+  .resume-panel__body {
+    @apply flex flex-col gap-6 p-6 max-sm:p-5;
+  }
+
+  /* ── About ── */
+  .resume-profile {
+    @apply flex flex-col items-center gap-6 @xl:flex-row @xl:items-start;
+  }
+  .resume-avatar {
+    @apply size-28 shrink-0 -rotate-3 overflow-hidden rounded-toy-lg border-4 border-line bg-surface-sunken shadow-hard-m md:size-32;
+  }
+  .resume-name {
+    @apply m-0 flex items-center gap-2 font-display text-heading-l whitespace-nowrap text-ink;
+  }
+  .resume-role {
+    @apply m-0 font-pixel text-pixel-m text-ink-muted;
+  }
+  .resume-bio {
+    @apply m-0 text-left font-body text-body text-ink;
+  }
+  .resume-rings {
+    @apply grid grid-cols-4 gap-3 rounded-toy-md border-3 border-line bg-surface p-4;
+  }
+  .resume-ring {
+    @apply flex min-w-0 flex-col items-center gap-1;
+  }
+  .resume-ring__track {
+    @apply fill-none stroke-surface-sunken;
+  }
+  .resume-ring__bar {
+    @apply fill-none stroke-ink transition-[stroke-dashoffset] duration-1000 ease-out motion-reduce:transition-none;
+  }
+  .resume-ring__pct {
+    @apply absolute font-pixel text-pixel-m text-ink;
+  }
+  .resume-ring__label {
+    @apply w-full text-center font-body text-caption text-balance break-words text-ink-muted;
+  }
+  .resume-info {
+    @apply grid w-full grid-cols-1 gap-3 @lg:grid-cols-2;
+  }
+  .resume-info__item {
+    @apply flex min-w-0 items-center gap-3 rounded-toy-md border-3 border-line bg-surface p-3 text-left;
+  }
+  /* Email 可點：單一 class 放陰影，讓 tb-lift-s 的 hover／active 蓋得過 */
+  .resume-info__link {
+    @apply shadow-hard-s;
+  }
+  .resume-info__key {
+    @apply block font-pixel text-pixel-m text-ink-muted;
+  }
+  .resume-info__val {
+    @apply block truncate font-body text-label text-ink;
+  }
+
+  /* ── 人物介紹 ── */
+  .resume-bio-row {
+    @apply flex gap-4;
+  }
+  .resume-bio-row__num {
+    @apply shrink-0 font-pixel text-pixel-m text-ink-muted;
+  }
+
+  /* ── 狀態 ── */
+  .resume-charts {
+    @apply grid grid-cols-3 justify-items-center gap-4;
+  }
+  .resume-chart {
+    @apply relative size-24 sm:size-28 md:size-32;
+  }
+  .resume-chart__center {
+    @apply absolute inset-0 flex flex-col items-center justify-center gap-1;
+  }
+  .resume-chart__pct {
+    @apply font-pixel text-pixel-l text-ink;
+  }
+
+  /* ── 經歷 ── */
+  .resume-timeline {
+    @apply relative flex flex-col;
+  }
+  .resume-timeline__line {
+    @apply absolute top-2 bottom-2 left-2 w-0 border-l-3 border-line;
+  }
+  .resume-timeline__item {
+    @apply relative pb-4 pl-10 transition-[opacity,translate] duration-500 ease-out last-of-type:pb-0 motion-reduce:transition-none;
+  }
+  .resume-timeline__item--hidden {
+    @apply translate-y-4 opacity-0 motion-reduce:translate-y-0 motion-reduce:opacity-100;
+  }
+  .resume-timeline__dot {
+    @apply absolute top-5 left-0 size-5 rounded-full border-3 border-line bg-surface-raised;
+  }
+  .resume-timeline__item:first-of-type .resume-timeline__dot {
+    @apply bg-pop;
+  }
+  .resume-timeline__card {
+    @apply flex flex-col items-start gap-1 rounded-toy-md border-3 border-line bg-surface p-4;
+  }
+  .resume-timeline__company {
+    @apply m-0 font-body text-label text-ink;
+  }
+  .resume-timeline__title {
+    @apply m-0 font-body text-body-s text-ink-muted;
+  }
+  .resume-timeline__card .resume-timeline__year {
+    @apply font-pixel text-pixel-m;
+  }
+
+  /* ── 技能 ── */
+  .resume-skills {
+    @apply flex flex-wrap justify-center gap-3;
+  }
+}

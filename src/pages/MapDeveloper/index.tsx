@@ -1,23 +1,32 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { clsx } from 'clsx'
 import {
+  AlertTriangle,
+  Camera,
+  ChevronDown,
+  Copy,
+  Download,
+  FileJson,
+  FolderOpen,
+  HelpCircle,
+  Info,
+  Keyboard,
   Layers,
+  Lightbulb,
+  Maximize2,
+  Minimize2,
+  Minus,
+  Plus,
+  Save,
   Settings,
   Trash2,
-  Download,
   Upload,
-  HelpCircle,
-  Grid,
-  Save,
-  FileJson,
-  Copy,
-  Info,
-  FolderOpen,
-  Keyboard,
-  Maximize2,
-  Minimize2
+  User,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, IconButton, Tag } from '@/components/toybox'
+import { GameDialog, GamePageHead, KeyRow, TipBar } from '@/pages/RpgRoom/lib/gameUi'
+import '@/pages/MapDeveloper/MapDeveloper.css'
 import { useMapEditorStore } from '@/store/useMapEditorStore'
 import type { MapTile, MapCollision } from '@/store/useMapEditorStore'
 import type { MapNpc } from '@/pages/RpgRoom/types'
@@ -1049,139 +1058,105 @@ export function MapDeveloper() {
     }
   }
 
-  return (
-    <div ref={containerRef} className="flex flex-col min-h-screen text-slate-100 font-sans select-none pb-20 animate-fade-in" data-testid="page-map-developer">
-      
-      {/* Top Tools Area */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 mb-5 shadow-2xl backdrop-blur-md flex flex-wrap gap-5 justify-between items-center relative z-20">
-        <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-tr from-purple-500 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-purple-500/20">
-            <Layers className="h-5 w-5 text-white" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white m-0 leading-normal">
-              2D 地圖與場景開發器
-            </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              React 19 等寬網格圖層場景編輯工具
-            </p>
-          </div>
-        </div>
+  const numField = (label: string, value: number | string, onChange?: (v: string) => void, extra?: { readOnly?: boolean; placeholder?: string; type?: string }) => (
+    <label className="mapdev-field">
+      <span className="mapdev-label">{label}</span>
+      <input
+        type={extra?.type ?? 'number'}
+        value={value}
+        readOnly={extra?.readOnly}
+        placeholder={extra?.placeholder}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        className={clsx('tb-input', extra?.readOnly && 'mapdev-readonly')}
+      />
+    </label>
+  )
 
-        {/* Global Controls */}
-        <div className="flex flex-wrap gap-2.5">
-          <select
-            className="bg-slate-950 border border-slate-800 rounded-lg text-sm px-3 py-1.5 outline-none focus:border-purple-500 font-sans cursor-pointer text-slate-300 hover:text-white hover:bg-slate-800"
-            value=""
-            onChange={(e) => {
-              if (e.target.value === '') return
-              handleLoadExistingMap(Number(e.target.value))
-            }}
-            aria-label="載入現有地圖"
-          >
-            <option value="" disabled>載入現有地圖...</option>
-            {mapsJson.map((m, i) => (
-              <option key={i} value={i}>
-                {m.map.index}. {m.map.name} ({m.map.width}×{m.map.height})
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="outline"
-            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-            onClick={() => setShowHelpModal(true)}
-            aria-label="快速鍵說明"
-          >
-            <HelpCircle className="h-4 w-4 mr-2" aria-hidden="true" />
-            快速鍵說明
-          </Button>
-          <Button 
-            variant="outline"
-            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-            onClick={() => setShowJsonPanel(!showJsonPanel)}
-            aria-label="導入 / 導出 JSON"
-          >
-            <FileJson className="h-4 w-4 mr-2" aria-hidden="true" />
-            導入 / 導出 JSON
-          </Button>
-          <Button 
-            variant="outline"
-            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-            onClick={() => store.loadFromLocalStorage()}
-            aria-label="讀取暫存"
-          >
-            <FolderOpen className="h-4 w-4 mr-2" aria-hidden="true" />
-            讀取暫存 (Alt+L)
-          </Button>
-          <Button
-            className="bg-purple-600 text-white hover:bg-purple-700 font-semibold focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-            onClick={() => {
-              store.saveToLocalStorage()
-              alert('地圖已成功儲存至本地快取！')
-            }}
-            aria-label="儲存地圖"
-          >
-            <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-            儲存地圖 (Alt+S)
-          </Button>
-          <Button
-            variant="outline"
-            className="border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-            onClick={toggleFullscreen}
-            aria-label="切換全螢幕"
-          >
-            {isFullscreen ? (
-              <><Minimize2 className="h-4 w-4 mr-2" aria-hidden="true" />離開全螢幕</>
-            ) : (
-              <><Maximize2 className="h-4 w-4 mr-2" aria-hidden="true" />全螢幕開發</>
-            )}
-          </Button>
-        </div>
+  return (
+    <div ref={containerRef} className="tb-container mapdev-page" data-testid="page-map-developer">
+
+      {/* 頁首 */}
+      <GamePageHead eyebrow="— MAP EDITOR —" title="2D 地圖與場景開發器" intro="React 19 等寬網格圖層場景編輯工具" />
+
+      {/* 全域工具列 */}
+      <div className="mapdev-toolbar">
+        <MapSelect
+          className="w-auto min-w-56"
+          value=""
+          onChange={(e) => {
+            if (e.target.value === '') return
+            handleLoadExistingMap(Number(e.target.value))
+          }}
+          aria-label="載入現有地圖"
+        >
+          <option value="" disabled>載入現有地圖...</option>
+          {mapsJson.map((m, i) => (
+            <option key={i} value={i}>
+              {m.map.index}. {m.map.name} ({m.map.width}×{m.map.height})
+            </option>
+          ))}
+        </MapSelect>
+        <Button size="s" icon={<HelpCircle strokeWidth={2.5} aria-hidden="true" />} onClick={() => setShowHelpModal(true)} aria-label="快速鍵說明">
+          快速鍵說明
+        </Button>
+        <Button size="s" icon={<FileJson strokeWidth={2.5} aria-hidden="true" />} onClick={() => setShowJsonPanel(!showJsonPanel)} aria-label="導入 / 導出 JSON" aria-pressed={showJsonPanel}>
+          導入 / 導出 JSON
+        </Button>
+        <Button size="s" icon={<FolderOpen strokeWidth={2.5} aria-hidden="true" />} onClick={() => store.loadFromLocalStorage()} aria-label="讀取暫存">
+          讀取暫存 (Alt+L)
+        </Button>
+        <Button
+          size="s"
+          icon={isFullscreen ? <Minimize2 strokeWidth={2.5} aria-hidden="true" /> : <Maximize2 strokeWidth={2.5} aria-hidden="true" />}
+          onClick={toggleFullscreen}
+          aria-label="切換全螢幕"
+        >
+          {isFullscreen ? '離開全螢幕' : '全螢幕開發'}
+        </Button>
+        <Button
+          size="s"
+          variant="primary"
+          icon={<Save strokeWidth={2.5} aria-hidden="true" />}
+          onClick={() => {
+            store.saveToLocalStorage()
+            alert('地圖已成功儲存至本地快取！')
+          }}
+          aria-label="儲存地圖"
+        >
+          儲存地圖 (Alt+S)
+        </Button>
       </div>
 
-      {/* JSON Collapsible Input panel */}
+      {/* JSON 面板 */}
       {showJsonPanel && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5 shadow-2xl animate-slide-in relative z-20">
-          <h3 className="text-sm font-semibold mb-3 text-purple-400 flex items-center gap-2">
-            <FileJson className="h-4 w-4" aria-hidden="true" /> 地圖 JSON 代碼工具
+        <div className="mapdev-box">
+          <h3 className="mapdev-h4 text-heading-m">
+            <FileJson strokeWidth={2.5} aria-hidden="true" /> 地圖 JSON 代碼工具
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-xs text-slate-400">當前地圖代碼 (匯出)</span>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={handleCopyJson} 
-                  className="h-7 text-xs text-purple-400 hover:text-purple-300 hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-                  aria-label="複製 JSON"
-                >
-                  <Copy className="h-3 w-3 mr-1" aria-hidden="true" />
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="mapdev-field">
+              <div className="flex items-center justify-between gap-3">
+                <span className="mapdev-label">當前地圖代碼 (匯出)</span>
+                <Button size="s" icon={<Copy strokeWidth={2.5} aria-hidden="true" />} onClick={handleCopyJson} aria-label="複製 JSON">
                   {copied ? '已複製' : '複製 JSON'}
                 </Button>
               </div>
-              <textarea 
-                className="w-full h-44 rounded-xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-emerald-400 focus:outline-none"
+              <textarea
+                className="tb-textarea h-44 text-body-s"
                 readOnly
                 value={currentMapJson}
                 aria-label="當前地圖 JSON 代碼匯出"
               />
             </div>
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-xs text-slate-400">載入地圖 JSON (匯入)</span>
-                <Button 
-                  size="sm"
-                  onClick={handleLoadJson}
-                  className="h-7 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-                  aria-label="解析並載入"
-                >
-                  <Upload className="h-3 w-3 mr-1" aria-hidden="true" />
+            <div className="mapdev-field">
+              <div className="flex items-center justify-between gap-3">
+                <span className="mapdev-label">載入地圖 JSON (匯入)</span>
+                <Button size="s" icon={<Upload strokeWidth={2.5} aria-hidden="true" />} onClick={handleLoadJson} aria-label="解析並載入">
                   解析並載入
                 </Button>
               </div>
-              <textarea 
-                className="w-full h-44 rounded-xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-slate-300 focus:border-purple-500 focus:outline-none"
+              <textarea
+                className="tb-textarea h-44 text-body-s"
                 placeholder="在此貼上舊地圖匯出的 JSON 代碼..."
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
@@ -1192,367 +1167,266 @@ export function MapDeveloper() {
         </div>
       )}
 
-      {/* Main Workspace Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 relative z-10">
-        
-        {/* Left: Palette Panel (3 columns) */}
-        <div className="lg:col-span-3 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <span className="text-sm font-semibold flex items-center gap-2">
-              <Layers className="h-4 w-4 text-purple-400" aria-hidden="true" />
+      {/* 三欄工作區 */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+
+        {/* 左：圖庫 */}
+        <div className="mapdev-panel lg:col-span-3">
+          <div className="mapdev-panel__head">
+            <span className="flex items-center gap-2 whitespace-nowrap">
+              <Layers strokeWidth={2.5} aria-hidden="true" />
               圖庫拼圖區
             </span>
-            <select 
-              className="bg-slate-950 border border-slate-800 rounded-lg text-xs px-2.5 py-1.5 outline-none focus:border-purple-500 font-sans cursor-pointer text-slate-300"
-              value={store.sprites} 
+            <MapSelect
+              className="w-full"
+              value={store.sprites}
               onChange={(e) => store.selectSpriteSheet(Number(e.target.value))}
+              aria-label="選擇圖庫"
             >
               <option value={0}>NPC (角色)</option>
               <option value={1}>拼圖一 (Tileset 1)</option>
               <option value={2}>拼圖二 (Tileset 2)</option>
-            </select>
+            </MapSelect>
           </div>
 
-          {/* Palette Viewport */}
-          <div 
-            ref={spriteContainerRef}
-            onWheel={handlePaletteWheel}
-            className="flex-1 max-h-[500px] lg:max-h-[680px] overflow-y-auto relative bg-slate-950/80 p-2.5 scrollbar-thin"
-          >
-            <div className="relative border border-slate-800/60 rounded-xl overflow-hidden">
+          <div ref={spriteContainerRef} onWheel={handlePaletteWheel} className="mapdev-palette">
+            <div className="mapdev-palette__frame">
               <canvas
                 ref={spriteCanvasRef}
                 onMouseDown={handleSpriteMouseDown}
                 onContextMenu={(e) => e.preventDefault()}
-                className="absolute top-0 left-0 z-10 cursor-crosshair w-full h-auto"
+                className="absolute top-0 left-0 z-10 h-auto w-full cursor-crosshair"
               />
-              <img 
+              <img
                 ref={spriteImgRef}
-                src={IMAGES[store.sprites]} 
+                src={IMAGES[store.sprites]}
                 onLoad={handleSpriteImgLoad}
-                className="w-full h-auto block pointer-events-none select-none"
+                className="pointer-events-none block h-auto w-full select-none"
                 alt="tiles"
               />
             </div>
           </div>
-          
-          <div className="p-3 bg-slate-950/50 border-t border-slate-800 text-[10px] text-slate-400 space-y-1">
-            <p className="font-semibold text-purple-400">💡 選取提示：</p>
-            <p>• 點選第一個格點，再點選第二個格點可框選多格子貼圖。</p>
-            <p>• 按滑鼠右鍵可取消圖庫選擇，進入地圖物件編輯模式。</p>
+
+          <div className="p-3">
+            <TipBar icon={<Lightbulb strokeWidth={2.5} aria-hidden="true" />} className="py-2 text-caption">
+              <p className="font-bold">選取提示：</p>
+              <p>• 點選第一個格點，再點選第二個格點可框選多格子貼圖。</p>
+              <p>• 按滑鼠右鍵可取消圖庫選擇，進入地圖物件編輯模式。</p>
+            </TipBar>
           </div>
         </div>
 
-        {/* Center: Canvas Workspace (6 columns) */}
-        <div className="lg:col-span-6 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl backdrop-blur-md overflow-hidden relative min-h-[550px] lg:min-h-[720px]">
-          
-          {/* Workspace info & Controls */}
-          <div className="p-4 border-b border-slate-800 bg-slate-950/20 flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold flex items-center gap-2">
-                <Grid className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-                場景工作區 
-              </span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                isFocused 
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 animate-pulse' 
-                  : 'bg-slate-800 border-slate-700 text-slate-400'
-              }`}>
-                {isFocused ? '● 鍵盤控制已啟用' : '點擊畫布以啟用鍵盤'}
-              </span>
+        {/* 中：畫布 */}
+        <div className="mapdev-canvas-col lg:col-span-6">
+
+          {/* 畫布工具列：縮放、圖層透明度、鍵盤狀態 */}
+          <div className="mapdev-canvas-tools">
+            <div className="flex items-center gap-2">
+              <IconButton icon={<Minus strokeWidth={2.5} />} label="縮小" onClick={() => zoomAtCenter(1 / 1.1)} />
+              <button
+                type="button"
+                onClick={() => store.resetView()}
+                className="tb-focus h-11 w-14 cursor-pointer rounded-toy-sm text-center font-pixel text-pixel-m text-ink"
+                aria-label="重設縮放"
+                title="點擊重設縮放 (0)"
+              >
+                {Math.round(store.scale * 100)}%
+              </button>
+              <IconButton icon={<Plus strokeWidth={2.5} />} label="放大" onClick={() => zoomAtCenter(1.1)} />
             </div>
-            
-            {/* Opacities control toggles */}
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              {/* Zoom controls（觸控裝置亦可操作） */}
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => zoomAtCenter(1 / 1.1)}
-                  className="h-6 w-6 p-0 border-slate-800 text-slate-300 hover:text-white"
-                  aria-label="縮小"
-                >
-                  −
-                </Button>
-                <button
-                  onClick={() => store.resetView()}
-                  className="text-[10px] text-emerald-400 font-mono w-12 text-center hover:text-emerald-300"
-                  aria-label="重設縮放"
-                  title="點擊重設縮放 (0)"
-                >
-                  {Math.round(store.scale * 100)}%
-                </button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => zoomAtCenter(1.1)}
-                  className="h-6 w-6 p-0 border-slate-800 text-slate-300 hover:text-white"
-                  aria-label="放大"
-                >
-                  +
-                </Button>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-400">背景層:</span>
-                <input 
+            {([
+              ['B', '背景層', store.opacityB],
+              ['F', '前景層', store.opacityF],
+              ['M', '碰撞層', store.opacityM],
+            ] as const).map(([layer, name, value]) => (
+              <label key={layer} className="flex items-center gap-2">
+                <span>{name}:</span>
+                <input
                   type="range" min="0" max="1" step="0.1"
-                  className="w-12 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                  value={store.opacityB}
-                  onChange={(e) => store.setOpacity('B', Number(e.target.value))}
+                  className="mapdev-range"
+                  value={value}
+                  onChange={(e) => store.setOpacity(layer, Number(e.target.value))}
                 />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-400">前景層:</span>
-                <input 
-                  type="range" min="0" max="1" step="0.1"
-                  className="w-12 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                  value={store.opacityF}
-                  onChange={(e) => store.setOpacity('F', Number(e.target.value))}
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-400">碰撞層:</span>
-                <input 
-                  type="range" min="0" max="1" step="0.1"
-                  className="w-12 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                  value={store.opacityM}
-                  onChange={(e) => store.setOpacity('M', Number(e.target.value))}
-                />
-              </div>
-            </div>
+              </label>
+            ))}
+            <Tag tone={isFocused ? 'mint' : 'sky'}>
+              {isFocused ? '● 鍵盤控制已啟用' : '點擊畫布以啟用鍵盤'}
+            </Tag>
           </div>
 
-          {/* Canvas Containment area */}
-          <div 
-            ref={workspaceRef}
-            tabIndex={0}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            className="flex-1 relative overflow-hidden bg-slate-950 p-5 outline-none touch-none"
-          >
-            {/* Translate + Scale map wrapper */}
+          {/* 畫布外框（ScreenFrame 結構；畫面區要掛 ref 處理滾輪與焦點，故直接寫 tb-screen） */}
+          <div className="tb-screen mapdev-screen">
+            <div className="tb-screen__bar">
+              <span className="tb-screen__title">MAP EDITOR</span>
+              <span className="tb-screen__meta">{store.width}×{store.height}</span>
+            </div>
             <div
-              className="relative shadow-2xl border border-slate-800"
-              style={{
-                width: store.width,
-                height: store.height,
-                transform: `translate3d(${store.mapLeft}px, ${store.mapTop}px, 0) scale(${store.scale})`,
-                transformOrigin: '0 0'
-              }}
+              ref={workspaceRef}
+              tabIndex={0}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              className="tb-screen__view mapdev-screen__view"
             >
-              {/* Layer 1: Background Canvas */}
-              <canvas 
-                ref={backCanvasRef}
-                width={store.width}
-                height={store.height}
-                className="absolute top-0 left-0 z-0 pointer-events-none"
-              />
+              {/* Translate + Scale map wrapper */}
+              <div
+                className="relative border border-on-inverse-muted"
+                style={{
+                  width: store.width,
+                  height: store.height,
+                  transform: `translate3d(${store.mapLeft}px, ${store.mapTop}px, 0) scale(${store.scale})`,
+                  transformOrigin: '0 0'
+                }}
+              >
+                {/* Layer 1: Background Canvas */}
+                <canvas
+                  ref={backCanvasRef}
+                  width={store.width}
+                  height={store.height}
+                  className="absolute top-0 left-0 z-0 pointer-events-none"
+                />
 
-              {/* Layer 2: Foreground Canvas */}
-              <canvas 
-                ref={frontCanvasRef}
-                width={store.width}
-                height={store.height}
-                className="absolute top-0 left-0 z-10 pointer-events-none"
-              />
+                {/* Layer 2: Foreground Canvas */}
+                <canvas
+                  ref={frontCanvasRef}
+                  width={store.width}
+                  height={store.height}
+                  className="absolute top-0 left-0 z-10 pointer-events-none"
+                />
 
-              {/* Layer 3: Collision Blocks */}
-              <canvas 
-                ref={collisionCanvasRef}
-                width={store.width}
-                height={store.height}
-                className="absolute top-0 left-0 z-20 pointer-events-none"
-              />
+                {/* Layer 3: Collision Blocks */}
+                <canvas
+                  ref={collisionCanvasRef}
+                  width={store.width}
+                  height={store.height}
+                  className="absolute top-0 left-0 z-20 pointer-events-none"
+                />
 
-              {/* Layer 4: Selection Outline & Input Capture */}
-              <canvas
-                ref={selectCanvasRef}
-                width={store.width}
-                height={store.height}
-                onPointerDown={handleMapPointerDown}
-                onPointerMove={handleMapPointerMove}
-                onPointerUp={handleMapPointerUp}
-                onPointerCancel={handleMapPointerUp}
-                onContextMenu={(e) => e.preventDefault()}
-                className="absolute top-0 left-0 z-30 cursor-cell touch-none"
-              />
+                {/* Layer 4: Selection Outline & Input Capture */}
+                <canvas
+                  ref={selectCanvasRef}
+                  width={store.width}
+                  height={store.height}
+                  onPointerDown={handleMapPointerDown}
+                  onPointerMove={handleMapPointerMove}
+                  onPointerUp={handleMapPointerUp}
+                  onPointerCancel={handleMapPointerUp}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className="absolute top-0 left-0 z-30 cursor-cell touch-none"
+                />
 
-              {/* Layer 5: Grid Labels */}
-              <canvas 
-                ref={gridCanvasRef}
-                width={store.width}
-                height={store.height}
-                className="absolute top-0 left-0 z-40 pointer-events-none"
-              />
+                {/* Layer 5: Grid Labels */}
+                <canvas
+                  ref={gridCanvasRef}
+                  width={store.width}
+                  height={store.height}
+                  className="absolute top-0 left-0 z-40 pointer-events-none"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Map coordinate Statusbar */}
-          <div className="p-3 bg-slate-950/80 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
-            <div className="flex gap-4">
-              <span>畫布寬度: <strong className="text-emerald-400">{store.width}px</strong></span>
-              <span>畫布高度: <strong className="text-emerald-400">{store.height}px</strong></span>
-              <span>平移偏移: <strong className="text-purple-400">X: {Math.round(store.mapLeft)} | Y: {Math.round(store.mapTop)}</strong></span>
-              <span>縮放: <strong className="text-emerald-400">{Math.round(store.scale * 100)}%</strong></span>
-            </div>
-            <div className="flex gap-2.5">
-              <span>放置名稱: <strong className="text-purple-400">{store.objectName || 'Unamed'}</strong></span>
-              <span>選定元素種類: <strong className="text-emerald-400">{store.mapObjects === 1 ? '地圖貼圖' : store.mapObjects === 2 ? '碰撞區域' : store.mapObjects === 3 ? 'NPC' : '無'}</strong></span>
+            {/* 狀態列 */}
+            <div className="mapdev-status">
+              <div className="flex flex-wrap gap-x-4">
+                <span><span className="mapdev-status__key">畫布寬度:</span> <strong className="mapdev-status__val">{store.width}px</strong></span>
+                <span><span className="mapdev-status__key">畫布高度:</span> <strong className="mapdev-status__val">{store.height}px</strong></span>
+                <span><span className="mapdev-status__key">平移偏移:</span> <strong className="mapdev-status__val">X: {Math.round(store.mapLeft)} | Y: {Math.round(store.mapTop)}</strong></span>
+                <span><span className="mapdev-status__key">縮放:</span> <strong className="mapdev-status__val">{Math.round(store.scale * 100)}%</strong></span>
+              </div>
+              <div className="flex flex-wrap gap-x-4">
+                <span><span className="mapdev-status__key">放置名稱:</span> <strong className="mapdev-status__val">{store.objectName || 'Unamed'}</strong></span>
+                <span><span className="mapdev-status__key">選定元素種類:</span> <strong className="mapdev-status__val font-body text-caption">{store.mapObjects === 1 ? '地圖貼圖' : store.mapObjects === 2 ? '碰撞區域' : store.mapObjects === 3 ? 'NPC' : '無'}</strong></span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right: Inspector and Editor Panel (3 columns) */}
-        <div className="lg:col-span-3 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
-          
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <span className="text-sm font-semibold flex items-center gap-2">
-              <Settings className="h-4 w-4 text-purple-400" aria-hidden="true" />
+        {/* 右：屬性視察器 */}
+        <div className="mapdev-panel lg:col-span-3">
+          <div className="mapdev-panel__head">
+            <span className="flex items-center gap-2">
+              <Settings strokeWidth={2.5} aria-hidden="true" />
               屬性視察器
             </span>
           </div>
 
-          {/* Inspector Tabs */}
-          <div className="flex border-b border-slate-800">
-            <button 
-              onClick={() => setActiveTab('tile')}
-              className={`flex-1 py-2 text-xs font-semibold ${activeTab === 'tile' ? 'bg-purple-600/10 text-purple-400 border-b border-purple-500' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              地圖貼圖 ({store.styles.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('collision')}
-              className={`flex-1 py-2 text-xs font-semibold ${activeTab === 'collision' ? 'bg-purple-600/10 text-purple-400 border-b border-purple-500' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              碰撞區域 ({store.isMoveArr.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('npc')}
-              className={`flex-1 py-2 text-xs font-semibold ${activeTab === 'npc' ? 'bg-purple-600/10 text-purple-400 border-b border-purple-500' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              NPC ({store.npcArr.length})
-            </button>
+          {/* 屬性分頁（直排 SegmentedControl 外觀） */}
+          <div className="p-3">
+            <div className="tb-seg mapdev-tabs" role="group" aria-label="屬性分頁">
+              {([
+                ['tile', `地圖貼圖 (${store.styles.length})`],
+                ['collision', `碰撞區域 (${store.isMoveArr.length})`],
+                ['npc', `NPC (${store.npcArr.length})`],
+              ] as const).map(([tab, text]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  aria-pressed={activeTab === tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="tb-seg__opt mapdev-tab"
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs">
-            
-            {/* Map Global Config section */}
-            <div className="space-y-2 border-b border-slate-800 pb-4">
-              <h4 className="font-semibold text-slate-300">⚙️ 地圖全域設定</h4>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-slate-400">地圖索引 (Index)</label>
-                  <input
-                    type="number"
-                    value={store.mapIndex}
-                    onChange={(e) => store.setMapMeta(Number(e.target.value) || 0, store.mapName)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">地圖名稱 (Name)</label>
-                  <input
-                    type="text"
-                    value={store.mapName}
-                    onChange={(e) => store.setMapMeta(store.mapIndex, e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-slate-400">地圖寬度 (Width)</label>
-                  <input 
-                    type="number"
-                    value={store.width}
-                    onChange={(e) => store.setMapSize(Number(e.target.value) || 0, store.height)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400">地圖高度 (Height)</label>
-                  <input 
-                    type="number"
-                    value={store.height}
-                    onChange={(e) => store.setMapSize(store.width, Number(e.target.value) || 0)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs font-mono"
-                  />
-                </div>
-              </div>
+          <div className="mapdev-panel__body">
 
-              <div>
-                <label className="text-[10px] text-slate-400">預設放置名稱</label>
-                <input 
-                  type="text"
-                  placeholder="新物件名稱"
-                  value={store.objectName}
-                  onChange={(e) => store.setObjectName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 focus:border-purple-500 outline-none text-slate-200 text-xs"
-                />
+            {/* 地圖全域設定 */}
+            <div className="mapdev-section">
+              <h4 className="mapdev-h4"><Settings strokeWidth={2.5} aria-hidden="true" />地圖全域設定</h4>
+              <div className="mapdev-grid2">
+                {numField('地圖索引 (Index)', store.mapIndex, (v) => store.setMapMeta(Number(v) || 0, store.mapName))}
+                {numField('地圖名稱 (Name)', store.mapName, (v) => store.setMapMeta(store.mapIndex, v), { type: 'text' })}
               </div>
+              <div className="mapdev-grid2">
+                {numField('地圖寬度 (Width)', store.width, (v) => store.setMapSize(Number(v) || 0, store.height))}
+                {numField('地圖高度 (Height)', store.height, (v) => store.setMapSize(store.width, Number(v) || 0))}
+              </div>
+              {numField('預設放置名稱', store.objectName, (v) => store.setObjectName(v), { type: 'text', placeholder: '新物件名稱' })}
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <Button 
-                  size="sm"
-                  variant="outline"
-                  onClick={() => store.toggleGrid('X')}
-                  className={`h-8 border-slate-800 text-[10px] ${store.gridX ? 'bg-purple-600/10 text-purple-400 border-purple-500/30' : 'text-slate-300'}`}
-                >
+              <div className="flex flex-col gap-3">
+                <Button size="s" variant={store.gridX ? 'pop' : 'secondary'} aria-pressed={store.gridX} onClick={() => store.toggleGrid('X')} className="w-full">
                   X 格線標示: {store.gridX ? '開' : '關'}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => store.toggleGrid('Y')}
-                  className={`h-8 border-slate-800 text-[10px] ${store.gridY ? 'bg-purple-600/10 text-purple-400 border-purple-500/30' : 'text-slate-300'}`}
-                >
+                <Button size="s" variant={store.gridY ? 'pop' : 'secondary'} aria-pressed={store.gridY} onClick={() => store.toggleGrid('Y')} className="w-full">
                   Y 格線標示: {store.gridY ? '開' : '關'}
                 </Button>
               </div>
 
               {/* Spawn points (in[]) editor */}
-              <div className="pt-2 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] text-slate-400">出生點 in[]（索引對應其他地圖的 cmm）</label>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => store.addSpawnPoint({ x: 32, y: 32 })}
-                    className="h-6 px-2 border-slate-800 text-[10px] text-purple-400 hover:text-purple-300"
-                  >
-                    + 新增
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="mapdev-label">出生點 in[]（索引對應其他地圖的 cmm）</span>
+                  <Button size="s" icon={<Plus strokeWidth={2.5} aria-hidden="true" />} onClick={() => store.addSpawnPoint({ x: 32, y: 32 })}>
+                    新增
                   </Button>
                 </div>
                 {store.inArr.length === 0 && (
-                  <p className="text-[10px] text-slate-500">尚無出生點，遊戲將無法傳送進入此地圖。</p>
+                  <p className="mapdev-help">尚無出生點，遊戲將無法傳送進入此地圖。</p>
                 )}
                 {store.inArr.map((point, index) => (
-                  <div key={index} className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-purple-400 font-mono w-8 shrink-0">[{index}]</span>
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="w-8 shrink-0 font-pixel text-pixel-m text-ink-muted">[{index}]</span>
                     <input
                       type="number"
                       value={point.x}
                       onChange={(e) => store.updateSpawnPoint(index, { x: Number(e.target.value) || 0 })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1 font-mono text-[10px]"
+                      className="tb-input px-2"
                       aria-label={`出生點 ${index} X`}
                     />
                     <input
                       type="number"
                       value={point.y}
                       onChange={(e) => store.updateSpawnPoint(index, { y: Number(e.target.value) || 0 })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1 font-mono text-[10px]"
+                      className="tb-input px-2"
                       aria-label={`出生點 ${index} Y`}
                     />
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    <IconButton
+                      icon={<Trash2 strokeWidth={2.5} aria-hidden="true" />}
+                      label={`刪除出生點 ${index}`}
                       onClick={() => store.deleteSpawnPoint(index)}
-                      className="h-6 w-6 p-0 text-red-400 hover:text-red-300 shrink-0"
-                      aria-label={`刪除出生點 ${index}`}
-                    >
-                      <Trash2 className="h-3 w-3" aria-hidden="true" />
-                    </Button>
+                    />
                   </div>
                 ))}
               </div>
@@ -1560,32 +1434,25 @@ export function MapDeveloper() {
 
             {/* NPC Editing Panel */}
             {activeTab === 'npc' ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-emerald-400">🧍 NPC 編輯</h4>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => store.addNpc(createDefaultNpc())}
-                    className="h-7 px-2 border-slate-800 text-[10px] text-emerald-400 hover:text-emerald-300"
-                  >
-                    + 新增 NPC
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="mapdev-h4"><User strokeWidth={2.5} aria-hidden="true" />NPC 編輯</h4>
+                  <Button size="s" icon={<Plus strokeWidth={2.5} aria-hidden="true" />} onClick={() => store.addNpc(createDefaultNpc())}>
+                    新增 NPC
                   </Button>
                 </div>
 
                 {store.npcArr.length === 0 ? (
-                  <p className="text-[10px] text-slate-500">尚無 NPC。點「新增 NPC」後在下方表單調整位置與事件。</p>
+                  <p className="mapdev-help">尚無 NPC。點「新增 NPC」後在下方表單調整位置與事件。</p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="flex flex-col gap-2">
                     {store.npcArr.map((npc, index) => (
                       <button
                         key={index}
+                        type="button"
                         onClick={() => store.selectElement(3, index)}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg border text-[10px] font-mono ${
-                          store.mapObjects === 3 && store.objectNum === index
-                            ? 'bg-emerald-600/10 border-emerald-500/40 text-emerald-300'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                        }`}
+                        aria-pressed={store.mapObjects === 3 && store.objectNum === index}
+                        className="mapdev-item"
                       >
                         NPC {index}｜({npc.pX}, {npc.pY})｜{npc.type === 4 ? '行走' : '站立'}｜事件 e={npc.e}
                       </button>
@@ -1594,100 +1461,64 @@ export function MapDeveloper() {
                 )}
 
                 {activeNpc && (
-                  <div className="space-y-3 border-t border-slate-800 pt-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">位置 X (pX)</label>
-                        <input
-                          type="number"
-                          value={activeNpc.pX}
-                          onChange={(e) => handleNpcEdit('pX', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">位置 Y (pY)</label>
-                        <input
-                          type="number"
-                          value={activeNpc.pY}
-                          onChange={(e) => handleNpcEdit('pY', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
+                  <div className="flex flex-col gap-3 border-t-3 border-line pt-4">
+                    <div className="mapdev-grid2">
+                      {numField('位置 X (pX)', activeNpc.pX, (v) => handleNpcEdit('pX', Number(v)))}
+                      {numField('位置 Y (pY)', activeNpc.pY, (v) => handleNpcEdit('pY', Number(v)))}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">類型</label>
-                        <select
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
-                          value={activeNpc.type}
-                          onChange={(e) => handleNpcEdit('type', Number(e.target.value))}
-                        >
+                    <div className="mapdev-grid2">
+                      <label className="mapdev-field">
+                        <span className="mapdev-label">類型</span>
+                        <MapSelect value={activeNpc.type} onChange={(e) => handleNpcEdit('type', Number(e.target.value))}>
                           <option value={0}>站立</option>
                           <option value={4}>行走</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">朝向 (d)</label>
-                        <select
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
-                          value={activeNpc.d}
-                          onChange={(e) => handleNpcEdit('d', Number(e.target.value))}
-                        >
+                        </MapSelect>
+                      </label>
+                      <label className="mapdev-field">
+                        <span className="mapdev-label">朝向 (d)</span>
+                        <MapSelect value={activeNpc.d} onChange={(e) => handleNpcEdit('d', Number(e.target.value))}>
                           <option value={0}>下</option>
                           <option value={1}>左</option>
                           <option value={2}>右</option>
                           <option value={3}>上</option>
-                        </select>
-                      </div>
+                        </MapSelect>
+                      </label>
                     </div>
 
-                    <div>
-                      <label className="text-[10px] text-slate-400">角色外觀 (y，man.png 每隻佔 192px)</label>
-                      <select
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
-                        value={activeNpc.y}
-                        onChange={(e) => handleNpcEdit('y', Number(e.target.value))}
-                      >
+                    <label className="mapdev-field">
+                      <span className="mapdev-label">角色外觀 (y，man.png 每隻佔 192px)</span>
+                      <MapSelect value={activeNpc.y} onChange={(e) => handleNpcEdit('y', Number(e.target.value))}>
                         {Array.from({ length: 7 }, (_, i) => (
                           <option key={i} value={i * 192}>角色 {i + 1} (y={i * 192})</option>
                         ))}
-                      </select>
-                    </div>
+                      </MapSelect>
+                    </label>
 
-                    <div>
-                      <label className="text-[10px] text-slate-400">對話事件索引 (e，對應 messages[e])</label>
-                      <input
-                        type="number"
-                        value={activeNpc.e}
-                        onChange={(e) => handleNpcEdit('e', Number(e.target.value))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                      />
-                    </div>
+                    {numField('對話事件索引 (e，對應 messages[e])', activeNpc.e, (v) => handleNpcEdit('e', Number(v)))}
 
-                    <div>
-                      <label className="text-[10px] text-slate-400">活動範圍 (aX / aY / aW / aH，行走型用)</label>
-                      <div className="grid grid-cols-4 gap-1.5">
+                    <div className="mapdev-field">
+                      <span className="mapdev-label">活動範圍 (aX / aY / aW / aH，行走型用)</span>
+                      <div className="grid grid-cols-2 gap-2">
                         {(['aX', 'aY', 'aW', 'aH'] as const).map((field) => (
                           <input
                             key={field}
                             type="number"
                             value={activeNpc[field]}
                             onChange={(e) => handleNpcEdit(field, Number(e.target.value))}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono text-[10px]"
+                            className="tb-input px-2"
                             aria-label={field}
                           />
                         ))}
                       </div>
                       {activeNpc.type === 4 && (
-                        <div className="mt-1.5 space-y-1">
-                          <p className="text-[10px] text-amber-400/90 leading-relaxed">
+                        <div className="flex flex-col gap-2">
+                          <TipBar icon={<AlertTriangle strokeWidth={2.5} aria-hidden="true" />} className="bg-pop py-2 text-caption">
                             行走型會在活動範圍（紫框）內隨機走動：範圍須完整包住 NPC（32×48）且不可與碰撞區重疊，否則 NPC 會卡住。
-                          </p>
+                          </TipBar>
                           <Button
-                            size="sm"
-                            variant="outline"
+                            size="s"
+                            className="w-full whitespace-normal"
                             onClick={() => {
                               // 以目前位置為中心套用 5×4 格活動範圍
                               store.updateNpcProps(store.objectNum, {
@@ -1697,7 +1528,6 @@ export function MapDeveloper() {
                                 aH: 144,
                               })
                             }}
-                            className="h-6 px-2 border-slate-800 text-[10px] text-purple-300 hover:text-purple-200"
                           >
                             以目前位置套用預設範圍 (160×144)
                           </Button>
@@ -1705,273 +1535,128 @@ export function MapDeveloper() {
                       )}
                     </div>
 
-                    <div>
-                      <label className="text-[10px] text-slate-400">步行速度 (footSpeed，8 = 每幀 1px)</label>
-                      <input
-                        type="number"
-                        value={activeNpc.footSpeed}
-                        onChange={(e) => handleNpcEdit('footSpeed', Number(e.target.value))}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                      />
-                    </div>
+                    {numField('步行速度 (footSpeed，8 = 每幀 1px)', activeNpc.footSpeed, (v) => handleNpcEdit('footSpeed', Number(v)))}
 
                     <Button
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold"
+                      className="w-full"
+                      icon={<Trash2 strokeWidth={2.5} aria-hidden="true" />}
                       onClick={() => store.deleteElement(3, store.objectNum)}
                       aria-label="刪除此 NPC"
                     >
-                      <Trash2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
                       刪除此 NPC
                     </Button>
                   </div>
                 )}
               </div>
             ) : activeElement ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-purple-400">
-                    ℹ️ {store.mapObjects === 1 ? '貼圖物件' : '碰撞區域'} 屬性編輯
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="mapdev-h4">
+                    <Info strokeWidth={2.5} aria-hidden="true" />
+                    {store.mapObjects === 1 ? '貼圖物件' : '碰撞區域'} 屬性編輯
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-mono">ID: {store.objectNum}</span>
+                  <span className="font-pixel text-pixel-m text-ink-muted">ID: {store.objectNum}</span>
                 </div>
 
                 {store.mapObjects === 1 ? (
                   // MapTile (styles) Edit Panel
                   <>
-                    <div>
-                      <label className="text-[10px] text-slate-400">物件名稱</label>
-                      <input 
-                        type="text"
-                        value={(activeElement as MapTile).n || ''}
-                        onChange={(e) => handleTileEdit('n', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 outline-none focus:border-purple-500"
-                      />
+                    {numField('物件名稱', (activeElement as MapTile).n || '', (v) => handleTileEdit('n', v), { type: 'text' })}
+                    <div className="mapdev-grid2">
+                      {numField('畫布 X 座標', (activeElement as MapTile).l, (v) => handleTileEdit('l', Number(v)))}
+                      {numField('畫布 Y 座標', (activeElement as MapTile).t, (v) => handleTileEdit('t', Number(v)))}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">畫布 X 座標</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapTile).l}
-                          onChange={(e) => handleTileEdit('l', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">畫布 Y 座標</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapTile).t}
-                          onChange={(e) => handleTileEdit('t', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
+                    <div className="mapdev-grid2">
+                      {numField('物件寬度', (activeElement as MapTile).w, (v) => handleTileEdit('w', Number(v)))}
+                      {numField('物件高度', (activeElement as MapTile).h, (v) => handleTileEdit('h', Number(v)))}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">物件寬度</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapTile).w}
-                          onChange={(e) => handleTileEdit('w', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">物件高度</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapTile).h}
-                          onChange={(e) => handleTileEdit('h', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
+                    <div className="mapdev-grid2">
+                      {numField('圖庫 X 座標', (activeElement as MapTile).x, undefined, { readOnly: true })}
+                      {numField('圖庫 Y 座標', (activeElement as MapTile).y, undefined, { readOnly: true })}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">圖庫 X 座標</label>
-                        <input 
-                          type="number"
-                          readOnly
-                          value={(activeElement as MapTile).x}
-                          className="w-full bg-slate-950/40 border border-slate-800 rounded-lg p-1.5 font-mono text-slate-400"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">圖庫 Y 座標</label>
-                        <input 
-                          type="number"
-                          readOnly
-                          value={(activeElement as MapTile).y}
-                          className="w-full bg-slate-950/40 border border-slate-800 rounded-lg p-1.5 font-mono text-slate-400"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">使用的圖庫</label>
-                        <input 
-                          type="text"
-                          readOnly
-                          value={(activeElement as MapTile).b === 0 ? 'NPC' : (activeElement as MapTile).b === 1 ? '拼圖一' : '拼圖二'}
-                          className="w-full bg-slate-950/40 border border-slate-800 rounded-lg p-1.5 text-slate-400"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">前後層屬性</label>
-                        <select
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5"
+                    <div className="mapdev-grid2">
+                      {numField(
+                        '使用的圖庫',
+                        (activeElement as MapTile).b === 0 ? 'NPC' : (activeElement as MapTile).b === 1 ? '拼圖一' : '拼圖二',
+                        undefined,
+                        { readOnly: true, type: 'text' },
+                      )}
+                      <label className="mapdev-field">
+                        <span className="mapdev-label">前後層屬性</span>
+                        <MapSelect
                           value={(activeElement as MapTile).z === 2 ? '2' : '0'}
                           onChange={(e) => handleTileEdit('z', e.target.value === '2' ? 2 : undefined)}
                         >
                           <option value="0">後層 (背景層)</option>
                           <option value="2">前層 (遮罩前景)</option>
-                        </select>
-                      </div>
+                        </MapSelect>
+                      </label>
                     </div>
                   </>
                 ) : (
                   // MapCollision (isMove) Edit Panel
                   <>
-                    <div>
-                      <label className="text-[10px] text-slate-400">區域名稱</label>
-                      <input 
-                        type="text"
-                        value={(activeElement as MapCollision).n || ''}
-                        onChange={(e) => handleCollisionEdit('n', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 outline-none focus:border-purple-500"
-                      />
+                    {numField('區域名稱', (activeElement as MapCollision).n || '', (v) => handleCollisionEdit('n', v), { type: 'text' })}
+                    <div className="mapdev-grid2">
+                      {numField('X 座標', (activeElement as MapCollision).x, (v) => handleCollisionEdit('x', Number(v)))}
+                      {numField('Y 座標', (activeElement as MapCollision).y, (v) => handleCollisionEdit('y', Number(v)))}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">X 座標</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapCollision).x}
-                          onChange={(e) => handleCollisionEdit('x', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">Y 座標</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapCollision).y}
-                          onChange={(e) => handleCollisionEdit('y', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
+                    <div className="mapdev-grid2">
+                      {numField('寬度', (activeElement as MapCollision).w, (v) => handleCollisionEdit('w', Number(v)))}
+                      {numField('高度', (activeElement as MapCollision).h, (v) => handleCollisionEdit('h', Number(v)))}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">寬度</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapCollision).w}
-                          onChange={(e) => handleCollisionEdit('w', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">高度</label>
-                        <input 
-                          type="number"
-                          value={(activeElement as MapCollision).h}
-                          onChange={(e) => handleCollisionEdit('h', Number(e.target.value))}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] text-slate-400">觸發事件 ID</label>
-                      <input 
-                        type="number"
-                        placeholder="無"
-                        value={(activeElement as MapCollision).e ?? ''}
-                        onChange={(e) => handleCollisionEdit('e', e.target.value !== '' ? Number(e.target.value) : undefined)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400">傳送地圖 ID</label>
-                        <input 
-                          type="number"
-                          placeholder="無"
-                          value={(activeElement as MapCollision).cm ?? ''}
-                          onChange={(e) => handleCollisionEdit('cm', e.target.value !== '' ? Number(e.target.value) : undefined)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400">傳送地圖點</label>
-                        <input 
-                          type="number"
-                          placeholder="無"
-                          value={(activeElement as MapCollision).cmm ?? ''}
-                          onChange={(e) => handleCollisionEdit('cmm', e.target.value !== '' ? Number(e.target.value) : undefined)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 font-mono"
-                        />
-                      </div>
+                    {numField(
+                      '觸發事件 ID',
+                      (activeElement as MapCollision).e ?? '',
+                      (v) => handleCollisionEdit('e', v !== '' ? Number(v) : undefined),
+                      { placeholder: '無' },
+                    )}
+                    <div className="mapdev-grid2">
+                      {numField(
+                        '傳送地圖 ID',
+                        (activeElement as MapCollision).cm ?? '',
+                        (v) => handleCollisionEdit('cm', v !== '' ? Number(v) : undefined),
+                        { placeholder: '無' },
+                      )}
+                      {numField(
+                        '傳送地圖點',
+                        (activeElement as MapCollision).cmm ?? '',
+                        (v) => handleCollisionEdit('cmm', v !== '' ? Number(v) : undefined),
+                        { placeholder: '無' },
+                      )}
                     </div>
                   </>
                 )}
 
-                <div className="flex gap-2 pt-4">
-                  <Button 
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-                    onClick={() => {
-                      if (store.mapObjects !== null) {
-                        store.deleteElement(store.mapObjects, store.objectNum)
-                      }
-                    }}
-                    aria-label="刪除此物件"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                    刪除此物件
-                  </Button>
-                </div>
+                <Button
+                  className="mt-2 w-full"
+                  icon={<Trash2 strokeWidth={2.5} aria-hidden="true" />}
+                  onClick={() => {
+                    if (store.mapObjects !== null) {
+                      store.deleteElement(store.mapObjects, store.objectNum)
+                    }
+                  }}
+                  aria-label="刪除此物件"
+                >
+                  刪除此物件
+                </Button>
               </div>
             ) : (
-              <div className="h-48 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-xl text-slate-500 bg-slate-950/20">
-                <Info className="h-6 w-6 mb-2 text-slate-600" aria-hidden="true" />
-                <p className="text-center px-4">請點選畫布上的貼圖物件或碰撞區域進行視察</p>
+              <div className="mapdev-empty">
+                <Info className="size-6" strokeWidth={2.5} aria-hidden="true" />
+                <p>請點選畫布上的貼圖物件或碰撞區域進行視察</p>
               </div>
             )}
 
             {/* Screenshots & Quick tools */}
-            <div className="space-y-2 border-t border-slate-800 pt-4">
-              <h4 className="font-semibold text-slate-300">📸 匯出場景快照</h4>
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  size="sm"
-                  variant="outline"
-                  onClick={() => exportCanvas('B')}
-                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-                  aria-label="導出背景層圖片"
-                >
-                  <Download className="h-3 w-3 mr-1" aria-hidden="true" />
-                  導出背景層 (.png)
-                </Button>
-                <Button 
-                  size="sm"
-                  variant="outline"
-                  onClick={() => exportCanvas('F')}
-                  className="h-8 border-slate-800 text-[10px] text-slate-300 hover:text-white focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-                  aria-label="導出前景層圖片"
-                >
-                  <Download className="h-3 w-3 mr-1" aria-hidden="true" />
-                  導出前景層 (.png)
-                </Button>
-              </div>
+            <div className="flex flex-col gap-3 border-t-3 border-line pt-5">
+              <h4 className="mapdev-h4"><Camera strokeWidth={2.5} aria-hidden="true" />匯出場景快照</h4>
+              <Button size="s" className="w-full" icon={<Download strokeWidth={2.5} aria-hidden="true" />} onClick={() => exportCanvas('B')} aria-label="導出背景層圖片">
+                導出背景層 (.png)
+              </Button>
+              <Button size="s" className="w-full" icon={<Download strokeWidth={2.5} aria-hidden="true" />} onClick={() => exportCanvas('F')} aria-label="導出前景層圖片">
+                導出前景層 (.png)
+              </Button>
             </div>
 
           </div>
@@ -1979,78 +1664,42 @@ export function MapDeveloper() {
 
       </div>
 
-      {/* Help Modal Overlay */}
+      {/* 快速鍵說明對話框 */}
       {showHelpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-scale-in">
-            <div className="flex items-center gap-3 mb-4">
-              <Keyboard className="h-6 w-6 text-purple-400" aria-hidden="true" />
-              <h3 className="text-lg font-bold text-white">地圖編輯器 快速鍵說明</h3>
-            </div>
-            
-            <div className="space-y-3.5 text-xs text-slate-300">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>網格線切換</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">G</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>前景遮罩顯示/隱藏</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">F</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>背景底圖顯示/隱藏</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">B</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>碰撞區域顯示/隱藏</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">M</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>畫布平移控制</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">W / A / S / D 或 方向鍵 或 拖曳空白區</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>畫布縮放</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">滾輪 / 雙指縮放 / + − 0</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>移動物件（NPC / 貼圖 / 碰撞）</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">點選後直接拖曳</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>刪除選取之物件</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Delete</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>快速劃分碰撞區域</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + 滑鼠左鍵拖曳</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>儲存地圖至本地暫存</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + S</kbd>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span>自本地載入暫存紀錄</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + L</kbd>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>清除地圖與碰撞區</span>
-                <kbd className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 border border-slate-800 font-mono text-[10px]">Alt + C</kbd>
-              </div>
-            </div>
-            
-            <div className="mt-6 flex justify-end">
-              <Button 
-                onClick={() => setShowHelpModal(false)}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
-              >
-                關閉說明
-              </Button>
-            </div>
+        <GameDialog fixed title="地圖編輯器 快速鍵說明" icon={<Keyboard strokeWidth={2.5} />} primaryLabel="關閉說明" onClose={() => setShowHelpModal(false)}>
+          <div className="flex flex-col">
+            {([
+              ['網格線切換', 'G'],
+              ['前景遮罩顯示/隱藏', 'F'],
+              ['背景底圖顯示/隱藏', 'B'],
+              ['碰撞區域顯示/隱藏', 'M'],
+              ['畫布平移控制', 'W / A / S / D 或 方向鍵 或 拖曳空白區'],
+              ['畫布縮放', '滾輪 / 雙指縮放 / + − 0'],
+              ['移動物件（NPC / 貼圖 / 碰撞）', '點選後直接拖曳'],
+              ['刪除選取之物件', 'Delete'],
+              ['快速劃分碰撞區域', 'Alt + 滑鼠左鍵拖曳'],
+              ['儲存地圖至本地暫存', 'Alt + S'],
+              ['自本地載入暫存紀錄', 'Alt + L'],
+              ['清除地圖與碰撞區', 'Alt + C'],
+            ] as const).map(([label, keys]) => (
+              <KeyRow key={label} label={label} keys={keys} />
+            ))}
           </div>
-        </div>
+        </GameDialog>
       )}
 
+    </div>
+  )
+}
+
+/** tb-select＋右側 ChevronDown（pages-spec §2） */
+function MapSelect({ className, children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className={clsx('mapdev-select', className)}>
+      <select className="tb-select" {...rest}>
+        {children}
+      </select>
+      <ChevronDown className="mapdev-select__icon" strokeWidth={2.5} aria-hidden="true" />
     </div>
   )
 }

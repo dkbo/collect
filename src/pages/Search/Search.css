@@ -1,0 +1,107 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   SEARCH PAGE（pages-spec §9）
+   ═══════════════════════════════════════════════════════ */
+@layer components {
+  .search-page {
+    @apply flex flex-col gap-8 pt-12 pb-18 text-left max-sm:pt-8 max-sm:pb-12;
+  }
+  .search-lead {
+    @apply m-0 max-w-2xl font-body text-body text-ink-muted;
+  }
+
+  /* 搜尋框 */
+  .search-box {
+    @apply w-full max-w-2xl;
+  }
+  .search-field {
+    @apply relative;
+  }
+  .search-field__icon {
+    @apply pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink;
+  }
+  .search-field .search-input {
+    @apply h-13 pr-15 pl-12 text-body-l;
+  }
+  /* 垂直置中用 inset-y-0＋my-auto：tb-lift-s 的 hover 會改 translate，不能拿 translate 置中 */
+  .search-field .search-clear {
+    @apply absolute inset-y-0 right-1.5 my-auto [&_svg]:size-4;
+  }
+
+  /* 推薦 */
+  .search-suggest {
+    @apply mt-3 flex flex-wrap items-center gap-2;
+  }
+  .search-suggest__lead {
+    @apply font-body text-caption text-ink-muted;
+  }
+  /* 單一 class：讓 tb-lift-s 的 hover／active 陰影蓋得過 */
+  .search-chip {
+    @apply h-11 px-4 shadow-hard-s;
+  }
+
+  /* 歡迎 */
+  .search-welcome {
+    @apply mx-auto flex max-w-md flex-col items-center gap-3 rounded-toy-lg border-3 border-line bg-surface-raised p-8 text-center shadow-hard-m;
+  }
+  .search-welcome__title {
+    @apply m-0 font-display text-heading-m text-ink;
+  }
+  .search-note {
+    @apply m-0 font-body text-body-s text-ink-muted;
+  }
+
+  /* 結果 */
+  .search-results {
+    @apply grid grid-cols-1 gap-8 lg:grid-cols-2;
+  }
+  .search-col {
+    @apply flex min-w-0 flex-col gap-6;
+  }
+  .search-col__head {
+    @apply flex items-center gap-3 border-b-3 border-line pb-3;
+  }
+  .search-col__title {
+    @apply m-0 font-display text-heading-m text-ink;
+  }
+  .search-col__desc {
+    @apply m-0 font-body text-caption text-ink-muted;
+  }
+  .search-list {
+    @apply m-0 flex list-none flex-col gap-4 p-0;
+  }
+  .search-card {
+    @apply flex flex-col gap-2 rounded-toy-lg border-3 border-line bg-surface-raised p-5 shadow-hard-m;
+  }
+  .search-card__top {
+    @apply flex items-start justify-between gap-2;
+  }
+  .search-card__link {
+    @apply font-display text-heading-m break-all text-ink underline decoration-transparent decoration-3 underline-offset-4
+      hover:decoration-line focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus;
+  }
+  .search-card__desc {
+    @apply m-0 line-clamp-2 font-body text-body-s break-words text-ink-muted;
+  }
+  .search-card__meta {
+    @apply flex gap-4 font-pixel text-pixel-m text-ink-muted select-none;
+  }
+  .search-card__num {
+    @apply shrink-0 font-pixel text-pixel-m text-ink-muted;
+  }
+  .search-skeleton {
+    @apply rounded-toy-sm bg-surface-sunken;
+  }
+  .search-pulse {
+    @apply animate-pulse motion-reduce:animate-none;
+  }
+
+  /* 錯誤提示條（pages-spec §2） */
+  .search-alert {
+    @apply flex items-start gap-3 rounded-toy-md border-3 border-line bg-pink px-4 py-3 font-body text-body-s text-on-fill;
+  }
+  .search-empty {
+    @apply py-10 text-center font-body text-body-s text-ink-muted;
+  }
+}

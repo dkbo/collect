@@ -1,11 +1,11 @@
 import { useMemo, useRef } from 'react'
 import { ArrowLeft, Maximize2, Minimize2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, IconButton, ScreenFrame, Tag } from '@/components/toybox'
 import { createNoopTransport } from '@/core/webrtc'
 import { useFullscreen } from '@/lib/useFullscreen'
 import { getGameMeta } from '@/babylon/games/catalog'
 import type { GameType } from '@/core/room'
-import BabylonCanvas from './BabylonCanvas'
+import BabylonCanvas from '@/pages/Battle/BabylonCanvas'
 
 /** 暱稱持久化 key（與選單一致） */
 const NAME_KEY = 'battle-name'
@@ -34,54 +34,48 @@ export function SoloGame({ game, onExit }: SoloGameProps) {
   const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef)
 
   return (
-    <div className="space-y-4" data-testid="battle-solo">
-      <div className="flex items-center justify-between">
-        <button
+    <div className="battle-solo" data-testid="battle-solo">
+      <div className="battle-solo__top">
+        <Button
+          variant="secondary"
+          size="s"
           onClick={onExit}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          icon={<ArrowLeft strokeWidth={2.5} aria-hidden="true" />}
           data-testid="battle-solo-back"
         >
-          <ArrowLeft className="size-4" aria-hidden="true" />
           返回
-        </button>
-        <div className="text-sm font-bold text-slate-200">{meta?.label ?? game}・單人</div>
-      </div>
-
-      <div
-        ref={screenRef}
-        className={
-          isFullscreen
-            ? 'fixed inset-0 z-50 w-screen h-dvh bg-black'
-            : 'relative w-full rounded-2xl overflow-hidden border border-slate-800 shadow-xl h-[75dvh] sm:h-[80dvh]'
-        }
-      >
-        <BabylonCanvas
-          gameType={game}
-          net={net}
-          selfId={SOLO_ID}
-          role="host"
-          hostId={SOLO_ID}
-          players={players}
-        />
-        <Button
-          variant="outline"
-          size="icon"
-          className="absolute z-10 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))]"
-          onClick={(e) => {
-            // 點完就交還焦點：否則空白鍵（放炸彈）會再次觸發這顆按鈕而退出全螢幕
-            e.currentTarget.blur()
-            toggleFullscreen()
-          }}
-          aria-label="切換全螢幕"
-          data-testid="battle-fullscreen-btn"
-        >
-          {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
         </Button>
+        <Tag tone="pop" size="l">
+          {meta?.label ?? game}・單人
+        </Tag>
       </div>
 
-      <p className="text-xs text-slate-500 text-center">
-        先點一下畫面取得焦點，再以 WASD / 方向鍵操作。
-      </p>
+      {/* 全螢幕時 stage 自己變 fixed，外框不動 */}
+      <ScreenFrame title="NOW PLAYING" meta={`${game.toUpperCase()} · SOLO`} viewClassName="battle-view">
+        <div ref={screenRef} className={isFullscreen ? 'battle-stage battle-stage--full' : 'battle-stage'}>
+          <BabylonCanvas
+            gameType={game}
+            net={net}
+            selfId={SOLO_ID}
+            role="host"
+            hostId={SOLO_ID}
+            players={players}
+          />
+          <IconButton
+            label="切換全螢幕"
+            className="battle-fsbtn size-9 [&_svg]:size-4"
+            onClick={(e) => {
+              // 點完就交還焦點：否則空白鍵（放炸彈）會再次觸發這顆按鈕而退出全螢幕
+              e.currentTarget.blur()
+              toggleFullscreen()
+            }}
+            icon={isFullscreen ? <Minimize2 strokeWidth={2.5} /> : <Maximize2 strokeWidth={2.5} />}
+            data-testid="battle-fullscreen-btn"
+          />
+        </div>
+      </ScreenFrame>
+
+      <p className="battle-note text-center">先點一下畫面取得焦點，再以 WASD / 方向鍵操作。</p>
     </div>
   )
 }

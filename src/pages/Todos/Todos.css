@@ -1,0 +1,88 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   TODOS PAGE（pages-spec §8）
+   ═══════════════════════════════════════════════════════ */
+@keyframes todos-li-in {
+  0% { transform: translateY(15px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes todos-li-out {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(15px) scale(0.95); opacity: 0; }
+}
+
+@layer components {
+  .todos-page {
+    @apply flex flex-col gap-8 pt-12 pb-18 text-left max-sm:pt-8 max-sm:pb-12;
+  }
+  .todos-actions {
+    @apply flex flex-wrap items-center gap-3;
+  }
+  .todos-box {
+    @apply flex w-full max-w-2xl flex-col gap-5 rounded-toy-lg border-3 border-line bg-surface-raised p-6 shadow-hard-m max-sm:p-5;
+  }
+  .todos-input-row {
+    @apply flex gap-3;
+  }
+
+  /* 篩選：路由 NavLink 套 SegmentedControl 外觀 */
+  .todos-filter {
+    @apply w-full sm:w-auto sm:self-start;
+  }
+  .todos-filter .tb-seg__opt {
+    @apply inline-flex items-center justify-center no-underline max-sm:min-w-0 max-sm:flex-1;
+  }
+  .todos-filter .tb-seg__opt[aria-current='page'] {
+    @apply bg-inverse text-pop hover:bg-inverse focus-visible:outline-pop;
+  }
+
+  .todos-empty {
+    @apply grid place-items-center gap-2 rounded-toy-md border-3 border-dashed border-line py-10 text-center font-body text-body-s text-ink-muted;
+  }
+  .todos-empty__mark {
+    @apply font-pixel text-pixel-l text-ink-muted;
+  }
+
+  .todos-list {
+    @apply m-0 flex w-full list-none flex-col gap-3 p-0;
+  }
+  .todos-item {
+    animation: todos-li-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    @apply flex min-h-13 items-center justify-between gap-3 rounded-toy-md border-3 border-line bg-surface px-4 py-2 motion-reduce:animate-none;
+  }
+  .todos-item--done {
+    @apply bg-surface-sunken;
+  }
+  .todos-item--leave {
+    animation: todos-li-out 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    @apply motion-reduce:animate-none;
+  }
+  .todos-toggle {
+    @apply flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-toy-sm py-1 text-left select-none
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus;
+  }
+  .todos-check {
+    @apply grid size-6 shrink-0 place-items-center rounded-toy-sm border-3 border-line bg-surface-raised text-on-fill;
+  }
+  .todos-item--done .todos-check {
+    @apply bg-mint;
+  }
+  .todos-text {
+    @apply block cursor-text font-body text-body break-words text-ink;
+  }
+  .todos-item--done .todos-text {
+    @apply text-ink-muted line-through;
+  }
+  .todos-item .todos-edit {
+    @apply h-11 px-2;
+  }
+  .todos-item-actions {
+    @apply flex shrink-0 items-center gap-2;
+  }
+  /* 觸控目標 ≥44px：沿用 tb-iconbtn 的 size-11，只縮圖示 */
+  .todos-item .todos-iconbtn {
+    @apply [&_svg]:size-4;
+  }
+}

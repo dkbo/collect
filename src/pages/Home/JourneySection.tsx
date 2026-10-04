@@ -1,6 +1,6 @@
 import { ArrowUpRight, ChevronRight } from 'lucide-react'
 import { lazy, Suspense, useState, type SyntheticEvent } from 'react'
-import { cn } from '@/lib/utils'
+import { Button, SectionHeader, tbCn } from '@/components/toybox'
 import { JOURNEY, type JourneyItem, type JourneySnippet } from '@/pages/Home/journey'
 
 const CodeSnippet = lazy(() => import('@/pages/Home/CodeSnippet'))
@@ -9,14 +9,14 @@ function SnippetDetails({ snippet }: { snippet: JourneySnippet }) {
   const [open, setOpen] = useState(false)
   const onToggle = (e: SyntheticEvent<HTMLDetailsElement>) => setOpen(e.currentTarget.open)
   return (
-    <details onToggle={onToggle} className="group">
-      <summary className="cursor-pointer list-none inline-flex items-center gap-1.5 text-[13px] font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded">
-        <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" aria-hidden="true" />
+    <details onToggle={onToggle} className="group w-full">
+      <summary className="home-journey__summary tb-lift-s">
+        <ChevronRight strokeWidth={2.5} className="size-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
         {snippet.summary}
       </summary>
-      <div className="mt-3">
+      <div className="mt-4">
         {open && (
-          <Suspense fallback={<div className="h-40 rounded-xl bg-slate-200 dark:bg-slate-800 animate-pulse" aria-hidden="true" />}>
+          <Suspense fallback={<div className="home-journey__loading" aria-hidden="true">LOADING</div>}>
             <CodeSnippet language={snippet.language} code={snippet.code} />
           </Suspense>
         )}
@@ -27,24 +27,24 @@ function SnippetDetails({ snippet }: { snippet: JourneySnippet }) {
 
 function JourneyNode({ item, isLast }: { item: JourneyItem; isLast: boolean }) {
   return (
-    <div className={cn('grid grid-cols-[28px_minmax(0,1fr)] md:grid-cols-[110px_40px_minmax(0,1fr)]', !isLast && 'pb-9')}>
-      <div className={cn('hidden md:block text-right pr-2 pt-0.5 text-sm font-bold', item.current ? 'text-purple-600 dark:text-purple-400' : 'text-slate-900 dark:text-white')}>
+    <div className={tbCn('grid grid-cols-[28px_minmax(0,1fr)] md:grid-cols-[112px_40px_minmax(0,1fr)]', !isLast && 'pb-10')}>
+      <div className={tbCn('hidden md:block pr-2 text-right font-pixel text-pixel-m', item.current ? 'text-ink' : 'text-ink-muted')}>
         {item.year}
       </div>
-      <div className="flex justify-center md:justify-center pt-1 animate-on-scroll animate-scale-in">
-        <span className={item.current ? 'journey-dot-current' : 'journey-dot'} aria-hidden="true" />
+      <div className="flex justify-center pt-1">
+        <span className={tbCn('home-journey__dot', item.current && 'home-journey__dot--current')} aria-hidden="true" />
       </div>
-      <div className="flex flex-col gap-2.5 pl-2">
-        <div className={cn('md:hidden text-xs font-bold', item.current ? 'text-purple-600 dark:text-purple-400' : 'text-indigo-500')}>{item.year}</div>
-        <h3 className="m-0 text-lg font-bold text-slate-900 dark:text-white">{item.title}</h3>
-        <p className="m-0 text-sm leading-[1.65] text-slate-600 dark:text-slate-300">{item.body}</p>
+      <div className="flex min-w-0 flex-col gap-3 pl-2">
+        <div className={tbCn('font-pixel text-pixel-m md:hidden', item.current ? 'text-ink' : 'text-ink-muted')}>{item.year}</div>
+        <h3 className="m-0 text-heading-m text-ink">{item.title}</h3>
+        <p className="m-0 text-body text-ink-muted">{item.body}</p>
 
         {item.lessons && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {item.lessons.map((l) => (
-              <div key={l.label} className="home-card p-4 flex flex-col gap-1">
-                <div className="text-[11px] font-bold tracking-[0.08em] text-slate-400">{l.label}</div>
-                <div className="text-[13px] leading-normal text-slate-700 dark:text-slate-300">{l.text}</div>
+              <div key={l.label} className="home-journey__lesson">
+                <div className="text-caption text-ink-muted">{l.label}</div>
+                <div className="text-body-s text-ink">{l.text}</div>
               </div>
             ))}
           </div>
@@ -54,17 +54,15 @@ function JourneyNode({ item, isLast }: { item: JourneyItem; isLast: boolean }) {
           <div className="flex flex-wrap items-start gap-4">
             {item.snippet && <SnippetDetails snippet={item.snippet} />}
             {item.links?.map((link) => (
-              <a
+              <Button
                 key={link.href}
                 href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded"
+                size="s"
+                icon={<ArrowUpRight strokeWidth={2.5} aria-hidden="true" />}
                 data-testid={link.testId}
               >
-                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
                 {link.label}
-              </a>
+              </Button>
             ))}
           </div>
         )}
@@ -75,13 +73,10 @@ function JourneyNode({ item, isLast }: { item: JourneyItem; isLast: boolean }) {
 
 export function JourneySection() {
   return (
-    <section className="pb-24 flex flex-col gap-9" data-testid="home-journey">
-      <div className="flex flex-col gap-2">
-        <div className="section-kicker">JOURNEY</div>
-        <h2 className="section-title">開發歷程</h2>
-      </div>
+    <section className="home-journey" data-testid="home-journey">
+      <SectionHeader eyebrow="— HIGH SCORE —" title="開發歷程" />
       <div className="relative">
-        <div className="journey-line left-[13px] md:left-[129px] top-2 bottom-2" aria-hidden="true" />
+        <div className="home-journey__line" aria-hidden="true" />
         {JOURNEY.map((item, i) => (
           <JourneyNode key={item.year} item={item} isLast={i === JOURNEY.length - 1} />
         ))}
