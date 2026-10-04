@@ -1,6 +1,6 @@
-// 用法：node .src/build.mjs <name> [<name>…]
-// 讀 .src/prelude.js + .src/pages/<name>.js，經 `pen interactive` 的 execute 畫進 design/<name>.pen，
-// 並在同一個 execute 內 Export 成 design/<name>.webp（scale 1）。預覽圖寫 design/.exports/<name>.png。
+// 用法：node design/pages/.src/build.mjs <name> [<name>…]
+// 讀 .src/prelude.js + .src/pages/<name>.js，經 `pen interactive` 的 execute 畫進 design/pages/<name>.pen，
+// 並在同一個 execute 內 Export 成 design/pages/<name>.webp（scale 1）。預覽圖寫 design/pages/.exports/<name>.png。
 import { readFileSync, writeFileSync, readdirSync, renameSync, mkdirSync, rmSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const SRC = dirname(fileURLToPath(import.meta.url))
 const DESIGN = dirname(SRC)
-const tokens = JSON.parse(readFileSync(join(DESIGN, 'toybox-ds/tokens.json'), 'utf8'))
+const tokens = JSON.parse(readFileSync(join(DESIGN, '../toybox-ds/tokens.json'), 'utf8'))
 const vars = {}
 const byName = Object.fromEntries(tokens.color.tokens.map((t) => [t.name, t.value]))
 for (const t of tokens.color.tokens) {

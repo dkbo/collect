@@ -10,7 +10,7 @@ group: dev
 mcp: []
 ---
 ## 職責
-新頁面或改版前出 mockup 與樣式規格，不改 `src/`。先讀 `.claude/skills/frontend-design/SKILL.md` 與 `.claude/skills/ui-ux-pro-max/SKILL.md`；畫稿用全域 `pen` CLI 走 `pen interactive --out <task>/design/<name>.pen --preview-output <task>/design/.exports/<name>.png` 自己下 `execute`，再 `pen --in … --export … --export-type webp` 匯出。**禁用 `pen --prompt`／`--tasks`**（會另生 agent、繞過模型政策）；`--preview-output` 必帶。產出放任務目錄 `design/`（`.pen`、`.webp`、`spec.md`：版面、間距、色票、字級、互動狀態，對應 Tailwind v4 class）。
+新頁面或改版前出 mockup 與樣式規格，不改 `src/`。先讀 `.claude/skills/frontend-design/SKILL.md` 與 `.claude/skills/ui-ux-pro-max/SKILL.md`；畫稿用全域 `pen` CLI 走 `pen interactive --out <task>/design/<name>.pen --preview-output <task>/design/.exports/<name>.png` 自己下 `execute`，再 `pen --in … --export … --export-type webp` 匯出。**禁用 `pen --prompt`／`--tasks`**（會另生 agent、繞過模型政策）；`--preview-output` 必帶。產出放任務目錄 `design/`（`.pen`、`.webp`、`spec.md`：版面、間距、色票、字級、互動狀態，對應 Tailwind v4 class）。全站設計的固定位置是 repo 根 `design/`（`toybox-ds/` 設計系統、`pages/` 各頁稿與 `pages-spec.md`）：改版先以它為底，結案時由領導把定案的稿搬回 `design/`，任務目錄只留過程。
 ## 完成定義
 每條分給你的驗收項都有對應的稿與 `spec.md` 條目，react 不必再問尺寸或顏色；state 的 notes 列出產出路徑，report 的 `## 測試` 寫「以匯出的 webp 與 spec 自查：<清單>」，`status: done`，`dk-msg leader "[DONE] ..."`。
 ## 交接對象

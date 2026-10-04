@@ -1,7 +1,7 @@
 # 頁面設計稿規格（pages-spec）
 
 設計依據：`toybox-ds/`（tokens、15 元件）與 `home-mockup/Main.dc.html`。衝突時 brief ＞ 本檔 ＞ toybox-ds。
-每頁一節，對應稿 `design/page-<route>.webp`（1440 寬；首頁另有 390／深色／選單展開）。稿的原始檔 `design/page-<route>.pen`，由 `node design/.src/build.mjs <name>` 經 `pen interactive` 的 execute 重畫（`.src/prelude.js` 是元件畫法，`.src/pages/*.js` 是各頁）。稿中藍底白字的小籤是標註，不是介面。
+每頁一節，對應稿 `design/pages/page-<route>.webp`（1440 寬；首頁另有 390／深色／選單展開）。稿的原始檔 `design/pages/page-<route>.pen`，由 `node design/pages/.src/build.mjs <name>` 經 `pen interactive` 的 execute 重畫（`.src/prelude.js` 是元件畫法，`.src/pages/*.js` 是各頁）。稿中藍底白字的小籤是標註，不是介面。
 
 **寫法約定**（全檔通用，下文不再重述）
 

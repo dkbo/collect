@@ -48,6 +48,6 @@ Read AGENTS.md first.
 - `executing-plans` / `subagent-driven-development` / `dispatching-parallel-agents`：一律換成 dkbo 的波次（`/dkbo-plan` 的 `dk-task-new --from <plan>` → 波次表 → `/dkbo-run` 的 `dk-wave-open`／`dk-spawn`），**不要**派 general-purpose subagent。
 - `requesting-code-review`：由每波 `dk-review` 取代，開工前還多一道 `dk-brief-review`（2–3 個不同 kind 讀 `request.md` + brief，回答「做出來會不會是人要的東西」，裁定後才准過關卡①）；架構／安全重點已寫在 `reviewer` 角色檔。
 - `using-git-worktrees` / `finishing-a-development-branch`：worktree 由 `/dkbo-run` 交棒時的 `dk-leader <short> --run` 建在 `.worktrees/<short>`（0.11.0 起 `dk-task-new` 只建任務資料夾），分支 `dk/<short>`；結案走 `dk-task-close`，不另起 worktree、不自己 merge。
-- **產出檔不得寫到 `docs/`（那是 build 產物）或 repo 根目錄**：plans → `.claude/plans/`，specs → `.claude/.superpower/specs/`，任務 brief／process／report／state → `.dkbo/tasks/<日期-短名>/`（dk 腳本管）。
+- **產出檔不得寫到 `docs/`（那是 build 產物）或 repo 根目錄**：全站設計（設計系統、各頁稿）→ `design/`（固定位置、進版控，見 `design/README.md`），plans → `.claude/plans/`，specs → `.claude/.superpower/specs/`，任務 brief／process／report／state → `.dkbo/tasks/<日期-短名>/`（dk 腳本管）。
 - `writing-plans` 產的 plan 每張 task 要能直接對應 brief 的一列波次：帶可改檔案 glob、驗收條、依賴與獨佔資源，顆粒 20–60 分鐘；`dk-task-new --from` 不重寫內容，只劃所有權與分波；plan 裡橫切全部波的硬要求記得抄進 brief 的 `## 全域約束`。
 @AGENTS.md
