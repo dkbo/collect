@@ -30,6 +30,11 @@ export default defineConfig({
         extends: true,
         test: { name: 'pages', include: ['src/pages/**/*.test.ts'], environment: 'node' },
       },
+      {
+        // components：toybox 的 class 合併等純函式；要掛 DOM 的測試檔首自帶 @vitest-environment jsdom
+        extends: true,
+        test: { name: 'components', include: ['src/components/**/*.test.ts'], environment: 'node' },
+      },
     ],
   },
 })

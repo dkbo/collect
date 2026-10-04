@@ -23,7 +23,9 @@ describe('tbCn（認得 toybox token 的 tailwind-merge）', () => {
     expect(tbCn('max-w-site max-w-4xl')).toBe('max-w-4xl')
   })
 
-  it('對照：原本的 cn 會把字級 token 當成文字色吃掉', () => {
-    expect(cn('text-heading-m text-ink')).toBe('text-ink')
+  it('lib 的 cn 與 tbCn 同一套，不再吃掉字級 token', () => {
+    expect(cn('text-heading-m text-ink')).toBe('text-heading-m text-ink')
+    expect(cn('shadow-hard-s shadow-md')).toBe('shadow-md')
+    expect(cn('px-2 px-4')).toBe('px-4')
   })
 })

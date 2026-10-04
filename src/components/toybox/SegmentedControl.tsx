@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { clsx } from 'clsx'
 
 export interface SegmentedControlProps {
-  options: { value: string; label: string }[]
+  /** testId 會掛成該選項的 data-testid */
+  options: { value: string; label: string; testId?: string }[]
   /** 受控值；不傳則用 defaultValue（預設第一個選項）自管 */
   value?: string
   defaultValue?: string
@@ -24,6 +25,7 @@ export function SegmentedControl({ options, value, defaultValue, onChange, label
           type="button"
           className="tb-seg__opt"
           aria-pressed={o.value === current}
+          data-testid={o.testId}
           onClick={() => {
             setInner(o.value)
             onChange?.(o.value)

@@ -69,6 +69,12 @@ export function Handheld({
     return () => window.clearTimeout(id)
   }, [autoPlayMs, count, current, index, onIndexChange])
 
+  // 先換張再呼叫：寫成 onB?.(step(…)) 時，沒傳 onB 會連引數都不求值、不換張
+  const pressB = () => {
+    const next = count > 1 ? step(current) : current
+    onB?.(next)
+  }
+
   const src = list[current]
   const caption = right ?? (count > 1 ? `${current + 1}/${count}` : undefined)
 
@@ -87,7 +93,7 @@ export function Handheld({
           <span className="tb-hand__dpad-h" />
         </div>
         <div className="tb-hand__ab">
-          <button type="button" className="tb-hand__key" aria-label={bLabel} onClick={() => onB?.(count > 1 ? step(current) : current)}>
+          <button type="button" className="tb-hand__key" aria-label={bLabel} onClick={pressB}>
             B
           </button>
           <button type="button" className="tb-hand__key" aria-label={aLabel} onClick={() => onA?.(current)}>

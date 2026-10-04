@@ -170,7 +170,8 @@
   .tb-sechead { @apply flex flex-wrap items-end justify-between gap-5 text-left; }
   .tb-sechead__text { @apply flex min-w-0 flex-col gap-2; }
   .tb-sechead__eyebrow { @apply font-pixel text-pixel-m text-ink-muted; }
-  .tb-sechead__title { @apply m-0 font-display text-display-l text-balance text-ink; }
+  /* tracking-normal：頁面以 h1 掛這個 class 時，不吃 base h1 的 -1.68px 字距 */
+  .tb-sechead__title { @apply m-0 font-display text-display-l tracking-normal text-balance text-ink; }
 
   /* ── Marquee：外層裁掉左右外推，內層傾斜 ── */
   .tb-marquee { @apply overflow-x-clip py-2; }
