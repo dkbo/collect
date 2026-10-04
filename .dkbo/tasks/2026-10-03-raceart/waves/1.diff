@@ -1,0 +1,2812 @@
+# 賽車美術＋可玩度（A Toy Racer） — wave 1 since a1fb3c9 — 2026-10-03T21:23
+# files changed: 12 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/games/raceRules/drive.test.ts     | 351 +++++++++++++++++++++
+ src/babylon/games/raceRules/drive.ts          | 437 ++++++++++++++++++++++++++
+ src/babylon/games/raceRules/items.test.ts     | 320 +++++++++++++++++++
+ src/babylon/games/raceRules/items.ts          | 256 +++++++++++++++
+ src/babylon/games/raceRules/raceAI.test.ts    | 216 +++++++++++++
+ src/babylon/games/raceRules/raceAI.ts         | 219 +++++++++++++
+ src/babylon/games/raceRules/roster.test.ts    |  43 +++
+ src/babylon/games/raceRules/roster.ts         |  33 ++
+ src/babylon/games/raceRules/track.test.ts     | 296 +++++++++++++++++
+ src/babylon/games/raceRules/track.ts          | 340 ++++++++++++++++++++
+ src/babylon/games/raceRules/trackData.test.ts | 144 +++++++++
+ src/babylon/games/raceRules/trackData.ts      |  63 ++++
+ 12 files changed, 2718 insertions(+)
+
+## diff (-U10)
+diff --git a/src/babylon/games/raceRules/drive.test.ts b/src/babylon/games/raceRules/drive.test.ts
+new file mode 100644
+index 0000000..754e2b6
+--- /dev/null
++++ b/src/babylon/games/raceRules/drive.test.ts
+@@ -0,0 +1,351 @@
++import { describe, it, expect } from 'vitest'
++import {
++  BOOST_SPEED,
++  DRIFT_TIERS,
++  MAX_REVERSE,
++  MAX_SPEED,
++  MINI_TURBO_MS,
++  OFFTRACK_FACTOR,
++  OFFTRACK_RESPAWN_MS,
++  RESPAWN_GHOST_MS,
++  SLIP_BOOST_MS,
++  SLIP_CHARGE_MS,
++  SLIP_SPEED_MULT,
++  STUCK_MS,
++  JUMP_G,
++  JUMP_H,
++  JUMP_MIN_SPEED,
++  RAMP_HALF_W,
++  jumpY,
++  launchVy,
++  rampY,
++  makeRacer,
++  pushApart,
++  respawnPose,
++  shouldRespawn,
++  slipCharge,
++  stepCar,
++  stepDrift,
++  stepRacer,
++  type CarPhys,
++  type DriftState,
++  type RacerState,
++} from '@/babylon/games/raceRules/drive'
++import { CHECKPOINTS, makeCourse, pointAt, type Vec2 } from '@/babylon/games/raceRules/track'
++
++/** 置中的 40×40 方形賽道，起點 (0,−20) 朝 +x */
++const CTRL: Vec2[] = (
++  [
++    [20, 0], [30, 0], [40, 0], [40, 10], [40, 20], [40, 30], [40, 40], [30, 40],
++    [20, 40], [10, 40], [0, 40], [0, 30], [0, 20], [0, 10], [0, 0], [10, 0],
++  ] as Vec2[]
++).map(([x, z]) => [x - 20, z - 20] as Vec2)
++const course = makeCourse({ ctrl: CTRL, width: 8, bound: { x: 40, z: 40 }, pads: [{ s: 8, lateral: 0 }], jumps: [[86, 92]], itemRows: [] })
++const track = course.track
++
++describe('stepDrift — 甩尾蓄力', () => {
++  const dt = 0.25 // 二進位精確，避免累加誤差
++  const hold = (secs: number, steer = 1, speed = 10) => {
++    let d: DriftState = { charge: 0, tier: 0 }
++    for (let i = 0; i < secs / dt; i++) d = stepDrift(d, { drifting: true, steer, speed }, dt).state
++    return d
++  }
++
++  it(`三段門檻 ${DRIFT_TIERS.join('／')} 秒對應段位 1／2／3`, () => {
++    expect(hold(0.5).tier).toBe(0)
++    expect(hold(0.75).tier).toBe(1)
++    expect(hold(1.25).tier).toBe(2)
++    expect(hold(1.75).tier).toBe(2)
++    expect(hold(2).tier).toBe(3)
++    expect(hold(5).tier).toBe(3)
++  })
++
++  it('放開給對應段位的加速 ms，並歸零', () => {
++    for (const [secs, want] of [[0.5, 0], [0.75, MINI_TURBO_MS[0]], [1.25, MINI_TURBO_MS[1]], [2, MINI_TURBO_MS[2]]]) {
++      const r = stepDrift(hold(secs), { drifting: false, steer: 1, speed: 10 }, dt)
++      expect(r.turboMs).toBe(want)
++      expect(r.state).toEqual({ charge: 0, tier: 0 })
++    }
++  })
++
++  it('未轉向不蓄力（保留已蓄的量）', () => {
++    expect(hold(3, 0)).toEqual({ charge: 0, tier: 0 })
++    const half = hold(0.75)
++    expect(stepDrift(half, { drifting: true, steer: 0, speed: 10 }, dt).state).toEqual(half)
++  })
++
++  it('速度不足蓄力取消、不給加速', () => {
++    expect(hold(3, 1, 5)).toEqual({ charge: 0, tier: 0 })
++    const r = stepDrift(hold(2), { drifting: true, steer: 1, speed: 4 }, dt)
++    expect(r).toEqual({ state: { charge: 0, tier: 0 }, turboMs: 0 })
++  })
++})
++
++describe('slipCharge — 尾流', () => {
++  const self = { x: 0, z: 0, ry: 0, speed: 15 } // 朝 +z
++  const run = (others: { x: number; z: number }[], ms: number, s = self) => {
++    let st = { ms: 0, slipMs: 0 }
++    let got = 0
++    for (let t = 0; t < ms; t += 100) {
++      st = slipCharge(st.ms, s, others, 100)
++      if (st.slipMs) got = st.slipMs
++    }
++    return got
++  }
++
++  it(`前方 6 單位、15° 內持續 ${SLIP_CHARGE_MS}ms 給 ${SLIP_BOOST_MS}ms`, () => {
++    expect(run([{ x: 0, z: 5 }], SLIP_CHARGE_MS - 100)).toBe(0)
++    expect(run([{ x: 0, z: 5 }], SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++    const a = (14 * Math.PI) / 180
++    expect(run([{ x: Math.sin(a) * 5.9, z: Math.cos(a) * 5.9 }], SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++  })
++
++  it('太遠、角度太大、在後方或自己太慢都不累計', () => {
++    const a = (16 * Math.PI) / 180
++    expect(run([{ x: 0, z: 6.5 }], 3000)).toBe(0)
++    expect(run([{ x: Math.sin(a) * 4, z: Math.cos(a) * 4 }], 3000)).toBe(0)
++    expect(run([{ x: 0, z: -3 }], 3000)).toBe(0)
++    expect(run([{ x: 0, z: 4 }], 3000, { ...self, speed: 3 })).toBe(0)
++  })
++
++  it('中途離開條件即歸零', () => {
++    let st = slipCharge(0, self, [{ x: 0, z: 5 }], 1000)
++    expect(st.ms).toBe(1000)
++    st = slipCharge(st.ms, self, [], 100)
++    expect(st.ms).toBe(0)
++  })
++})
++
++describe('shouldRespawn／respawnPose — 出界與卡住', () => {
++  const t0 = { stuckMs: 0, offMs: 0 }
++  const run = (input: { speed: number; offTrack: boolean; throttle: boolean }, ms: number) => {
++    let t = t0
++    let respawn = false
++    for (let i = 0; i < ms / 100; i++) {
++      const r = shouldRespawn(t, input, 100)
++      t = r.timer
++      respawn ||= r.respawn
++    }
++    return respawn
++  }
++
++  it(`離開賽道超過 ${OFFTRACK_RESPAWN_MS}ms 重生`, () => {
++    expect(run({ speed: 5, offTrack: true, throttle: true }, OFFTRACK_RESPAWN_MS - 100)).toBe(false)
++    expect(run({ speed: 5, offTrack: true, throttle: true }, OFFTRACK_RESPAWN_MS)).toBe(true)
++  })
++
++  it(`踩油門但速度 < 1 持續 ${STUCK_MS}ms 重生；沒踩油門（停著不動）不算卡住`, () => {
++    expect(run({ speed: 0.5, offTrack: false, throttle: true }, STUCK_MS - 100)).toBe(false)
++    expect(run({ speed: 0.5, offTrack: false, throttle: true }, STUCK_MS)).toBe(true)
++    expect(run({ speed: 0, offTrack: false, throttle: false }, STUCK_MS * 3)).toBe(false)
++  })
++
++  it('出界立即重生', () => {
++    expect(shouldRespawn(t0, { speed: 10, offTrack: true, throttle: true, outOfBounds: true }, 16).respawn).toBe(true)
++  })
++
++  it('放回最後通過的檢查點中心、朝向沿線', () => {
++    for (let cp = 0; cp < CHECKPOINTS; cp++) {
++      const want = pointAt(track, track.checkpoints[cp])
++      const p = respawnPose(track, { lap: 1, cp })
++      expect(p.x).toBeCloseTo(want.x, 6)
++      expect(p.z).toBeCloseTo(want.z, 6)
++      expect(p.ry).toBeCloseTo(want.heading, 6)
++    }
++  })
++})
++
++describe('stepCar — 基準運動學', () => {
++  const car: CarPhys = { x: 0, z: 0, ry: 0, speed: 0 }
++  const mods = { onTrack: true, boosting: false, slipping: false, spinning: false }
++  const drive = (m = mods, secs = 5, throttle = 1) => {
++    let c = car
++    for (let i = 0; i < secs * 30; i++) c = stepCar(c, { throttle, steer: 0, drifting: false }, m, 1 / 30)
++    return c
++  }
++
++  it('油門到底收斂到 MAX_SPEED，沿朝向前進', () => {
++    const c = drive()
++    expect(c.speed).toBeCloseTo(MAX_SPEED, 6)
++    expect(c.x).toBeCloseTo(0, 6)
++    expect(c.z).toBeGreaterThan(50)
++  })
++
++  it('路面外上限 MAX_SPEED × OFFTRACK_FACTOR', () => {
++    expect(drive({ ...mods, onTrack: false }).speed).toBeCloseTo(MAX_SPEED * OFFTRACK_FACTOR, 6)
++  })
++
++  it(`尾流上限 ×${SLIP_SPEED_MULT}、加速中上限 BOOST_SPEED`, () => {
++    expect(drive({ ...mods, slipping: true }).speed).toBeCloseTo(MAX_SPEED * SLIP_SPEED_MULT, 6)
++    expect(drive({ ...mods, boosting: true }, 2).speed).toBeCloseTo(BOOST_SPEED, 6)
++  })
++
++  it('加速中開到路面外：上限仍乘 OFFTRACK_FACTOR（不能靠加速全速切內野）', () => {
++    expect(drive({ ...mods, boosting: true, onTrack: false }, 2).speed).toBeCloseTo(BOOST_SPEED * OFFTRACK_FACTOR, 6)
++    const c = stepCar({ ...car, speed: MAX_SPEED }, { throttle: 1, steer: 0, drifting: false }, { ...mods, boosting: true, onTrack: false }, 1 / 30)
++    expect(c.speed).toBeLessThan(MAX_SPEED)
++  })
++
++  it('加速結束後超速逐步降回上限（不瞬間掉）', () => {
++    const fast = { ...car, speed: BOOST_SPEED }
++    const c = stepCar(fast, { throttle: 1, steer: 0, drifting: false }, mods, 1 / 30)
++    expect(c.speed).toBeLessThan(BOOST_SPEED)
++    expect(c.speed).toBeGreaterThan(MAX_SPEED)
++  })
++
++  it('倒車上限 MAX_REVERSE', () => {
++    expect(drive(mods, 5, -1).speed).toBeCloseTo(-MAX_REVERSE, 6)
++  })
++
++  it('打滑中不能轉向、速度衰減', () => {
++    const c = stepCar({ ...car, speed: 15 }, { throttle: 1, steer: 1, drifting: false }, { ...mods, spinning: true }, 0.1)
++    expect(c.ry).toBe(0)
++    expect(c.speed).toBeLessThan(15)
++  })
++
++  it('轉向：steer 正 → ry 增加（右轉）', () => {
++    const c = stepCar({ ...car, speed: 15 }, { throttle: 1, steer: 1, drifting: false }, mods, 0.1)
++    expect(c.ry).toBeGreaterThan(0)
++  })
++})
++
++describe('pushApart — 只推開自己', () => {
++  it('重疊時沿連線推離對方，對方不動', () => {
++    const me = { x: 0, z: 0 }
++    const other = { x: 1, z: 0 }
++    const p = pushApart(me, [other], 0.1)
++    expect(p.x).toBeLessThan(0)
++    expect(p.z).toBeCloseTo(0, 9)
++    expect(other).toEqual({ x: 1, z: 0 })
++  })
++
++  it('距離夠遠不推', () => {
++    expect(pushApart({ x: 0, z: 0 }, [{ x: 3, z: 0 }], 0.1)).toEqual({ x: 0, z: 0 })
++  })
++})
++
++describe('jumpY／launchVy／rampY — 跳台（spec §1.4）', () => {
++  it('從唇口 JUMP_H 起跳的拋物線，落地後夾在 0', () => {
++    const vy = launchVy(MAX_SPEED)
++    expect(vy).toBeCloseTo(4 + 0.25 * MAX_SPEED, 9)
++    expect(jumpY(0, vy)).toBeCloseTo(JUMP_H, 9)
++    const top = vy / JUMP_G
++    expect(jumpY(top, vy)).toBeCloseTo(JUMP_H + (vy * vy) / (2 * JUMP_G), 9)
++    expect(jumpY(5, vy)).toBe(0)
++  })
++
++  it('斜坡上 y 隨 s 線性升到 JUMP_H；坡外或偏出坡寬為 0', () => {
++    const [s0, s1] = course.jumps[0]
++    expect(rampY(course, s0, 0)).toBeCloseTo(0, 9)
++    expect(rampY(course, (s0 + s1) / 2, 0)).toBeCloseTo(JUMP_H / 2, 9)
++    expect(rampY(course, s1, 1)).toBeCloseTo(JUMP_H, 9)
++    expect(rampY(course, s1 + 1, 0)).toBe(0)
++    expect(rampY(course, (s0 + s1) / 2, RAMP_HALF_W + 0.1)).toBe(0)
++  })
++})
++
++describe('stepRacer — 整台車一個 tick', () => {
++  const at = (r: RacerState, s: number, speed = 10): RacerState => {
++    const p = pointAt(track, s)
++    return { ...r, s, lateral: 0, car: { ...r.car, x: p.x, z: p.z, ry: p.heading, speed } }
++  }
++  const tick = (r: RacerState, input = { throttle: 1, steer: 0, drifting: false }, others: { x: number; z: number }[] = []) =>
++    stepRacer(r, input, { course, others }, 1 / 30)
++
++  it('起跑格開局：lap 0、cp 0、沒有事件', () => {
++    const r0 = makeRacer(course, 0)
++    expect(r0.lap).toEqual({ lap: 0, cp: 0 })
++    expect(r0.car).toMatchObject({ x: course.grid[0].x, z: course.grid[0].z, ry: course.grid[0].ry, speed: 0 })
++    expect(tick(r0).events).toEqual([])
++  })
++
++  it('依序經過每一區回到起點：發 lap 事件', () => {
++    let r = makeRacer(course, 0)
++    const events: string[] = []
++    for (let k = 1; k <= CHECKPOINTS; k++) {
++      const out = tick(at(r, track.checkpoints[k % CHECKPOINTS] + 0.5))
++      r = out.state
++      events.push(...out.events)
++    }
++    expect(r.lap).toEqual({ lap: 1, cp: 0 })
++    expect(events.filter((e) => e === 'lap')).toHaveLength(1)
++  })
++
++  it('壓到加速帶：發 pad 事件並取得加速，停在上面不重複觸發', () => {
++    const r = at(makeRacer(course, 0), course.pads[0].s - 0.3)
++    const a = tick(r)
++    expect(a.events).toContain('pad')
++    expect(a.state.boostMs).toBeGreaterThan(0)
++    expect(tick(a.state).events).not.toContain('pad')
++  })
++
++  it('全速衝過跳台：坡上升高 → jump → 騰空高於唇口 → land、y 歸 0', () => {
++    let r = at(makeRacer(course, 0), course.jumps[0][0] - 2, MAX_SPEED)
++    const events: string[] = []
++    let maxY = 0
++    for (let i = 0; i < 90 && !events.includes('land'); i++) {
++      const out = tick(at(r, r.s, MAX_SPEED)) // 每 tick 拉回中心線、維持全速
++      r = out.state
++      events.push(...out.events)
++      maxY = Math.max(maxY, r.y)
++    }
++    expect(events.filter((e) => e === 'jump')).toHaveLength(1)
++    expect(events).toContain('land')
++    expect(maxY).toBeGreaterThan(JUMP_H)
++    expect(r.y).toBe(0)
++  })
++
++  it(`速度 < ${JUMP_MIN_SPEED} 沿斜坡下來不騰空`, () => {
++    let r = at(makeRacer(course, 0), course.jumps[0][0] - 1, JUMP_MIN_SPEED - 1)
++    const events: string[] = []
++    for (let i = 0; i < 90; i++) {
++      const out = tick(at(r, r.s, JUMP_MIN_SPEED - 1))
++      r = out.state
++      events.push(...out.events)
++    }
++    expect(events).not.toContain('jump')
++    expect(r.s).toBeGreaterThan(course.jumps[0][1])
++  })
++
++  it('開出路面不回來：最多 OFFTRACK_RESPAWN_MS 後重生到檢查點、進入 ghost', () => {
++    const base = at(makeRacer(course, 0), track.checkpoints[2] + 3, 0)
++    let r: RacerState = { ...base, lap: { lap: 0, cp: 2 }, car: { ...base.car, x: 0, z: 0, speed: 0 } } // 場中央草地
++    let respawned = false
++    for (let i = 0; i < (OFFTRACK_RESPAWN_MS / 1000) * 30 + 2 && !respawned; i++) {
++      const out = tick(r, { throttle: 0, steer: 0, drifting: false })
++      r = out.state
++      respawned = out.events.includes('respawn')
++    }
++    expect(respawned).toBe(true)
++    const cp = pointAt(track, track.checkpoints[2])
++    expect(r.car.x).toBeCloseTo(cp.x, 6)
++    expect(r.car.z).toBeCloseTo(cp.z, 6)
++    expect(r.car.speed).toBe(0)
++    expect(r.ghostMs).toBe(RESPAWN_GHOST_MS)
++  })
++
++  it('甩尾放開：發 turbo 事件、boostMs = 對應段位', () => {
++    let r = makeRacer(course, 0)
++    // 每 tick 拉回直線上同一點，只看蓄力狀態（避免車開出路面掉速）
++    for (let i = 0; i < 40; i++) r = tick(at(r, 2, 12), { throttle: 1, steer: 1, drifting: true }).state
++    expect(r.drift.tier).toBeGreaterThanOrEqual(1)
++    const tier = r.drift.tier
++    const out = tick(r, { throttle: 1, steer: 0, drifting: false })
++    expect(out.events).toContain('turbo')
++    expect(out.state.boostMs).toBeGreaterThanOrEqual(MINI_TURBO_MS[tier - 1] - 40)
++  })
++
++  it('打滑中按甩尾不蓄力', () => {
++    let r: RacerState = { ...at(makeRacer(course, 0), 2, 12), spinMs: 800 }
++    for (let i = 0; i < 20; i++) r = tick(r, { throttle: 1, steer: 1, drifting: true }).state
++    expect(r.drift).toEqual({ charge: 0, tier: 0 })
++  })
++
++  it('計時器隨 tick 遞減、不低於 0', () => {
++    const r: RacerState = { ...at(makeRacer(course, 0), 2), spinMs: 10, shieldMs: 1000, ghostMs: 20 }
++    const s = tick(r).state
++    expect(s.spinMs).toBe(0)
++    expect(s.shieldMs).toBeCloseTo(1000 - 1000 / 30, 6)
++    expect(s.ghostMs).toBe(0)
++  })
++})
+diff --git a/src/babylon/games/raceRules/drive.ts b/src/babylon/games/raceRules/drive.ts
+new file mode 100644
+index 0000000..c09e2ae
+--- /dev/null
++++ b/src/babylon/games/raceRules/drive.ts
+@@ -0,0 +1,437 @@
++/**
++ * 賽車手感（純函式，不依賴 Babylon）：基準運動學、甩尾蓄力、尾流、推擠、出界重生、跳台。
++ * 自己的車與 host 的 bot 用同一套 stepRacer，規則只有一份。
++ * 時間參數：名為 dt 的是秒，名為 *Ms 的是毫秒。
++ */
++import {
++  LAPS,
++  advanceLap,
++  inSpan,
++  pointAt,
++  sectorOf,
++  stepWrongWay,
++  trackProgress,
++  type Course,
++  type LapState,
++  type Track,
++} from '@/babylon/games/raceRules/track'
++
++// 基準運動學（沿用舊 race.ts 數值）
++export const MAX_SPEED = 17
++export const MAX_REVERSE = 5
++export const ACCEL = 13
++export const BRAKE = 22
++export const DRAG = 4.5
++export const TURN_RATE = 2.4
++export const OFFTRACK_FACTOR = 0.3
++export const DRIFT_TURN_MULT = 1.8
++export const DRIFT_DRAG = 2.0
++export const CAR_PUSH_DIST = 1.4
++export const CAR_PUSH_FORCE = 6
++export const BOOST_SPEED = 22
++export const BOOST_DURATION_MS = 1500
++
++/** 加速中往 BOOST_SPEED 拉的加速度 */
++export const BOOST_ACCEL = 30
++/** 超過上限時每秒降多少（路面上／路面外） */
++export const OVERSPEED_DECAY = 8
++export const OFFTRACK_DECAY = 30
++/** 打滑時每秒減速 */
++export const SPIN_DECEL = 20
++
++// 甩尾蓄力
++export const DRIFT_MIN_SPEED = 6
++export const DRIFT_TIERS = [0.6, 1.2, 2.0] as const
++export const MINI_TURBO_MS = [500, 900, 1300] as const
++/** |steer| 超過此值才算「轉向中」 */
++export const DRIFT_STEER_MIN = 0.2
++
++// 尾流
++export const SLIP_DIST = 6
++export const SLIP_CONE_DEG = 15
++export const SLIP_CHARGE_MS = 1200
++export const SLIP_BOOST_MS = 1000
++export const SLIP_SPEED_MULT = 1.15
++export const SLIP_MIN_SPEED = 6
++
++// 重生
++export const STUCK_MS = 2000
++export const STUCK_SPEED = 1
++export const OFFTRACK_RESPAWN_MS = 3000
++export const RESPAWN_GHOST_MS = 1500
++
++// 加速帶（spec §1.5：賽道座標的矩形，沿線半長、橫向半寬）
++export const PAD_HALF_LEN = 2
++export const PAD_HALF_W = 1.6
++
++// 跳台（spec §1.4）：斜坡唇口高、坡半寬、起跳最低速、重力；起跳 vy = JUMP_VY0 + JUMP_VY_K·speed
++export const JUMP_H = 1.1
++export const RAMP_HALF_W = 4
++export const JUMP_MIN_SPEED = 6
++export const JUMP_G = 30
++export const JUMP_VY0 = 4
++export const JUMP_VY_K = 0.25
++
++export interface CarPhys {
++  x: number
++  z: number
++  ry: number
++  speed: number
++}
++
++/** throttle −1..1（負為煞車／倒車），steer −1..1（正 = 右轉、ry 增加） */
++export interface DriveInput {
++  throttle: number
++  steer: number
++  drifting: boolean
++}
++
++export interface DriveMods {
++  onTrack: boolean
++  boosting: boolean
++  slipping: boolean
++  spinning: boolean
++}
++
++/** charge 為已蓄秒數，tier 0..3（0 = 未達第一段） */
++export interface DriftState {
++  charge: number
++  tier: 0 | 1 | 2 | 3
++}
++
++export interface RespawnTimer {
++  stuckMs: number
++  offMs: number
++}
++
++const NO_DRIFT: DriftState = { charge: 0, tier: 0 }
++
++/** 一個 tick 的車體運動學（不含推擠、出界判定） */
++export function stepCar(c: CarPhys, input: DriveInput, mods: DriveMods, dt: number): CarPhys {
++  let speed = c.speed
++  let ry = c.ry
++  if (mods.spinning) {
++    speed -= Math.sign(speed) * Math.min(SPIN_DECEL * dt, Math.abs(speed))
++  } else {
++    const th = Math.max(-1, Math.min(1, input.throttle))
++    if (th > 0) speed += ACCEL * th * dt
++    else if (th < 0) speed -= (speed > 0 ? BRAKE : ACCEL) * -th * dt
++    else speed -= Math.sign(speed) * Math.min(DRAG * dt, Math.abs(speed))
++    if (mods.boosting && speed < BOOST_SPEED) speed = Math.min(BOOST_SPEED, speed + BOOST_ACCEL * dt)
++  }
++  // 路面外降速對加速中也成立（AC3），否則加速可全速切內野
++  const cap =
++    (mods.boosting ? BOOST_SPEED : MAX_SPEED * (mods.slipping ? SLIP_SPEED_MULT : 1)) *
++    (mods.onTrack ? 1 : OFFTRACK_FACTOR)
++  // 本來就在上限內 → 直接夾住；從加速等狀態超速 → 逐步降回，不讓油門再往上推
++  if (speed > cap) {
++    speed = c.speed > cap ? Math.max(cap, Math.min(speed, c.speed - (mods.onTrack ? OVERSPEED_DECAY : OFFTRACK_DECAY) * dt)) : cap
++  }
++  speed = Math.max(-MAX_REVERSE, speed)
++
++  const steer = Math.max(-1, Math.min(1, input.steer))
++  if (!mods.spinning && steer !== 0 && Math.abs(speed) > 0.3) {
++    const f = Math.min(1, Math.abs(speed) / (MAX_SPEED * 0.5)) * Math.sign(speed)
++    ry += steer * TURN_RATE * (input.drifting ? DRIFT_TURN_MULT : 1) * f * dt
++  }
++  if (!mods.spinning && input.drifting && Math.abs(speed) > 2) {
++    speed -= Math.sign(speed) * Math.min(DRIFT_DRAG * 0.3 * dt, Math.abs(speed))
++  }
++  return { x: c.x + Math.sin(ry) * speed * dt, z: c.z + Math.cos(ry) * speed * dt, ry, speed }
++}
++
++/**
++ * 甩尾蓄力：按住甩尾、轉向中、速度 > DRIFT_MIN_SPEED 才累積；沒轉向時保留已蓄量；
++ * 掉到 DRIFT_MIN_SPEED 以下取消；放開時依段位給 MINI_TURBO_MS。
++ */
++export function stepDrift(
++  d: DriftState,
++  input: { drifting: boolean; steer: number; speed: number },
++  dt: number
++): { state: DriftState; turboMs: number } {
++  if (!input.drifting) return { state: NO_DRIFT, turboMs: d.tier > 0 ? MINI_TURBO_MS[d.tier - 1] : 0 }
++  if (input.speed <= DRIFT_MIN_SPEED) return { state: NO_DRIFT, turboMs: 0 }
++  if (Math.abs(input.steer) <= DRIFT_STEER_MIN) return { state: d, turboMs: 0 }
++  const charge = d.charge + dt
++  const tier = DRIFT_TIERS.filter((t) => charge >= t).length as DriftState['tier']
++  return { state: { charge, tier }, turboMs: 0 }
++}
++
++/** 尾流：前方 SLIP_DIST 內、夾角 ≤ SLIP_CONE_DEG 有車且自己夠快才累積；滿 SLIP_CHARGE_MS 給 SLIP_BOOST_MS 並歸零 */
++export function slipCharge(
++  ms: number,
++  self: { x: number; z: number; ry: number; speed: number },
++  others: readonly { x: number; z: number }[],
++  dtMs: number
++): { ms: number; slipMs: number } {
++  const cosCone = Math.cos((SLIP_CONE_DEG * Math.PI) / 180)
++  const fx = Math.sin(self.ry)
++  const fz = Math.cos(self.ry)
++  const inCone =
++    self.speed > SLIP_MIN_SPEED &&
++    others.some((o) => {
++      const dx = o.x - self.x
++      const dz = o.z - self.z
++      const d = Math.hypot(dx, dz)
++      return d > 0.01 && d <= SLIP_DIST && (dx * fx + dz * fz) / d >= cosCone
++    })
++  if (!inCone) return { ms: 0, slipMs: 0 }
++  const next = ms + dtMs
++  return next >= SLIP_CHARGE_MS ? { ms: 0, slipMs: SLIP_BOOST_MS } : { ms: next, slipMs: 0 }
++}
++
++/**
++ * 重生判定：出界立即；離開賽道累計 ≥ OFFTRACK_RESPAWN_MS；
++ * 踩油門（含倒車）但 |速度| < STUCK_SPEED 累計 ≥ STUCK_MS（停著不動不算卡住）。觸發時計時歸零。
++ */
++export function shouldRespawn(
++  t: RespawnTimer,
++  input: { speed: number; offTrack: boolean; throttle: boolean; outOfBounds?: boolean },
++  dtMs: number
++): { timer: RespawnTimer; respawn: boolean } {
++  const stuckMs = input.throttle && Math.abs(input.speed) < STUCK_SPEED ? t.stuckMs + dtMs : 0
++  const offMs = input.offTrack ? t.offMs + dtMs : 0
++  const respawn = !!input.outOfBounds || stuckMs >= STUCK_MS || offMs >= OFFTRACK_RESPAWN_MS
++  return { timer: respawn ? { stuckMs: 0, offMs: 0 } : { stuckMs, offMs }, respawn }
++}
++
++/** 放回最後通過的檢查點中心，朝向沿線 */
++export function respawnPose(track: Track, lap: LapState): { x: number; z: number; ry: number } {
++  const p = pointAt(track, track.checkpoints[lap.cp] ?? 0)
++  return { x: p.x, z: p.z, ry: p.heading }
++}
++
++/** 推擠：只把自己從重疊的車推開（各車在自己的擁有端推自己；bot 由 host 推） */
++export function pushApart(
++  self: { x: number; z: number },
++  others: readonly { x: number; z: number }[],
++  dt: number
++): { x: number; z: number } {
++  let { x, z } = self
++  for (const o of others) {
++    const dx = x - o.x
++    const dz = z - o.z
++    const d = Math.hypot(dx, dz)
++    if (d < CAR_PUSH_DIST && d > 0.01) {
++      const push = (CAR_PUSH_DIST - d) * CAR_PUSH_FORCE * dt
++      x += (dx / d) * push
++      z += (dz / d) * push
++    }
++  }
++  return { x, z }
++}
++
++/** 起跳垂直初速 */
++export const launchVy = (speed: number): number => JUMP_VY0 + JUMP_VY_K * speed
++
++/** 騰空 t 秒的高度（從唇口 JUMP_H 起跳），落地後夾在 0 */
++export const jumpY = (t: number, vy: number): number => Math.max(0, JUMP_H + vy * t - 0.5 * JUMP_G * t * t)
++
++/** 斜坡上的高度：s ∈ [s0, s1] 且 |lateral| ≤ RAMP_HALF_W 時線性升到 JUMP_H，其餘 0 */
++export function rampY(course: Course, s: number, lateral: number): number {
++  if (Math.abs(lateral) > RAMP_HALF_W) return 0
++  for (const [s0, s1] of course.jumps) if (s >= s0 && s <= s1) return (JUMP_H * (s - s0)) / (s1 - s0)
++  return 0
++}
++
++export type RacerEvent = 'lap' | 'finish' | 'turbo' | 'slip' | 'pad' | 'jump' | 'land' | 'respawn'
++
++/** 一台車的完整本機狀態（自己的車或 host 上的 bot） */
++export interface RacerState {
++  car: CarPhys
++  /** 跳台高度（只給視覺） */
++  y: number
++  drift: DriftState
++  slipChargeMs: number
++  /** 尾流加成剩餘 */
++  slipMs: number
++  /** 加速（迷你加速、加速帶、加速菇）剩餘 */
++  boostMs: number
++  spinMs: number
++  shieldMs: number
++  /** 重生後閃爍、不被道具命中 */
++  ghostMs: number
++  respawn: RespawnTimer
++  lap: LapState
++  s: number
++  lateral: number
++  wrongMs: number
++  wrongWay: boolean
++  /** 騰空中：已過秒數與起跳垂直初速；在地面為 null */
++  air: { t: number; vy: number } | null
++  onPad: boolean
++  /** 上一 tick 在斜坡上（越過坡頂才起跳） */
++  onRamp: boolean
++}
++
++export interface RacerWorld {
++  course: Course
++  /** 其他車的位置（推擠與尾流用） */
++  others: readonly { x: number; z: number }[]
++}
++
++/** 起跑格 slot 的初始狀態 */
++export function makeRacer(course: Course, slot: number): RacerState {
++  const g = course.grid[slot % course.grid.length]
++  const p = trackProgress(course.track, g.x, g.z)
++  return {
++    car: { x: g.x, z: g.z, ry: g.ry, speed: 0 },
++    y: 0,
++    drift: NO_DRIFT,
++    slipChargeMs: 0,
++    slipMs: 0,
++    boostMs: 0,
++    spinMs: 0,
++    shieldMs: 0,
++    ghostMs: 0,
++    respawn: { stuckMs: 0, offMs: 0 },
++    lap: { lap: 0, cp: 0 },
++    s: p.s,
++    lateral: p.lateral,
++    wrongMs: 0,
++    wrongWay: false,
++    air: null,
++    onPad: false,
++    onRamp: false,
++  }
++}
++
++const dec = (v: number, dtMs: number) => Math.max(0, v - dtMs)
++
++/** s 剛越過某座斜坡的坡頂（往前 0 < ds ≤ 5） */
++const crossedRampTop = (course: Course, s: number): boolean =>
++  course.jumps.some(([, s1]) => {
++    const ds = (((s - s1) % course.track.len) + course.track.len) % course.track.len
++    return ds > 0 && ds <= 5
++  })
++
++/**
++ * 一台車的一個 tick：計時器 → 甩尾 → 運動學 → 推擠 → 賽道投影 → 尾流 → 加速帶 → 跳台 → 計圈 → 逆向 → 重生。
++ * 道具效果（打滑、護盾、加速菇）由呼叫端改 spinMs／shieldMs／boostMs。
++ */
++export function stepRacer(
++  r: RacerState,
++  input: DriveInput,
++  world: RacerWorld,
++  dt: number
++): { state: RacerState; events: RacerEvent[] } {
++  const { course } = world
++  const { track } = course
++  const dtMs = dt * 1000
++  const events: RacerEvent[] = []
++  const spinMs = dec(r.spinMs, dtMs)
++  const spinning = spinMs > 0
++  const inp: DriveInput = spinning ? { throttle: 0, steer: 0, drifting: false } : input
++
++  let boostMs = dec(r.boostMs, dtMs)
++  let drift: DriftState = NO_DRIFT
++  if (!spinning) {
++    const d = stepDrift(r.drift, { drifting: inp.drifting, steer: inp.steer, speed: r.car.speed }, dt)
++    drift = d.state
++    if (d.turboMs > 0) {
++      boostMs = Math.max(boostMs, d.turboMs)
++      events.push('turbo')
++    }
++  }
++  let slipMs = dec(r.slipMs, dtMs)
++  // 騰空中不吃路面外降速（spec §1.4）
++  const onTrack = r.air !== null || Math.abs(r.lateral) <= track.width / 2
++  let car = stepCar(r.car, inp, { onTrack, boosting: boostMs > 0, slipping: slipMs > 0, spinning }, dt)
++  car = { ...car, ...pushApart(car, world.others, dt) }
++  const { bound } = course
++  const outOfBounds = Math.abs(car.x) > bound.x || Math.abs(car.z) > bound.z
++  if (outOfBounds) {
++    car = { ...car, x: Math.max(-bound.x, Math.min(bound.x, car.x)), z: Math.max(-bound.z, Math.min(bound.z, car.z)) }
++  }
++
++  const prog = trackProgress(track, car.x, car.z)
++  const slip = slipCharge(r.slipChargeMs, car, world.others, dtMs)
++  if (slip.slipMs > 0) {
++    slipMs = slip.slipMs
++    events.push('slip')
++  }
++
++  const onPad = course.pads.some((p) => {
++    let ds = Math.abs(prog.s - p.s)
++    ds = Math.min(ds, track.len - ds)
++    return ds <= PAD_HALF_LEN && Math.abs(prog.lateral - p.lateral) <= PAD_HALF_W
++  })
++  if (onPad && !r.onPad) {
++    boostMs = Math.max(boostMs, BOOST_DURATION_MS)
++    events.push('pad')
++  }
++
++  // 跳台：上一 tick 在坡上、這 tick 越過坡頂（往前 ≤ 5）且夠快 → 起跳；騰空到 y ≤ 0 落地
++  let air = r.air
++  let y: number
++  const onRamp = Math.abs(prog.lateral) <= RAMP_HALF_W && course.jumps.some((j) => inSpan(track, prog.s, j))
++  if (air) {
++    air = { t: air.t + dt, vy: air.vy }
++    y = jumpY(air.t, air.vy)
++    if (y <= 0) {
++      air = null
++      events.push('land')
++    }
++  } else if (r.onRamp && !onRamp && car.speed >= JUMP_MIN_SPEED && crossedRampTop(course, prog.s)) {
++    air = { t: 0, vy: launchVy(car.speed) }
++    y = JUMP_H
++    events.push('jump')
++  } else {
++    y = rampY(course, prog.s, prog.lateral)
++  }
++
++  const lap = advanceLap(r.lap, sectorOf(track, prog.s))
++  if (lap.lap > r.lap.lap) events.push(lap.lap >= LAPS ? 'finish' : 'lap')
++
++  const ww = stepWrongWay(r.wrongMs, { heading: car.ry, trackHeading: pointAt(track, prog.s).heading, speed: car.speed }, dtMs)
++
++  const offTrack = air === null && Math.abs(prog.lateral) > track.width / 2
++  const rs = shouldRespawn(r.respawn, { speed: car.speed, offTrack, throttle: inp.throttle !== 0, outOfBounds }, dtMs)
++
++  const next: RacerState = {
++    car,
++    y,
++    drift,
++    slipChargeMs: slip.ms,
++    slipMs,
++    boostMs,
++    spinMs,
++    shieldMs: dec(r.shieldMs, dtMs),
++    ghostMs: dec(r.ghostMs, dtMs),
++    respawn: rs.timer,
++    lap,
++    s: prog.s,
++    lateral: prog.lateral,
++    wrongMs: ww.ms,
++    wrongWay: ww.wrongWay,
++    air,
++    onPad,
++    onRamp,
++  }
++  if (!rs.respawn) return { state: next, events }
++
++  const pose = respawnPose(track, lap)
++  const back = trackProgress(track, pose.x, pose.z)
++  events.push('respawn')
++  return {
++    state: {
++      ...next,
++      car: { ...pose, speed: 0 },
++      y: 0,
++      drift: NO_DRIFT,
++      slipChargeMs: 0,
++      slipMs: 0,
++      boostMs: 0,
++      spinMs: 0,
++      ghostMs: RESPAWN_GHOST_MS,
++      s: back.s,
++      lateral: back.lateral,
++      wrongMs: 0,
++      wrongWay: false,
++      air: null,
++      onPad: false,
++      onRamp: false,
++    },
++    events,
++  }
++}
+diff --git a/src/babylon/games/raceRules/items.test.ts b/src/babylon/games/raceRules/items.test.ts
+new file mode 100644
+index 0000000..c85ffc1
+--- /dev/null
++++ b/src/babylon/games/raceRules/items.test.ts
+@@ -0,0 +1,320 @@
++import { describe, it, expect } from 'vitest'
++import {
++  BANANA_ARM_MS,
++  BOXES_PER_ROW,
++  ITEM_KINDS,
++  ITEM_RESPAWN_MS,
++  MUSHROOM_MS,
++  SHELL_LIFE_MS,
++  SHELL_SPIN_MS,
++  SHIELD_MS,
++  SPIN_MS,
++  BANANA_MAX,
++  SHELL_RADIUS,
++  SHELL_SPEED,
++  SHELL_TURN,
++  applySpin,
++  bananaOverflow,
++  rollTier,
++  shellBananaClash,
++  boxLayout,
++  claimBox,
++  rollItem,
++  shellGone,
++  shellTarget,
++  hitTest,
++  spawnItem,
++  stepShell,
++  takenBoxes,
++  touchedBox,
++  useItemSelf,
++  type HitCar,
++  type ItemKind,
++  type Shell,
++} from '@/babylon/games/raceRules/items'
++import { makeRacer } from '@/babylon/games/raceRules/drive'
++import { makeCourse, pointAt, trackProgress, type Vec2 } from '@/babylon/games/raceRules/track'
++
++const CTRL: Vec2[] = (
++  [
++    [20, 0], [30, 0], [40, 0], [40, 10], [40, 20], [40, 30], [40, 40], [30, 40],
++    [20, 40], [10, 40], [0, 40], [0, 30], [0, 20], [0, 10], [0, 0], [10, 0],
++  ] as Vec2[]
++).map(([x, z]) => [x - 20, z - 20] as Vec2)
++const course = makeCourse({ ctrl: CTRL, width: 8, bound: { x: 40, z: 40 }, pads: [], jumps: [], itemRows: [16, 96] })
++const track = course.track
++
++describe('道具箱：先到先得、重生、手上最多 1 個', () => {
++  const boxes = boxLayout(course)
++  const fresh = boxes.map(() => 0)
++
++  it(`每列 ${BOXES_PER_ROW} 個、id 依序、都在路面內且同列沿線距離相同`, () => {
++    expect(boxes).toHaveLength(course.itemRows.length * BOXES_PER_ROW)
++    expect(boxes.map((b) => b.id)).toEqual(boxes.map((_, i) => i))
++    for (const b of boxes) {
++      const p = trackProgress(track, b.x, b.z)
++      expect(Math.abs(p.lateral)).toBeLessThan(track.width / 2)
++      expect(p.s).toBeCloseTo(course.itemRows[Math.floor(b.id / BOXES_PER_ROW)], 3)
++    }
++  })
++
++  it('同一箱兩人搶：先到的拿到、後到的不給', () => {
++    const a = claimBox(fresh, 1, null, 1000)
++    expect(a.ok).toBe(true)
++    const b = claimBox(a.respawnAt, 1, null, 1000)
++    expect(b.ok).toBe(false)
++    expect(b.respawnAt).toEqual(a.respawnAt)
++  })
++
++  it(`被撿走 ${ITEM_RESPAWN_MS}ms 後重生`, () => {
++    const a = claimBox(fresh, 2, null, 1000)
++    expect(takenBoxes(a.respawnAt, 1000 + ITEM_RESPAWN_MS - 1)).toEqual([2])
++    expect(takenBoxes(a.respawnAt, 1000 + ITEM_RESPAWN_MS)).toEqual([])
++    expect(claimBox(a.respawnAt, 2, null, 1000 + ITEM_RESPAWN_MS).ok).toBe(true)
++  })
++
++  it('手上已有道具不再給，箱子留著給後面的人', () => {
++    const r = claimBox(fresh, 0, 'banana', 1000)
++    expect(r.ok).toBe(false)
++    expect(takenBoxes(r.respawnAt, 1000)).toEqual([])
++  })
++
++  it('不存在的箱 id 不給', () => {
++    expect(claimBox(fresh, 99, null, 0).ok).toBe(false)
++    expect(claimBox(fresh, -1, null, 0).ok).toBe(false)
++  })
++
++  it('touchedBox：碰到未被撿走的箱回 id，被撿走的略過', () => {
++    const b = boxes[5]
++    expect(touchedBox(boxes, [], b.x + 0.5, b.z)).toBe(5)
++    expect(touchedBox(boxes, [5], b.x + 0.5, b.z)).toBeNull()
++    expect(touchedBox(boxes, [], b.x + 5, b.z + 5)).toBeNull()
++  })
++})
++
++describe('rollItem — 落後補償', () => {
++  /** 以均勻細格積分 r ∈ [0,1) 得到各道具機率 */
++  const odds = (rank: number, total: number) => {
++    const n = 10000
++    const c: Record<ItemKind, number> = { banana: 0, shell: 0, mushroom: 0, shield: 0 }
++    for (let i = 0; i < n; i++) c[rollItem(rank, total, (i + 0.5) / n)]++
++    return { ...c, strong: (c.mushroom + c.shell) / n }
++  }
++
++  it('第 1 名只會抽到香蕉或護盾', () => {
++    for (let total = 1; total <= 8; total++) expect(odds(1, total).strong).toBe(0)
++  })
++
++  it('最後一名 P(加速菇∪龜殼) ≥ 0.6', () => {
++    for (let total = 2; total <= 8; total++) expect(odds(total, total).strong).toBeGreaterThanOrEqual(0.6)
++  })
++
++  it('P(加速菇∪龜殼) 隨名次 1..total 非遞減', () => {
++    for (let total = 2; total <= 8; total++) {
++      const ps = Array.from({ length: total }, (_, i) => odds(i + 1, total).strong)
++      for (let i = 1; i < total; i++) expect(ps[i]).toBeGreaterThanOrEqual(ps[i - 1])
++    }
++  })
++
++  it('spec §2.1 名次分檔：4 台 1st→0、2nd→1、3rd→2、4th→3；3 台 2nd→1；2 台 2nd→3', () => {
++    expect(rollTier(1, 4)).toBe(0)
++    expect(rollTier(2, 4)).toBe(1)
++    expect(rollTier(3, 4)).toBe(2)
++    expect(rollTier(4, 4)).toBe(3)
++    expect(rollTier(2, 3)).toBe(1)
++    expect(rollTier(2, 2)).toBe(3)
++    expect(rollTier(1, 1)).toBe(0)
++  })
++
++  it('依 banana→shell→mushroom→shield 累加：檔 0 的 r=0.59 → banana、r=0.6 → shield', () => {
++    expect(rollItem(1, 4, 0.59)).toBe('banana')
++    expect(rollItem(1, 4, 0.6)).toBe('shield')
++    expect(rollItem(4, 4, 0.1)).toBe('shell')
++    expect(rollItem(4, 4, 0.5)).toBe('mushroom')
++    expect(rollItem(4, 4, 0.95)).toBe('shield')
++  })
++
++  it('r 在 [0,1) 任何值都回合法道具；越界的 r 與名次被夾住', () => {
++    for (const r of [0, 0.25, 0.999999, 1, -1, NaN]) expect(ITEM_KINDS).toContain(rollItem(2, 4, r))
++    expect(ITEM_KINDS).toContain(rollItem(0, 4, 0.5))
++    expect(ITEM_KINDS).toContain(rollItem(9, 4, 0.5))
++  })
++})
++
++describe('shellTarget — 紅龜殼目標', () => {
++  const order = ['a', 'b', 'c', 'd']
++
++  it('鎖定名次在自己前一名的車', () => {
++    expect(shellTarget('c', order)).toBe('b')
++    expect(shellTarget('d', order)).toBe('c')
++  })
++
++  it('自己第一名 → null（直線前射）', () => {
++    expect(shellTarget('a', order)).toBeNull()
++  })
++
++  it('跳過已過線等不可鎖定的車，往更前面找', () => {
++    expect(shellTarget('c', order, new Set(['b']))).toBe('a')
++    expect(shellTarget('c', order, new Set(['a', 'b']))).toBeNull()
++  })
++
++  it('不在名單內 → null', () => {
++    expect(shellTarget('x', order)).toBeNull()
++  })
++})
++
++describe('hitTest — 命中判定與護盾', () => {
++  const car = (id: string, x: number, z: number, o: Partial<HitCar> = {}): HitCar => ({ id, x, z, ghost: false, shield: false, ...o })
++
++  it('香蕉碰到車：打滑 SPIN_MS', () => {
++    expect(hitTest({ kind: 'banana', owner: 'a', x: 0, z: 0, ageMs: 5000 }, [car('b', 0.5, 0)])).toEqual({
++      target: 'b',
++      ms: SPIN_MS,
++      blocked: false,
++    })
++  })
++
++  it('龜殼命中：打滑 SPIN_MS × 1.5', () => {
++    expect(SHELL_SPIN_MS).toBe(SPIN_MS * 1.5)
++    expect(hitTest({ kind: 'shell', owner: 'a', x: 0, z: 0, ageMs: 100 }, [car('b', 0.5, 0)])?.ms).toBe(SHELL_SPIN_MS)
++  })
++
++  it('護盾擋下：blocked、ms = 0', () => {
++    expect(hitTest({ kind: 'shell', owner: 'a', x: 0, z: 0, ageMs: 100 }, [car('b', 0.3, 0, { shield: true })])).toEqual({
++      target: 'b',
++      ms: 0,
++      blocked: true,
++    })
++  })
++
++  it('重生閃爍（ghost）中不被命中', () => {
++    expect(hitTest({ kind: 'banana', owner: 'a', x: 0, z: 0, ageMs: 5000 }, [car('b', 0.3, 0, { ghost: true })])).toBeNull()
++  })
++
++  it('龜殼不打自己；香蕉剛丟出的 BANANA_ARM_MS 內不打自己，之後會', () => {
++    expect(hitTest({ kind: 'shell', owner: 'a', x: 0, z: 0, ageMs: 3000 }, [car('a', 0.2, 0)])).toBeNull()
++    expect(hitTest({ kind: 'banana', owner: 'a', x: 0, z: 0, ageMs: BANANA_ARM_MS - 1 }, [car('a', 0.2, 0)])).toBeNull()
++    expect(hitTest({ kind: 'banana', owner: 'a', x: 0, z: 0, ageMs: BANANA_ARM_MS }, [car('a', 0.2, 0)])?.target).toBe('a')
++  })
++
++  it('同時碰到多台取最近；距離太遠不中', () => {
++    const it = { kind: 'banana' as const, owner: 'z', x: 0, z: 0, ageMs: 5000 }
++    expect(hitTest(it, [car('far', 0.9, 0), car('near', 0.2, 0)])?.target).toBe('near')
++    expect(hitTest(it, [car('b', 3, 0)])).toBeNull()
++  })
++
++  it('追蹤中的龜殼只撞目標，路上其他車不受影響', () => {
++    const sh = { kind: 'shell' as const, owner: 'a', target: 'c', x: 0, z: 0, ageMs: 100 }
++    expect(hitTest(sh, [car('b', 0.2, 0)])).toBeNull()
++    expect(hitTest(sh, [car('b', 0.2, 0), car('c', 0.5, 0)])?.target).toBe('c')
++  })
++
++  it('等距時依 id 決定（各端一致）', () => {
++    const it = { kind: 'banana' as const, owner: 'z', x: 0, z: 0, ageMs: 5000 }
++    expect(hitTest(it, [car('c', 0.5, 0), car('b', -0.5, 0)])?.target).toBe('b')
++  })
++})
++
++describe('spawnItem／stepShell — 生成與龜殼移動', () => {
++  it('香蕉丟在車後、靜止；龜殼在車前、沿車頭方向飛', () => {
++    const b = spawnItem('banana', { x: 0, z: 0, ry: 0 })
++    expect(b.z).toBeLessThan(0)
++    expect(b.vx).toBe(0)
++    expect(b.vz).toBe(0)
++    const s = spawnItem('shell', { x: 0, z: 0, ry: Math.PI / 2 })
++    expect(s.x).toBeGreaterThan(0)
++    expect(s.vx).toBeGreaterThan(0)
++    expect(s.vz).toBeCloseTo(0, 9)
++  })
++
++  const shellAt = (s: number, target: string | null): Shell => {
++    const p = pointAt(track, s)
++    const v = spawnItem('shell', { x: p.x, z: p.z, ry: p.heading })
++    return { id: 'sh', owner: 'a', target, ageMs: 0, x: p.x, z: p.z, vx: v.vx, vz: v.vz }
++  }
++
++  it('無目標：直線前進', () => {
++    let sh = shellAt(2, null)
++    for (let i = 0; i < 10; i++) sh = stepShell(sh, null, track, 1 / 30)
++    expect(sh.z).toBeCloseTo(pointAt(track, 2).z, 6)
++    expect(sh.x).toBeGreaterThan(pointAt(track, 2).x)
++    expect(sh.ageMs).toBeCloseTo(1000 / 3, 6)
++  })
++
++  it('有目標：沿賽道過彎（不切出路面），最後追上目標', () => {
++    const tgt = pointAt(track, 60) // 過第一個彎之後
++    let sh = shellAt(2, 'b')
++    let minD = Infinity
++    for (let i = 0; i < 120 && minD >= SHELL_RADIUS; i++) {
++      sh = stepShell(sh, { x: tgt.x, z: tgt.z }, track, 1 / 30)
++      expect(Math.abs(trackProgress(track, sh.x, sh.z).lateral)).toBeLessThan(track.width / 2)
++      minD = Math.min(minD, Math.hypot(sh.x - tgt.x, sh.z - tgt.z))
++    }
++    expect(minD).toBeLessThan(SHELL_RADIUS)
++  })
++
++  it('沿線模式：偏離中心線的龜殼以每秒 4 單位收斂回 lateral 0', () => {
++    const p = pointAt(track, 2)
++    let sh: Shell = { ...shellAt(2, 'b'), z: p.z - 3 } // 朝 +x，右側 = −z → lateral +3
++    const far = pointAt(track, 120)
++    sh = stepShell(sh, { x: far.x, z: far.z }, track, 0.25)
++    expect(trackProgress(track, sh.x, sh.z).lateral).toBeCloseTo(2, 1)
++    sh = stepShell(sh, { x: far.x, z: far.z }, track, 0.5)
++    expect(Math.abs(trackProgress(track, sh.x, sh.z).lateral)).toBeLessThan(0.05)
++  })
++
++  it(`近距離直接追：轉向速度上限 ${SHELL_TURN} rad/s`, () => {
++    const sh: Shell = { id: 'sh', owner: 'a', target: 'b', ageMs: 0, x: 0, z: 0, vx: 0, vz: SHELL_SPEED } // 朝 +z
++    const next = stepShell(sh, { x: 5, z: 0 }, track, 0.1) // 目標在正右方 90°
++    const turned = Math.atan2(next.vx, next.vz)
++    expect(turned).toBeCloseTo(SHELL_TURN * 0.1, 6)
++    expect(Math.hypot(next.vx, next.vz)).toBeCloseTo(SHELL_SPEED, 6)
++  })
++
++  it(`壽命 ${SHELL_LIFE_MS}ms 或出界即消失；直射的離開路緣外 0.5 也消失`, () => {
++    const sh = shellAt(2, null)
++    expect(shellGone({ ...sh, ageMs: SHELL_LIFE_MS - 1 }, course)).toBe(false)
++    expect(shellGone({ ...sh, ageMs: SHELL_LIFE_MS }, course)).toBe(true)
++    expect(shellGone({ ...sh, x: 41 }, course)).toBe(true)
++    const edge = track.width / 2 + 0.5
++    expect(shellGone({ ...sh, z: sh.z - edge + 0.1 }, course)).toBe(false)
++    expect(shellGone({ ...sh, z: sh.z - edge - 0.1 }, course)).toBe(true)
++    expect(shellGone({ ...sh, target: 'b', z: sh.z - edge - 0.1 }, course)).toBe(false)
++  })
++
++  it('龜殼撞到香蕉：回傳那根香蕉（兩者都消失）', () => {
++    const sh = shellAt(2, 'b')
++    expect(shellBananaClash(sh, [{ id: 'n1', x: sh.x + 5, z: sh.z }, { id: 'n2', x: sh.x + 1, z: sh.z }])).toBe('n2')
++    expect(shellBananaClash(sh, [{ id: 'n1', x: sh.x + 5, z: sh.z }])).toBeNull()
++  })
++
++  it(`香蕉上限 ${BANANA_MAX} 根：超過時回傳最舊的那些`, () => {
++    const ids = Array.from({ length: BANANA_MAX + 2 }, (_, i) => `b${i}`)
++    expect(bananaOverflow(ids)).toEqual(['b0', 'b1'])
++    expect(bananaOverflow(ids.slice(0, BANANA_MAX))).toEqual([])
++  })
++})
++
++describe('applySpin／useItemSelf — 套到自己的車', () => {
++  const r0 = makeRacer(course, 0)
++
++  it('被命中：spinMs 取大值、甩尾蓄力與加速清掉', () => {
++    const r = applySpin({ ...r0, spinMs: 100, boostMs: 900, drift: { charge: 1, tier: 1 } }, SPIN_MS, false)
++    expect(r.spinMs).toBe(SPIN_MS)
++    expect(r.boostMs).toBe(0)
++    expect(r.drift).toEqual({ charge: 0, tier: 0 })
++  })
++
++  it('護盾擋下：只消耗護盾，不打滑', () => {
++    const r = applySpin({ ...r0, shieldMs: 5000 }, 0, true)
++    expect(r.shieldMs).toBe(0)
++    expect(r.spinMs).toBe(0)
++  })
++
++  it('加速菇給 MINI_TURBO_MS[1]、護盾給 SHIELD_MS；香蕉／龜殼不改自己', () => {
++    expect(useItemSelf(r0, 'mushroom').boostMs).toBe(MUSHROOM_MS)
++    expect(useItemSelf(r0, 'shield').shieldMs).toBe(SHIELD_MS)
++    expect(useItemSelf(r0, 'banana')).toBe(r0)
++    expect(useItemSelf(r0, 'shell')).toBe(r0)
++  })
++})
+diff --git a/src/babylon/games/raceRules/items.ts b/src/babylon/games/raceRules/items.ts
+new file mode 100644
+index 0000000..f4407ad
+--- /dev/null
++++ b/src/babylon/games/raceRules/items.ts
+@@ -0,0 +1,256 @@
++/**
++ * 賽車道具（純函式，host 裁決）：道具箱先到先得、落後補償抽道具、龜殼目標與移動、命中判定。
++ * 同步流程見 brief AC4／AC6b：guest 只送 itemReq／useItem，命中只信 host 廣播的 spin。
++ */
++import { MINI_TURBO_MS, type DriftState, type RacerState } from '@/babylon/games/raceRules/drive'
++import { ITEM_ODDS } from '@/babylon/games/raceRules/trackData'
++import { placeAt, trackProgress, wrapAngle, type Course, type Track } from '@/babylon/games/raceRules/track'
++
++export type ItemKind = 'banana' | 'shell' | 'mushroom' | 'shield'
++/** 抽道具時累加機率的固定順序（各端一致） */
++export const ITEM_KINDS: readonly ItemKind[] = ['banana', 'shell', 'mushroom', 'shield']
++
++export const BOXES_PER_ROW = 4
++export const ITEM_RESPAWN_MS = 3000
++export const SPIN_MS = 800
++export const SHELL_SPIN_MS = SPIN_MS * 1.5
++export const SHELL_LIFE_MS = 6000
++export const SHIELD_MS = 8000
++export const MUSHROOM_MS = MINI_TURBO_MS[1]
++
++// 數值見 spec §1.6／§2.2
++/** 車碰到道具箱的距離 */
++export const BOX_RADIUS = 1.4
++export const BANANA_RADIUS = 0.9
++export const SHELL_RADIUS = 0.8
++/** 香蕉丟出後這段時間內不會打到丟的人 */
++export const BANANA_ARM_MS = 400
++/** 場上香蕉上限，超過時最舊的消失（itemGone reason 'expire'） */
++export const BANANA_MAX = 8
++/** 香蕉落在車後的距離、龜殼生成在車前的距離 */
++export const BANANA_BACK = 2.2
++export const SHELL_FRONT = 1.8
++/** 龜殼速度（快過 BOOST_SPEED 22 才追得上） */
++export const SHELL_SPEED = 26
++/** 與目標距離小於此值改為直接追（轉速上限 SHELL_TURN rad/s）；否則沿中心線前進、lateral 以 SHELL_LAT_RATE/s 收斂到 0 */
++export const SHELL_HOME_DIST = 10
++export const SHELL_TURN = 6
++export const SHELL_LAT_RATE = 4
++/** 直射龜殼離開路緣外多遠就消失 */
++export const SHELL_EDGE_OUT = 0.5
++
++export interface ItemBox {
++  id: number
++  x: number
++  z: number
++}
++
++/** 道具箱位置：每列 BOXES_PER_ROW 個，橫向均分路寬；id = 列 × BOXES_PER_ROW + 序 */
++export function boxLayout(course: Course): ItemBox[] {
++  const w = course.track.width
++  return course.itemRows.flatMap((s, row) =>
++    Array.from({ length: BOXES_PER_ROW }, (_, i) => {
++      const p = placeAt(course.track, s, ((i + 0.5) / BOXES_PER_ROW - 0.5) * w)
++      return { id: row * BOXES_PER_ROW + i, x: p.x, z: p.z }
++    })
++  )
++}
++
++/**
++ * host：先到先得。respawnAt[box] > now 表示被撿走中；手上已有道具不給，箱子留著。
++ * 給出時 respawnAt[box] = now + ITEM_RESPAWN_MS。不改動輸入。
++ */
++export function claimBox(
++  respawnAt: readonly number[],
++  box: number,
++  holding: ItemKind | null,
++  now: number
++): { ok: boolean; respawnAt: number[] } {
++  const ok = Number.isInteger(box) && box >= 0 && box < respawnAt.length && holding === null && respawnAt[box] <= now
++  const next = [...respawnAt]
++  if (ok) next[box] = now + ITEM_RESPAWN_MS
++  return { ok, respawnAt: next }
++}
++
++/** boxState 廣播用：目前被撿走中的箱 id（升冪） */
++export const takenBoxes = (respawnAt: readonly number[], now: number): number[] =>
++  respawnAt.flatMap((t, i) => (t > now ? [i] : []))
++
++/** 本機碰撞：碰到的第一個未被撿走的箱 id；guest 據此送 itemReq */
++export function touchedBox(boxes: readonly ItemBox[], taken: readonly number[], x: number, z: number): number | null {
++  for (const b of boxes) {
++    if (taken.includes(b.id)) continue
++    if (Math.hypot(b.x - x, b.z - z) <= BOX_RADIUS) return b.id
++  }
++  return null
++}
++
++/** 名次 → ITEM_ODDS 檔（spec §2.1）：第 1 名 0、最後一名 3，中間依 (rank−1)/(total−1) ≤ 0.5 分 1／2 */
++export function rollTier(rank: number, total: number): 0 | 1 | 2 | 3 {
++  const n = Math.max(1, Math.floor(total))
++  const k = Math.min(n, Math.max(1, Math.floor(rank)))
++  if (k === 1) return 0
++  if (k === n) return 3
++  return (k - 1) / (n - 1) <= 0.5 ? 1 : 2
++}
++
++/** 落後補償：依名次分檔查 ITEM_ODDS，r ∈ [0,1) 依 banana→shell→mushroom→shield 累加抽取 */
++export function rollItem(rank: number, total: number, r: number): ItemKind {
++  const row = ITEM_ODDS[rollTier(rank, total)]
++  const x = Number.isFinite(r) ? Math.min(Math.max(r, 0), 1 - 1e-9) : 0
++  let acc = 0
++  let last: ItemKind = 'banana'
++  for (const kind of ITEM_KINDS) {
++    if (row[kind] <= 0) continue
++    last = kind
++    acc += row[kind]
++    if (x < acc) return kind
++  }
++  return last
++}
++
++/** 紅龜殼目標：名次（order，第一名在前）在自己前面、最近且不在 skip 內的車；自己第一名或找不到回 null（直線前射） */
++export function shellTarget(shooter: string, order: readonly string[], skip: ReadonlySet<string> = new Set()): string | null {
++  const idx = order.indexOf(shooter)
++  for (let i = idx - 1; i >= 0; i--) if (!skip.has(order[i])) return order[i]
++  return null
++}
++
++/** 生成位置與初速：香蕉在車後靜止，龜殼在車前沿車頭方向 */
++export function spawnItem(
++  kind: 'banana' | 'shell',
++  car: { x: number; z: number; ry: number }
++): { x: number; z: number; vx: number; vz: number } {
++  const fx = Math.sin(car.ry)
++  const fz = Math.cos(car.ry)
++  if (kind === 'banana') return { x: car.x - fx * BANANA_BACK, z: car.z - fz * BANANA_BACK, vx: 0, vz: 0 }
++  return { x: car.x + fx * SHELL_FRONT, z: car.z + fz * SHELL_FRONT, vx: fx * SHELL_SPEED, vz: fz * SHELL_SPEED }
++}
++
++export interface Shell {
++  id: string
++  owner: string
++  /** null = 直線前射 */
++  target: string | null
++  ageMs: number
++  x: number
++  z: number
++  vx: number
++  vz: number
++}
++
++/**
++ * host：龜殼一個 tick（spec §2.2）。
++ * - 無目標（或目標已不在場）：沿 (vx, vz) 直線
++ * - 目標距離 ≥ SHELL_HOME_DIST：沿中心線 s 往前推 SHELL_SPEED·dt，lateral 以 SHELL_LAT_RATE/s 收斂到 0
++ * - 目標距離 < SHELL_HOME_DIST：朝目標轉向（每秒最多 SHELL_TURN rad），速度 SHELL_SPEED
++ */
++export function stepShell(sh: Shell, targetPos: { x: number; z: number } | null, track: Track, dt: number): Shell {
++  const ageMs = sh.ageMs + dt * 1000
++  if (sh.target === null || !targetPos) return { ...sh, ageMs, x: sh.x + sh.vx * dt, z: sh.z + sh.vz * dt }
++  const dx = targetPos.x - sh.x
++  const dz = targetPos.z - sh.z
++  if (Math.hypot(dx, dz) < SHELL_HOME_DIST) {
++    const cur = Math.atan2(sh.vx, sh.vz)
++    const want = Math.atan2(dx, dz)
++    const maxTurn = SHELL_TURN * dt
++    const heading = cur + Math.max(-maxTurn, Math.min(maxTurn, wrapAngle(want - cur)))
++    const vx = Math.sin(heading) * SHELL_SPEED
++    const vz = Math.cos(heading) * SHELL_SPEED
++    return { ...sh, ageMs, vx, vz, x: sh.x + vx * dt, z: sh.z + vz * dt }
++  }
++  const p = trackProgress(track, sh.x, sh.z)
++  const step = SHELL_LAT_RATE * dt
++  const lateral = Math.abs(p.lateral) <= step ? 0 : p.lateral - Math.sign(p.lateral) * step
++  const next = placeAt(track, p.s + SHELL_SPEED * dt, lateral)
++  return { ...sh, ageMs, vx: (next.x - sh.x) / dt, vz: (next.z - sh.z) / dt, x: next.x, z: next.z }
++}
++
++/** 龜殼壽命到、出場地，或直射的離開路緣外 SHELL_EDGE_OUT */
++export function shellGone(sh: Shell, course: Course): boolean {
++  if (sh.ageMs >= SHELL_LIFE_MS) return true
++  if (Math.abs(sh.x) > course.bound.x || Math.abs(sh.z) > course.bound.z) return true
++  if (sh.target !== null) return false
++  return Math.abs(trackProgress(course.track, sh.x, sh.z).lateral) > course.track.width / 2 + SHELL_EDGE_OUT
++}
++
++/** 龜殼撞到的香蕉（最近的一根）；兩者都要 itemGone */
++export function shellBananaClash(sh: { x: number; z: number }, bananas: readonly { id: string; x: number; z: number }[]): string | null {
++  let best: string | null = null
++  let bestD = SHELL_RADIUS + BANANA_RADIUS
++  for (const b of bananas) {
++    const d = Math.hypot(b.x - sh.x, b.z - sh.z)
++    if (d <= bestD) {
++      best = b.id
++      bestD = d
++    }
++  }
++  return best
++}
++
++/** 場上香蕉（依生成先後）超過 BANANA_MAX 時該移除的最舊幾根 */
++export const bananaOverflow = (ids: readonly string[]): string[] => ids.slice(0, Math.max(0, ids.length - BANANA_MAX))
++
++export interface HitCar {
++  id: string
++  x: number
++  z: number
++  ghost: boolean
++  shield: boolean
++}
++
++export interface FieldItem {
++  kind: 'banana' | 'shell'
++  owner: string
++  /** 追蹤中的龜殼只撞這台；省略或 null = 撞任何車（香蕉、直射龜殼） */
++  target?: string | null
++  x: number
++  z: number
++  ageMs: number
++}
++
++export interface Hit {
++  target: string
++  ms: number
++  blocked: boolean
++}
++
++/**
++ * host：場上道具對各車（以最近收到的 own／botState 快照）的命中。
++ * ghost 不中；追蹤中的龜殼只撞目標（spec §2.2）；龜殼不打自己，香蕉丟出 BANANA_ARM_MS 後才會打到自己；多台取最近、等距依 id。
++ * 有護盾 → blocked、ms 0。命中與擋下道具都消失。
++ */
++export function hitTest(item: FieldItem, cars: readonly HitCar[]): Hit | null {
++  const radius = item.kind === 'banana' ? BANANA_RADIUS : SHELL_RADIUS
++  let best: HitCar | null = null
++  let bestD = Infinity
++  for (const c of cars) {
++    if (c.ghost) continue
++    if (item.kind === 'shell' && item.target && c.id !== item.target) continue
++    if (c.id === item.owner && (item.kind === 'shell' || item.ageMs < BANANA_ARM_MS)) continue
++    const d = Math.hypot(c.x - item.x, c.z - item.z)
++    if (d > radius) continue
++    if (d < bestD || (d === bestD && best && c.id < best.id)) {
++      best = c
++      bestD = d
++    }
++  }
++  if (!best) return null
++  if (best.shield) return { target: best.id, ms: 0, blocked: true }
++  return { target: best.id, ms: item.kind === 'banana' ? SPIN_MS : SHELL_SPIN_MS, blocked: false }
++}
++
++const NO_DRIFT: DriftState = { charge: 0, tier: 0 }
++
++/** 受擊者本機套用 host 的 spin：擋下只消耗護盾；否則打滑、清掉甩尾蓄力與加速 */
++export function applySpin(r: RacerState, ms: number, blocked: boolean): RacerState {
++  if (blocked) return { ...r, shieldMs: 0 }
++  return { ...r, spinMs: Math.max(r.spinMs, ms), boostMs: 0, drift: NO_DRIFT }
++}
++
++/** 使用道具對自己的效果：加速菇、護盾在本機立即生效；香蕉／龜殼由 host 生成，不改自己 */
++export function useItemSelf(r: RacerState, kind: ItemKind): RacerState {
++  if (kind === 'mushroom') return { ...r, boostMs: Math.max(r.boostMs, MUSHROOM_MS) }
++  if (kind === 'shield') return { ...r, shieldMs: SHIELD_MS }
++  return r
++}
+diff --git a/src/babylon/games/raceRules/raceAI.test.ts b/src/babylon/games/raceRules/raceAI.test.ts
+new file mode 100644
+index 0000000..f6d350a
+--- /dev/null
++++ b/src/babylon/games/raceRules/raceAI.test.ts
+@@ -0,0 +1,216 @@
++import { describe, it, expect } from 'vitest'
++import {
++  AI_ERR,
++  decideRaceBot,
++  makeBotMind,
++  nextRand,
++  stepBotMind,
++  type BotInput,
++  type BotMind,
++} from '@/babylon/games/raceRules/raceAI'
++import { MAX_SPEED, OFFTRACK_RESPAWN_MS, makeRacer, stepRacer, type RacerState } from '@/babylon/games/raceRules/drive'
++import { RACE_COURSE, LONG_CORNERS } from '@/babylon/games/raceRules/trackData'
++import { placeAt, sectorOf, type Course } from '@/babylon/games/raceRules/track'
++
++const course: Course = RACE_COURSE
++const { track } = course
++/** 安靜的 bot：無雜訊、無失誤、道具延遲已過 */
++const calm = (o: Partial<BotMind> = {}): BotMind => ({ ...makeBotMind(1), itemDelayMs: 0, heldMs: 0, ...o })
++
++const input = (s: number, o: Partial<BotInput> = {}, lateral = 0, speed = 10): BotInput => {
++  const p = placeAt(track, s, lateral)
++  return {
++    course,
++    car: { x: p.x, z: p.z, ry: p.heading, speed },
++    s,
++    lateral,
++    dist: s,
++    item: null,
++    others: [],
++    shellChasing: false,
++    mind: calm(),
++    ...o,
++  }
++}
++
++describe('nextRand — 可重現亂數', () => {
++  it('同 seed 同序列、值落在 [0,1)', () => {
++    let a = 42
++    let b = 42
++    for (let i = 0; i < 100; i++) {
++      const [x, na] = nextRand(a)
++      const [y, nb] = nextRand(b)
++      expect(x).toBe(y)
++      expect(x).toBeGreaterThanOrEqual(0)
++      expect(x).toBeLessThan(1)
++      a = na
++      b = nb
++    }
++  })
++})
++
++describe('decideRaceBot — 開車', () => {
++  it('起跑直線、置中、朝前：油門全開、幾乎不轉', () => {
++    const o = decideRaceBot(input(10))
++    expect(o.throttle).toBe(1)
++    expect(Math.abs(o.steer)).toBeLessThan(0.1)
++    expect(o.drift).toBe(false)
++  })
++
++  it('前方 R≈10 的彎（T3，s≈328）全速逼近：收油（throttle 0）', () => {
++    expect(decideRaceBot(input(310, {}, 0, MAX_SPEED)).throttle).toBe(0)
++  })
++
++  it('超過彎道目標速度 + 3：煞車', () => {
++    expect(decideRaceBot(input(310, {}, 0, MAX_SPEED + 2)).throttle).toBe(-1)
++  })
++
++  it('晚煞車失誤：同一點還沒收油', () => {
++    expect(decideRaceBot(input(310, { mind: calm({ lateBrake: true }) }, 0, MAX_SPEED)).throttle).toBe(1)
++    expect(decideRaceBot(input(310, {}, 0, MAX_SPEED)).throttle).toBe(0)
++  })
++
++  it('左彎（T1）往左打方向（steer < 0）', () => {
++    expect(decideRaceBot(input(80, {}, 0, 15)).steer).toBeLessThan(-0.1)
++  })
++
++  it('長彎內按住甩尾，彎前、出口前 6 以後、skipDrift 都不甩', () => {
++    const t1 = LONG_CORNERS[0]
++    expect(decideRaceBot(input(t1.s0, {}, 0, 15)).drift).toBe(true)
++    expect(decideRaceBot(input(t1.s0 - 10, {}, 0, 15)).drift).toBe(false)
++    expect(decideRaceBot(input(t1.s1 - 5, {}, 0, 15)).drift).toBe(false)
++    expect(decideRaceBot(input(t1.s0, { mind: calm({ skipDrift: true }) }, 0, 15)).drift).toBe(false)
++  })
++
++  it('不在長彎（T3）不甩尾', () => {
++    expect(decideRaceBot(input(325, {}, 0, 12)).drift).toBe(false)
++  })
++
++  it('走大線失誤：目標點往彎外偏，轉向比平常小', () => {
++    const normal = decideRaceBot(input(80, {}, 0, 15)).steer
++    const wide = decideRaceBot(input(80, { mind: calm({ mistakeMs: 500 }) }, 0, 15)).steer
++    expect(wide).toBeGreaterThan(normal)
++  })
++})
++
++describe('decideRaceBot — 道具使用條件（spec §2.3）', () => {
++  const me = 200
++  const use = (o: Partial<BotInput>, s = me) => decideRaceBot(input(s, { dist: s, ...o })).useItem
++
++  it('香蕉：後方 0 < Δs ≤ 12 且 |Δlateral| ≤ 3 有車才丟；或持有超過 8 秒', () => {
++    expect(use({ item: 'banana', others: [{ dist: me - 8, lateral: 1 }] })).toBe(true)
++    expect(use({ item: 'banana', others: [{ dist: me - 14, lateral: 0 }] })).toBe(false)
++    expect(use({ item: 'banana', others: [{ dist: me - 8, lateral: 4 }] })).toBe(false)
++    expect(use({ item: 'banana', others: [{ dist: me + 8, lateral: 0 }] })).toBe(false)
++    expect(use({ item: 'banana', mind: calm({ heldMs: 8001 }) })).toBe(true)
++  })
++
++  it('龜殼：前一名在 40 內才射；第 1 名時前方 20 內有（被套圈的）車才直射', () => {
++    expect(use({ item: 'shell', others: [{ dist: me + 30, lateral: 0 }, { dist: me + 90, lateral: 0 }] })).toBe(true)
++    expect(use({ item: 'shell', others: [{ dist: me + 50, lateral: 0 }] })).toBe(false)
++    expect(use({ item: 'shell', others: [{ dist: me + 15 - track.len, lateral: 0 }] })).toBe(true)
++    expect(use({ item: 'shell', others: [{ dist: me - 30, lateral: 0 }] })).toBe(false)
++  })
++
++  it('加速菇：前方 25 內是直線才用', () => {
++    expect(use({ item: 'mushroom' }, 10)).toBe(true)
++    expect(use({ item: 'mushroom' }, 60)).toBe(false)
++  })
++
++  it('護盾：延遲到了就開；延遲未到但有龜殼在追立刻開', () => {
++    expect(use({ item: 'shield' })).toBe(true)
++    expect(use({ item: 'shield', mind: calm({ itemDelayMs: 1000, heldMs: 100 }) })).toBe(false)
++    expect(use({ item: 'shield', shellChasing: true, mind: calm({ itemDelayMs: 1000, heldMs: 100 }) })).toBe(true)
++  })
++
++  it('撿到後未滿 itemDelayMs 不用；沒道具永遠 false', () => {
++    expect(use({ item: 'mushroom', mind: calm({ itemDelayMs: 1000, heldMs: 500 }) }, 10)).toBe(false)
++    expect(use({ item: null }, 10)).toBe(false)
++  })
++})
++
++describe('stepBotMind — 失誤與道具計時（全由 seed 決定）', () => {
++  it('同 seed 同輸入 → 同結果', () => {
++    let a = makeBotMind(7)
++    let b = makeBotMind(7)
++    for (let i = 0; i < 300; i++) {
++      a = stepBotMind(a, { sector: Math.floor(i / 40) % 8, item: i > 100 ? 'banana' : null }, 33)
++      b = stepBotMind(b, { sector: Math.floor(i / 40) % 8, item: i > 100 ? 'banana' : null }, 33)
++    }
++    expect(a).toEqual(b)
++  })
++
++  it('撿到道具：heldMs 從 0 起算，itemDelayMs 落在 spec 範圍', () => {
++    let m = stepBotMind(makeBotMind(3), { sector: 0, item: 'shell' }, 33)
++    expect(m.held).toBe('shell')
++    expect(m.heldMs).toBe(0)
++    expect(m.itemDelayMs).toBeGreaterThanOrEqual(AI_ERR.itemDelayMs[0])
++    expect(m.itemDelayMs).toBeLessThanOrEqual(AI_ERR.itemDelayMs[1])
++    m = stepBotMind(m, { sector: 0, item: 'shell' }, 100)
++    expect(m.heldMs).toBe(100)
++  })
++
++  it('長時間下失誤觸發率約 mistakeRatePerSec（±50%）', () => {
++    let m = makeBotMind(11)
++    let starts = 0
++    const secs = 2000
++    for (let i = 0; i < secs * 10; i++) {
++      const before = m.mistakeMs
++      m = stepBotMind(m, { sector: 0, item: null }, 100)
++      if (before === 0 && m.mistakeMs > 0) starts++
++    }
++    expect(starts).toBeGreaterThan(secs * AI_ERR.mistakeRatePerSec * 0.5)
++    expect(starts).toBeLessThan(secs * AI_ERR.mistakeRatePerSec * 1.5)
++  })
++
++  it('進新的檢查點區才重擲 lateBrake／skipDrift', () => {
++    const m0 = makeBotMind(5)
++    const same = stepBotMind(m0, { sector: m0.sector, item: null }, 33)
++    expect([same.lateBrake, same.skipDrift]).toEqual([m0.lateBrake, m0.skipDrift])
++    expect(stepBotMind(m0, { sector: (m0.sector + 1) % 8, item: null }, 33).sector).toBe((m0.sector + 1) % 8)
++  })
++})
++
++describe('bot 開出路面：3 秒內回到路面或觸發重生（AC5）', () => {
++  const cases: [string, number, number, number][] = [
++    ['直線外側、朝前', 30, 9, 0],
++    ['直線外側、背對賽道', 30, 10, Math.PI / 2],
++    ['彎道外側、逆向', 90, -10, Math.PI],
++    ['髮夾內側', 240, -9, -Math.PI / 2],
++  ]
++  for (const [name, s, lateral, dry] of cases) {
++    it(name, () => {
++      const p = placeAt(track, s, lateral)
++      let r: RacerState = { ...makeRacer(course, 0), car: { x: p.x, z: p.z, ry: p.heading + dry, speed: 8 }, s, lateral, lap: { lap: 0, cp: sectorOf(track, s) } }
++      let mind = makeBotMind(9)
++      let ok = false
++      for (let i = 0; i < (OFFTRACK_RESPAWN_MS / 1000) * 30 + 2 && !ok; i++) {
++        mind = stepBotMind(mind, { sector: sectorOf(track, r.s), item: null }, 1000 / 30)
++        const o = decideRaceBot({ course, car: r.car, s: r.s, lateral: r.lateral, dist: r.s, item: null, others: [], shellChasing: false, mind })
++        const out = stepRacer(r, { throttle: o.throttle, steer: o.steer, drifting: o.drift }, { course, others: [] }, 1 / 30)
++        r = out.state
++        ok = out.events.includes('respawn') || Math.abs(r.lateral) <= track.width / 2
++      }
++      expect(ok).toBe(true)
++    })
++  }
++})
++
++describe('bot 跑完整一圈（整合）', () => {
++  it('單一 bot 在 60 秒內依序過完 8 個檢查點完成一圈，且不靠重生', () => {
++    let r = makeRacer(course, 0)
++    let mind = makeBotMind(21)
++    let respawns = 0
++    let t = 0
++    for (; t < 60 * 30 && r.lap.lap < 1; t++) {
++      mind = stepBotMind(mind, { sector: sectorOf(track, r.s), item: null }, 1000 / 30)
++      const o = decideRaceBot({ course, car: r.car, s: r.s, lateral: r.lateral, dist: r.s, item: null, others: [], shellChasing: false, mind })
++      const out = stepRacer(r, { throttle: o.throttle, steer: o.steer, drifting: o.drift }, { course, others: [] }, 1 / 30)
++      r = out.state
++      if (out.events.includes('respawn')) respawns++
++    }
++    expect(r.lap.lap).toBe(1)
++    expect(respawns).toBe(0)
++    expect(t / 30).toBeLessThan(50)
++  })
++})
+diff --git a/src/babylon/games/raceRules/raceAI.ts b/src/babylon/games/raceRules/raceAI.ts
+new file mode 100644
+index 0000000..565624d
+--- /dev/null
++++ b/src/babylon/games/raceRules/raceAI.ts
+@@ -0,0 +1,219 @@
++/**
++ * 賽車電腦對手（純函式，host 每 tick 對每台 bot 呼叫；數值見 spec §2.3）。
++ *
++ * - 轉向：中心線 s + AI_LOOKAHEAD 取目標點，彎道往內偏 AI_LINE_OFFSET；路面外改朝 s + 4 的中心
++ * - 速度：s+4..s+20 的最大 |κ| 換成目標速度 AI_CORNER_K / |κ|，超過收油、超過 +3 煞車
++ * - 甩尾：只在 course.driftZones（spec 的長彎）內按住
++ * - 道具：依 spec 條件使用，撿到後至少等 itemDelayMs
++ * 失誤（雜訊、走大線、晚煞車、放甩尾時機、跳過甩尾、道具延遲）都放在 BotMind，由 seed 化亂數推進，不碰 Math.random。
++ */
++import { DRIFT_MIN_SPEED, MAX_SPEED } from '@/babylon/games/raceRules/drive'
++import type { ItemKind } from '@/babylon/games/raceRules/items'
++import { LONG_CORNER_K, curvatureAt, placeAt, wrapAngle, type Course } from '@/babylon/games/raceRules/track'
++
++export const AI_LOOKAHEAD = 8
++export const AI_CORNER_K = 1.5
++/** 彎前限速掃描範圍 s + FROM .. s + TO */
++export const AI_CORNER_FROM = 4
++export const AI_CORNER_TO = 20
++/** 超過目標速度多少才煞車（其間只收油） */
++export const AI_BRAKE_MARGIN = 3
++export const AI_LINE_OFFSET = 1.5
++export const AI_STEER_GAIN = 2.2
++/** 晚煞車失誤：限速掃描往後挪幾單位 */
++export const AI_LATE_BRAKE = 6
++/** 長彎 [s0 − IN, s1 − OUT] 按住甩尾 */
++export const AI_DRIFT_IN = 4
++export const AI_DRIFT_OUT = 6
++/** 路面外的回正目標距離 */
++export const AI_RECOVER_LOOK = 4
++
++// 道具使用條件（spec §2.3）
++export const AI_BANANA_BEHIND = 12
++export const AI_BANANA_LAT = 3
++export const AI_BANANA_HOLD_MS = 8000
++export const AI_SHELL_RANGE = 40
++export const AI_SHELL_STRAIGHT_RANGE = 20
++export const AI_STRAIGHT_LOOK = 25
++export const AI_STRAIGHT_K = 1 / 40
++
++/** 失誤參數（spec §2.3） */
++export const AI_ERR = {
++  steerNoise: 0.12,
++  noiseHoldMs: 400,
++  mistakeRatePerSec: 0.05,
++  mistakeMs: 700,
++  mistakeLateral: 4,
++  lateBrakeChance: 0.15,
++  driftReleaseJitterMs: 250,
++  driftSkipChance: 0.2,
++  itemDelayMs: [300, 1200],
++} as const
++
++/** mulberry32：回傳 [0,1) 亂數與下一個 seed */
++export function nextRand(seed: number): [number, number] {
++  const t = (seed + 0x6d2b79f5) | 0
++  let r = Math.imul(t ^ (t >>> 15), 1 | t)
++  r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r
++  return [((r ^ (r >>> 14)) >>> 0) / 4294967296, t]
++}
++
++/** 一台 bot 的「個性」狀態：雜訊、失誤、每區擲一次的骰、道具持有計時 */
++export interface BotMind {
++  seed: number
++  noiseFrom: number
++  noiseTo: number
++  noiseMs: number
++  /** 走大線失誤剩餘 */
++  mistakeMs: number
++  /** 上次擲骰的檢查點區（−1 = 尚未） */
++  sector: number
++  lateBrake: boolean
++  skipDrift: boolean
++  releaseJitterMs: number
++  held: ItemKind | null
++  heldMs: number
++  itemDelayMs: number
++}
++
++export function makeBotMind(seed: number): BotMind {
++  return {
++    seed: seed | 0,
++    noiseFrom: 0,
++    noiseTo: 0,
++    noiseMs: 0,
++    mistakeMs: 0,
++    sector: -1,
++    lateBrake: false,
++    skipDrift: false,
++    releaseJitterMs: 0,
++    held: null,
++    heldMs: 0,
++    itemDelayMs: 0,
++  }
++}
++
++/** 推進失誤與道具計時；進到新的檢查點區時重擲 lateBrake／skipDrift／放甩尾時機 */
++export function stepBotMind(m: BotMind, info: { sector: number; item: ItemKind | null }, dtMs: number): BotMind {
++  let seed = m.seed
++  const rand = () => {
++    const [v, next] = nextRand(seed)
++    seed = next
++    return v
++  }
++  const n = { ...m }
++  n.noiseMs += dtMs
++  if (n.noiseMs >= AI_ERR.noiseHoldMs) {
++    n.noiseMs -= AI_ERR.noiseHoldMs
++    n.noiseFrom = n.noiseTo
++    n.noiseTo = rand() * 2 - 1
++  }
++  if (n.mistakeMs > 0) n.mistakeMs = Math.max(0, n.mistakeMs - dtMs)
++  else if (rand() < (AI_ERR.mistakeRatePerSec * dtMs) / 1000) n.mistakeMs = AI_ERR.mistakeMs
++  if (info.sector !== m.sector) {
++    n.sector = info.sector
++    n.lateBrake = rand() < AI_ERR.lateBrakeChance
++    n.skipDrift = rand() < AI_ERR.driftSkipChance
++    n.releaseJitterMs = (rand() * 2 - 1) * AI_ERR.driftReleaseJitterMs
++  }
++  if (info.item !== m.held) {
++    n.held = info.item
++    n.heldMs = 0
++    const [lo, hi] = AI_ERR.itemDelayMs
++    n.itemDelayMs = info.item ? lo + rand() * (hi - lo) : 0
++  } else if (info.item) n.heldMs += dtMs
++  n.seed = seed
++  return n
++}
++
++export interface BotInput {
++  course: Course
++  car: { x: number; z: number; ry: number; speed: number }
++  s: number
++  lateral: number
++  /** 名次用的總沿線距離 lap·len + s（normalizeProgress 之後），others 同一套 */
++  dist: number
++  item: ItemKind | null
++  others: readonly { dist: number; lateral: number }[]
++  /** 後方 15 內有龜殼正在追自己 */
++  shellChasing: boolean
++  mind: BotMind
++}
++
++export interface BotOutput {
++  throttle: number
++  steer: number
++  drift: boolean
++  useItem: boolean
++}
++
++const maxAbsK = (c: Course, from: number, to: number): number => {
++  let k = 0
++  for (let s = from; s <= to; s += 1) k = Math.max(k, Math.abs(curvatureAt(c.track, s)))
++  return k
++}
++
++function wantsItem(inp: BotInput): boolean {
++  const { item, mind, course } = inp
++  if (!item) return false
++  if (item === 'shield' && inp.shellChasing) return true
++  if (mind.heldMs < mind.itemDelayMs) return false
++  const len = course.track.len
++  switch (item) {
++    case 'banana':
++      return (
++        mind.heldMs > AI_BANANA_HOLD_MS ||
++        inp.others.some((o) => {
++          const behind = inp.dist - o.dist
++          return behind > 0 && behind <= AI_BANANA_BEHIND && Math.abs(o.lateral - inp.lateral) <= AI_BANANA_LAT
++        })
++      )
++    case 'shell': {
++      const gaps = inp.others.map((o) => o.dist - inp.dist).filter((g) => g > 0)
++      if (gaps.length) return Math.min(...gaps) <= AI_SHELL_RANGE
++      // 第 1 名：只對實體上就在前方的（被套圈的）車直射
++      return inp.others.some((o) => {
++        const ds = (((o.dist - inp.dist) % len) + len) % len
++        return ds > 0 && ds <= AI_SHELL_STRAIGHT_RANGE
++      })
++    }
++    case 'mushroom':
++      return maxAbsK(course, inp.s, inp.s + AI_STRAIGHT_LOOK) < AI_STRAIGHT_K
++    case 'shield':
++      return true
++  }
++}
++
++export function decideRaceBot(inp: BotInput): BotOutput {
++  const { course, car, mind } = inp
++  const { track } = course
++  const offTrack = Math.abs(inp.lateral) > track.width / 2
++
++  let target: { x: number; z: number }
++  if (offTrack) {
++    target = placeAt(track, inp.s + AI_RECOVER_LOOK, 0)
++  } else {
++    const k = curvatureAt(track, inp.s + AI_LOOKAHEAD)
++    const turn = Math.abs(k) >= LONG_CORNER_K ? Math.sign(k) : 0
++    const line = turn * AI_LINE_OFFSET
++    const wide = mind.mistakeMs > 0 ? -(turn || 1) * AI_ERR.mistakeLateral : 0
++    target = placeAt(track, inp.s + AI_LOOKAHEAD, line + wide)
++  }
++  const want = Math.atan2(target.x - car.x, target.z - car.z)
++  const noise = offTrack ? 0 : mind.noiseFrom + (mind.noiseTo - mind.noiseFrom) * Math.min(1, mind.noiseMs / AI_ERR.noiseHoldMs)
++  const steer = Math.max(-1, Math.min(1, wrapAngle(want - car.ry) * AI_STEER_GAIN + noise * AI_ERR.steerNoise))
++
++  const shift = mind.lateBrake ? AI_LATE_BRAKE : 0
++  const k = maxAbsK(course, inp.s + AI_CORNER_FROM - shift, inp.s + AI_CORNER_TO - shift)
++  const vT = k > 0 ? Math.min(MAX_SPEED, AI_CORNER_K / k) : MAX_SPEED
++  const throttle = offTrack ? 1 : car.speed > vT + AI_BRAKE_MARGIN ? -1 : car.speed > vT ? 0 : 1
++
++  const release = (mind.releaseJitterMs / 1000) * Math.max(0, car.speed)
++  const drift =
++    !offTrack &&
++    !mind.skipDrift &&
++    car.speed > DRIFT_MIN_SPEED &&
++    course.driftZones.some(([s0, s1]) => inp.s >= s0 - AI_DRIFT_IN && inp.s <= s1 - AI_DRIFT_OUT + release)
++
++  return { throttle, steer, drift, useItem: wantsItem(inp) }
++}
+diff --git a/src/babylon/games/raceRules/roster.test.ts b/src/babylon/games/raceRules/roster.test.ts
+new file mode 100644
+index 0000000..9a7323e
+--- /dev/null
++++ b/src/babylon/games/raceRules/roster.test.ts
+@@ -0,0 +1,43 @@
++import { describe, it, expect } from 'vitest'
++import { MAX_RACERS, makeRaceBots, raceColorIndex, raceEntityIds } from '@/babylon/games/raceRules/roster'
++
++const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `玩家${i}` }))
++
++describe('makeRaceBots — 補滿 4 台', () => {
++  it('單人補 3 台，命名 bot-N／電腦N', () => {
++    expect(MAX_RACERS).toBe(4)
++    expect(makeRaceBots(1)).toEqual([
++      { id: 'bot-0', name: '電腦1' },
++      { id: 'bot-1', name: '電腦2' },
++      { id: 'bot-2', name: '電腦3' },
++    ])
++  })
++
++  it('4 人以上不補', () => {
++    expect(makeRaceBots(4)).toEqual([])
++    expect(makeRaceBots(5)).toEqual([])
++  })
++})
++
++describe('raceColorIndex — 固定 4 色（AC7）', () => {
++  it('依「真人依序＋bot 依序」給 0..3', () => {
++    const ps = players(2)
++    const bots = makeRaceBots(2)
++    expect(raceEntityIds(ps, bots)).toEqual(['p0', 'p1', 'bot-0', 'bot-1'])
++    expect(['p0', 'p1', 'bot-0', 'bot-1'].map((id) => raceColorIndex(id, ps, bots))).toEqual([0, 1, 2, 3])
++  })
++
++  it('同一份名冊在每個 client 輸出一致（與 selfId 無關、與呼叫順序無關）', () => {
++    const ps = players(3)
++    const bots = makeRaceBots(3)
++    const a = raceEntityIds(ps, bots).map((id) => raceColorIndex(id, ps, bots))
++    const b = [...raceEntityIds(ps, bots)].reverse().map((id) => raceColorIndex(id, ps, bots)).reverse()
++    expect(a).toEqual(b)
++    expect(a).toEqual([0, 1, 2, 3])
++  })
++
++  it('找不到的 id 回 0；第 5 人以上循環', () => {
++    expect(raceColorIndex('nobody', players(2), [])).toBe(0)
++    expect(raceColorIndex('p4', players(5), [])).toBe(0)
++  })
++})
+diff --git a/src/babylon/games/raceRules/roster.ts b/src/babylon/games/raceRules/roster.ts
+new file mode 100644
+index 0000000..0b98f4e
+--- /dev/null
++++ b/src/babylon/games/raceRules/roster.ts
+@@ -0,0 +1,33 @@
++/**
++ * 賽車名冊：bot 補位與固定 4 色（AC7）。
++ * 配色推導只讀 import bomberFx/palette 的 colorIndexOf，與炸彈超人、坦克同規則；
++ * 實體序同時決定發車格（Course.grid[序]）。
++ */
++import { colorIndexOf } from '@/babylon/games/bomberFx/palette'
++import type { ColorIndex } from '@/babylon/fx/palette'
++
++export interface RaceRosterEntry {
++  id: string
++  name: string
++}
++
++/** 場上車數上限（含 bot） */
++export const MAX_RACERS = 4
++
++/** host：依真人數補滿 4 台（bot-0.. ／電腦1..） */
++export function makeRaceBots(humanCount: number): RaceRosterEntry[] {
++  const count = Math.max(0, MAX_RACERS - humanCount)
++  return Array.from({ length: count }, (_, i) => ({ id: `bot-${i}`, name: `電腦${i + 1}` }))
++}
++
++/** 實體序：ctx.players 依序在前、bots 依序在後 */
++export const raceEntityIds = (players: readonly { id: string }[], bots: readonly { id: string }[]): string[] => [
++  ...players.map((p) => p.id),
++  ...bots.map((b) => b.id),
++]
++
++export const raceColorIndex = (
++  id: string,
++  players: readonly { id: string }[],
++  bots: readonly { id: string }[]
++): ColorIndex => colorIndexOf(id, raceEntityIds(players, bots))
+diff --git a/src/babylon/games/raceRules/track.test.ts b/src/babylon/games/raceRules/track.test.ts
+new file mode 100644
+index 0000000..99c05de
+--- /dev/null
++++ b/src/babylon/games/raceRules/track.test.ts
+@@ -0,0 +1,296 @@
++import { describe, it, expect } from 'vitest'
++import {
++  CHECKPOINTS,
++  FINISH_GRACE_MS,
++  LAPS,
++  WRONG_WAY_MS,
++  advanceLap,
++  LONG_CORNER_K,
++  LONG_CORNER_MIN_LEN,
++  findLongCurves,
++  makeCourse,
++  makeTrack,
++  normalizeProgress,
++  pointAt,
++  raceOver,
++  rankCars,
++  sectorOf,
++  stepWrongWay,
++  trackProgress,
++  type LapState,
++} from '@/babylon/games/raceRules/track'
++
++/** 40×40 方形，每 10 單位一個控制點；起點 (20,0) 朝 +x，逆時針（俯視 x 右 z 上）繞一圈 */
++const SQUARE: [number, number][] = [
++  [20, 0], [30, 0], [40, 0], [40, 10], [40, 20], [40, 30], [40, 40], [30, 40],
++  [20, 40], [10, 40], [0, 40], [0, 30], [0, 20], [0, 10], [0, 0], [10, 0],
++]
++const sq = makeTrack(SQUARE, 8)
++
++const circle = (r: number, n: number): [number, number][] =>
++  Array.from({ length: n }, (_, i) => {
++    const a = (i / n) * Math.PI * 2
++    return [Math.sin(a) * r, Math.cos(a) * r] as [number, number]
++  })
++
++describe('makeTrack — 閉合中心線', () => {
++  it('Catmull-Rom 取樣成閉合折線，總長接近圓周', () => {
++    const t = makeTrack(circle(20, 16), 10)
++    expect(t.len).toBeGreaterThan(2 * Math.PI * 20 * 0.98)
++    expect(t.len).toBeLessThan(2 * Math.PI * 20 * 1.01)
++    expect(t.pts.length).toBeGreaterThan(16)
++    expect(t.width).toBe(10)
++  })
++
++  it('8 個檢查點：0 號在起點，依沿線距離升冪均分', () => {
++    expect(sq.checkpoints).toHaveLength(CHECKPOINTS)
++    expect(sq.checkpoints[0]).toBe(0)
++    for (let i = 1; i < CHECKPOINTS; i++) {
++      expect(sq.checkpoints[i]).toBeCloseTo((sq.len * i) / CHECKPOINTS, 6)
++    }
++  })
++})
++
++describe('trackProgress — 沿線距離與有號橫向距離', () => {
++  it('直線段：s 等於離起點的距離，以行進方向看右正左負（朝 +x 時右側是 −z）', () => {
++    const p = trackProgress(sq, 25, 0)
++    expect(p.s).toBeCloseTo(5, 6)
++    expect(p.lateral).toBeCloseTo(0, 6)
++    expect(trackProgress(sq, 25, -3).lateral).toBeCloseTo(3, 6)
++    expect(trackProgress(sq, 25, 2).lateral).toBeCloseTo(-2, 6)
++  })
++
++  it('彎段：中心線上的點回推到同一個 s、lateral≈0，沿法線偏移量即 lateral', () => {
++    const t = makeTrack(circle(20, 16), 10)
++    for (const s of [3, 30, 61.5, 100, t.len - 1]) {
++      const c = pointAt(t, s)
++      const back = trackProgress(t, c.x, c.z)
++      expect(back.s).toBeCloseTo(s, 1)
++      expect(Math.abs(back.lateral)).toBeLessThan(0.05)
++      // 右側 = (cos h, -sin h)
++      const off = trackProgress(t, c.x + Math.cos(c.heading) * 2, c.z - Math.sin(c.heading) * 2)
++      expect(off.lateral).toBeCloseTo(2, 1)
++    }
++  })
++
++  it('跨起點：起點前一點 s 接近 len，起點後一點 s 接近 0', () => {
++    expect(trackProgress(sq, 19, 0).s).toBeCloseTo(sq.len - 1, 6)
++    expect(trackProgress(sq, 21, 0).s).toBeCloseTo(1, 6)
++  })
++
++  it('seg 指向所在折線段', () => {
++    const p = trackProgress(sq, 25, 0)
++    const a = sq.pts[p.seg]
++    const b = sq.pts[(p.seg + 1) % sq.pts.length]
++    expect(Math.min(a[0], b[0])).toBeLessThanOrEqual(25)
++    expect(Math.max(a[0], b[0])).toBeGreaterThanOrEqual(25)
++  })
++})
++
++describe('pointAt — 沿線取點與朝向', () => {
++  it('朝向以 ry 表示（前方 = (sin ry, cos ry)）', () => {
++    const p = pointAt(sq, 5)
++    expect(p.x).toBeCloseTo(25, 6)
++    expect(p.z).toBeCloseTo(0, 6)
++    expect(p.heading).toBeCloseTo(Math.PI / 2, 6)
++  })
++
++  it('s 超出一圈或為負會環繞', () => {
++    expect(pointAt(sq, sq.len + 5).x).toBeCloseTo(25, 6)
++    expect(pointAt(sq, -1).x).toBeCloseTo(19, 6)
++  })
++})
++
++describe('advanceLap — 依序通過檢查點才算圈', () => {
++  const run = (from: LapState, sectors: number[]) => sectors.reduce(advanceLap, from)
++  const start: LapState = { lap: 0, cp: 0 }
++
++  it('依序 1..7 再回 0 號：圈數 +1', () => {
++    expect(run(start, [0, 1, 2, 3, 4, 5, 6, 7, 0])).toEqual({ lap: 1, cp: 0 })
++  })
++
++  it('跳過檢查點（抄捷徑）不算圈', () => {
++    expect(run(start, [0, 1, 2, 5, 6, 7, 0])).toEqual({ lap: 0, cp: 2 })
++  })
++
++  it('補回跳過的檢查點後才繼續累計', () => {
++    expect(run(start, [1, 2, 5, 3, 4, 5, 6, 7, 0])).toEqual({ lap: 1, cp: 0 })
++  })
++
++  it('過線後倒車回上一圈再前進，不重複加圈', () => {
++    const lap1 = run(start, [1, 2, 3, 4, 5, 6, 7, 0])
++    expect(run(lap1, [7, 6, 7, 0, 7, 0])).toEqual({ lap: 1, cp: 0 })
++  })
++
++  it('起跑格在起點線後方（7 號區）不算任何進度', () => {
++    expect(run(start, [7, 7, 0])).toEqual({ lap: 0, cp: 0 })
++  })
++
++  it('跑滿 LAPS 圈後不再累加', () => {
++    let st = start
++    for (let i = 0; i < LAPS + 2; i++) st = run(st, [1, 2, 3, 4, 5, 6, 7, 0])
++    expect(st.lap).toBe(LAPS)
++  })
++})
++
++describe('sectorOf', () => {
++  it('回傳不大於 s 的最後一個檢查點序號', () => {
++    expect(sectorOf(sq, 0)).toBe(0)
++    expect(sectorOf(sq, sq.checkpoints[3] + 0.01)).toBe(3)
++    expect(sectorOf(sq, sq.len - 0.01)).toBe(CHECKPOINTS - 1)
++  })
++})
++
++describe('normalizeProgress — 名次用的 (lap, s)', () => {
++  it('正常行駛時原樣', () => {
++    expect(normalizeProgress(sq, { lap: 1, cp: 2, s: sq.checkpoints[2] + 3 })).toEqual({
++      lap: 1,
++      s: sq.checkpoints[2] + 3,
++    })
++  })
++
++  it('過線後倒車回起點線後：算回上一圈末段', () => {
++    expect(normalizeProgress(sq, { lap: 1, cp: 0, s: sq.len - 2 })).toEqual({ lap: 0, s: sq.len - 2 })
++  })
++
++  it('起跑格在起點線後（lap 0）：夾成 s = 0', () => {
++    expect(normalizeProgress(sq, { lap: 0, cp: 0, s: sq.len - 2 })).toEqual({ lap: 0, s: 0 })
++  })
++
++  it('跳區抄到前方：s 不得超過下一個未通過檢查點', () => {
++    const r = normalizeProgress(sq, { lap: 0, cp: 2, s: sq.checkpoints[5] })
++    expect(r.lap).toBe(0)
++    expect(r.s).toBeLessThanOrEqual(sq.checkpoints[3])
++  })
++})
++
++describe('stepWrongWay — 逆向判定', () => {
++  const dt = 100
++  const go = (n: number, heading: number, speed: number) => {
++    let ms = 0
++    let wrongWay = false
++    for (let i = 0; i < n; i++) ({ ms, wrongWay } = stepWrongWay(ms, { heading, trackHeading: 0, speed }, dt))
++    return { ms, wrongWay }
++  }
++
++  it(`朝反方向前進持續 ${WRONG_WAY_MS}ms 以上才判逆向`, () => {
++    expect(go(WRONG_WAY_MS / dt - 1, Math.PI, 8).wrongWay).toBe(false)
++    expect(go(WRONG_WAY_MS / dt, Math.PI, 8).wrongWay).toBe(true)
++  })
++
++  it('順向或幾乎靜止不累計', () => {
++    expect(go(30, 0.3, 8)).toEqual({ ms: 0, wrongWay: false })
++    expect(go(30, Math.PI, 0.2)).toEqual({ ms: 0, wrongWay: false })
++  })
++
++  it('一回到順向立刻清除', () => {
++    let st = go(20, Math.PI, 8)
++    expect(st.wrongWay).toBe(true)
++    st = stepWrongWay(st.ms, { heading: 0, trackHeading: 0, speed: 8 }, dt)
++    expect(st).toEqual({ ms: 0, wrongWay: false })
++  })
++})
++
++describe('rankCars — 名次', () => {
++  const list = [
++    { id: 'c', lap: 2, s: 10, finishedAt: null },
++    { id: 'a', lap: 1, s: 50, finishedAt: null },
++    { id: 'f2', lap: 3, s: 0, finishedAt: 9000 },
++    { id: 'b', lap: 1, s: 50, finishedAt: null },
++    { id: 'f1', lap: 3, s: 0, finishedAt: 8000 },
++    { id: 'd', lap: 1, s: 80, finishedAt: null },
++  ]
++
++  it('已過線依 finishedAt 升冪；未過線依 lap、s 降冪；同分依 id', () => {
++    expect(rankCars(list)).toEqual(['f1', 'f2', 'c', 'd', 'a', 'b'])
++  })
++
++  it('輸入順序打亂結果不變', () => {
++    const want = rankCars(list)
++    for (let k = 0; k < 6; k++) {
++      const shuffled = list.map((v, i) => ({ v, o: (i * 7 + k * 3) % 11 })).sort((x, y) => x.o - y.o).map((x) => x.v)
++      expect(rankCars(shuffled)).toEqual(want)
++    }
++    expect(rankCars([...list].reverse())).toEqual(want)
++  })
++
++  it('不改動輸入', () => {
++    const copy = list.map((x) => ({ ...x }))
++    rankCars(list)
++    expect(list).toEqual(copy)
++  })
++})
++
++describe('findLongCurves — 可甩尾的長彎', () => {
++  it('圓形賽道整圈都是同向長彎', () => {
++    const t = makeTrack(circle(20, 16), 10)
++    const z = findLongCurves(t, 1 / 30, 20)
++    expect(z).toHaveLength(1)
++    expect(z[0][1] - z[0][0]).toBeGreaterThan(t.len * 0.95)
++  })
++
++  it('方形的直角短彎不算長彎', () => {
++    expect(findLongCurves(sq, 1 / 30, 20)).toEqual([])
++  })
++})
++
++describe('makeCourse — 賽道資料（位置以沿線距離 s 表示，spec §1）', () => {
++  const c = makeCourse({
++    ctrl: SQUARE,
++    width: 8,
++    bound: { x: 60, z: 50 },
++    pads: [{ s: 40, lateral: 2 }],
++    jumps: [[80, 83]],
++    itemRows: [16, 96],
++  })
++
++  it('資料原樣帶到 Course', () => {
++    expect(c.itemRows).toEqual([16, 96])
++    expect(c.jumps).toEqual([[80, 83]])
++    expect(c.bound).toEqual({ x: 60, z: 50 })
++  })
++
++  it('加速帶附世界座標，回推得到同一個 s 與 lateral', () => {
++    const p = c.pads[0]
++    expect(p.s).toBe(40)
++    const back = trackProgress(c.track, p.x, p.z)
++    expect(back.s).toBeCloseTo(40, 3)
++    expect(back.lateral).toBeCloseTo(2, 3)
++  })
++
++  it('沒給 driftZones 時以曲率自動找長彎；有給就原樣用', () => {
++    expect(c.driftZones).toEqual(findLongCurves(c.track, LONG_CORNER_K, LONG_CORNER_MIN_LEN))
++    const d = makeCourse({ ctrl: SQUARE, width: 8, bound: { x: 60, z: 60 }, pads: [], jumps: [], itemRows: [], driftZones: [[1, 2]] })
++    expect(d.driftZones).toEqual([[1, 2]])
++  })
++
++  it('4 個起跑格：起點線後 5／9／13／17、左右交錯 ∓路寬/4、朝向沿線', () => {
++    expect(c.grid).toHaveLength(4)
++    c.grid.forEach((g, i) => {
++      const p = trackProgress(c.track, g.x, g.z)
++      expect(p.s).toBeCloseTo(c.track.len - 5 - 4 * i, 3)
++      expect(p.lateral).toBeCloseTo(i % 2 ? 2 : -2, 3)
++      expect(sectorOf(c.track, p.s)).toBe(CHECKPOINTS - 1)
++      expect(g.ry).toBeCloseTo(pointAt(c.track, p.s).heading, 6)
++    })
++  })
++})
++
++describe('raceOver — 結算時機（AC6）', () => {
++  it('還沒人過線：不結束', () => {
++    expect(raceOver([null, null], null, 99999)).toBe(false)
++  })
++
++  it('全員過線即結束', () => {
++    expect(raceOver([1000, 2000], 1000, 2000)).toBe(true)
++  })
++
++  it(`第一台過線後 ${FINISH_GRACE_MS}ms 內仍有人沒過：等；時間到：結束`, () => {
++    expect(raceOver([1000, null], 1000, 1000 + FINISH_GRACE_MS - 1)).toBe(false)
++    expect(raceOver([1000, null], 1000, 1000 + FINISH_GRACE_MS)).toBe(true)
++  })
++
++  it('空名單（全員斷線）不結束', () => {
++    expect(raceOver([], null, 0)).toBe(false)
++  })
++})
+diff --git a/src/babylon/games/raceRules/track.ts b/src/babylon/games/raceRules/track.ts
+new file mode 100644
+index 0000000..6dcef2b
+--- /dev/null
++++ b/src/babylon/games/raceRules/track.ts
+@@ -0,0 +1,340 @@
++/**
++ * 賽車賽道與名次（純函式，不依賴 Babylon，可在 node 單測）。
++ *
++ * 座標慣例同 race.ts：俯視 x、z 平面，朝向 ry 的前方 = (sin ry, cos ry)，
++ * 右側 = (cos ry, −sin ry)；lateral 以行進方向看右正左負。
++ */
++
++export type Vec2 = [number, number]
++
++export interface Track {
++  /** 閉合折線取樣點（首點不在尾端重複），段 i 為 pts[i] → pts[(i+1) % N] */
++  pts: Vec2[]
++  /** 總長 */
++  len: number
++  /** 路寬（中心線兩側各 width / 2） */
++  width: number
++  /** CHECKPOINTS 個檢查點的沿線距離，0 號 = 起點線（s = 0），升冪 */
++  checkpoints: number[]
++  /** 附加：pts[i] 的沿線距離（cum[0] = 0） */
++  cum: number[]
++}
++
++export interface Progress {
++  s: number
++  lateral: number
++  seg: number
++}
++
++export interface LapState {
++  /** 已完成圈數 0..LAPS */
++  lap: number
++  /** 最後一個依序通過的檢查點 0..CHECKPOINTS−1 */
++  cp: number
++}
++
++export const CHECKPOINTS = 8
++export const LAPS = 3
++export const WRONG_WAY_MS = 1500
++/** 車頭與賽道切線夾角超過此值算逆行（rad，約 100°） */
++export const WRONG_WAY_ANGLE = (100 * Math.PI) / 180
++/** 低於此速度不累計逆向（原地打轉不跳警告） */
++export const WRONG_WAY_MIN_SPEED = 1
++/** 第一台過線後其他車可繼續衝線的時間 */
++export const FINISH_GRACE_MS = 15000
++/** Catmull-Rom 每段取樣點數（spec §1.1：16 點，賽道 s 值都以此量出） */
++export const SAMPLES_PER_SEG = 16
++/** 曲率視窗：s ± 3（spec §1.2） */
++export const CURVE_WINDOW = 6
++
++const TAU = Math.PI * 2
++
++/** 角度差環繞到 (−π, π] */
++export const wrapAngle = (a: number): number => {
++  const r = a - TAU * Math.floor((a + Math.PI) / TAU)
++  return r === -Math.PI ? Math.PI : r
++}
++
++const wrapS = (t: Track, s: number): number => ((s % t.len) + t.len) % t.len
++
++const catmull = (p0: number, p1: number, p2: number, p3: number, u: number): number =>
++  0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (3 * p1 - p0 - 3 * p2 + p3) * u * u * u)
++
++/** 閉合控制點 → uniform Catmull-Rom 每段 SAMPLES_PER_SEG 點的折線；檢查點沿線均分，0 號在 ctrl[0]（起點線） */
++export function makeTrack(ctrl: Vec2[], width: number): Track {
++  const n = ctrl.length
++  const pts: Vec2[] = []
++  for (let i = 0; i < n; i++) {
++    const p0 = ctrl[(i - 1 + n) % n]
++    const p1 = ctrl[i]
++    const p2 = ctrl[(i + 1) % n]
++    const p3 = ctrl[(i + 2) % n]
++    for (let j = 0; j < SAMPLES_PER_SEG; j++) {
++      const u = j / SAMPLES_PER_SEG
++      pts.push([catmull(p0[0], p1[0], p2[0], p3[0], u), catmull(p0[1], p1[1], p2[1], p3[1], u)])
++    }
++  }
++  const cum: number[] = [0]
++  let len = 0
++  for (let i = 0; i < pts.length; i++) {
++    const a = pts[i]
++    const b = pts[(i + 1) % pts.length]
++    len += Math.hypot(b[0] - a[0], b[1] - a[1])
++    if (i + 1 < pts.length) cum.push(len)
++  }
++  const checkpoints = Array.from({ length: CHECKPOINTS }, (_, i) => (len * i) / CHECKPOINTS)
++  return { pts, len, width, checkpoints, cum }
++}
++
++/** 最近折線段的投影：沿線距離 s ∈ [0, len)、有號橫向距離、段號 */
++export function trackProgress(t: Track, x: number, z: number): Progress {
++  const n = t.pts.length
++  let best = Infinity
++  let seg = 0
++  let bestU = 0
++  for (let i = 0; i < n; i++) {
++    const a = t.pts[i]
++    const b = t.pts[(i + 1) % n]
++    const dx = b[0] - a[0]
++    const dz = b[1] - a[1]
++    const l2 = dx * dx + dz * dz
++    const u = l2 > 0 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / l2)) : 0
++    const px = a[0] + dx * u - x
++    const pz = a[1] + dz * u - z
++    const d2 = px * px + pz * pz
++    if (d2 < best) {
++      best = d2
++      seg = i
++      bestU = u
++    }
++  }
++  const a = t.pts[seg]
++  const b = t.pts[(seg + 1) % n]
++  const dx = b[0] - a[0]
++  const dz = b[1] - a[1]
++  const l = Math.hypot(dx, dz)
++  const ox = x - (a[0] + dx * bestU)
++  const oz = z - (a[1] + dz * bestU)
++  const side = l > 0 ? (ox * dz - oz * dx) / l : 0
++  const lateral = Math.sign(side) * Math.sqrt(best)
++  return { s: wrapS(t, t.cum[seg] + bestU * l), lateral, seg }
++}
++
++/** 沿線距離 s（可超出一圈或為負，會環繞）→ 中心線座標與朝向 ry */
++export function pointAt(t: Track, s: number): { x: number; z: number; heading: number } {
++  const w = wrapS(t, s)
++  let lo = 0
++  let hi = t.cum.length - 1
++  while (lo < hi) {
++    const mid = (lo + hi + 1) >> 1
++    if (t.cum[mid] <= w) lo = mid
++    else hi = mid - 1
++  }
++  const a = t.pts[lo]
++  const b = t.pts[(lo + 1) % t.pts.length]
++  const segEnd = lo + 1 < t.cum.length ? t.cum[lo + 1] : t.len
++  const l = segEnd - t.cum[lo]
++  const u = l > 0 ? (w - t.cum[lo]) / l : 0
++  return {
++    x: a[0] + (b[0] - a[0]) * u,
++    z: a[1] + (b[1] - a[1]) * u,
++    heading: Math.atan2(b[0] - a[0], b[1] - a[1]),
++  }
++}
++
++/** s 所在的檢查點區：不大於 s 的最後一個檢查點序號 */
++export function sectorOf(t: Track, s: number): number {
++  const w = wrapS(t, s)
++  let k = 0
++  for (let i = 1; i < t.checkpoints.length; i++) if (t.checkpoints[i] <= w) k = i
++  return k
++}
++
++/** 進到檢查點區 sector：只有「下一個」檢查點會前進，回到 0 號才加圈；跑滿 LAPS 後不變 */
++export function advanceLap(prev: LapState, sector: number): LapState {
++  if (prev.lap >= LAPS) return prev
++  const next = (prev.cp + 1) % CHECKPOINTS
++  if (sector !== next) return prev
++  return next === 0 ? { lap: prev.lap + 1, cp: 0 } : { lap: prev.lap, cp: next }
++}
++
++/**
++ * 名次用的 (lap, s)：以「最後通過的檢查點」為錨修正原始 s。
++ * - 倒車越過起點線（cp 0、s 在上一圈末段）→ 算回上一圈；lap 0 時夾成 s = 0（起跑格）
++ * - 抄捷徑跳到前方 → s 不超過下一個未通過的檢查點
++ * 各 client 對同一份快照算出相同結果；rankCars 前先套這個。
++ */
++export function normalizeProgress(t: Track, c: { lap: number; cp: number; s: number }): { lap: number; s: number } {
++  const cpS = t.checkpoints[c.cp] ?? 0
++  const nextCp = (c.cp + 1) % CHECKPOINTS
++  const gap = nextCp === 0 ? t.len - cpS : t.checkpoints[nextCp] - cpS
++  let lap = c.lap
++  let s = c.s
++  const raw = s - cpS
++  let ds = raw
++  if (raw > t.len / 2) {
++    ds = raw - t.len
++    lap -= 1
++  } else if (raw <= -t.len / 2) {
++    ds = raw + t.len
++    lap += 1
++  }
++  if (ds > gap) {
++    if (nextCp === 0) {
++      lap = c.lap + 1
++      s = 0
++    } else {
++      lap = c.lap
++      s = t.checkpoints[nextCp]
++    }
++  }
++  if (lap < 0) return { lap: 0, s: 0 }
++  return { lap, s }
++}
++
++/** 逆向累計：車的行進方向與賽道切線夾角 > WRONG_WAY_ANGLE 且在動才累計，否則歸零 */
++export function stepWrongWay(
++  ms: number,
++  input: { heading: number; trackHeading: number; speed: number },
++  dtMs: number
++): { ms: number; wrongWay: boolean } {
++  const moving = Math.abs(input.speed) > WRONG_WAY_MIN_SPEED
++  const dir = input.speed < 0 ? input.heading + Math.PI : input.heading
++  const against = Math.abs(wrapAngle(dir - input.trackHeading)) > WRONG_WAY_ANGLE
++  const next = moving && against ? ms + dtMs : 0
++  return { ms: next, wrongWay: next >= WRONG_WAY_MS }
++}
++
++export interface RankEntry {
++  id: string
++  lap: number
++  s: number
++  finishedAt: number | null
++}
++
++/** 已過線依 finishedAt 升冪；未過線依 lap、s 降冪；同分依 id 字典序。不改動輸入 */
++export function rankCars(list: readonly RankEntry[]): string[] {
++  const byId = (a: RankEntry, b: RankEntry) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
++  return [...list]
++    .sort((a, b) => {
++      if (a.finishedAt !== null && b.finishedAt !== null) return a.finishedAt - b.finishedAt || byId(a, b)
++      if (a.finishedAt !== null) return -1
++      if (b.finishedAt !== null) return 1
++      return b.lap - a.lap || b.s - a.s || byId(a, b)
++    })
++    .map((c) => c.id)
++}
++
++/** s 是否落在 [s0, s1)（s1 可大於 len 表示跨起點） */
++export function inSpan(t: Track, s: number, span: readonly [number, number]): boolean {
++  const w = wrapS(t, s)
++  return (w >= span[0] && w < span[1]) || (w + t.len >= span[0] && w + t.len < span[1])
++}
++
++/** 視窗曲率（rad / 單位），正 = 右彎 */
++export function curvatureAt(t: Track, s: number, window = CURVE_WINDOW): number {
++  const a = pointAt(t, s - window / 2).heading
++  const b = pointAt(t, s + window / 2).heading
++  return wrapAngle(b - a) / window
++}
++
++/**
++ * 可甩尾的長彎：|曲率| ≥ kMin、同一轉向、連續長度 ≥ minLen 的區段。
++ * 回傳 [s0, s1)，s0 ∈ [0, len)，跨起點時 s1 > len；整圈同向回 [[0, len]]。
++ */
++export function findLongCurves(t: Track, kMin: number, minLen: number): [number, number][] {
++  const n = t.pts.length
++  const mark = t.cum.map((s) => {
++    const k = curvatureAt(t, s)
++    return k >= kMin ? 1 : k <= -kMin ? -1 : 0
++  })
++  let start = -1
++  for (let i = 0; i < n; i++) {
++    if (mark[i] !== mark[(i - 1 + n) % n]) {
++      start = i
++      break
++    }
++  }
++  if (start < 0) return mark[0] !== 0 && t.len >= minLen ? [[0, t.len]] : []
++  const out: [number, number][] = []
++  let i = 0
++  while (i < n) {
++    const idx = (start + i) % n
++    const m = mark[idx]
++    let j = i
++    while (j < n && mark[(start + j) % n] === m) j++
++    if (m !== 0) {
++      const s0 = t.cum[idx]
++      const endIdx = (start + j) % n
++      const length = (t.cum[endIdx] - s0 + t.len) % t.len || t.len
++      if (length >= minLen) out.push([s0, s0 + length])
++    }
++    i = j
++  }
++  return out.sort((a, b) => a[0] - b[0])
++}
++
++/** 中心線 s 處往右偏 lateral 的世界座標與該處朝向 */
++export function placeAt(t: Track, s: number, lateral: number): { x: number; z: number; heading: number } {
++  const p = pointAt(t, s)
++  return { x: p.x + Math.cos(p.heading) * lateral, z: p.z - Math.sin(p.heading) * lateral, heading: p.heading }
++}
++
++/** 長彎：同號 |κ| ≥ 1/30 連續 ≥ 30（spec §1.2 LONG_CORNER_K／LONG_CORNER_MIN_LEN） */
++export const LONG_CORNER_K = 1 / 30
++export const LONG_CORNER_MIN_LEN = 30
++/** 起跑格（spec §1.3）：第 i 格在起點線後 GRID_FIRST + GRID_GAP·i，左右交錯 ∓路寬/4 */
++export const GRID_FIRST = 5
++export const GRID_GAP = 4
++export const GRID_SLOTS = 4
++
++/** spec 的賽道表：位置一律用沿線距離 s（spec §1 的 s 值） */
++export interface CourseSpec {
++  ctrl: Vec2[]
++  width: number
++  /** 場地半邊長：|x| > bound.x 或 |z| > bound.z 即出界 */
++  bound: { x: number; z: number }
++  pads: { s: number; lateral: number }[]
++  /** 跳台斜坡 [s0, s1] */
++  jumps: [number, number][]
++  itemRows: number[]
++  /** 可甩尾長彎；省略時以 LONG_CORNER_K／LONG_CORNER_MIN_LEN 自動找 */
++  driftZones?: [number, number][]
++}
++
++export interface Course {
++  track: Track
++  bound: { x: number; z: number }
++  pads: { s: number; lateral: number; x: number; z: number; heading: number }[]
++  jumps: [number, number][]
++  itemRows: number[]
++  driftZones: [number, number][]
++  /** 起跑格（起點線後方），依實體序取 */
++  grid: { x: number; z: number; ry: number }[]
++}
++
++export function makeCourse(spec: CourseSpec): Course {
++  const track = makeTrack(spec.ctrl, spec.width)
++  const grid = Array.from({ length: GRID_SLOTS }, (_, i) => {
++    const p = placeAt(track, -(GRID_FIRST + GRID_GAP * i), ((i % 2) * 2 - 1) * (spec.width / 4))
++    return { x: p.x, z: p.z, ry: p.heading }
++  })
++  return {
++    track,
++    bound: spec.bound,
++    pads: spec.pads.map((p) => ({ s: p.s, lateral: p.lateral, ...placeAt(track, p.s, p.lateral) })),
++    jumps: spec.jumps,
++    itemRows: spec.itemRows,
++    driftZones: spec.driftZones ?? findLongCurves(track, LONG_CORNER_K, LONG_CORNER_MIN_LEN),
++    grid,
++  }
++}
++
++/**
++ * host 結算時機（AC6）：fins 為「仍在線的車」（含 bot）各自的過線時間或 null，
++ * firstFinAt 為第一台過線的時間。全員過線，或第一台過線後 FINISH_GRACE_MS 到了才結束。
++ */
++export function raceOver(fins: readonly (number | null)[], firstFinAt: number | null, now: number): boolean {
++  if (fins.length === 0 || firstFinAt === null) return false
++  return fins.every((f) => f !== null) || now - firstFinAt >= FINISH_GRACE_MS
++}
+diff --git a/src/babylon/games/raceRules/trackData.test.ts b/src/babylon/games/raceRules/trackData.test.ts
+new file mode 100644
+index 0000000..5b91ae6
+--- /dev/null
++++ b/src/babylon/games/raceRules/trackData.test.ts
+@@ -0,0 +1,144 @@
++import { describe, it, expect } from 'vitest'
++import {
++  BOOST_PADS,
++  ITEM_ODDS,
++  ITEM_ROWS,
++  ITEM_ROW_S,
++  JUMP_S0,
++  JUMP_S1,
++  LONG_CORNERS,
++  RACE_COURSE,
++  TRACK_CTRL,
++  TRACK_WIDTH,
++} from '@/babylon/games/raceRules/trackData'
++import { ACCEL, BRAKE, MAX_SPEED } from '@/babylon/games/raceRules/drive'
++import { boxLayout } from '@/babylon/games/raceRules/items'
++import {
++  LONG_CORNER_K,
++  LONG_CORNER_MIN_LEN,
++  curvatureAt,
++  findLongCurves,
++  pointAt,
++  trackProgress,
++  wrapAngle,
++} from '@/babylon/games/raceRules/track'
++
++const { track } = RACE_COURSE
++const deg = (r: number) => (r * 180) / Math.PI
++
++describe('A Toy Racer 賽道（spec §1）', () => {
++  it('48 個控制點、路寬 12、總長 554.8', () => {
++    expect(TRACK_CTRL).toHaveLength(48)
++    expect(TRACK_WIDTH).toBe(12)
++    expect(track.width).toBe(12)
++    expect(track.len).toBeCloseTo(554.8, 0)
++  })
++
++  it('不自交：沿線距離 > 40 的兩點中心線距離 ≥ 25（扣路寬仍有淨距）', () => {
++    const step = 2
++    let min = Infinity
++    for (let a = 0; a < track.len; a += step) {
++      const p = pointAt(track, a)
++      for (let b = a + 40; b < a + track.len - 40; b += step) {
++        const q = pointAt(track, b)
++        min = Math.min(min, Math.hypot(p.x - q.x, p.z - q.z))
++      }
++    }
++    expect(min).toBeGreaterThanOrEqual(25)
++  })
++
++  it('檢查點表（spec §1.3）：座標與朝向', () => {
++    const table: [number, number, number][] = [
++      [-8, -72, 90], [61.3, -71.5, 81], [68.8, -13.0, -21], [45.1, 52.1, -21],
++      [17.0, 39.1, 180], [-5.3, -13.8, -89], [-70.8, -2.6, -112], [-76.0, -67.2, 138],
++    ]
++    table.forEach(([x, z, ry], k) => {
++      const p = pointAt(track, track.checkpoints[k])
++      expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(0.3)
++      expect(Math.abs(deg(wrapAngle(p.heading - (ry * Math.PI) / 180)))).toBeLessThan(2)
++    })
++  })
++
++  it('發車格表（spec §1.3）', () => {
++    const table: [number, number][] = [[-13, -69], [-17, -75], [-21, -69], [-25, -75]]
++    RACE_COURSE.grid.forEach((g, i) => {
++      expect(Math.hypot(g.x - table[i][0], g.z - table[i][1])).toBeLessThan(0.3)
++      expect(g.ry).toBeCloseTo(Math.PI / 2, 2)
++    })
++  })
++
++  it('跳台 150–156、加速帶 3 塊（spec §1.4／§1.5）', () => {
++    expect([JUMP_S0, JUMP_S1]).toEqual([150, 156])
++    expect(RACE_COURSE.jumps).toEqual([[150, 156]])
++    const table: [number, number][] = [[67.3, -9.0], [13.8, 54.5], [-48.8, -4.5]]
++    expect(BOOST_PADS).toHaveLength(3)
++    RACE_COURSE.pads.forEach((p, i) => expect(Math.hypot(p.x - table[i][0], p.z - table[i][1])).toBeLessThan(0.3))
++  })
++
++  it('道具箱 3 列 × 4（spec §1.6）', () => {
++    expect(ITEM_ROWS).toBe(3)
++    expect(ITEM_ROW_S).toEqual([122, 295, 452])
++    const table: [number, number][] = [
++      [70.5, -30.1], [73.4, -29.1], [76.2, -28.1], [79.0, -27.1],
++      [21.5, 21.5], [18.5, 21.5], [15.5, 21.5], [12.5, 21.5],
++      [-75.5, -34.8], [-78.5, -34.8], [-81.5, -34.8], [-84.5, -34.8],
++    ]
++    boxLayout(RACE_COURSE).forEach((b, i) => expect(Math.hypot(b.x - table[i][0], b.z - table[i][1])).toBeLessThan(0.3))
++  })
++
++  it('長彎表與曲率掃描一致（誤差 ≤ 3），兩段都是左彎', () => {
++    const scanned = findLongCurves(track, LONG_CORNER_K, LONG_CORNER_MIN_LEN)
++    expect(scanned).toHaveLength(LONG_CORNERS.length)
++    LONG_CORNERS.forEach((c, i) => {
++      expect(Math.abs(scanned[i][0] - c.s0)).toBeLessThanOrEqual(3)
++      expect(Math.abs(scanned[i][1] - c.s1)).toBeLessThanOrEqual(3)
++      expect(c.dir).toBe(-1)
++      expect(curvatureAt(track, (c.s0 + c.s1) / 2)).toBeLessThan(0)
++    })
++    expect(RACE_COURSE.driftZones).toEqual(LONG_CORNERS.map((c) => [c.s0, c.s1]))
++  })
++
++  it('形狀下限（AC1）：≥120° 大彎、左右連續 S 彎', () => {
++    const t2 = LONG_CORNERS[1]
++    let turn = 0
++    for (let s = t2.s0; s < t2.s1; s += 0.5) turn += wrapAngle(pointAt(track, s + 0.5).heading - pointAt(track, s).heading)
++    expect(Math.abs(deg(turn))).toBeGreaterThanOrEqual(120)
++    expect(curvatureAt(track, 361)).toBeGreaterThan(LONG_CORNER_K) // S1 右
++    expect(curvatureAt(track, 378)).toBeLessThan(-LONG_CORNER_K) // S2 左
++  })
++
++  it('單圈目標：κ 限速理想圈 ÷ 0.8 落在 35–50 秒', () => {
++    const n = Math.ceil(track.len)
++    const ds = track.len / n
++    const lim = Array.from({ length: n }, (_, i) => Math.min(MAX_SPEED, 2.4 / Math.max(1e-6, Math.abs(curvatureAt(track, i * ds)))))
++    const v = [...lim]
++    for (let k = 0; k < 2; k++) {
++      for (let i = 1; i < 2 * n; i++) v[i % n] = Math.min(v[i % n], Math.sqrt(v[(i - 1) % n] ** 2 + 2 * ACCEL * ds))
++      for (let i = 2 * n - 2; i >= 0; i--) v[i % n] = Math.min(v[i % n], Math.sqrt(v[(i + 1) % n] ** 2 + 2 * BRAKE * ds))
++    }
++    const ideal = v.reduce((t, x) => t + ds / x, 0)
++    expect(ideal / 0.8).toBeGreaterThanOrEqual(35)
++    expect(ideal / 0.8).toBeLessThanOrEqual(50)
++  })
++
++  it('檢查點不落在跳台上', () => {
++    for (const s of track.checkpoints) expect(s < JUMP_S0 || s > JUMP_S1).toBe(true)
++  })
++
++  it('發車格與道具箱都在路面內', () => {
++    for (const g of RACE_COURSE.grid) expect(Math.abs(trackProgress(track, g.x, g.z).lateral)).toBeLessThan(TRACK_WIDTH / 2)
++    for (const b of boxLayout(RACE_COURSE)) expect(Math.abs(trackProgress(track, b.x, b.z).lateral)).toBeLessThan(TRACK_WIDTH / 2)
++  })
++})
++
++describe('ITEM_ODDS（spec §2.1）', () => {
++  it('4 檔、每列和為 1、順序 banana→shell→mushroom→shield', () => {
++    expect(ITEM_ODDS).toHaveLength(4)
++    for (const row of ITEM_ODDS) {
++      expect(Object.keys(row)).toEqual(['banana', 'shell', 'mushroom', 'shield'])
++      expect(row.banana + row.shell + row.mushroom + row.shield).toBeCloseTo(1, 9)
++    }
++    expect(ITEM_ODDS[0]).toEqual({ banana: 0.6, shell: 0, mushroom: 0, shield: 0.4 })
++    expect(ITEM_ODDS[3]).toEqual({ banana: 0.1, shell: 0.35, mushroom: 0.45, shield: 0.1 })
++  })
++})
+diff --git a/src/babylon/games/raceRules/trackData.ts b/src/babylon/games/raceRules/trackData.ts
+new file mode 100644
+index 0000000..2af5503
+--- /dev/null
++++ b/src/babylon/games/raceRules/trackData.ts
+@@ -0,0 +1,63 @@
++/**
++ * A Toy Racer 賽道資料（design/spec.md §1、§2.1 照抄）：控制點、路寬、跳台、加速帶、道具箱、長彎、落後補償表。
++ * race.ts 只 import 這裡，不另抄一份。所有位置是沿線距離 s（spec 以每段 16 點取樣量出）。
++ */
++import type { ItemKind } from '@/babylon/games/raceRules/items'
++import { makeCourse, type Vec2 } from '@/babylon/games/raceRules/track'
++
++export const TRACK_WIDTH = 12
++
++/** 中心線控制點（閉合，48 點；第 0 點為起跑線，往 +x 出發，逆時針） */
++export const TRACK_CTRL: Vec2[] = [
++  [-8, -72], [5, -72], [17.5, -72], [30.5, -72], [43, -72], [56, -72], [65, -70.5], [72.5, -65.5],
++  [78, -58], [80, -49], [78.5, -40], [74, -26.5], [69, -13.5], [64, -0.5], [59.5, 13], [54.5, 26],
++  [50, 39], [45, 52.5], [40, 65.5], [35, 71.5], [27, 73], [20, 69], [17, 61.5], [17, 46],
++  [17, 30.5], [17, 15], [17, -0.5], [13, -10], [4, -13.5], [-14, -13.5], [-20.5, -12], [-25.5, -7.5],
++  [-30.5, -3.5], [-37, -1.5], [-51, -1.5], [-65, -1.5], [-72.5, -3.5], [-78, -9], [-80, -16.5], [-80, -30],
++  [-80, -43.5], [-80, -57], [-78, -64.5], [-72.5, -70], [-65, -72], [-50.5, -72], [-36.5, -72], [-22, -72],
++]
++
++/** 場地半邊長（地面桌墊 200×180，spec §1.1） */
++export const RACE_BOUND = { x: 100, z: 90 }
++
++/** 跳台斜坡（spec §1.4） */
++export const JUMP_S0 = 150
++export const JUMP_S1 = 156
++
++/** 固定加速帶（spec §1.5）：s 與 lateral（右正） */
++export const BOOST_PADS: { s: number; lateral: number }[] = [
++  { s: 143, lateral: 0 },
++  { s: 262, lateral: 3 },
++  { s: 394, lateral: -3 },
++]
++
++/** 道具箱列的 s（spec §1.6），每列 4 個 */
++export const ITEM_ROW_S = [122, 295, 452]
++export const ITEM_ROWS = ITEM_ROW_S.length
++
++/** 可甩尾長彎（spec §1.2；dir −1 = 左彎）；bot 在 [s0 − 4, s1 − 6] 按住甩尾 */
++export const LONG_CORNERS: { s0: number; s1: number; dir: -1 | 1 }[] = [
++  { s0: 69, s1: 106, dir: -1 }, // T1 左 ~92°
++  { s0: 223, s1: 256, dir: -1 }, // T2 髮夾 ~146°
++]
++
++/**
++ * 落後補償（spec §2.1）：檔 0 = 第 1 名、3 = 最後一名；鍵順序即抽取的累加順序。
++ * P(mushroom∪shell) = 0 / 0.5 / 0.65 / 0.8。
++ */
++export const ITEM_ODDS: readonly Record<ItemKind, number>[] = [
++  { banana: 0.6, shell: 0, mushroom: 0, shield: 0.4 },
++  { banana: 0.35, shell: 0.3, mushroom: 0.2, shield: 0.15 },
++  { banana: 0.2, shell: 0.35, mushroom: 0.3, shield: 0.15 },
++  { banana: 0.1, shell: 0.35, mushroom: 0.45, shield: 0.1 },
++]
++
++export const RACE_COURSE = makeCourse({
++  ctrl: TRACK_CTRL,
++  width: TRACK_WIDTH,
++  bound: RACE_BOUND,
++  pads: BOOST_PADS,
++  jumps: [[JUMP_S0, JUMP_S1]],
++  itemRows: ITEM_ROW_S,
++  driftZones: LONG_CORNERS.map((c) => [c.s0, c.s1]),
++})
+

@@ -1,0 +1,4761 @@
+# 賽車美術＋可玩度（A Toy Racer） — wave 2 since 85c1802 — 2026-10-03T22:27
+# files changed: 24 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/games/race.ts                   | 1672 ++++++++++++++++-----------
+ src/babylon/games/raceFx/carVisual.test.ts  |   53 +
+ src/babylon/games/raceFx/carVisual.ts       |   72 ++
+ src/babylon/games/raceFx/raceField.test.ts  |  113 ++
+ src/babylon/games/raceFx/raceField.ts       |  108 ++
+ src/babylon/games/raceFx/raceGeom.test.ts   |   34 +
+ src/babylon/games/raceFx/raceGeom.ts        |   38 +
+ src/babylon/games/raceFx/raceNet.test.ts    |  173 +++
+ src/babylon/games/raceFx/raceNet.ts         |  226 ++++
+ src/babylon/games/raceFx/raceResult.test.ts |   91 ++
+ src/babylon/games/raceFx/raceResult.ts      |   83 ++
+ src/babylon/games/raceRules/drive.test.ts   |   16 +-
+ src/babylon/games/raceRules/drive.ts        |    2 +-
+ src/babylon/types.ts                        |   50 +-
+ src/index.css                               |  318 +++++
+ src/pages/Battle/BabylonCanvas.tsx          |   22 +-
+ src/pages/Battle/RaceHud.tsx                |  295 +++++
+ src/pages/Battle/TouchControls.tsx          |   30 +-
+ src/pages/Battle/kitchenHud.ts              |    4 +-
+ src/pages/Battle/raceHud.test.ts            |  321 +++++
+ src/pages/Battle/raceHud.ts                 |  225 ++++
+ src/pages/Battle/tankHud.ts                 |    4 +-
+ src/pages/Battle/touchDirs.test.ts          |   19 +
+ src/pages/Battle/touchDirs.ts               |   17 +
+ 24 files changed, 3263 insertions(+), 723 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/games/race.ts b/src/babylon/games/race.ts
+index 71924be..fb0da9d 100644
+--- a/src/babylon/games/race.ts
++++ b/src/babylon/games/race.ts
+@@ -1,935 +1,1215 @@
+ import {
+   ArcRotateCamera,
+   Color3,
+   HemisphericLight,
+   Mesh,
+   MeshBuilder,
+   StandardMaterial,
+   Vector3,
++  VertexData,
+ } from '@/babylon/babylonCore'
++import type { GameNetMessage } from '@/core/webrtc'
+ import type { GameContext, GameModule, GameOverlay, GamePlayer } from '@/babylon/types'
+-import { lerpAngle, quadrantOf, stepQuarters } from '@/babylon/math'
++import { lerpAngle } from '@/babylon/math'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
+ import { attachFlowAudio, engineStart, engineSet, engineStop, playSfx, stopAllAudio } from '@/babylon/audio'
+ import {
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
++  createSnapshotBuffer,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
++  type SnapshotBuffer,
+ } from '@/babylon/net'
++import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++import { LAPS, pointAt, raceOver, sectorOf, trackProgress, normalizeProgress } from '@/babylon/games/raceRules/track'
++import {
++  BOOST_SPEED,
++  JUMP_H,
++  MAX_SPEED,
++  PAD_HALF_LEN,
++  PAD_HALF_W,
++  RAMP_HALF_W,
++  makeRacer,
++  stepRacer,
++  type DriveInput,
++  type RacerState,
++} from '@/babylon/games/raceRules/drive'
++import {
++  BOX_RADIUS,
++  applySpin,
++  boxLayout,
++  claimBox,
++  rollItem,
++  shellTarget,
++  takenBoxes,
++  touchedBox,
++  useItemSelf as applyItemSelf,
++  type HitCar,
++  type ItemKind,
++} from '@/babylon/games/raceRules/items'
++import { decideRaceBot, makeBotMind, stepBotMind, type BotMind } from '@/babylon/games/raceRules/raceAI'
++import { makeRaceBots, raceColorIndex, raceEntityIds, type RaceRosterEntry } from '@/babylon/games/raceRules/roster'
++import {
++  OWN_FIN_MAX,
++  decodeBotState,
++  decodeBoxState,
++  decodeItemGone,
++  decodeItemGrant,
++  decodeItemReq,
++  decodeItemSpawn,
++  decodeItemState,
++  decodeOwn,
++  decodeResult,
++  decodeSpin,
++  decodeStart,
++  decodeUseItem,
++  type BotSnap,
++  type DriftTier,
++  type RaceOwn,
++  type RaceStanding,
++} from '@/babylon/games/raceFx/raceNet'
++import {
++  finalStandings,
++  formatRaceMs,
++  liveOrder,
++  makeLapClock,
++  stepLapClock,
++  type LapClock,
++  type LiveCar,
++  type StandingCar,
++} from '@/babylon/games/raceFx/raceResult'
++import { emptyField, spawnField, stepField, type FieldEvent, type ItemField } from '@/babylon/games/raceFx/raceField'
++import { roadStrip } from '@/babylon/games/raceFx/raceGeom'
++import { disposeCarVisual, makeCarVisual, type CarVisual } from '@/babylon/games/raceFx/carVisual'
+ 
+ /**
+- * 極速賽車 v2 — 強化版（美術 / 音效 / 可玩性全面升級）。
++ * 極速賽車 v3 — A Toy Racer 玩法（波 2：玩法面；美術、特效、React HUD 在波 3／4）。
+  *
+- * 同步模型：分散式所有權——每人本地模擬自己的車（零輸入延遲），
+- * 20Hz 廣播 {x,z,ry,q}，他車插值；host 只裁決名次。
+- *
+- * 新增功能：
+- * - 引擎持續音（音高隨速度）
+- * - 漂移系統（Space 鍵甩尾，更快轉向）
+- * - 碰撞推擠（車對車）
+- * - 加速帶（跑道上隨機生成）
+- * - 迷你地圖
+- * - 更精緻的車輛模型（底盤/輪子/尾翼）
+- * - 塵土粒子效果（出賽道時）
+- * - 速度/名次 HUD
++ * 同步模型：分散式所有權——每人本機模擬自己的車（零輸入延遲），20Hz 廣播 own 快照
++ * `{ x, z, ry, lap, cp, s, fin, ghost, drift, boost, spin, shield }`；他車插值。
++ * host 裁決道具箱、道具生成、命中（以最近收到的 own 快照為準）、bot 與結算；
++ * 規則全部在 raceRules／raceFx 純函式，這裡只接線與畫面。訊息表見 brief AC6b。
+  */
+ 
+-interface CarState {
++const SIM_HZ = 30
++/** botState 廣播週期（20Hz） */
++const BOT_STATE_MS = 50
++/** itemState 廣播週期（10Hz，只在場上有龜殼時送） */
++const ITEM_STATE_MS = 100
++/** guest 對同一個箱子重送 itemReq 的間隔 */
++const ITEM_REQ_RETRY_MS = 400
++/** host 驗 itemReq：請求者最近快照離箱子的容許距離（20Hz 延遲＋最高速） */
++const ITEM_REQ_SLACK = 5
++/** bot 追擊判定：龜殼在 bot 這距離內且鎖定它 */
++const SHELL_CHASE_DIST = 15
++/** 衝線後自己的車交給 AI 巡航的油門倍率（spec §6） */
++const CRUISE_THROTTLE = 0.6
++const RESULT_RESTART_MS = 10000
++const GROUND_W = RACE_COURSE.bound.x * 2
++const GROUND_D = RACE_COURSE.bound.z * 2
++/** 甩尾段位火花色（白／藍／橘／紫，波 4 換 spec 色票） */
++const DRIFT_COLORS = [new Color3(1, 1, 1), new Color3(0.3, 0.6, 1), new Color3(1, 0.55, 0.1), new Color3(0.75, 0.3, 1)]
++const ITEM_LABEL: Record<ItemKind, string> = { banana: '香蕉', shell: '龜殼', mushroom: '加速菇', shield: '護盾' }
++
++const COURSE = RACE_COURSE
++const TRACK = COURSE.track
++const BOXES = boxLayout(COURSE)
++
++interface BotSim {
++  racer: RacerState
++  mind: BotMind
++  item: ItemKind | null
++  fin: number | null
++}
++
++/** 一台車在畫面上要用的姿態（自己、他車、bot 共用） */
++interface CarPose {
+   x: number
+   z: number
+   ry: number
+-  q: number
++  y: number
++  drift: DriftTier
++  spin: boolean
++  ghost: boolean
++  shield: boolean
++  boost: boolean
+ }
+ 
+-interface Standing {
+-  id: string
+-  name: string
+-  q: number
++interface ItemView {
++  kind: 'banana' | 'shell'
++  mesh: Mesh
++  x: number
++  z: number
++  vx: number
++  vz: number
+ }
+ 
+-const SIM_HZ = 30
+-const LAPS = 3
+-const FINISH_Q = LAPS * 4
+-
+-// 賽道幾何
+-const R_INNER = 14
+-const R_OUTER = 22
+-const GROUND_SIZE = 56
+-
+-// 車輛運動學
+-const MAX_SPEED = 17
+-const MAX_REVERSE = 5
+-const ACCEL = 13
+-const BRAKE = 22
+-const DRAG = 4.5
+-const TURN_RATE = 2.4
+-const OFFTRACK_FACTOR = 0.3
+-const DRIFT_TURN_MULT = 1.8
+-const DRIFT_DRAG = 2.0
+-const CAR_PUSH_DIST = 1.4
+-const CAR_PUSH_FORCE = 6
+-
+-// 加速帶
+-const BOOST_PAD_RADIUS = 1.2
+-const BOOST_SPEED = 22
+-const BOOST_DURATION_MS = 1500
+-
+-// 迷你地圖
+-
+ class RaceScene implements GameModule {
+   readonly gameId = 'race'
+   private ctx!: GameContext
+   private keys = new Set<string>()
++  private useQueued = false
+   private ticker!: FixedTicker
+-  private own!: OwnershipSync<CarState>
++  private own!: OwnershipSync<RaceOwn>
+   private flow!: GameFlow
+-
+-  private state: CarState = { x: 0, z: 0, ry: 0, q: 0 }
+-  private speed = 0
+-  private lastQuad = 0
+-  private spawnIdx = 0
+-  private drifting = false
+-  private boostUntil = 0
+-
++  private offOpen: (() => void) | null = null
++
++  // 自己的車
++  private racer: RacerState = makeRacer(COURSE, 0)
++  private item: ItemKind | null = null
++  private fin: number | null = null
++  private playStart = 0
++  private cruiseMind: BotMind = makeBotMind(7)
++  private reqBox: { box: number; at: number } | null = null
++
++  // 名冊與 bot
++  private bots: RaceRosterEntry[] = []
++  private botSims = new Map<string, BotSim>()
++  private botBufs = new Map<string, SnapshotBuffer<BotSnap>>()
++  private botSeq = 0
++  private botLatest = new Map<string, BotSnap>()
++
++  // 道具（taken 為全員共用的畫面狀態；其餘為 host 權威）
++  private taken: number[] = []
++  private respawnAt: number[] = BOXES.map(() => 0)
++  private hold = new Map<string, ItemKind | null>()
++  private field: ItemField = emptyField()
++  private itemViews = new Map<string, ItemView>()
++  private sentTakenKey = ''
++  private botStateAcc = 0
++  private itemStateAcc = 0
++
++  // 結算（host）
++  private finishOrder: string[] = []
++  private firstFinAt: number | null = null
++  private prevFin = new Map<string, number | null>()
++  private lapClocks = new Map<string, LapClock>()
++
++  // 畫面
+   private selfVisual?: CarVisual
+-  private peerVisuals = new Map<string, CarVisual>()
++  private carVisuals = new Map<string, CarVisual>()
+   private camera!: ArcRotateCamera
+   private resultElapsed = 0
+   private lastOverlayKey = ''
+-
+-  private decorations: Mesh[] = []
+-  private boostPads: { x: number; z: number; mesh: Mesh }[] = []
+-  private dustParticles: DustParticle[] = []
+-
++  private statics: Mesh[] = []
++  private boxMeshes: Mesh[] = []
++  private boostPads: Mesh[] = []
++  private sparks: { mesh: Mesh; life: number }[] = []
+   private hud!: TextPanel
+   private banner!: TextPanel
+-  private minimap!: TextPanel
++  private mats = new Map<string, StandardMaterial>()
++  /** 本端看到的道具事件計數（給 qa 從 __BATTLE_POS 判讀，波 4 隨文字 HUD 一起整理） */
++  private seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+-    this.keys.add(e.key.toLowerCase())
+-    if (e.key.toLowerCase() === 'r') this.requestRestart()
++    const k = e.key.toLowerCase()
++    this.keys.add(k)
++    if (k === 'r') this.requestRestart()
++    if (k === 'e' && !e.repeat) this.useQueued = true
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+ 
+-  private colorFor(id: string): Color3 {
+-    let h = 0
+-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+-    return Color3.FromHSV(h % 360, 0.7, 0.9)
++  // ---- 名冊 ----
++
++  private entityIds(): string[] {
++    return raceEntityIds(this.ctx.players, this.bots)
++  }
++
++  private isPlayer(id: string): boolean {
++    return this.ctx.players.some((p) => p.id === id)
+   }
+ 
+   private nameFor(id: string): string {
+-    return this.ctx.players.find((p: GamePlayer) => p.id === id)?.name ?? id.slice(0, 6)
++    return (
++      this.ctx.players.find((p: GamePlayer) => p.id === id)?.name ?? this.bots.find((b) => b.id === id)?.name ?? id.slice(0, 6)
++    )
+   }
+ 
+-  // ---- 車輛視覺 ----
++  private colorIndexOf(id: string): 0 | 1 | 2 | 3 {
++    return raceColorIndex(id, this.ctx.players, this.bots)
++  }
+ 
+-  private makeCar(id: string): CarVisual {
+-    const scene = this.ctx.scene
+-    const color = this.colorFor(id)
+-
+-    // 材質
+-    const bodyMat = new StandardMaterial(`car-body-${id}`, scene)
+-    bodyMat.diffuseColor = color
+-    bodyMat.specularColor = new Color3(0.4, 0.4, 0.4)
+-
+-    const darkMat = new StandardMaterial(`car-dark-${id}`, scene)
+-    darkMat.diffuseColor = color.scale(0.45)
+-
+-    const wheelMat = new StandardMaterial(`car-wheel-${id}`, scene)
+-    wheelMat.diffuseColor = new Color3(0.12, 0.12, 0.14)
+-
+-    const glassMat = new StandardMaterial(`car-glass-${id}`, scene)
+-    glassMat.diffuseColor = new Color3(0.3, 0.5, 0.7)
+-    glassMat.alpha = 0.7
+-
+-    const headlightMat = new StandardMaterial(`car-light-${id}`, scene)
+-    headlightMat.emissiveColor = new Color3(1, 0.95, 0.8)
+-    headlightMat.disableLighting = true
+-
+-    const spoilerMat = new StandardMaterial(`car-spoiler-${id}`, scene)
+-    spoilerMat.diffuseColor = color.scale(0.6)
+-
+-    // 根節點
+-    const root = new Mesh(`car-${id}`, scene)
+-    root.position.y = 0
+-
+-    // 底盤（低矮流線型）
+-    const chassis = MeshBuilder.CreateBox(`chassis-${id}`, { width: 1.3, height: 0.3, depth: 2.2 }, scene)
+-    chassis.material = bodyMat
+-    chassis.parent = root
+-    chassis.position.y = 0.25
+-
+-    // 引擎蓋（前方斜面）
+-    const hood = MeshBuilder.CreateBox(`hood-${id}`, { width: 1.1, height: 0.12, depth: 0.7 }, scene)
+-    hood.material = bodyMat
+-    hood.parent = root
+-    hood.position.set(0, 0.45, 0.55)
+-    hood.rotation.x = -0.15
+-
+-    // 車頂/駕駛艙
+-    const cabin = MeshBuilder.CreateBox(`cabin-${id}`, { width: 0.85, height: 0.35, depth: 0.8 }, scene)
+-    cabin.material = glassMat
+-    cabin.parent = root
+-    cabin.position.set(0, 0.55, -0.1)
+-
+-    // 尾翼
+-    const wingPostL = MeshBuilder.CreateBox(`wing-pl-${id}`, { width: 0.08, height: 0.3, depth: 0.08 }, scene)
+-    wingPostL.material = spoilerMat
+-    wingPostL.parent = root
+-    wingPostL.position.set(-0.4, 0.55, -0.95)
+-
+-    const wingPostR = MeshBuilder.CreateBox(`wing-pr-${id}`, { width: 0.08, height: 0.3, depth: 0.08 }, scene)
+-    wingPostR.material = spoilerMat
+-    wingPostR.parent = root
+-    wingPostR.position.set(0.4, 0.55, -0.95)
+-
+-    const wing = MeshBuilder.CreateBox(`wing-${id}`, { width: 1.1, height: 0.06, depth: 0.25 }, scene)
+-    wing.material = spoilerMat
+-    wing.parent = root
+-    wing.position.set(0, 0.72, -0.95)
+-
+-    // 四個輪子
+-    const wheels: Mesh[] = []
+-    const wheelPositions: [number, number, number][] = [
+-      [-0.65, 0.15, 0.6],
+-      [0.65, 0.15, 0.6],
+-      [-0.65, 0.15, -0.6],
+-      [0.65, 0.15, -0.6],
+-    ]
+-    for (let i = 0; i < 4; i++) {
+-      const wheel = MeshBuilder.CreateCylinder(`wheel-${i}-${id}`, { height: 0.15, diameter: 0.35 }, scene)
+-      wheel.material = wheelMat
+-      wheel.parent = root
+-      const [wx, wy, wz] = wheelPositions[i]
+-      wheel.position.set(wx, wy, wz)
+-      wheel.rotation.z = Math.PI / 2
+-      wheels.push(wheel)
+-    }
++  private slotOf(id: string): number {
++    return Math.max(0, this.entityIds().indexOf(id))
++  }
+ 
+-    // 頭燈
+-    for (const side of [-0.4, 0.4]) {
+-      const light = MeshBuilder.CreateBox(`headlight-${side}-${id}`, { width: 0.18, height: 0.1, depth: 0.05 }, scene)
+-      light.material = headlightMat
+-      light.parent = root
+-      light.position.set(side, 0.35, 1.12)
++  // ---- 快照 ----
++
++  private ownSnapshot(): RaceOwn {
++    const r = this.racer
++    return {
++      x: r.car.x,
++      z: r.car.z,
++      ry: r.car.ry,
++      lap: r.lap.lap,
++      cp: r.lap.cp,
++      s: r.s,
++      fin: this.fin,
++      ghost: r.ghostMs > 0,
++      drift: r.drift.tier,
++      boost: r.boostMs > 0,
++      spin: r.spinMs > 0,
++      shield: r.shieldMs > 0,
+     }
++  }
+ 
+-    return { root, wheels, driftSparks: [], prevX: 0, prevZ: 0 }
++  /** 他車最新快照（驗過範圍；只收本局真人） */
++  private remoteOwn(id: string): RaceOwn | null {
++    if (!this.isPlayer(id)) return null
++    return decodeOwn(this.own.latestRemote(id), TRACK.len)
+   }
+ 
+-  private spawnPose(idx: number): { x: number; z: number; ry: number } {
+-    const r = 16.5 + (idx % 2) * 3
+-    const a = 0.12 + Math.floor(idx / 2) * 0.14
+-    return { x: Math.sin(a) * r, z: Math.cos(a) * r, ry: a + Math.PI / 2 }
++  private remotePlayers(): { id: string; snap: RaceOwn }[] {
++    const out: { id: string; snap: RaceOwn }[] = []
++    for (const id of this.own.remoteIds()) {
++      const snap = this.remoteOwn(id)
++      if (snap) out.push({ id, snap })
++    }
++    return out
+   }
+ 
+-  private resetCar(): void {
+-    const p = this.spawnPose(this.spawnIdx)
+-    this.state = { x: p.x, z: p.z, ry: p.ry, q: 0 }
+-    this.speed = 0
+-    this.lastQuad = quadrantOf(p.x, p.z)
+-    this.drifting = false
+-    this.boostUntil = 0
++  private botSnap(id: string, b: BotSim): BotSnap {
++    const r = b.racer
++    return { id, x: r.car.x, z: r.car.z, ry: r.car.ry, lap: r.lap.lap, cp: r.lap.cp, s: r.s, fin: b.fin, drift: r.drift.tier, spin: r.spinMs > 0 }
+   }
+ 
+-  // ---- 加速帶 ----
++  /** 所有 bot 目前狀態（host 用模擬值，guest 用最新 botState） */
++  private botStates(): BotSnap[] {
++    if (this.ctx.role === 'host') return [...this.botSims].map(([id, b]) => this.botSnap(id, b))
++    return [...this.botLatest.values()]
++  }
+ 
+-  private initBoostPads(): void {
+-    const scene = this.ctx.scene
+-    const mat = new StandardMaterial('boost-mat', scene)
+-    mat.diffuseColor = new Color3(0.1, 0.6, 0.95)
+-    mat.emissiveColor = new Color3(0.05, 0.3, 0.6)
+-
+-    const positions = [
+-      { x: 0, z: (R_INNER + R_OUTER) / 2 + 2 },   // 象限 0
+-      { x: (R_INNER + R_OUTER) / 2, z: 0 },        // 象限 1
+-      { x: 0, z: -(R_INNER + R_OUTER) / 2 - 2 },   // 象限 2
+-      { x: -(R_INNER + R_OUTER) / 2, z: 0 },       // 象限 3
++  /** 名次用的全場車輛（自己、他車、bot） */
++  private liveCars(): LiveCar[] {
++    const r = this.racer
++    return [
++      { id: this.ctx.selfId, lap: r.lap.lap, cp: r.lap.cp, s: r.s, fin: this.fin },
++      ...this.remotePlayers().map(({ id, snap }) => ({ id, lap: snap.lap, cp: snap.cp, s: snap.s, fin: snap.fin })),
++      ...this.botStates().map((b) => ({ id: b.id, lap: b.lap, cp: b.cp, s: b.s, fin: b.fin })),
+     ]
+-
+-    for (const pos of positions) {
+-      const mesh = MeshBuilder.CreateCylinder(`boost-${pos.x}-${pos.z}`, {
+-        diameter: BOOST_PAD_RADIUS * 2,
+-        height: 0.05,
+-      }, scene)
+-      mesh.position.set(pos.x, 0.03, pos.z)
+-      mesh.material = mat
+-      this.boostPads.push({ x: pos.x, z: pos.z, mesh })
+-    }
+   }
+ 
+-  private checkBoostPad(): void {
+-    const now = performance.now()
+-    if (this.boostUntil > now) return
+-    for (const pad of this.boostPads) {
+-      const dist = Math.hypot(this.state.x - pad.x, this.state.z - pad.z)
+-      if (dist < BOOST_PAD_RADIUS) {
+-        this.boostUntil = now + BOOST_DURATION_MS
+-        this.speed = Math.max(this.speed, BOOST_SPEED)
+-        playSfx('lap')
+-        break
+-      }
+-    }
++  private order(): string[] {
++    return liveOrder(TRACK, this.liveCars())
+   }
+ 
+-  // ---- 塵土粒子 ----
+-
+-  private spawnDust(): void {
+-    const r = Math.hypot(this.state.x, this.state.z)
+-    if (r >= R_INNER && r <= R_OUTER) return
+-    if (Math.abs(this.speed) < 2) return
+-    if (this.dustParticles.length > 20) return
+-
+-    const scene = this.ctx.scene
+-    const mesh = MeshBuilder.CreateSphere(`dust-${Date.now()}`, { diameter: 0.3 }, scene)
+-    mesh.position.set(this.state.x, 0.2, this.state.z)
+-    const mat = new StandardMaterial(`dust-mat-${Date.now()}`, scene)
+-    mat.diffuseColor = new Color3(0.55, 0.45, 0.3)
+-    mat.alpha = 0.6
+-    mesh.material = mat
+-    this.dustParticles.push({
+-      mesh,
+-      life: 0.5,
+-      vx: (Math.random() - 0.5) * 2,
+-      vz: (Math.random() - 0.5) * 2,
+-    })
++  /** 其他車的位置（推擠、尾流用），排除 exclude */
++  private positionsExcept(exclude: string): { x: number; z: number }[] {
++    const out: { x: number; z: number }[] = []
++    if (exclude !== this.ctx.selfId) out.push({ x: this.racer.car.x, z: this.racer.car.z })
++    for (const { id, snap } of this.remotePlayers()) if (id !== exclude) out.push({ x: snap.x, z: snap.z })
++    for (const b of this.botStates()) if (b.id !== exclude) out.push({ x: b.x, z: b.z })
++    return out
+   }
+ 
+-  // ---- 漂移火花 ----
+-
+-  private spawnDriftSparks(visual: CarVisual): void {
+-    if (!this.drifting || Math.abs(this.speed) < 5) return
+-    if (visual.driftSparks.length > 8) return
++  // ---- 重置 ----
++
++  private resetRace(): void {
++    this.racer = makeRacer(COURSE, this.slotOf(this.ctx.selfId))
++    this.item = null
++    this.fin = null
++    this.reqBox = null
++    this.useQueued = false
++    this.cruiseMind = makeBotMind(7)
++    this.taken = []
++    this.respawnAt = BOXES.map(() => 0)
++    this.hold.clear()
++    this.field = emptyField()
++    for (const v of this.itemViews.values()) v.mesh.dispose()
++    this.itemViews.clear()
++    this.sentTakenKey = ''
++    this.seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
++    this.finishOrder = []
++    this.firstFinAt = null
++    this.prevFin.clear()
++    this.lapClocks.clear()
++    this.botLatest.clear()
++    for (const b of this.botBufs.values()) b.clear()
++    this.botSims.clear()
++    if (this.ctx.role === 'host') {
++      this.bots.forEach((b, i) => {
++        this.botSims.set(b.id, {
++          racer: makeRacer(COURSE, this.slotOf(b.id)),
++          mind: makeBotMind(0x9e3779b9 + i * 7919),
++          item: null,
++          fin: null,
++        })
++      })
++    }
++  }
+ 
+-    const scene = this.ctx.scene
+-    const spark = MeshBuilder.CreateBox(`spark-${Date.now()}`, { size: 0.08 }, scene)
+-    spark.position.set(
+-      visual.root.position.x + (Math.random() - 0.5) * 0.5,
+-      0.1,
+-      visual.root.position.z + (Math.random() - 0.5) * 0.5,
+-    )
+-    const mat = new StandardMaterial(`spark-mat-${Date.now()}`, scene)
+-    mat.emissiveColor = new Color3(1, 0.7, 0.2)
+-    mat.disableLighting = true
+-    spark.material = mat
+-    visual.driftSparks.push({ mesh: spark, life: 0.3 })
++  private onPlaying(): void {
++    const now = performance.now()
++    this.playStart = now
++    for (const id of this.entityIds()) this.lapClocks.set(id, makeLapClock(now))
+   }
+ 
+   // ---- 重開 ----
+ 
+   private canRestart(): boolean {
+     const phase = this.flow.state.phase
+     return phase === 'result' || phase === 'playing'
+   }
+ 
+   private requestRestart(): void {
+     if (!this.canRestart()) return
+     if (this.ctx.role === 'host') this.hostRestart()
+     else this.ctx.net.broadcast({ game: this.gameId, type: 'restartReq', payload: {} })
+   }
+ 
+   private hostRestart(): void {
+     if (this.ctx.role !== 'host') return
+     this.resultElapsed = 0
++    this.bots = makeRaceBots(this.ctx.players.length)
++    this.broadcast('start', { bots: this.bots })
+     this.flow.startCountdown(3)
+   }
+ 
++  private broadcast(type: string, payload: unknown): void {
++    this.ctx.net.broadcast({ game: this.gameId, type, payload })
++  }
++
++  private results(): RaceStanding[] {
++    return decodeResult(this.flow.state.result) ?? []
++  }
++
+   private syncOverlay(): void {
+     const setOverlay = this.ctx.setOverlay
+     if (!setOverlay) return
+ 
+-    const phase = this.flow.state.phase
+     let overlay: GameOverlay | null = null
+-
+-    if (phase === 'result') {
+-      const standings = (this.flow.state.result as Standing[] | undefined) ?? []
+-      const win = standings[0]?.id === this.ctx.selfId
++    if (this.flow.state.phase === 'result') {
++      const rows = this.results()
++      const win = rows[0]?.id === this.ctx.selfId
+       overlay = {
+         title: win ? '🏆 你獲得勝利！' : '🏁 對局結束',
+-        subtitle: standings.map((s, i) => {
+-          const laps = Math.floor(s.q / 4)
+-          return `${i + 1}. ${s.name} — ${laps} 圈`
+-        }).join('\n'),
++        subtitle: rows
++          .map((r) => {
++            const total = r.totalMs === null ? '未完賽' : formatRaceMs(r.totalMs)
++            return `${r.rank}. ${r.name} — ${total}（最佳圈 ${formatRaceMs(r.bestLapMs)}）`
++          })
++          .join('\n'),
+         actions: [{ label: '🔄 重新開始', onClick: () => this.requestRestart(), variant: 'primary' }],
+       }
+     }
+ 
+     const key = overlay ? `${overlay.title}|${overlay.subtitle ?? ''}` : ''
+     if (key === this.lastOverlayKey) return
+     this.lastOverlayKey = key
+     setOverlay(overlay)
+   }
+ 
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+     this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 1.05, 12, Vector3.Zero(), scene)
++    this.camera.maxZ = 600
+     new HemisphericLight('light', new Vector3(0, 1, 0), scene)
+ 
+-    // 場地
+-    const ground = MeshBuilder.CreateGround('ground', { width: GROUND_SIZE, height: GROUND_SIZE }, scene)
+-    const gmat = new StandardMaterial('gmat', scene)
+-    gmat.diffuseColor = new Color3(0.16, 0.32, 0.18)
+-    ground.material = gmat
+-
+-    const track = MeshBuilder.CreateDisc('track', { radius: R_OUTER, tessellation: 96 }, scene)
+-    track.rotation.x = Math.PI / 2
+-    track.position.y = 0.01
+-    const tmat = new StandardMaterial('tmat', scene)
+-    tmat.diffuseColor = new Color3(0.22, 0.24, 0.28)
+-    track.material = tmat
+-
+-    const infield = MeshBuilder.CreateDisc('infield', { radius: R_INNER, tessellation: 96 }, scene)
+-    infield.rotation.x = Math.PI / 2
+-    infield.position.y = 0.02
+-    infield.material = gmat
+-
+-    // 起跑/終點線（棋盤格）
+-    this.buildStartFinishLine()
+-
+-    // 賽道標線（內外圈虛線）
+-    this.buildTrackMarkings()
+-
+-    // 加速帶
+-    this.initBoostPads()
+-
+-    // 裝飾
+-    this.buildDecorations()
++    this.buildTrack()
++    this.buildBoxes()
+ 
+-    // 自車
+-    this.spawnIdx = Math.max(0, ctx.players.findIndex((p) => p.id === ctx.selfId))
++    if (ctx.role === 'host') this.bots = makeRaceBots(ctx.players.length)
++    this.resetRace()
+     this.selfVisual = this.makeCar(ctx.selfId)
+-    this.resetCar()
+ 
+-    this.hud = createTextPanel(scene, this.camera, 'hud', 4, 0.8, new Vector3(0, 2.4, 8))
++    this.hud = createTextPanel(scene, this.camera, 'hud', 6, 0.8, new Vector3(0, 2.4, 8))
+     this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
+-    this.minimap = createTextPanel(scene, this.camera, 'minimap', 2, 2, new Vector3(-3.5, 2.2, 6))
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+     window.addEventListener('keyup', this.onKeyUp)
+ 
+     this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
+     attachFlowAudio(this.flow, 'race', {
+-      resultSfx: (r) => ((r as Standing[] | undefined)?.[0]?.id === ctx.selfId ? 'win' : 'lose'),
++      resultSfx: (r) => (decodeResult(r)?.[0]?.id === ctx.selfId ? 'win' : 'lose'),
+     })
+     this.flow.onChange((s) => {
+       if (s.phase === 'countdown') {
+-        this.resetCar()
++        this.resetRace()
+         engineStart()
+       }
++      if (s.phase === 'playing') this.onPlaying()
+       if (s.phase === 'result') engineStop()
+       this.syncOverlay()
+       ;(window as unknown as Record<string, unknown>).__BATTLE_PHASE = s.phase
+     })
+     ;(window as unknown as Record<string, unknown>).__BATTLE_PHASE = this.flow.state.phase
+ 
+-    this.own = createOwnershipSync<CarState>({ net: ctx.net, game: this.gameId })
+-    this.own.start(() => ({ ...this.state }))
++    this.own = createOwnershipSync<RaceOwn>({ net: ctx.net, game: this.gameId })
++    this.own.start(() => this.ownSnapshot())
+ 
+     this.ticker = createFixedTicker(SIM_HZ, (_t, stepMs) => this.simulate(stepMs / 1000))
+     this.ticker.start()
+ 
+-    if (ctx.role === 'host') this.flow.startCountdown(3)
++    if (ctx.role === 'host') {
++      this.broadcast('start', { bots: this.bots })
++      // 晚開的通道補送名冊與道具箱狀態
++      this.offOpen = ctx.net.on('open', (peerId) => {
++        ctx.net.send(peerId, { game: this.gameId, type: 'start', payload: { bots: this.bots } })
++        ctx.net.send(peerId, { game: this.gameId, type: 'boxState', payload: { taken: this.taken } })
++      })
++      this.flow.startCountdown(3)
++    }
+   }
+ 
+-  private buildStartFinishLine(): void {
+-    const scene = this.ctx.scene
+-    const r = (R_INNER + R_OUTER) / 2
+-    const w = R_OUTER - R_INNER
+-
+-    // 棋盤格起跑線
+-    const checkerMat1 = new StandardMaterial('checker1', scene)
+-    checkerMat1.diffuseColor = Color3.White()
+-    const checkerMat2 = new StandardMaterial('checker2', scene)
+-    checkerMat2.diffuseColor = new Color3(0.1, 0.1, 0.1)
++  // ---- 場景（波 2 暫用簡單 mesh，波 3 照 spec 換掉） ----
+ 
+-    const gridSize = 4
+-    const cellW = w / gridSize
+-    for (let i = 0; i < gridSize; i++) {
+-      const cell = MeshBuilder.CreateBox(`checker-${i}`, { width: 0.5, height: 0.02, depth: cellW }, scene)
+-      cell.position = new Vector3(0, 0.03, R_INNER + cellW * (i + 0.5))
+-      cell.material = i % 2 === 0 ? checkerMat1 : checkerMat2
+-      this.decorations.push(cell)
++  private mat(name: string, color: Color3, emissive?: Color3): StandardMaterial {
++    let m = this.mats.get(name)
++    if (!m) {
++      m = new StandardMaterial(`race-${name}`, this.ctx.scene)
++      m.diffuseColor = color
++      if (emissive) m.emissiveColor = emissive
++      this.mats.set(name, m)
+     }
++    return m
++  }
+ 
+-    // 起跑拱門柱
+-    const archMat = new StandardMaterial('arch-mat', scene)
+-    archMat.diffuseColor = new Color3(0.8, 0.15, 0.1)
+-
++  private buildTrack(): void {
++    const scene = this.ctx.scene
++    const ground = MeshBuilder.CreateGround('race-ground', { width: GROUND_W, height: GROUND_D }, scene)
++    ground.material = this.mat('ground', new Color3(0.36, 0.62, 0.4))
++    this.statics.push(ground)
++
++    const addStrip = (name: string, halfW: number, y: number, color: Color3) => {
++      const g = roadStrip(TRACK, halfW, y)
++      const mesh = new Mesh(name, scene)
++      const vd = new VertexData()
++      vd.positions = g.positions
++      vd.indices = g.indices
++      vd.normals = g.normals
++      vd.uvs = g.uvs
++      vd.applyToMesh(mesh)
++      const m = this.mat(name, color)
++      m.backFaceCulling = false
++      mesh.material = m
++      this.statics.push(mesh)
++    }
++    // 路緣（稍寬一圈紅色帶）＋路面
++    addStrip('curb', TRACK.width / 2 + 0.6, 0.01, new Color3(0.9, 0.25, 0.22))
++    addStrip('road', TRACK.width / 2, 0.02, new Color3(0.3, 0.32, 0.38))
++
++    // 起跑線（棋盤格）＋拱門
++    const start = pointAt(TRACK, 0)
++    const cells = 8
++    for (let i = 0; i < cells; i++) {
++      const lat = ((i + 0.5) / cells - 0.5) * TRACK.width
++      const cell = MeshBuilder.CreateBox(`race-start-${i}`, { width: TRACK.width / cells, height: 0.02, depth: 0.8 }, scene)
++      cell.position.set(start.x + Math.cos(start.heading) * lat, 0.035, start.z - Math.sin(start.heading) * lat)
++      cell.rotation.y = start.heading
++      cell.material = i % 2 === 0 ? this.mat('white', Color3.White()) : this.mat('black', new Color3(0.1, 0.1, 0.1))
++      this.statics.push(cell)
++    }
+     for (const side of [-1, 1]) {
+-      const pillar = MeshBuilder.CreateBox(`arch-pillar-${side}`, { width: 0.4, height: 3, depth: 0.4 }, scene)
+-      pillar.position.set(side * (w / 2 + 0.5), 1.5, r)
+-      pillar.material = archMat
+-      this.decorations.push(pillar)
++      const lat = side * (TRACK.width / 2 + 0.8)
++      const pillar = MeshBuilder.CreateBox(`race-arch-${side}`, { width: 0.5, height: 4, depth: 0.5 }, scene)
++      pillar.position.set(start.x + Math.cos(start.heading) * lat, 2, start.z - Math.sin(start.heading) * lat)
++      pillar.material = this.mat('arch', new Color3(0.85, 0.2, 0.15))
++      this.statics.push(pillar)
++    }
++    const beam = MeshBuilder.CreateBox('race-arch-beam', { width: TRACK.width + 2.2, height: 0.5, depth: 0.5 }, scene)
++    beam.position.set(start.x, 4, start.z)
++    beam.rotation.y = start.heading
++    beam.material = this.mat('arch', new Color3(0.85, 0.2, 0.15))
++    this.statics.push(beam)
++
++    // 固定加速帶
++    for (const [i, p] of COURSE.pads.entries()) {
++      const pad = MeshBuilder.CreateBox(`race-pad-${i}`, { width: PAD_HALF_W * 2, height: 0.04, depth: PAD_HALF_LEN * 2 }, scene)
++      pad.position.set(p.x, 0.04, p.z)
++      pad.rotation.y = p.heading
++      pad.material = this.mat('pad', new Color3(0.1, 0.6, 0.95), new Color3(0.05, 0.35, 0.7))
++      this.boostPads.push(pad)
+     }
+ 
+-    // 橫樑
+-    const beam = MeshBuilder.CreateBox('arch-beam', { width: w + 1.4, height: 0.3, depth: 0.4 }, scene)
+-    beam.position.set(0, 3, r)
+-    beam.material = archMat
+-    this.decorations.push(beam)
++    // 跳台斜坡：從 s0 升到 s1（唇口 JUMP_H）
++    for (const [i, [s0, s1]] of COURSE.jumps.entries()) {
++      const a = pointAt(TRACK, s0)
++      const b = pointAt(TRACK, s1)
++      const run = Math.hypot(b.x - a.x, b.z - a.z)
++      const ramp = MeshBuilder.CreateBox(
++        `race-ramp-${i}`,
++        { width: RAMP_HALF_W * 2, height: 0.2, depth: Math.hypot(run, JUMP_H) },
++        scene
++      )
++      ramp.position.set((a.x + b.x) / 2, JUMP_H / 2, (a.z + b.z) / 2)
++      ramp.rotation.set(-Math.atan2(JUMP_H, run), Math.atan2(b.x - a.x, b.z - a.z), 0)
++      ramp.material = this.mat('ramp', new Color3(0.95, 0.75, 0.2))
++      this.statics.push(ramp)
++    }
+   }
+ 
+-  private buildTrackMarkings(): void {
++  private buildBoxes(): void {
+     const scene = this.ctx.scene
+-    const markMat = new StandardMaterial('mark-mat', scene)
+-    markMat.diffuseColor = Color3.White()
++    const m = this.mat('box', new Color3(1, 0.8, 0.2), new Color3(0.4, 0.25, 0))
++    for (const b of BOXES) {
++      const mesh = MeshBuilder.CreateBox(`race-box-${b.id}`, { size: 1.1 }, scene)
++      mesh.position.set(b.x, 1, b.z)
++      mesh.material = m
++      this.boxMeshes.push(mesh)
++    }
++  }
++
++  // ---- 車輛視覺（波 3 換成 spec 的 Q 版玩具車） ----
+ 
+-    // 內圈虛線
+-    const innerCount = 48
+-    for (let i = 0; i < innerCount; i += 2) {
+-      const a = (i / innerCount) * Math.PI * 2
+-      const mark = MeshBuilder.CreateBox(`mark-inner-${i}`, { width: 0.8, height: 0.02, depth: 0.15 }, scene)
+-      mark.position.set(Math.sin(a) * (R_INNER + 1.5), 0.025, Math.cos(a) * (R_INNER + 1.5))
+-      mark.rotation.y = a
+-      mark.material = markMat
+-      this.decorations.push(mark)
++  private makeCar(id: string): CarVisual {
++    return makeCarVisual(this.ctx.scene, id, this.colorIndexOf(id), (name, color, emissive) => this.mat(name, color, emissive))
++  }
++
++  private visualFor(id: string): CarVisual {
++    let v = this.carVisuals.get(id)
++    if (!v) {
++      v = this.makeCar(id)
++      this.carVisuals.set(id, v)
+     }
++    return v
++  }
+ 
+-    // 外圈虛線
+-    const outerCount = 64
+-    for (let i = 0; i < outerCount; i += 2) {
+-      const a = (i / outerCount) * Math.PI * 2
+-      const mark = MeshBuilder.CreateBox(`mark-outer-${i}`, { width: 0.8, height: 0.02, depth: 0.15 }, scene)
+-      mark.position.set(Math.sin(a) * (R_OUTER - 1.5), 0.025, Math.cos(a) * (R_OUTER - 1.5))
+-      mark.rotation.y = a
+-      mark.material = markMat
+-      this.decorations.push(mark)
++  private applyPose(v: CarVisual, p: CarPose, dt: number, now: number): void {
++    const moved = Math.hypot(p.x - v.prevX, p.z - v.prevZ)
++    v.prevX = p.x
++    v.prevZ = p.z
++    for (const w of v.wheels) w.rotation.x += moved * 3
++    v.spinAngle = p.spin ? v.spinAngle + dt * Math.PI * 5 : 0
++    v.root.position.set(p.x, p.y, p.z)
++    v.root.rotation.y = p.ry + v.spinAngle
++    v.root.setEnabled(!p.ghost || Math.floor(now / 100) % 2 === 0)
++    v.shield.setEnabled(p.shield)
++    if (p.drift > 0 || p.boost) {
++      v.sparkAcc += dt
++      if (v.sparkAcc > 0.05) {
++        v.sparkAcc = 0
++        this.spawnSpark(p, p.boost && p.drift === 0 ? DRIFT_COLORS[2] : DRIFT_COLORS[p.drift])
++      }
+     }
+   }
+ 
+-  onNetworkMessage(): void {}
++  private spawnSpark(p: CarPose, color: Color3): void {
++    if (this.sparks.length > 60) return
++    const scene = this.ctx.scene
++    const spark = MeshBuilder.CreateBox('race-spark', { size: 0.14 }, scene)
++    const back = 1.1
++    spark.position.set(p.x - Math.sin(p.ry) * back + (Math.random() - 0.5) * 0.8, p.y + 0.15, p.z - Math.cos(p.ry) * back)
++    const m = new StandardMaterial('race-spark-mat', scene)
++    m.emissiveColor = color
++    m.disableLighting = true
++    spark.material = m
++    this.sparks.push({ mesh: spark, life: 0.3 })
++  }
++
++  // ---- 道具畫面 ----
+ 
+-  private simulate(dt: number): void {
+-    if (this.flow.state.phase !== 'playing') return
+-    const k = this.keys
+-    const up = k.has('w') || k.has('arrowup')
+-    const down = k.has('s') || k.has('arrowdown')
+-    const steer = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)
+-    this.drifting = k.has(' ')
++  private spawnItemView(id: string, kind: 'banana' | 'shell', x: number, z: number, vx: number, vz: number): void {
++    if (this.itemViews.has(id)) return
++    this.seen.spawn++
++    const scene = this.ctx.scene
++    const mesh =
++      kind === 'banana'
++        ? MeshBuilder.CreateCylinder(`race-banana-${id}`, { diameterTop: 0.3, diameterBottom: 0.9, height: 0.5 }, scene)
++        : MeshBuilder.CreateSphere(`race-shell-${id}`, { diameter: 0.9, segments: 8 }, scene)
++    mesh.material = kind === 'banana' ? this.mat('banana', new Color3(1, 0.9, 0.2)) : this.mat('shell', new Color3(0.9, 0.15, 0.15))
++    mesh.position.set(x, 0.4, z)
++    this.itemViews.set(id, { kind, mesh, x, z, vx, vz })
++  }
++
++  private removeItemView(id: string): void {
++    const v = this.itemViews.get(id)
++    if (!v) return
++    v.mesh.dispose()
++    this.itemViews.delete(id)
++  }
++
++  // ---- 網路 ----
++
++  onNetworkMessage(from: string, msg: GameNetMessage): void {
++    if (msg.game !== this.gameId) return
++    const p = msg.payload
++    if (this.ctx.role === 'host') {
++      // 上行請求只收本局真人
++      if (!this.isPlayer(from) || from === this.ctx.selfId) return
++      if (msg.type === 'restartReq') {
++        if (this.flow.state.phase === 'result') this.hostRestart()
++      } else if (msg.type === 'itemReq') {
++        const d = decodeItemReq(p, BOXES.length)
++        const snap = this.remoteOwn(from)
++        if (!d || !snap || snap.fin !== null || this.flow.state.phase !== 'playing') return
++        const box = BOXES[d.box]
++        if (Math.hypot(box.x - snap.x, box.z - snap.z) > BOX_RADIUS + ITEM_REQ_SLACK) return
++        this.hostClaim(from, d.box)
++      } else if (msg.type === 'useItem') {
++        const d = decodeUseItem(p)
++        const snap = this.remoteOwn(from)
++        if (!d || !snap || snap.fin !== null || this.flow.state.phase !== 'playing') return
++        this.hostUseItem(from, d.kind, snap)
++      }
++      return
++    }
++    // 其餘皆為 host → 全體的權威訊息，只信任房主
++    if (from !== this.ctx.hostId) return
++    const ids = this.entityIds()
++    switch (msg.type) {
++      case 'start': {
++        const d = decodeStart(p)
++        if (d) this.bots = d.bots
++        break
++      }
++      case 'itemGrant': {
++        const d = decodeItemGrant(p, BOXES.length, ids)
++        if (!d) return
++        this.seen.grant++
++        if (!this.taken.includes(d.box)) this.taken = [...this.taken, d.box]
++        if (d.who === this.ctx.selfId) {
++          this.item = d.kind
++          this.reqBox = null
++          playSfx('pickup')
++        }
++        break
++      }
++      case 'boxState': {
++        const d = decodeBoxState(p, BOXES.length)
++        if (d) this.taken = d.taken
++        break
++      }
++      case 'itemSpawn': {
++        const d = decodeItemSpawn(p, ids)
++        if (d) this.spawnItemView(d.id, d.kind, d.x, d.z, d.vx, d.vz)
++        break
++      }
++      case 'itemState': {
++        const d = decodeItemState(p)
++        if (!d) return
++        for (const e of d.list) {
++          const v = this.itemViews.get(e.id)
++          if (!v) continue
++          v.vx = (e.x - v.x) / (ITEM_STATE_MS / 1000)
++          v.vz = (e.z - v.z) / (ITEM_STATE_MS / 1000)
++          v.x = e.x
++          v.z = e.z
++        }
++        break
++      }
++      case 'itemGone': {
++        const d = decodeItemGone(p)
++        if (!d) return
++        this.removeItemView(d.id)
++        this.seen[d.reason]++
++        break
++      }
++      case 'spin': {
++        const d = decodeSpin(p, ids)
++        if (!d) return
++        this.seen[d.blocked ? 'blocked' : 'spin']++
++        if (d.target === this.ctx.selfId) this.applySpinSelf(d.ms, d.blocked)
++        break
++      }
++      case 'botState': {
++        const d = decodeBotState(
++          p,
++          this.bots.map((b) => b.id),
++          TRACK.len
++        )
++        if (!d) return
++        for (const s of d.states) {
++          let buf = this.botBufs.get(s.id)
++          if (!buf) {
++            buf = createSnapshotBuffer<BotSnap>(100)
++            this.botBufs.set(s.id, buf)
++          }
++          buf.push(this.botSeq++, s)
++          this.botLatest.set(s.id, s)
++        }
++        break
++      }
++    }
++  }
++
++  private applySpinSelf(ms: number, blocked: boolean): void {
++    this.racer = applySpin(this.racer, ms, blocked)
++    playSfx(blocked ? 'tank_shield_break' : 'tank_hit')
++  }
+ 
+-    // 油門/煞車/阻力
+-    if (up) this.speed += ACCEL * dt
+-    else if (down) this.speed -= (this.speed > 0 ? BRAKE : ACCEL) * dt
+-    else this.speed -= Math.sign(this.speed) * Math.min(DRAG * dt, Math.abs(this.speed))
++  // ---- host 裁決 ----
+ 
+-    // 加速帶
++  private hostClaim(who: string, box: number): void {
+     const now = performance.now()
+-    if (this.boostUntil > now) {
+-      this.speed = Math.max(this.speed, BOOST_SPEED * 0.8)
+-    } else {
+-      this.checkBoostPad()
++    const r = claimBox(this.respawnAt, box, this.hold.get(who) ?? null, now)
++    if (!r.ok) return
++    this.respawnAt = r.respawnAt
++    const order = this.order()
++    const rank = Math.max(1, order.indexOf(who) + 1)
++    const kind = rollItem(rank, order.length, Math.random())
++    this.hold.set(who, kind)
++    this.broadcast('itemGrant', { box, who, kind })
++    this.seen.grant++
++    this.taken = takenBoxes(this.respawnAt, now)
++    if (who === this.ctx.selfId) {
++      this.item = kind
++      playSfx('pickup')
++    }
++    const bot = this.botSims.get(who)
++    if (bot) bot.item = kind
++  }
++
++  /** host 生成香蕉／龜殼（加速菇、護盾在使用者本機生效，host 只清持有） */
++  private hostUseItem(who: string, kind: ItemKind, pose: { x: number; z: number; ry: number }): void {
++    if (this.hold.get(who) !== kind) return
++    this.hold.set(who, null)
++    if (kind !== 'banana' && kind !== 'shell') return
++    const target = kind === 'shell' ? shellTarget(who, this.order()) : null
++    const r = spawnField(this.field, kind, who, pose, target)
++    this.field = r.field
++    const e = r.entry
++    this.broadcast('itemSpawn', { id: e.id, kind: e.kind, owner: who, x: e.x, z: e.z, vx: e.vx, vz: e.vz, target: e.target })
++    this.spawnItemView(e.id, e.kind, e.x, e.z, e.vx, e.vz)
++    for (const id of r.overflow) {
++      this.broadcast('itemGone', { id, reason: 'expire' })
++      this.removeItemView(id)
+     }
++  }
+ 
+-    // 出賽道降速
+-    const r = Math.hypot(this.state.x, this.state.z)
+-    const onTrack = r >= R_INNER && r <= R_OUTER
+-    const maxFwd = MAX_SPEED * (onTrack ? 1 : OFFTRACK_FACTOR)
+-    this.speed = Math.max(-MAX_REVERSE, Math.min(maxFwd, this.speed))
++  private hitCars(): HitCar[] {
++    const r = this.racer
++    return [
++      { id: this.ctx.selfId, x: r.car.x, z: r.car.z, ghost: r.ghostMs > 0, shield: r.shieldMs > 0 },
++      ...this.remotePlayers().map(({ id, snap }) => ({ id, x: snap.x, z: snap.z, ghost: snap.ghost, shield: snap.shield })),
++      ...[...this.botSims].map(([id, b]) => ({
++        id,
++        x: b.racer.car.x,
++        z: b.racer.car.z,
++        ghost: b.racer.ghostMs > 0,
++        shield: b.racer.shieldMs > 0,
++      })),
++    ]
++  }
+ 
+-    // 轉向（漂移時更快）
+-    const turnMult = this.drifting ? DRIFT_TURN_MULT : 1
+-    const dragMult = this.drifting ? DRIFT_DRAG : DRAG
+-    if (steer !== 0 && Math.abs(this.speed) > 0.3) {
+-      const f = Math.min(1, Math.abs(this.speed) / (MAX_SPEED * 0.5)) * Math.sign(this.speed)
+-      this.state.ry += steer * TURN_RATE * turnMult * f * dt
++  private applyFieldEvent(ev: FieldEvent): void {
++    if (ev.type === 'gone') {
++      this.broadcast('itemGone', { id: ev.id, reason: ev.reason })
++      this.removeItemView(ev.id)
++      this.seen[ev.reason]++
++      return
+     }
++    this.broadcast('spin', { target: ev.target, ms: ev.ms, blocked: ev.blocked })
++    this.seen[ev.blocked ? 'blocked' : 'spin']++
++    if (ev.target === this.ctx.selfId) this.applySpinSelf(ev.ms, ev.blocked)
++    const bot = this.botSims.get(ev.target)
++    if (bot) bot.racer = applySpin(bot.racer, ev.ms, ev.blocked)
++  }
+ 
+-    // 漂移時阻力較小（更滑）
+-    if (this.drifting && Math.abs(this.speed) > 2) {
+-      this.speed -= Math.sign(this.speed) * Math.min(dragMult * 0.3 * dt, Math.abs(this.speed))
++  private stepBots(dt: number, now: number): void {
++    const dtMs = dt * 1000
++    const cars = this.liveCars()
++    const dist = new Map(
++      cars.map((c) => {
++        const n = normalizeProgress(TRACK, c)
++        return [c.id, n.lap * TRACK.len + n.s]
++      })
++    )
++    const lateralOf = new Map<string, number>()
++    lateralOf.set(this.ctx.selfId, this.racer.lateral)
++    for (const { id, snap } of this.remotePlayers()) lateralOf.set(id, trackProgress(TRACK, snap.x, snap.z).lateral)
++    for (const [id, b] of this.botSims) lateralOf.set(id, b.racer.lateral)
++
++    for (const [id, b] of this.botSims) {
++      const r = b.racer
++      b.mind = stepBotMind(b.mind, { sector: sectorOf(TRACK, r.s), item: b.item }, dtMs)
++      const shellChasing = this.field.items.some(
++        (it) => it.kind === 'shell' && it.target === id && Math.hypot(it.x - r.car.x, it.z - r.car.z) < SHELL_CHASE_DIST
++      )
++      const out = decideRaceBot({
++        course: COURSE,
++        car: r.car,
++        s: r.s,
++        lateral: r.lateral,
++        dist: dist.get(id) ?? 0,
++        item: b.item,
++        others: cars.filter((c) => c.id !== id).map((c) => ({ dist: dist.get(c.id) ?? 0, lateral: lateralOf.get(c.id) ?? 0 })),
++        shellChasing,
++        mind: b.mind,
++      })
++      const input: DriveInput = { throttle: out.throttle, steer: out.steer, drifting: out.drift }
++      const step = stepRacer(r, input, { course: COURSE, others: this.positionsExcept(id) }, dt)
++      b.racer = step.state
++      if (step.events.includes('finish') && b.fin === null) b.fin = Math.min(OWN_FIN_MAX, Math.round(now - this.playStart))
++      if (out.useItem && b.item && b.fin === null) {
++        const kind = b.item
++        b.item = null
++        b.racer = applyItemSelf(b.racer, kind)
++        this.hostUseItem(id, kind, b.racer.car)
++      }
++      if (!b.item && b.fin === null) {
++        const box = touchedBox(BOXES, this.taken, b.racer.car.x, b.racer.car.z)
++        if (box !== null) this.hostClaim(id, box)
++      }
+     }
++  }
+ 
+-    this.state.x += Math.sin(this.state.ry) * this.speed * dt
+-    this.state.z += Math.cos(this.state.ry) * this.speed * dt
+-    const bound = GROUND_SIZE / 2 - 1
+-    this.state.x = Math.max(-bound, Math.min(bound, this.state.x))
+-    this.state.z = Math.max(-bound, Math.min(bound, this.state.z))
++  private hostTick(dt: number, now: number): void {
++    this.stepBots(dt, now)
+ 
+-    // 車對車碰撞推擠
+-    if (this.ctx.role === 'host') {
+-      for (const pid of this.own.remoteIds()) {
+-        const remote = this.own.latestRemote(pid)
+-        if (!remote) continue
+-        const dx = this.state.x - remote.x
+-        const dz = this.state.z - remote.z
+-        const dist = Math.hypot(dx, dz)
+-        if (dist < CAR_PUSH_DIST && dist > 0.01) {
+-          const push = (CAR_PUSH_DIST - dist) * CAR_PUSH_FORCE * dt
+-          this.state.x += (dx / dist) * push
+-          this.state.z += (dz / dist) * push
+-        }
++    // 道具箱重生 → boxState
++    this.taken = takenBoxes(this.respawnAt, now)
++    const key = this.taken.join(',')
++    if (key !== this.sentTakenKey) {
++      this.sentTakenKey = key
++      this.broadcast('boxState', { taken: this.taken })
++    }
++
++    // 場上道具與命中
++    const r = stepField(this.field, this.hitCars(), COURSE, dt)
++    this.field = r.field
++    for (const ev of r.events) this.applyFieldEvent(ev)
++    for (const it of this.field.items) {
++      const v = this.itemViews.get(it.id)
++      if (v) {
++        v.x = it.x
++        v.z = it.z
++        v.vx = 0
++        v.vz = 0
+       }
+     }
++    this.itemStateAcc += dt * 1000
++    if (this.itemStateAcc >= ITEM_STATE_MS) {
++      this.itemStateAcc = 0
++      const shells = this.field.items.filter((it) => it.kind === 'shell')
++      if (shells.length) this.broadcast('itemState', { list: shells.map((s) => ({ id: s.id, x: s.x, z: s.z })) })
++    }
+ 
+-    // 計圈
+-    const quad = quadrantOf(this.state.x, this.state.z)
+-    if (quad !== this.lastQuad) {
+-      const newQ = stepQuarters(this.state.q, this.lastQuad, quad)
+-      if (newQ > this.state.q) playSfx('lap')
+-      this.state.q = newQ
+-      this.lastQuad = quad
++    this.sendBotState(dt)
++
++    // 最佳圈與過線順序（以 host 觀察到的先後）
++    const cars = this.liveCars()
++    for (const c of cars) {
++      const clock = this.lapClocks.get(c.id) ?? makeLapClock(this.playStart)
++      this.lapClocks.set(c.id, stepLapClock(clock, c.lap, now))
++      const was = this.prevFin.get(c.id) ?? null
++      if (was === null && c.fin !== null) {
++        this.finishOrder.push(c.id)
++        if (this.firstFinAt === null) this.firstFinAt = now
++      }
++      this.prevFin.set(c.id, c.fin)
+     }
++    if (raceOver(
++      cars.map((c) => c.fin),
++      this.firstFinAt,
++      now
++    )) {
++      const best: Record<string, number | null> = {}
++      for (const [id, c] of this.lapClocks) best[id] = c.bestMs
++      const rows: StandingCar[] = cars.map((c) => ({ ...c, name: this.nameFor(c.id), colorIndex: this.colorIndexOf(c.id) }))
++      this.flow.endGame(finalStandings(TRACK, rows, this.finishOrder, best))
++    }
++  }
+ 
+-    // host 裁決
+-    if (this.ctx.role === 'host') {
+-      const standings: Standing[] = [
+-        { id: this.ctx.selfId, name: this.nameFor(this.ctx.selfId), q: this.state.q },
+-        ...this.own.remoteIds().map((id) => ({
+-          id,
+-          name: this.nameFor(id),
+-          q: this.own.latestRemote(id)?.q ?? 0,
+-        })),
+-      ]
+-      if (standings.some((s) => s.q >= FINISH_Q)) {
+-        standings.sort((a, b) => b.q - a.q)
+-        this.flow.endGame(standings)
++  // ---- 模擬 ----
++
++  private readInput(): DriveInput {
++    const k = this.keys
++    const up = k.has('w') || k.has('arrowup')
++    const down = k.has('s') || k.has('arrowdown')
++    const steer = (k.has('d') || k.has('arrowright') ? 1 : 0) - (k.has('a') || k.has('arrowleft') ? 1 : 0)
++    return { throttle: up ? 1 : down ? -1 : 0, steer, drifting: k.has(' ') }
++  }
++
++  /** 衝線後交給 AI 慢慢巡航（spec §6） */
++  private cruiseInput(dt: number): DriveInput {
++    const r = this.racer
++    this.cruiseMind = stepBotMind(this.cruiseMind, { sector: sectorOf(TRACK, r.s), item: null }, dt * 1000)
++    const out = decideRaceBot({
++      course: COURSE,
++      car: r.car,
++      s: r.s,
++      lateral: r.lateral,
++      dist: 0,
++      item: null,
++      others: [],
++      shellChasing: false,
++      mind: this.cruiseMind,
++    })
++    return { throttle: out.throttle * CRUISE_THROTTLE, steer: out.steer, drifting: false }
++  }
++
++  /** host：botState 20Hz（倒數期間也送，guest 起跑格才看得到 bot） */
++  private sendBotState(dt: number): void {
++    this.botStateAcc += dt * 1000
++    if (this.botStateAcc < BOT_STATE_MS || !this.botSims.size) return
++    this.botStateAcc = 0
++    this.broadcast('botState', { states: this.botStates() })
++  }
++
++  private simulate(dt: number): void {
++    const phase = this.flow.state.phase
++    if (phase === 'countdown' && this.ctx.role === 'host') this.sendBotState(dt)
++    if (phase !== 'playing') return
++    const now = performance.now()
++
++    const input = this.fin === null ? this.readInput() : this.cruiseInput(dt)
++    const step = stepRacer(this.racer, input, { course: COURSE, others: this.positionsExcept(this.ctx.selfId) }, dt)
++    this.racer = step.state
++    for (const ev of step.events) {
++      if (ev === 'lap') playSfx('lap')
++      else if (ev === 'finish') {
++        if (this.fin === null) this.fin = Math.min(OWN_FIN_MAX, Math.round(now - this.playStart))
++        playSfx('round_end')
++      } else if (ev === 'turbo' || ev === 'pad') playSfx('tank_bounce')
++    }
++
++    // 使用道具（e）
++    if (this.useQueued) {
++      this.useQueued = false
++      const kind = this.item
++      // 過線後不撿不用道具，不干擾還在比賽的車
++      if (kind && this.fin === null) {
++        this.item = null
++        this.racer = applyItemSelf(this.racer, kind)
++        if (this.ctx.role === 'host') this.hostUseItem(this.ctx.selfId, kind, this.racer.car)
++        else this.broadcast('useItem', { kind })
+       }
+     }
+ 
+-    // 引擎音
+-    const speedRatio = Math.abs(this.speed) / MAX_SPEED
+-    engineSet(speedRatio)
++    // 撿道具箱：host 直接裁決，guest 送 itemReq 等 itemGrant
++    if (!this.item && this.fin === null) {
++      const box = touchedBox(BOXES, this.taken, this.racer.car.x, this.racer.car.z)
++      if (box !== null) {
++        if (this.ctx.role === 'host') this.hostClaim(this.ctx.selfId, box)
++        else if (!this.reqBox || this.reqBox.box !== box || now - this.reqBox.at > ITEM_REQ_RETRY_MS) {
++          this.reqBox = { box, at: now }
++          this.broadcast('itemReq', { box })
++        }
++      }
++    }
++
++    if (this.ctx.role === 'host') this.hostTick(dt, now)
++
++    engineSet(Math.min(1, Math.abs(this.racer.car.speed) / MAX_SPEED))
+   }
+ 
++  // ---- 畫面更新 ----
++
+   update(deltaMs: number): void {
+     const dt = deltaMs * 0.001
+     const phase = this.flow.state.phase
+     const now = performance.now()
++    const r = this.racer
+ 
+-    // 自車
+     if (this.selfVisual) {
+-      this.selfVisual.root.position.x = this.state.x
+-      this.selfVisual.root.position.z = this.state.z
+-      this.selfVisual.root.rotation.y = this.state.ry
+-
+-      // 車輪轉動
+-      const wheelSpeed = this.speed * dt * 3
+-      for (const w of this.selfVisual.wheels) {
+-        w.rotation.x += wheelSpeed
+-      }
+-
+-      // 漂移火花
+-      this.spawnDriftSparks(this.selfVisual)
++      this.applyPose(
++        this.selfVisual,
++        {
++          x: r.car.x,
++          z: r.car.z,
++          ry: r.car.ry,
++          y: r.y,
++          drift: r.drift.tier,
++          spin: r.spinMs > 0,
++          ghost: r.ghostMs > 0,
++          shield: r.shieldMs > 0,
++          boost: r.boostMs > 0,
++        },
++        dt,
++        now
++      )
+     }
+ 
+-    // 追尾相機
+-    this.camera.target.set(this.state.x, 0.5, this.state.z)
+-    const wantAlpha = -this.state.ry - Math.PI / 2
+-    this.camera.alpha = lerpAngle(this.camera.alpha, wantAlpha, Math.min(1, dt * 5))
++    // 追尾相機（波 3 照 spec §7 換掉）
++    this.camera.target.set(r.car.x, 0.5 + r.y, r.car.z)
++    this.camera.alpha = lerpAngle(this.camera.alpha, -r.car.ry - Math.PI / 2, Math.min(1, dt * 5))
+ 
+-    // 遠端車
+-    const ids = new Set(this.own.remoteIds())
+-    for (const [id, v] of this.peerVisuals) {
+-      if (ids.has(id)) continue
+-      v.root.dispose(false, true)
+-      this.peerVisuals.delete(id)
++    // 他車與 bot
++    const live = new Set<string>()
++    for (const id of this.own.remoteIds()) {
++      if (!this.isPlayer(id)) continue
++      const s = this.own.sampleRemote(id)
++      const a = s && decodeOwn(s.a, TRACK.len)
++      const b = s && decodeOwn(s.b, TRACK.len)
++      if (!s || !a || !b) continue
++      live.add(id)
++      this.applyPose(this.visualFor(id), this.lerpPose(a, b, s.alpha, b), dt, now)
+     }
+-    for (const id of ids) {
+-      let v = this.peerVisuals.get(id)
+-      if (!v) {
+-        v = this.makeCar(id)
+-        this.peerVisuals.set(id, v)
++    for (const bot of this.bots) {
++      let pose: CarPose | null = null
++      if (this.ctx.role === 'host') {
++        const sim = this.botSims.get(bot.id)
++        if (sim) {
++          const br = sim.racer
++          pose = {
++            x: br.car.x,
++            z: br.car.z,
++            ry: br.car.ry,
++            y: br.y,
++            drift: br.drift.tier,
++            spin: br.spinMs > 0,
++            ghost: br.ghostMs > 0,
++            shield: br.shieldMs > 0,
++            boost: br.boostMs > 0,
++          }
++        }
++      } else {
++        const s = this.botBufs.get(bot.id)?.sample()
++        if (s) pose = this.lerpPose(s.a, s.b, s.alpha, null)
+       }
+-      const s = this.own.sampleRemote(id)
+-      if (s) {
+-        v.root.position.x = s.a.x + (s.b.x - s.a.x) * s.alpha
+-        v.root.position.z = s.a.z + (s.b.z - s.a.z) * s.alpha
+-        v.root.rotation.y = lerpAngle(s.a.ry, s.b.ry, s.alpha)
++      if (!pose) continue
++      live.add(bot.id)
++      this.applyPose(this.visualFor(bot.id), pose, dt, now)
++    }
++    for (const [id, v] of this.carVisuals) {
++      if (live.has(id)) continue
++      disposeCarVisual(v)
++      this.carVisuals.delete(id)
++    }
++
++    // 道具箱、道具
++    const bob = Math.sin(now * 0.004) * 0.15
++    for (const [i, m] of this.boxMeshes.entries()) {
++      m.setEnabled(!this.taken.includes(i))
++      m.position.y = 1 + bob
++      m.rotation.y += dt * 1.5
++      m.rotation.x += dt * 0.7
++    }
++    for (const v of this.itemViews.values()) {
++      if (this.ctx.role !== 'host') {
++        v.x += v.vx * dt
++        v.z += v.vz * dt
+       }
+-      // 遠端車輪轉動
+-      const dx = v.root.position.x - v.prevX
+-      const dz = v.root.position.z - v.prevZ
+-      v.prevX = v.root.position.x
+-      v.prevZ = v.root.position.z
+-      const wheelSpeed = Math.hypot(dx, dz) * 3
+-      for (const w of v.wheels) w.rotation.x += wheelSpeed
+-    }
+-
+-    // 塵土粒子更新
+-    this.spawnDust()
+-    this.dustParticles = this.dustParticles.filter((p) => {
+-      p.life -= dt
+-      if (p.life <= 0) {
+-        p.mesh.dispose()
++      v.mesh.position.set(v.x, 0.4, v.z)
++      if (v.kind === 'shell') v.mesh.rotation.y += dt * 10
++    }
++    for (const pad of this.boostPads) pad.position.y = 0.04 + Math.sin(now * 0.006) * 0.02
++
++    this.sparks = this.sparks.filter((s) => {
++      s.life -= dt
++      if (s.life <= 0) {
++        s.mesh.material?.dispose()
++        s.mesh.dispose()
+         return false
+       }
+-      p.mesh.position.x += p.vx * dt
+-      p.mesh.position.z += p.vz * dt
+-      p.mesh.scaling.scaleInPlace(0.96)
+-      const mat = p.mesh.material as StandardMaterial
+-      if (mat) mat.alpha = p.life * 1.2
++      s.mesh.position.y += dt * 1.5
+       return true
+     })
+ 
+-    // 漂移火花更新
+-    if (this.selfVisual) {
+-      this.selfVisual.driftSparks = this.selfVisual.driftSparks.filter((s) => {
+-        s.life -= dt
+-        if (s.life <= 0) {
+-          s.mesh.dispose()
+-          return false
+-        }
+-        s.mesh.position.y += dt * 2
+-        const mat = s.mesh.material as StandardMaterial
+-        if (mat) mat.alpha = s.life * 3
+-        return true
+-      })
+-    }
+-
+-    // 加速帶閃爍
+-    for (const pad of this.boostPads) {
+-      pad.mesh.position.y = 0.03 + Math.sin(now * 0.006) * 0.02
+-    }
+-
+-    // HUD
+-    const lap = Math.min(Math.floor(this.state.q / 4) + 1, LAPS)
+-    const speedKmh = Math.round(Math.abs(this.speed) * 15)
+-    const pos = this.calcPosition()
+-    const driftNote = this.drifting ? ' [漂移]' : ''
+-    const boostNote = this.boostUntil > now ? ' ⚡' : ''
+-    const hudText = phase === 'playing'
+-      ? `Lap ${lap}/${LAPS}  ${speedKmh}km/h  #${pos}${driftNote}${boostNote}`
+-      : ''
+-    this.hud.draw(hudText, 42)
+-
+-    // 迷你地圖
+-    if (phase === 'playing') this.drawMinimap()
++    this.drawHud(phase)
+ 
+-    // 橫幅
+     if (phase === 'countdown') {
+       const n = Math.ceil(this.flow.countdownRemaining() / 1000)
+       this.banner.draw(n > 0 ? String(n) : 'GO!', 200)
+     } else if (phase === 'result') {
+       this.banner.draw('')
+       if (this.ctx.role === 'host') {
+         this.resultElapsed += deltaMs
+-        if (this.resultElapsed > 10000) this.hostRestart()
++        if (this.resultElapsed > RESULT_RESTART_MS) this.hostRestart()
+       }
+     } else {
+       this.resultElapsed = 0
+       this.banner.draw('')
+     }
+ 
+     this.syncOverlay()
+-
+-    ;(window as unknown as Record<string, unknown>).__BATTLE_POS = {
+-      x: this.state.x,
+-      z: this.state.z,
+-      q: this.state.q,
+-    }
+   }
+ 
+-  private calcPosition(): number {
+-    const allQ: { id: string; q: number }[] = [
+-      { id: this.ctx.selfId, q: this.state.q },
+-      ...this.own.remoteIds().map((id) => ({ id, q: this.own.latestRemote(id)?.q ?? 0 })),
+-    ]
+-    allQ.sort((a, b) => b.q - a.q)
+-    return allQ.findIndex((s) => s.id === this.ctx.selfId) + 1
+-  }
+-
+-  private drawMinimap(): void {
+-    const lines: string[] = []
+-    const half = GROUND_SIZE / 2
+-
+-    // 賽道用圓環表示
+-    lines.push('  ╭──────╮')
+-    lines.push(' ╭╯  ╭╮  ╰╮')
+-    lines.push(' │  ╭╯╰╮  │')
+-    lines.push(' ╰╮ ╰──╯ ╭╯')
+-    lines.push('  ╰──────╯')
+-
+-    // 自己的位置（用 @ 表示）
+-    const sx = Math.round(((this.state.x + half) / GROUND_SIZE) * 10)
+-    const sz = Math.round(((this.state.z + half) / GROUND_SIZE) * 6)
+-    if (sz >= 0 && sz < lines.length && sx >= 0 && sx < lines[sz].length) {
+-      const row = lines[sz].split('')
+-      row[sx] = '@'
+-      lines[sz] = row.join('')
++  private lerpPose(
++    a: { x: number; z: number; ry: number; drift: DriftTier; spin: boolean },
++    b: { x: number; z: number; ry: number; drift: DriftTier; spin: boolean },
++    alpha: number,
++    flags: RaceOwn | null
++  ): CarPose {
++    return {
++      x: a.x + (b.x - a.x) * alpha,
++      z: a.z + (b.z - a.z) * alpha,
++      ry: lerpAngle(a.ry, b.ry, alpha),
++      y: 0,
++      drift: b.drift,
++      spin: b.spin,
++      ghost: flags?.ghost ?? false,
++      shield: flags?.shield ?? false,
++      boost: flags?.boost ?? false,
+     }
+-
+-    this.minimap.draw(lines.join('\n'), 24)
+   }
+ 
+-  // ---- 場地裝飾 ----
+-
+-  private buildDecorations(): void {
+-    const { scene } = this.ctx
+-    const d = this.decorations
+-
+-    const add = (m: Mesh) => { d.push(m); return m }
+-
+-    const barrierMat = new StandardMaterial('barrier-mat', scene)
+-    barrierMat.diffuseColor = new Color3(0.35, 0.35, 0.38)
+-
+-    const curbRed = new StandardMaterial('curb-red', scene)
+-    curbRed.diffuseColor = new Color3(0.9, 0.15, 0.1)
+-    const curbWhite = new StandardMaterial('curb-white', scene)
+-    curbWhite.diffuseColor = new Color3(0.95, 0.95, 0.95)
+-
+-    const trunkMat = new StandardMaterial('trunk-mat', scene)
+-    trunkMat.diffuseColor = new Color3(0.45, 0.3, 0.15)
+-    const canopyMat = new StandardMaterial('canopy-mat', scene)
+-    canopyMat.diffuseColor = new Color3(0.15, 0.5, 0.2)
++  /** 暫用文字 HUD（波 4 改 React setHud 後刪）：名次／圈數／道具供 qa 判讀 */
++  private drawHud(phase: string): void {
++    const r = this.racer
++    const order = this.order()
++    const rank = order.indexOf(this.ctx.selfId) + 1
++    const lapShown = Math.min(r.lap.lap + 1, LAPS)
++    const kmh = Math.round(Math.abs(r.car.speed) * 15)
++    const tags = [
++      r.drift.tier > 0 ? `甩尾${r.drift.tier}` : '',
++      r.boostMs > 0 ? '⚡' : '',
++      r.slipMs > 0 ? '尾流' : '',
++      r.shieldMs > 0 ? '🛡' : '',
++      r.spinMs > 0 ? '打滑' : '',
++      r.wrongWay ? '逆向!' : '',
++      r.lap.lap === LAPS - 1 && this.fin === null ? '最後一圈' : '',
++      this.fin !== null ? `完賽 ${formatRaceMs(this.fin)}` : '',
++    ].filter(Boolean)
++    const text =
++      phase === 'playing'
++        ? `第${rank}/${order.length}名  LAP ${lapShown}/${LAPS}  ${kmh}km/h  道具:${this.item ? ITEM_LABEL[this.item] : '—'}  ${tags.join(' ')}`
++        : ''
++    this.hud.draw(text, 34)
+ 
+-    const bushMat = new StandardMaterial('bush-mat', scene)
+-    bushMat.diffuseColor = new Color3(0.1, 0.4, 0.15)
+-
+-    const rockMat = new StandardMaterial('rock-mat', scene)
+-    rockMat.diffuseColor = new Color3(0.5, 0.48, 0.45)
+-
+-    const standMat = new StandardMaterial('stand-mat', scene)
+-    standMat.diffuseColor = new Color3(0.6, 0.58, 0.55)
+-    const seatMat = new StandardMaterial('seat-mat', scene)
+-    seatMat.diffuseColor = new Color3(0.2, 0.35, 0.65)
+-
+-    const pitMat = new StandardMaterial('pit-mat', scene)
+-    pitMat.diffuseColor = new Color3(0.85, 0.85, 0.82)
+-    const roofMat = new StandardMaterial('roof-mat', scene)
+-    roofMat.diffuseColor = new Color3(0.8, 0.2, 0.15)
+-
+-    // 護欄
+-    const placeRing = (r: number, count: number, w: number, h: number, depth: number, mat: StandardMaterial) => {
+-      for (let i = 0; i < count; i++) {
+-        const a = (i / count) * Math.PI * 2
+-        const b = add(MeshBuilder.CreateBox(`barrier-${r.toFixed(0)}-${i}`, { width: w, height: h, depth }, scene))
+-        b.position.set(Math.sin(a) * r, h / 2, Math.cos(a) * r)
+-        b.rotation.y = a
+-        b.material = mat
+-      }
+-    }
+-    placeRing(R_INNER - 0.6, 36, 1.3, 0.6, 0.3, barrierMat)
+-    placeRing(R_OUTER + 0.6, 48, 1.3, 0.6, 0.3, barrierMat)
+-
+-    // 路緣石
+-    const placeCurb = (r: number, count: number) => {
+-      for (let i = 0; i < count; i++) {
+-        const a = (i / count) * Math.PI * 2
+-        const b = add(MeshBuilder.CreateBox(`curb-${r.toFixed(0)}-${i}`, { width: 0.9, height: 0.05, depth: 0.4 }, scene))
+-        b.position.set(Math.sin(a) * r, 0.03, Math.cos(a) * r)
+-        b.rotation.y = a
+-        b.material = i % 2 === 0 ? curbRed : curbWhite
+-      }
++    ;(window as unknown as Record<string, unknown>).__BATTLE_POS = {
++      x: r.car.x,
++      z: r.car.z,
++      y: r.y,
++      ry: r.car.ry,
++      lap: r.lap.lap,
++      cp: r.lap.cp,
++      s: r.s,
++      lateral: r.lateral,
++      speed: r.car.speed,
++      rank,
++      total: order.length,
++      item: this.item,
++      fin: this.fin,
++      wrongWay: r.wrongWay,
++      drift: r.drift.tier,
++      boostMs: r.boostMs,
++      slipMs: r.slipMs,
++      spinMs: r.spinMs,
++      shieldMs: r.shieldMs,
++      ghostMs: r.ghostMs,
++      bots: this.bots.length,
++      items: this.itemViews.size,
++      taken: this.taken.length,
++      seen: { ...this.seen },
++      boostMax: BOOST_SPEED,
+     }
+-    placeCurb(R_INNER, 36)
+-    placeCurb(R_OUTER, 48)
+-
+-    // 樹木
+-    const treeSpots = [
+-      [-22, -22], [-24, -18], [-20, -24],
+-      [22, -22], [24, -18], [20, -24],
+-      [-22, 22], [-24, 18], [-20, 24],
+-      [22, 22], [24, 18], [20, 24],
+-    ]
+-    for (const [tx, tz] of treeSpots) {
+-      const trunk = add(MeshBuilder.CreateCylinder(`trunk-${tx}-${tz}`, { height: 1.8, diameter: 0.45 }, scene))
+-      trunk.position.set(tx, 0.9, tz)
+-      trunk.material = trunkMat
+-      const canopy = add(MeshBuilder.CreateSphere(`canopy-${tx}-${tz}`, { diameter: 2.2 }, scene))
+-      canopy.position.set(tx, 2.5, tz)
+-      canopy.material = canopyMat
+-    }
+-
+-    // 灌木
+-    const bushSpots = [
+-      [-5, -5], [6, -8], [-8, 4], [3, 7],
+-      [-3, -10], [8, 2], [-10, -3], [0, 10],
+-    ]
+-    for (let i = 0; i < bushSpots.length; i++) {
+-      const [bx, bz] = bushSpots[i]
+-      const bush = add(MeshBuilder.CreateSphere(`bush-${i}`, { diameter: 1.3 }, scene))
+-      bush.position.set(bx, 0.4, bz)
+-      bush.scaling.y = 0.55
+-      bush.material = bushMat
+-    }
+-
+-    // 岩石
+-    const rockSpots = [
+-      [-25, 0, 1.0], [25, 0, 0.8], [0, -25, 0.9],
+-      [0, 25, 0.7], [-18, -20, 0.6], [18, 20, 0.8],
+-    ]
+-    for (let i = 0; i < rockSpots.length; i++) {
+-      const [rx, rz, s] = rockSpots[i]
+-      const rock = add(MeshBuilder.CreateBox(`rock-${i}`, { size: s }, scene))
+-      rock.position.set(rx, s * 0.4, rz)
+-      rock.rotation.y = i * 1.2
+-      rock.scaling.set(1, 0.7, 1.2)
+-      rock.material = rockMat
+-    }
+-
+-    // 看台
+-    const standX = 26
+-    const standZ = 0
+-    const standBase = add(MeshBuilder.CreateBox('stand-base', { width: 14, height: 1, depth: 5 }, scene))
+-    standBase.position.set(standX, 0.5, standZ)
+-    standBase.material = standMat
+-    for (let row = 0; row < 3; row++) {
+-      const seat = add(MeshBuilder.CreateBox(`stand-seat-${row}`, { width: 12, height: 0.5, depth: 1.2 }, scene))
+-      seat.position.set(standX, 1.25 + row * 0.6, standZ - 1.5 + row * 1.2)
+-      seat.material = seatMat
+-    }
+-    const roof = add(MeshBuilder.CreateBox('stand-roof', { width: 14, height: 0.15, depth: 6 }, scene))
+-    roof.position.set(standX, 3.5, standZ)
+-    roof.material = standMat
+-
+-    // 維修站
+-    const pitX = -26
+-    const pitZ = 0
+-    const pitBody = add(MeshBuilder.CreateBox('pit-body', { width: 7, height: 2.8, depth: 5 }, scene))
+-    pitBody.position.set(pitX, 1.4, pitZ)
+-    pitBody.material = pitMat
+-    const pitRoof = add(MeshBuilder.CreateBox('pit-roof', { width: 8, height: 0.2, depth: 6 }, scene))
+-    pitRoof.position.set(pitX, 2.9, pitZ)
+-    pitRoof.material = roofMat
+-    const pitDoor = add(MeshBuilder.CreateBox('pit-door', { width: 2.5, height: 2.2, depth: 0.1 }, scene))
+-    pitDoor.position.set(pitX, 1.1, pitZ + 2.55)
+-    pitDoor.material = roofMat
+   }
+ 
+   dispose(): void {
+     window.removeEventListener('keydown', this.onKeyDown)
+     window.removeEventListener('keyup', this.onKeyUp)
+     stopAllAudio()
+     this.ticker.stop()
+     this.own.stop()
+     this.flow.dispose()
+-    this.selfVisual?.root.dispose(false, true)
+-    for (const v of this.peerVisuals.values()) v.root.dispose(false, true)
+-    this.peerVisuals.clear()
++    this.offOpen?.()
++    if (this.selfVisual) disposeCarVisual(this.selfVisual)
++    for (const v of this.carVisuals.values()) disposeCarVisual(v)
++    this.carVisuals.clear()
++    for (const v of this.itemViews.values()) v.mesh.dispose()
++    this.itemViews.clear()
++    for (const s of this.sparks) {
++      s.mesh.material?.dispose()
++      s.mesh.dispose()
++    }
++    this.sparks = []
+     this.hud.dispose()
+     this.banner.dispose()
+-    this.minimap.dispose()
+-    for (const m of this.decorations) m.dispose()
+-    this.decorations = []
+-    for (const p of this.boostPads) p.mesh.dispose()
++    for (const m of [...this.statics, ...this.boxMeshes, ...this.boostPads]) m.dispose()
++    this.statics = []
++    this.boxMeshes = []
+     this.boostPads = []
+-    for (const p of this.dustParticles) p.mesh.dispose()
+-    this.dustParticles = []
++    for (const m of this.mats.values()) m.dispose()
++    this.mats.clear()
+   }
+ }
+ 
+-// ---- 輔助型別 ----
+-
+-interface CarVisual {
+-  root: Mesh
+-  wheels: Mesh[]
+-  driftSparks: { mesh: Mesh; life: number }[]
+-  prevX: number
+-  prevZ: number
+-}
+-
+-interface DustParticle {
+-  mesh: Mesh
+-  life: number
+-  vx: number
+-  vz: number
+-}
+-
+ export const createRaceScene = (): GameModule => new RaceScene()
+diff --git a/src/babylon/games/raceFx/carVisual.test.ts b/src/babylon/games/raceFx/carVisual.test.ts
+new file mode 100644
+index 0000000..d0f9a00
+--- /dev/null
++++ b/src/babylon/games/raceFx/carVisual.test.ts
+@@ -0,0 +1,53 @@
++import { describe, it, expect, afterEach } from 'vitest'
++import { NullEngine } from '@babylonjs/core/Engines/nullEngine'
++import { Scene, StandardMaterial } from '@/babylon/babylonCore'
++import { disposeCarVisual, makeCarVisual, type MatCache } from '@/babylon/games/raceFx/carVisual'
++
++let engine: NullEngine | null = null
++afterEach(() => {
++  engine?.dispose()
++  engine = null
++})
++
++const setup = () => {
++  engine = new NullEngine()
++  const scene = new Scene(engine)
++  const cache = new Map<string, StandardMaterial>()
++  const mat: MatCache = (name, color) => {
++    let m = cache.get(name)
++    if (!m) {
++      m = new StandardMaterial(name, scene)
++      m.diffuseColor = color
++      cache.set(name, m)
++    }
++    return m
++  }
++  return { scene, cache, mat }
++}
++
++describe('disposeCarVisual（共用材質）', () => {
++  it('拆掉一台車後，其他車的輪胎／護盾／同色車身材質仍在、未被釋放', () => {
++    const { scene, cache, mat } = setup()
++    const self = makeCarVisual(scene, 'p1', 0, mat)
++    const bot = makeCarVisual(scene, 'bot-0', 0, mat)
++    disposeCarVisual(bot)
++    expect(bot.root.isDisposed()).toBe(true)
++    for (const m of self.root.getChildMeshes()) {
++      expect(m.material).not.toBeNull()
++      expect(scene.materials).toContain(m.material)
++    }
++    for (const m of cache.values()) expect(scene.materials).toContain(m)
++    // 之後新建的車拿到的快取材質也還能用
++    const again = makeCarVisual(scene, 'bot-0', 0, mat)
++    expect(again.wheels[0].material).toBe(cache.get('wheel'))
++    expect(scene.materials).toContain(again.wheels[0].material)
++  })
++
++  it('子 mesh 一併拆掉', () => {
++    const { scene, mat } = setup()
++    const v = makeCarVisual(scene, 'p1', 1, mat)
++    const kids = v.root.getChildMeshes()
++    disposeCarVisual(v)
++    for (const k of kids) expect(k.isDisposed()).toBe(true)
++  })
++})
+diff --git a/src/babylon/games/raceFx/carVisual.ts b/src/babylon/games/raceFx/carVisual.ts
+new file mode 100644
+index 0000000..31cd36b
+--- /dev/null
++++ b/src/babylon/games/raceFx/carVisual.ts
+@@ -0,0 +1,72 @@
++/**
++ * 賽車車輛視覺（波 2 暫用方塊車，波 3 照 spec §4 換成 Q 版玩具車）。
++ * 材質由呼叫端的 mat 快取提供、多台車共用：拆一台車只拆 mesh，材質統一在場景 dispose 時釋放。
++ */
++import { Color3, Mesh, MeshBuilder, type Scene, type StandardMaterial } from '@/babylon/babylonCore'
++import { PLAYER_PALETTE, hexToRgb, type ColorIndex } from '@/babylon/fx/palette'
++
++export type MatCache = (name: string, color: Color3, emissive?: Color3) => StandardMaterial
++
++export interface CarVisual {
++  root: Mesh
++  wheels: Mesh[]
++  shield: Mesh
++  spinAngle: number
++  prevX: number
++  prevZ: number
++  sparkAcc: number
++}
++
++export function makeCarVisual(scene: Scene, id: string, colorIndex: ColorIndex, mat: MatCache): CarVisual {
++  const pal = PLAYER_PALETTE[colorIndex]
++  const body = mat(`car-${pal.base}`, Color3.FromArray(hexToRgb(pal.base)))
++  const darkMat = mat(`car-${pal.dark}`, Color3.FromArray(hexToRgb(pal.dark)))
++  const wheelMat = mat('wheel', new Color3(0.12, 0.12, 0.14))
++
++  const root = new Mesh(`car-${id}`, scene)
++  const chassis = MeshBuilder.CreateBox(`chassis-${id}`, { width: 1.3, height: 0.35, depth: 2.2 }, scene)
++  chassis.material = body
++  chassis.parent = root
++  chassis.position.y = 0.3
++  const cabin = MeshBuilder.CreateBox(`cabin-${id}`, { width: 0.85, height: 0.35, depth: 0.8 }, scene)
++  cabin.material = darkMat
++  cabin.parent = root
++  cabin.position.set(0, 0.62, -0.1)
++  const wing = MeshBuilder.CreateBox(`wing-${id}`, { width: 1.1, height: 0.08, depth: 0.25 }, scene)
++  wing.material = darkMat
++  wing.parent = root
++  wing.position.set(0, 0.75, -0.95)
++
++  const wheels: Mesh[] = []
++  for (const [wx, wz] of [
++    [-0.65, 0.6],
++    [0.65, 0.6],
++    [-0.65, -0.6],
++    [0.65, -0.6],
++  ]) {
++    const wheel = MeshBuilder.CreateCylinder(`wheel-${wx}-${wz}-${id}`, { height: 0.18, diameter: 0.4 }, scene)
++    wheel.material = wheelMat
++    wheel.parent = root
++    wheel.position.set(wx, 0.2, wz)
++    wheel.rotation.z = Math.PI / 2
++    wheels.push(wheel)
++  }
++
++  const shield = MeshBuilder.CreateSphere(`shield-${id}`, { diameter: 3, segments: 12 }, scene)
++  const sm = mat('shield', new Color3(0.4, 0.8, 1), new Color3(0.2, 0.5, 0.8))
++  sm.alpha = 0.3
++  shield.material = sm
++  shield.parent = root
++  shield.position.y = 0.5
++  shield.setEnabled(false)
++
++  return { root, wheels, shield, spinAngle: 0, prevX: 0, prevZ: 0, sparkAcc: 0 }
++}
++
++/**
++ * 拆一台車：連子 mesh 一起拆，但不帶 disposeMaterialAndTextures —— 材質是多台車共用的快取，
++ * Material.dispose 會把所有用到它的 mesh 的 material 設成 null（其他車跟著變無材質）。
++ */
++export function disposeCarVisual(v: CarVisual): void {
++  v.root.dispose()
++}
+diff --git a/src/babylon/games/raceFx/raceField.test.ts b/src/babylon/games/raceFx/raceField.test.ts
+new file mode 100644
+index 0000000..5b5c2b0
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceField.test.ts
+@@ -0,0 +1,113 @@
++import { describe, it, expect } from 'vitest'
++import { emptyField, spawnField, stepField, type FieldCar } from '@/babylon/games/raceFx/raceField'
++import { BANANA_MAX, SHELL_LIFE_MS, SHELL_SPIN_MS, SPIN_MS } from '@/babylon/games/raceRules/items'
++import { placeAt } from '@/babylon/games/raceRules/track'
++import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++
++const C = RACE_COURSE
++const T = C.track
++const at = (s: number, lat = 0) => placeAt(T, s, lat)
++const car = (id: string, s: number, extra: Partial<FieldCar> = {}): FieldCar => {
++  const p = at(s)
++  return { id, x: p.x, z: p.z, ghost: false, shield: false, ...extra }
++}
++const pose = (s: number) => {
++  const p = at(s)
++  return { x: p.x, z: p.z, ry: p.heading }
++}
++
++describe('spawnField', () => {
++  it('香蕉在車後、龜殼在車前；id 遞增不重複', () => {
++    let f = emptyField()
++    const a = spawnField(f, 'banana', 'p1', pose(20), null)
++    f = a.field
++    const b = spawnField(f, 'shell', 'p1', pose(20), 'p2')
++    expect(a.entry.id).not.toBe(b.entry.id)
++    expect(a.entry.vx).toBe(0)
++    expect(Math.hypot(b.entry.vx, b.entry.vz)).toBeGreaterThan(20)
++    expect(b.entry.target).toBe('p2')
++    expect(b.field.items).toHaveLength(2)
++  })
++
++  it('香蕉超過 BANANA_MAX 時移除最舊的並回報', () => {
++    let f = emptyField()
++    const ids: string[] = []
++    for (let i = 0; i < BANANA_MAX; i++) {
++      const r = spawnField(f, 'banana', 'p1', pose(20 + i * 10), null)
++      f = r.field
++      ids.push(r.entry.id)
++      expect(r.overflow).toEqual([])
++    }
++    const r = spawnField(f, 'banana', 'p1', pose(200), null)
++    expect(r.overflow).toEqual([ids[0]])
++    expect(r.field.items.filter((it) => it.kind === 'banana')).toHaveLength(BANANA_MAX)
++    expect(r.field.items.some((it) => it.id === ids[0])).toBe(false)
++  })
++})
++
++describe('stepField（host 裁決）', () => {
++  it('香蕉打到別台：spin SPIN_MS ＋ itemGone hit；香蕉消失', () => {
++    const f = spawnField(emptyField(), 'banana', 'p1', pose(30), null)
++    const e = f.entry
++    const victim: FieldCar = { id: 'p2', x: e.x, z: e.z, ghost: false, shield: false }
++    const r = stepField(f.field, [victim], C, 1 / 30)
++    expect(r.events).toContainEqual({ type: 'spin', target: 'p2', ms: SPIN_MS, blocked: false })
++    expect(r.events).toContainEqual({ type: 'gone', id: e.id, reason: 'hit' })
++    expect(r.field.items).toHaveLength(0)
++  })
++
++  it('護盾擋下：spin blocked、ms 0；ghost 不中', () => {
++    const f = spawnField(emptyField(), 'banana', 'p1', pose(30), null)
++    const e = f.entry
++    const ghost = stepField(f.field, [{ id: 'p2', x: e.x, z: e.z, ghost: true, shield: false }], C, 1 / 30)
++    expect(ghost.events).toEqual([])
++    const sh = stepField(f.field, [{ id: 'p2', x: e.x, z: e.z, ghost: false, shield: true }], C, 1 / 30)
++    expect(sh.events).toContainEqual({ type: 'spin', target: 'p2', ms: 0, blocked: true })
++  })
++
++  it('追蹤龜殼追到目標：spin SHELL_SPIN_MS', () => {
++    let f = spawnField(emptyField(), 'shell', 'p1', pose(30), 'p2').field
++    const target = car('p2', 45)
++    let hit = null
++    for (let i = 0; i < 60 && !hit; i++) {
++      const r = stepField(f, [car('p1', 30), target], C, 1 / 30)
++      f = r.field
++      hit = r.events.find((ev) => ev.type === 'spin') ?? null
++    }
++    expect(hit).toEqual({ type: 'spin', target: 'p2', ms: SHELL_SPIN_MS, blocked: false })
++  })
++
++  it('龜殼壽命到 → itemGone expire', () => {
++    let f = spawnField(emptyField(), 'shell', 'p1', pose(30), 'ghost-car').field
++    let gone = null
++    for (let i = 0; i < (SHELL_LIFE_MS / 1000) * 30 + 5 && !gone; i++) {
++      const r = stepField(f, [], C, 1 / 30)
++      f = r.field
++      gone = r.events.find((ev) => ev.type === 'gone') ?? null
++    }
++    expect(gone).toMatchObject({ type: 'gone', reason: 'expire' })
++  })
++
++  it('龜殼撞香蕉：兩者都 clash 消失', () => {
++    let f = emptyField()
++    const ban = spawnField(f, 'banana', 'p2', pose(40), null)
++    f = ban.field
++    const sh = spawnField(f, 'shell', 'p1', pose(30), null)
++    f = sh.field
++    const ids = new Set<string>()
++    for (let i = 0; i < 30; i++) {
++      const r = stepField(f, [], C, 1 / 30)
++      f = r.field
++      for (const ev of r.events) if (ev.type === 'gone' && ev.reason === 'clash') ids.add(ev.id)
++    }
++    expect(ids).toEqual(new Set([ban.entry.id, sh.entry.id]))
++    expect(f.items).toHaveLength(0)
++  })
++
++  it('不改動輸入 field', () => {
++    const f = spawnField(emptyField(), 'shell', 'p1', pose(30), null).field
++    const before = JSON.stringify(f)
++    stepField(f, [], C, 1 / 30)
++    expect(JSON.stringify(f)).toBe(before)
++  })
++})
+diff --git a/src/babylon/games/raceFx/raceField.ts b/src/babylon/games/raceFx/raceField.ts
+new file mode 100644
+index 0000000..ae34129
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceField.ts
+@@ -0,0 +1,108 @@
++/**
++ * host 端場上道具（香蕉／龜殼）的推進與命中裁決（純函式）。
++ * 產生的事件由 race.ts 廣播：gone → itemGone、spin → spin。guest 不跑這裡、不自判命中。
++ */
++import {
++  bananaOverflow,
++  hitTest,
++  shellBananaClash,
++  shellGone,
++  spawnItem,
++  stepShell,
++  type HitCar,
++} from '@/babylon/games/raceRules/items'
++import type { Course } from '@/babylon/games/raceRules/track'
++import type { ItemGoneReason } from '@/babylon/games/raceFx/raceNet'
++
++export interface FieldEntry {
++  id: string
++  kind: 'banana' | 'shell'
++  owner: string
++  /** 龜殼追蹤目標；null = 直射（香蕉恆為 null） */
++  target: string | null
++  x: number
++  z: number
++  vx: number
++  vz: number
++  ageMs: number
++}
++
++export interface ItemField {
++  /** 依生成先後 */
++  items: FieldEntry[]
++  nextId: number
++}
++
++export type FieldCar = HitCar
++
++export type FieldEvent =
++  | { type: 'gone'; id: string; reason: ItemGoneReason }
++  | { type: 'spin'; target: string; ms: number; blocked: boolean }
++
++export const emptyField = (): ItemField => ({ items: [], nextId: 0 })
++
++/** 生成香蕉或龜殼；香蕉超過上限時回報被擠掉的最舊幾根（已從 field 移除） */
++export function spawnField(
++  f: ItemField,
++  kind: 'banana' | 'shell',
++  owner: string,
++  car: { x: number; z: number; ry: number },
++  target: string | null
++): { field: ItemField; entry: FieldEntry; overflow: string[] } {
++  const p = spawnItem(kind, car)
++  const entry: FieldEntry = { id: `i${f.nextId}`, kind, owner, target: kind === 'shell' ? target : null, ...p, ageMs: 0 }
++  let items = [...f.items, entry]
++  let overflow: string[] = []
++  if (kind === 'banana') {
++    overflow = bananaOverflow(items.filter((it) => it.kind === 'banana').map((it) => it.id))
++    if (overflow.length) items = items.filter((it) => !overflow.includes(it.id))
++  }
++  return { field: { items, nextId: f.nextId + 1 }, entry, overflow }
++}
++
++/** 一個 tick：龜殼移動 → 壽命／出界 → 撞香蕉 → 命中各車。不改動輸入 */
++export function stepField(
++  f: ItemField,
++  cars: readonly FieldCar[],
++  course: Course,
++  dt: number
++): { field: ItemField; events: FieldEvent[] } {
++  const events: FieldEvent[] = []
++  const dead = new Set<string>()
++  const pos = new Map(cars.map((c) => [c.id, c]))
++  let items = f.items.map((it): FieldEntry => {
++    if (it.kind === 'banana') return { ...it, ageMs: it.ageMs + dt * 1000 }
++    const tp = it.target ? (pos.get(it.target) ?? null) : null
++    const sh = stepShell({ ...it }, tp, course.track, dt)
++    return { ...it, x: sh.x, z: sh.z, vx: sh.vx, vz: sh.vz, ageMs: sh.ageMs }
++  })
++
++  for (const it of items) {
++    if (it.kind !== 'shell') continue
++    if (shellGone(it, course)) {
++      dead.add(it.id)
++      events.push({ type: 'gone', id: it.id, reason: 'expire' })
++      continue
++    }
++    const ban = shellBananaClash(
++      it,
++      items.filter((b) => b.kind === 'banana' && !dead.has(b.id))
++    )
++    if (ban) {
++      dead.add(it.id)
++      dead.add(ban)
++      events.push({ type: 'gone', id: ban, reason: 'clash' }, { type: 'gone', id: it.id, reason: 'clash' })
++    }
++  }
++  items = items.filter((it) => !dead.has(it.id))
++
++  const hitIds = new Set<string>()
++  for (const it of items) {
++    const hit = hitTest(it, cars)
++    if (!hit) continue
++    hitIds.add(it.id)
++    events.push({ type: 'spin', ...hit }, { type: 'gone', id: it.id, reason: 'hit' })
++  }
++  items = items.filter((it) => !hitIds.has(it.id))
++  return { field: { items, nextId: f.nextId }, events }
++}
+diff --git a/src/babylon/games/raceFx/raceGeom.test.ts b/src/babylon/games/raceFx/raceGeom.test.ts
+new file mode 100644
+index 0000000..3d16788
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceGeom.test.ts
+@@ -0,0 +1,34 @@
++import { describe, it, expect } from 'vitest'
++import { roadStrip } from '@/babylon/games/raceFx/raceGeom'
++import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++import { trackProgress } from '@/babylon/games/raceRules/track'
++
++const T = RACE_COURSE.track
++
++describe('roadStrip（閉合路面帶）', () => {
++  const g = roadStrip(T, T.width / 2, 0.02)
++  const n = T.pts.length
++
++  it('每個取樣點左右各一個頂點、每段兩個三角形（閉合）', () => {
++    expect(g.positions).toHaveLength(n * 2 * 3)
++    expect(g.indices).toHaveLength(n * 6)
++    expect(Math.max(...g.indices)).toBe(n * 2 - 1)
++    expect(g.uvs).toHaveLength(n * 2 * 2)
++  })
++
++  it('頂點落在中心線兩側 ±半寬、高度為 y', () => {
++    for (let i = 0; i < n; i += 37) {
++      for (const side of [0, 1]) {
++        const k = (i * 2 + side) * 3
++        expect(g.positions[k + 1]).toBe(0.02)
++        const p = trackProgress(T, g.positions[k], g.positions[k + 2])
++        expect(Math.abs(Math.abs(p.lateral) - T.width / 2)).toBeLessThan(0.5)
++      }
++    }
++  })
++
++  it('法線一律朝上（路面材質關背面剔除，繞向不影響光照）', () => {
++    expect(g.normals).toHaveLength(n * 2 * 3)
++    for (let i = 0; i < g.normals.length; i += 3) expect([g.normals[i], g.normals[i + 1], g.normals[i + 2]]).toEqual([0, 1, 0])
++  })
++})
+diff --git a/src/babylon/games/raceFx/raceGeom.ts b/src/babylon/games/raceFx/raceGeom.ts
+new file mode 100644
+index 0000000..9da63a5
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceGeom.ts
+@@ -0,0 +1,38 @@
++/**
++ * 賽車路面幾何（純函式，產頂點資料給 VertexData）：閉合中心線兩側 ±halfW 的帶狀網格。
++ * 波 2 暫用的簡單路面；uv 的 v 沿線累積距離（每單位 1），u 左 0 右 1。
++ */
++import type { Track } from '@/babylon/games/raceRules/track'
++
++export interface StripData {
++  positions: number[]
++  indices: number[]
++  normals: number[]
++  uvs: number[]
++}
++
++export function roadStrip(track: Track, halfW: number, y: number): StripData {
++  const n = track.pts.length
++  const positions: number[] = []
++  const normals: number[] = []
++  const uvs: number[] = []
++  const indices: number[] = []
++  for (let i = 0; i < n; i++) {
++    const prev = track.pts[(i - 1 + n) % n]
++    const next = track.pts[(i + 1) % n]
++    // 切線取前後點平均方向，右側 = (dz, −dx)（同 track.ts 的 lateral 右正）
++    const dx = next[0] - prev[0]
++    const dz = next[1] - prev[1]
++    const l = Math.hypot(dx, dz) || 1
++    const rx = dz / l
++    const rz = -dx / l
++    const [cx, cz] = track.pts[i]
++    positions.push(cx - rx * halfW, y, cz - rz * halfW, cx + rx * halfW, y, cz + rz * halfW)
++    normals.push(0, 1, 0, 0, 1, 0)
++    uvs.push(0, track.cum[i], 1, track.cum[i])
++    const a = i * 2
++    const b = ((i + 1) % n) * 2
++    indices.push(a, a + 1, b, b, a + 1, b + 1)
++  }
++  return { positions, indices, normals, uvs }
++}
+diff --git a/src/babylon/games/raceFx/raceNet.test.ts b/src/babylon/games/raceFx/raceNet.test.ts
+new file mode 100644
+index 0000000..447d4b5
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceNet.test.ts
+@@ -0,0 +1,173 @@
++import { describe, it, expect } from 'vitest'
++import {
++  OWN_FIN_MAX,
++  decodeBotState,
++  decodeBoxState,
++  decodeItemGone,
++  decodeItemGrant,
++  decodeItemReq,
++  decodeItemSpawn,
++  decodeItemState,
++  decodeOwn,
++  decodeResult,
++  decodeSpin,
++  decodeStart,
++  decodeUseItem,
++} from '@/babylon/games/raceFx/raceNet'
++
++const LEN = 554.8
++const IDS = ['p1', 'p2', 'bot-0', 'bot-1']
++const own = {
++  x: 10,
++  z: -70,
++  ry: 1.57,
++  lap: 1,
++  cp: 3,
++  s: 200,
++  fin: null,
++  ghost: false,
++  drift: 2,
++  boost: true,
++  spin: false,
++  shield: false,
++}
++
++describe('decodeOwn（AC6b own 快照）', () => {
++  it('合法照收，fin 可為 null 或 0..OWN_FIN_MAX', () => {
++    expect(decodeOwn(own, LEN)).toEqual(own)
++    expect(decodeOwn({ ...own, lap: 3, fin: 123456 }, LEN)?.fin).toBe(123456)
++    expect(OWN_FIN_MAX).toBe(600000)
++  })
++
++  it('範圍外或型別錯誤一律 null', () => {
++    const bad: Record<string, unknown>[] = [
++      { ...own, lap: 4 },
++      { ...own, lap: 1.5 },
++      { ...own, cp: 8 },
++      { ...own, cp: -1 },
++      { ...own, s: LEN + 1 },
++      { ...own, s: -0.1 },
++      { ...own, fin: 600001 },
++      { ...own, fin: -1 },
++      { ...own, fin: 'x' },
++      { ...own, drift: 4 },
++      { ...own, ghost: 1 },
++      { ...own, x: 1000 },
++      { ...own, z: Number.NaN },
++      { ...own, ry: Infinity },
++      { ...own, boost: undefined },
++    ]
++    for (const p of bad) expect(decodeOwn(p, LEN)).toBeNull()
++    expect(decodeOwn(null, LEN)).toBeNull()
++    expect(decodeOwn([own], LEN)).toBeNull()
++  })
++
++  it('舊格式 {x,z,ry,q} 不收', () => {
++    expect(decodeOwn({ x: 1, z: 2, ry: 0, q: 3 }, LEN)).toBeNull()
++  })
++})
++
++describe('decodeStart（開局名冊）', () => {
++  it('bots 可選；只收 bot-0..3、最多 4 台', () => {
++    expect(decodeStart({})).toEqual({ bots: [] })
++    const bots = [
++      { id: 'bot-0', name: '電腦1' },
++      { id: 'bot-1', name: '電腦2' },
++    ]
++    expect(decodeStart({ bots })).toEqual({ bots })
++    expect(decodeStart({ bots: [{ id: 'p1', name: 'x' }] })).toBeNull()
++    expect(decodeStart({ bots: Array.from({ length: 5 }, (_, i) => ({ id: `bot-${i % 4}`, name: 'x' })) })).toBeNull()
++    expect(decodeStart({ bots: 'x' })).toBeNull()
++    expect(decodeStart(null)).toBeNull()
++  })
++})
++
++describe('decodeBotState', () => {
++  const st = { id: 'bot-0', x: 1, z: 2, ry: 0, lap: 0, cp: 0, s: 3, fin: null, drift: 0, spin: false }
++  it('只收名冊內的 bot 與合法範圍', () => {
++    expect(decodeBotState({ states: [st] }, ['bot-0'], LEN)).toEqual({ states: [st] })
++    expect(decodeBotState({ states: [st] }, ['bot-1'], LEN)).toBeNull()
++    expect(decodeBotState({ states: [{ ...st, lap: 9 }] }, ['bot-0'], LEN)).toBeNull()
++    expect(decodeBotState({ states: [{ ...st, spin: 'no' }] }, ['bot-0'], LEN)).toBeNull()
++    expect(decodeBotState({ states: Array(5).fill(st) }, ['bot-0'], LEN)).toBeNull()
++  })
++})
++
++describe('道具訊息', () => {
++  it('itemReq：箱 id 為範圍內整數', () => {
++    expect(decodeItemReq({ box: 5 }, 12)).toEqual({ box: 5 })
++    expect(decodeItemReq({ box: 12 }, 12)).toBeNull()
++    expect(decodeItemReq({ box: 1.5 }, 12)).toBeNull()
++    expect(decodeItemReq({}, 12)).toBeNull()
++  })
++
++  it('itemGrant：箱、已知實體、道具種類', () => {
++    expect(decodeItemGrant({ box: 0, who: 'p2', kind: 'shell' }, 12, IDS)).toEqual({ box: 0, who: 'p2', kind: 'shell' })
++    expect(decodeItemGrant({ box: 0, who: 'x', kind: 'shell' }, 12, IDS)).toBeNull()
++    expect(decodeItemGrant({ box: 0, who: 'p2', kind: 'star' }, 12, IDS)).toBeNull()
++  })
++
++  it('useItem：只收 4 種', () => {
++    expect(decodeUseItem({ kind: 'banana' })).toEqual({ kind: 'banana' })
++    expect(decodeUseItem({ kind: 'bomb' })).toBeNull()
++  })
++
++  it('itemSpawn：只有香蕉與龜殼、owner 已知、target 為 null 或已知實體、速度有上限', () => {
++    const sp = { id: 'i1', kind: 'shell', owner: 'p1', x: 0, z: 0, vx: 26, vz: 0, target: 'p2' }
++    expect(decodeItemSpawn(sp, IDS)).toEqual(sp)
++    expect(decodeItemSpawn({ ...sp, target: null }, IDS)?.target).toBeNull()
++    expect(decodeItemSpawn({ ...sp, target: undefined }, IDS)?.target).toBeNull()
++    expect(decodeItemSpawn({ ...sp, kind: 'mushroom' }, IDS)).toBeNull()
++    expect(decodeItemSpawn({ ...sp, owner: 'zz' }, IDS)).toBeNull()
++    expect(decodeItemSpawn({ ...sp, target: 'zz' }, IDS)).toBeNull()
++    expect(decodeItemSpawn({ ...sp, vx: 999 }, IDS)).toBeNull()
++    expect(decodeItemSpawn({ ...sp, x: 500 }, IDS)).toBeNull()
++  })
++
++  it('itemState：list 限長、每筆座標合法', () => {
++    expect(decodeItemState({ list: [{ id: 'i1', x: 1, z: 2 }] })).toEqual({ list: [{ id: 'i1', x: 1, z: 2 }] })
++    expect(decodeItemState({ list: [{ id: 'i1', x: 'a', z: 2 }] })).toBeNull()
++    expect(decodeItemState({ list: Array(65).fill({ id: 'i', x: 0, z: 0 }) })).toBeNull()
++  })
++
++  it('itemGone：reason 只收已知值', () => {
++    expect(decodeItemGone({ id: 'i1', reason: 'hit' })).toEqual({ id: 'i1', reason: 'hit' })
++    expect(decodeItemGone({ id: 'i1', reason: 'expire' })).not.toBeNull()
++    expect(decodeItemGone({ id: 'i1', reason: 'clash' })).not.toBeNull()
++    expect(decodeItemGone({ id: 'i1', reason: 'boom' })).toBeNull()
++  })
++
++  it('spin：target 已知、ms 0..5000、blocked 布林（缺省 false）', () => {
++    expect(decodeSpin({ target: 'p1', ms: 800, blocked: false }, IDS)).toEqual({ target: 'p1', ms: 800, blocked: false })
++    expect(decodeSpin({ target: 'p1', ms: 0, blocked: true }, IDS)).toEqual({ target: 'p1', ms: 0, blocked: true })
++    expect(decodeSpin({ target: 'p1', ms: 800 }, IDS)?.blocked).toBe(false)
++    expect(decodeSpin({ target: 'p1', ms: 99999, blocked: false }, IDS)).toBeNull()
++    expect(decodeSpin({ target: 'nobody', ms: 800, blocked: false }, IDS)).toBeNull()
++    expect(decodeSpin({ target: 'p1', ms: 800, blocked: 'y' }, IDS)).toBeNull()
++  })
++
++  it('boxState：taken 為不重複的範圍內整數', () => {
++    expect(decodeBoxState({ taken: [0, 3, 11] }, 12)).toEqual({ taken: [0, 3, 11] })
++    expect(decodeBoxState({ taken: [] }, 12)).toEqual({ taken: [] })
++    expect(decodeBoxState({ taken: [12] }, 12)).toBeNull()
++    expect(decodeBoxState({ taken: [1, 1] }, 12)).toBeNull()
++    expect(decodeBoxState({ taken: 'x' }, 12)).toBeNull()
++  })
++})
++
++describe('decodeResult（flow result）', () => {
++  const row = { id: 'p1', name: 'A', colorIndex: 0, rank: 1, totalMs: 90000, bestLapMs: 28000 }
++  it('合法名次表照收；totalMs／bestLapMs 可為 null', () => {
++    const rows = [row, { ...row, id: 'bot-0', name: '電腦1', colorIndex: 1, rank: 2, totalMs: null, bestLapMs: null }]
++    expect(decodeResult(rows)).toEqual(rows)
++  })
++
++  it('非陣列、超過 4 筆、欄位錯誤回 null', () => {
++    expect(decodeResult({})).toBeNull()
++    expect(decodeResult(Array(5).fill(row))).toBeNull()
++    expect(decodeResult([{ ...row, colorIndex: 4 }])).toBeNull()
++    expect(decodeResult([{ ...row, rank: 0 }])).toBeNull()
++    expect(decodeResult([{ ...row, totalMs: -5 }])).toBeNull()
++    expect(decodeResult([{ ...row, name: 5 }])).toBeNull()
++  })
++})
+diff --git a/src/babylon/games/raceFx/raceNet.ts b/src/babylon/games/raceFx/raceNet.ts
+new file mode 100644
+index 0000000..30db873
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceNet.ts
+@@ -0,0 +1,226 @@
++/**
++ * 賽車網路訊息解碼（brief AC6b 訊息表）。對端訊息一律不可信：
++ * 形狀與範圍驗不過回 null（呼叫端靜默丟棄），絕不 throw；「只信房主」由呼叫端以 from 判斷。
++ */
++import { isArrayOf, isIntIn, isNum, isNumIn, isObj, isOneOf, isStr } from '@/babylon/net'
++import { ITEM_KINDS, SHELL_SPEED, type ItemKind } from '@/babylon/games/raceRules/items'
++import { MAX_RACERS, type RaceRosterEntry } from '@/babylon/games/raceRules/roster'
++import { CHECKPOINTS, LAPS } from '@/babylon/games/raceRules/track'
++import { RACE_BOUND } from '@/babylon/games/raceRules/trackData'
++
++/** own.fin 上限（host 驗範圍 0–600000，AC6） */
++export const OWN_FIN_MAX = 600000
++/** 座標容許：場地半邊長再放寬一點（出界那一 tick 會被夾回） */
++const WX = RACE_BOUND.x + 5
++const WZ = RACE_BOUND.z + 5
++/** 道具速度上限（龜殼 SHELL_SPEED，留兩倍餘裕） */
++const VEL_MAX = SHELL_SPEED * 2
++/** 打滑毫秒上限 */
++const SPIN_MAX_MS = 5000
++/** 場上道具同時上限（香蕉 8 + 龜殼，留餘裕） */
++const ITEM_LIST_MAX = 64
++const ITEM_ID_MAX = 32
++const BOT_ID = /^bot-[0-3]$/
++
++export type DriftTier = 0 | 1 | 2 | 3
++
++/** 各車本機擁有、20Hz 廣播的狀態 */
++export interface RaceOwn {
++  x: number
++  z: number
++  ry: number
++  lap: number
++  cp: number
++  s: number
++  fin: number | null
++  ghost: boolean
++  drift: DriftTier
++  boost: boolean
++  spin: boolean
++  shield: boolean
++}
++
++export interface BotSnap {
++  id: string
++  x: number
++  z: number
++  ry: number
++  lap: number
++  cp: number
++  s: number
++  fin: number | null
++  drift: DriftTier
++  spin: boolean
++}
++
++export type ItemGoneReason = 'hit' | 'expire' | 'clash'
++export const ITEM_GONE_REASONS: readonly ItemGoneReason[] = ['hit', 'expire', 'clash']
++
++export interface ItemSpawnMsg {
++  id: string
++  kind: 'banana' | 'shell'
++  owner: string
++  x: number
++  z: number
++  vx: number
++  vz: number
++  target: string | null
++}
++
++export interface RaceStanding {
++  id: string
++  name: string
++  colorIndex: 0 | 1 | 2 | 3
++  rank: number
++  totalMs: number | null
++  bestLapMs: number | null
++}
++
++const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
++const isFin = (v: unknown): v is number | null => v === null || isNumIn(v, 0, OWN_FIN_MAX)
++const inWorld = (x: unknown, z: unknown) => isNumIn(x, -WX, WX) && isNumIn(z, -WZ, WZ)
++/** lap／cp／s 三件組 */
++const isProgress = (p: Record<string, unknown>, len: number) =>
++  isIntIn(p.lap, 0, LAPS) && isIntIn(p.cp, 0, CHECKPOINTS - 1) && isNumIn(p.s, 0, len)
++
++export function decodeOwn(p: unknown, len: number): RaceOwn | null {
++  if (!isObj(p) || !inWorld(p.x, p.z) || !isNum(p.ry) || !isProgress(p, len) || !isFin(p.fin)) return null
++  if (!isIntIn(p.drift, 0, 3) || !isBool(p.ghost) || !isBool(p.boost) || !isBool(p.spin) || !isBool(p.shield)) return null
++  return {
++    x: p.x as number,
++    z: p.z as number,
++    ry: p.ry,
++    lap: p.lap as number,
++    cp: p.cp as number,
++    s: p.s as number,
++    fin: p.fin,
++    ghost: p.ghost,
++    drift: p.drift as DriftTier,
++    boost: p.boost,
++    spin: p.spin,
++    shield: p.shield,
++  }
++}
++
++export function decodeStart(p: unknown): { bots: RaceRosterEntry[] } | null {
++  if (!isObj(p)) return null
++  if (p.bots === undefined) return { bots: [] }
++  const bots = p.bots
++  const ok = isArrayOf<RaceRosterEntry>(bots, (b) => isObj(b) && isStr(b.id) && BOT_ID.test(b.id) && isStr(b.name, 32), MAX_RACERS)
++  if (!ok) return null
++  return { bots: bots.map((b) => ({ id: b.id, name: b.name })) }
++}
++
++export function decodeBotState(p: unknown, botIds: readonly string[], len: number): { states: BotSnap[] } | null {
++  if (!isObj(p)) return null
++  const states = p.states
++  const ok = isArrayOf<Record<string, unknown>>(
++    states,
++    (s) =>
++      isObj(s) &&
++      isStr(s.id) &&
++      botIds.includes(s.id) &&
++      inWorld(s.x, s.z) &&
++      isNum(s.ry) &&
++      isProgress(s, len) &&
++      isFin(s.fin) &&
++      isIntIn(s.drift, 0, 3) &&
++      isBool(s.spin),
++    MAX_RACERS
++  )
++  if (!ok) return null
++  return {
++    states: states.map((s) => ({
++      id: s.id as string,
++      x: s.x as number,
++      z: s.z as number,
++      ry: s.ry as number,
++      lap: s.lap as number,
++      cp: s.cp as number,
++      s: s.s as number,
++      fin: s.fin as number | null,
++      drift: s.drift as DriftTier,
++      spin: s.spin as boolean,
++    })),
++  }
++}
++
++export function decodeItemReq(p: unknown, boxCount: number): { box: number } | null {
++  if (!isObj(p) || !isIntIn(p.box, 0, boxCount - 1)) return null
++  return { box: p.box }
++}
++
++export function decodeItemGrant(
++  p: unknown,
++  boxCount: number,
++  ids: readonly string[]
++): { box: number; who: string; kind: ItemKind } | null {
++  if (!isObj(p) || !isIntIn(p.box, 0, boxCount - 1) || !isStr(p.who) || !ids.includes(p.who)) return null
++  if (!isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return null
++  return { box: p.box, who: p.who, kind: p.kind }
++}
++
++export function decodeUseItem(p: unknown): { kind: ItemKind } | null {
++  if (!isObj(p) || !isOneOf<ItemKind>(p.kind, ITEM_KINDS)) return null
++  return { kind: p.kind }
++}
++
++export function decodeItemSpawn(p: unknown, ids: readonly string[]): ItemSpawnMsg | null {
++  if (!isObj(p) || !isStr(p.id, ITEM_ID_MAX) || !isOneOf<'banana' | 'shell'>(p.kind, ['banana', 'shell'])) return null
++  if (!isStr(p.owner) || !ids.includes(p.owner) || !inWorld(p.x, p.z)) return null
++  if (!isNumIn(p.vx, -VEL_MAX, VEL_MAX) || !isNumIn(p.vz, -VEL_MAX, VEL_MAX)) return null
++  const target = p.target ?? null
++  if (target !== null && !(isStr(target) && ids.includes(target))) return null
++  return { id: p.id, kind: p.kind, owner: p.owner, x: p.x as number, z: p.z as number, vx: p.vx, vz: p.vz, target }
++}
++
++export function decodeItemState(p: unknown): { list: { id: string; x: number; z: number }[] } | null {
++  if (!isObj(p)) return null
++  const list = p.list
++  const ok = isArrayOf<Record<string, unknown>>(list, (e) => isObj(e) && isStr(e.id, ITEM_ID_MAX) && inWorld(e.x, e.z), ITEM_LIST_MAX)
++  if (!ok) return null
++  return { list: list.map((e) => ({ id: e.id as string, x: e.x as number, z: e.z as number })) }
++}
++
++export function decodeItemGone(p: unknown): { id: string; reason: ItemGoneReason } | null {
++  if (!isObj(p) || !isStr(p.id, ITEM_ID_MAX) || !isOneOf<ItemGoneReason>(p.reason, ITEM_GONE_REASONS)) return null
++  return { id: p.id, reason: p.reason }
++}
++
++export function decodeSpin(p: unknown, ids: readonly string[]): { target: string; ms: number; blocked: boolean } | null {
++  if (!isObj(p) || !isStr(p.target) || !ids.includes(p.target) || !isNumIn(p.ms, 0, SPIN_MAX_MS)) return null
++  if (p.blocked !== undefined && !isBool(p.blocked)) return null
++  return { target: p.target, ms: p.ms, blocked: p.blocked === true }
++}
++
++export function decodeBoxState(p: unknown, boxCount: number): { taken: number[] } | null {
++  if (!isObj(p)) return null
++  const taken = p.taken
++  if (!isArrayOf<number>(taken, (v) => isIntIn(v, 0, boxCount - 1), boxCount)) return null
++  if (new Set(taken).size !== taken.length) return null
++  return { taken: [...taken] }
++}
++
++export function decodeResult(p: unknown): RaceStanding[] | null {
++  const ok = isArrayOf<Record<string, unknown>>(
++    p,
++    (r) =>
++      isObj(r) &&
++      isStr(r.id) &&
++      isStr(r.name, 64) &&
++      isIntIn(r.colorIndex, 0, 3) &&
++      isIntIn(r.rank, 1, MAX_RACERS) &&
++      isFin(r.totalMs) &&
++      isFin(r.bestLapMs),
++    MAX_RACERS
++  )
++  if (!ok) return null
++  return p.map((r) => ({
++    id: r.id as string,
++    name: r.name as string,
++    colorIndex: r.colorIndex as 0 | 1 | 2 | 3,
++    rank: r.rank as number,
++    totalMs: r.totalMs as number | null,
++    bestLapMs: r.bestLapMs as number | null,
++  }))
++}
+diff --git a/src/babylon/games/raceFx/raceResult.test.ts b/src/babylon/games/raceFx/raceResult.test.ts
+new file mode 100644
+index 0000000..b0849d6
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceResult.test.ts
+@@ -0,0 +1,91 @@
++import { describe, it, expect } from 'vitest'
++import {
++  finalStandings,
++  formatRaceMs,
++  liveOrder,
++  makeLapClock,
++  stepLapClock,
++  type LiveCar,
++} from '@/babylon/games/raceFx/raceResult'
++import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++
++const T = RACE_COURSE.track
++const cp = (k: number) => T.checkpoints[k]
++
++describe('liveOrder（各端以同一份快照算名次）', () => {
++  it('圈數優先、同圈依沿線距離；已過線依 fin 升冪排最前', () => {
++    const cars: LiveCar[] = [
++      { id: 'a', lap: 1, cp: 2, s: cp(2) + 5, fin: null },
++      { id: 'b', lap: 2, cp: 0, s: 3, fin: null },
++      { id: 'c', lap: 1, cp: 3, s: cp(3) + 1, fin: null },
++      { id: 'd', lap: 3, cp: 0, s: 2, fin: 99000 },
++      { id: 'e', lap: 3, cp: 0, s: 1, fin: 98000 },
++    ]
++    expect(liveOrder(T, cars)).toEqual(['e', 'd', 'b', 'c', 'a'])
++    expect(liveOrder(T, [...cars].reverse())).toEqual(['e', 'd', 'b', 'c', 'a'])
++  })
++
++  it('起跑格在起點線後（s 接近 len、lap 0）不會被當成跑了一整圈', () => {
++    const cars: LiveCar[] = [
++      { id: 'grid', lap: 0, cp: 0, s: T.len - 5, fin: null },
++      { id: 'ahead', lap: 0, cp: 0, s: 10, fin: null },
++    ]
++    expect(liveOrder(T, cars)).toEqual(['ahead', 'grid'])
++  })
++})
++
++describe('LapClock（最佳圈）', () => {
++  it('lap 增加時記一圈時間並更新最佳；lap 不變或倒退不記', () => {
++    let c = makeLapClock(1000)
++    c = stepLapClock(c, 0, 5000)
++    expect(c.bestMs).toBeNull()
++    c = stepLapClock(c, 1, 31000)
++    expect(c).toMatchObject({ lap: 1, lastMs: 30000, bestMs: 30000, startAt: 31000 })
++    c = stepLapClock(c, 2, 59000)
++    expect(c).toMatchObject({ lap: 2, lastMs: 28000, bestMs: 28000 })
++    c = stepLapClock(c, 3, 92000)
++    expect(c).toMatchObject({ lap: 3, lastMs: 33000, bestMs: 28000 })
++    expect(stepLapClock(c, 2, 95000)).toBe(c)
++  })
++})
++
++describe('finalStandings（AC6 結算）', () => {
++  const base = { name: 'n', colorIndex: 0 as const }
++  it('過線者依 host 觀察順序、總時間取 fin；未過線者依當下名次、totalMs null', () => {
++    const cars = [
++      { ...base, id: 'a', lap: 3, cp: 0, s: 1, fin: 91000 },
++      { ...base, id: 'b', lap: 3, cp: 0, s: 2, fin: 90500 },
++      { ...base, id: 'c', lap: 2, cp: 5, s: cp(5) + 3, fin: null },
++      { ...base, id: 'd', lap: 2, cp: 6, s: cp(6) + 3, fin: null },
++    ]
++    const rows = finalStandings(T, cars, ['a', 'b'], { a: 29000, b: null })
++    expect(rows.map((r) => [r.id, r.rank, r.totalMs])).toEqual([
++      ['a', 1, 91000],
++      ['b', 2, 90500],
++      ['d', 3, null],
++      ['c', 4, null],
++    ])
++    expect(rows[0].bestLapMs).toBe(29000)
++    expect(rows[1].bestLapMs).toBeNull()
++    expect(rows[2].bestLapMs).toBeNull()
++  })
++
++  it('finishOrder 有已離線的車就略過；有 fin 但沒被觀察到過線的排在已觀察者之後', () => {
++    const cars = [
++      { ...base, id: 'a', lap: 3, cp: 0, s: 1, fin: 91000 },
++      { ...base, id: 'b', lap: 1, cp: 0, s: 2, fin: null },
++    ]
++    const rows = finalStandings(T, cars, ['gone', 'x'], {})
++    expect(rows.map((r) => r.id)).toEqual(['a', 'b'])
++    expect(rows.map((r) => r.rank)).toEqual([1, 2])
++  })
++})
++
++describe('formatRaceMs', () => {
++  it('m:ss.cc，null 顯示 --', () => {
++    expect(formatRaceMs(0)).toBe('0:00.00')
++    expect(formatRaceMs(83456)).toBe('1:23.45')
++    expect(formatRaceMs(9990)).toBe('0:09.99')
++    expect(formatRaceMs(null)).toBe('--')
++  })
++})
+diff --git a/src/babylon/games/raceFx/raceResult.ts b/src/babylon/games/raceFx/raceResult.ts
+new file mode 100644
+index 0000000..5579e58
+--- /dev/null
++++ b/src/babylon/games/raceFx/raceResult.ts
+@@ -0,0 +1,83 @@
++/**
++ * 賽車名次、最佳圈與結算表（純函式）。
++ * 各端以同一份 own／botState 快照呼叫 liveOrder 得到相同名次；結算由 host 依觀察到的過線順序組表。
++ */
++import type { RaceStanding } from '@/babylon/games/raceFx/raceNet'
++import { normalizeProgress, rankCars, type Track } from '@/babylon/games/raceRules/track'
++
++export interface LiveCar {
++  id: string
++  lap: number
++  cp: number
++  s: number
++  fin: number | null
++}
++
++/** 目前名次（第一名在前）：已過線依 fin 升冪，其餘依 normalizeProgress 後的圈數＋沿線距離 */
++export function liveOrder(track: Track, cars: readonly LiveCar[]): string[] {
++  return rankCars(
++    cars.map((c) => {
++      const n = normalizeProgress(track, c)
++      return { id: c.id, lap: n.lap, s: n.s, finishedAt: c.fin }
++    })
++  )
++}
++
++export interface LapClock {
++  /** 本圈開始時間 */
++  startAt: number
++  /** 已完成圈數 */
++  lap: number
++  lastMs: number | null
++  bestMs: number | null
++}
++
++export const makeLapClock = (now: number): LapClock => ({ startAt: now, lap: 0, lastMs: null, bestMs: null })
++
++/** 觀察到完成圈數增加時記一圈；不變或倒退原樣回傳 */
++export function stepLapClock(c: LapClock, lap: number, now: number): LapClock {
++  if (lap <= c.lap) return c
++  const lastMs = now - c.startAt
++  return { startAt: now, lap, lastMs, bestMs: c.bestMs === null ? lastMs : Math.min(c.bestMs, lastMs) }
++}
++
++export interface StandingCar extends LiveCar {
++  name: string
++  colorIndex: 0 | 1 | 2 | 3
++}
++
++/**
++ * 結算表：finishOrder（host 觀察到 fin 由 null 變數值的先後）在前、總時間取該車 fin；
++ * 有 fin 卻沒被觀察到的接在後面（依 fin）；未過線者依當下名次、totalMs null。
++ */
++export function finalStandings(
++  track: Track,
++  cars: readonly StandingCar[],
++  finishOrder: readonly string[],
++  bestLaps: Readonly<Record<string, number | null>>
++): RaceStanding[] {
++  const byId = new Map(cars.map((c) => [c.id, c]))
++  const seen = finishOrder.filter((id, i) => byId.get(id)?.fin != null && finishOrder.indexOf(id) === i)
++  const late = cars
++    .filter((c) => c.fin !== null && !seen.includes(c.id))
++    .sort((a, b) => (a.fin as number) - (b.fin as number) || (a.id < b.id ? -1 : 1))
++    .map((c) => c.id)
++  const rest = liveOrder(
++    track,
++    cars.filter((c) => c.fin === null)
++  )
++  return [...seen, ...late, ...rest].map((id, i) => {
++    const c = byId.get(id) as StandingCar
++    return { id, name: c.name, colorIndex: c.colorIndex, rank: i + 1, totalMs: c.fin, bestLapMs: bestLaps[id] ?? null }
++  })
++}
++
++/** m:ss.cc；null 顯示 -- */
++export function formatRaceMs(ms: number | null): string {
++  if (ms === null) return '--'
++  const cs = Math.floor(ms / 10)
++  const m = Math.floor(cs / 6000)
++  const s = Math.floor((cs % 6000) / 100)
++  const c = cs % 100
++  return `${m}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`
++}
+diff --git a/src/babylon/games/raceRules/drive.test.ts b/src/babylon/games/raceRules/drive.test.ts
+index 754e2b6..9ce0d38 100644
+--- a/src/babylon/games/raceRules/drive.test.ts
++++ b/src/babylon/games/raceRules/drive.test.ts
+@@ -3,20 +3,21 @@ import {
+   BOOST_SPEED,
+   DRIFT_TIERS,
+   MAX_REVERSE,
+   MAX_SPEED,
+   MINI_TURBO_MS,
+   OFFTRACK_FACTOR,
+   OFFTRACK_RESPAWN_MS,
+   RESPAWN_GHOST_MS,
+   SLIP_BOOST_MS,
+   SLIP_CHARGE_MS,
++  SLIP_CONE_DEG,
+   SLIP_SPEED_MULT,
+   STUCK_MS,
+   JUMP_G,
+   JUMP_H,
+   JUMP_MIN_SPEED,
+   RAMP_HALF_W,
+   jumpY,
+   launchVy,
+   rampY,
+   makeRacer,
+@@ -86,35 +87,46 @@ describe('slipCharge — 尾流', () => {
+   const run = (others: { x: number; z: number }[], ms: number, s = self) => {
+     let st = { ms: 0, slipMs: 0 }
+     let got = 0
+     for (let t = 0; t < ms; t += 100) {
+       st = slipCharge(st.ms, s, others, 100)
+       if (st.slipMs) got = st.slipMs
+     }
+     return got
+   }
+ 
+-  it(`前方 6 單位、15° 內持續 ${SLIP_CHARGE_MS}ms 給 ${SLIP_BOOST_MS}ms`, () => {
++  it(`前方 6 單位、${SLIP_CONE_DEG}° 內持續 ${SLIP_CHARGE_MS}ms 給 ${SLIP_BOOST_MS}ms`, () => {
+     expect(run([{ x: 0, z: 5 }], SLIP_CHARGE_MS - 100)).toBe(0)
+     expect(run([{ x: 0, z: 5 }], SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+     const a = (14 * Math.PI) / 180
+     expect(run([{ x: Math.sin(a) * 5.9, z: Math.cos(a) * 5.9 }], SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+   })
+ 
+   it('太遠、角度太大、在後方或自己太慢都不累計', () => {
+-    const a = (16 * Math.PI) / 180
++    const a = ((SLIP_CONE_DEG + 1) * Math.PI) / 180
+     expect(run([{ x: 0, z: 6.5 }], 3000)).toBe(0)
+     expect(run([{ x: Math.sin(a) * 4, z: Math.cos(a) * 4 }], 3000)).toBe(0)
+     expect(run([{ x: 0, z: -3 }], 3000)).toBe(0)
+     expect(run([{ x: 0, z: 4 }], 3000, { ...self, speed: 3 })).toBe(0)
+   })
+ 
++  it('夾角門檻放寬為 25°（波 2 qa 實測 15° 鍵盤難觸發）：24° 內累計、26° 外不累計', () => {
++    expect(SLIP_CONE_DEG).toBe(25)
++    const at = (deg: number) => {
++      const a = (deg * Math.PI) / 180
++      return [{ x: Math.sin(a) * 5, z: Math.cos(a) * 5 }]
++    }
++    expect(run(at(24), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++    expect(run(at(-24), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++    expect(run(at(26), 3000)).toBe(0)
++  })
++
+   it('中途離開條件即歸零', () => {
+     let st = slipCharge(0, self, [{ x: 0, z: 5 }], 1000)
+     expect(st.ms).toBe(1000)
+     st = slipCharge(st.ms, self, [], 100)
+     expect(st.ms).toBe(0)
+   })
+ })
+ 
+ describe('shouldRespawn／respawnPose — 出界與卡住', () => {
+   const t0 = { stuckMs: 0, offMs: 0 }
+diff --git a/src/babylon/games/raceRules/drive.ts b/src/babylon/games/raceRules/drive.ts
+index c09e2ae..ba218e2 100644
+--- a/src/babylon/games/raceRules/drive.ts
++++ b/src/babylon/games/raceRules/drive.ts
+@@ -41,21 +41,21 @@ export const SPIN_DECEL = 20
+ 
+ // 甩尾蓄力
+ export const DRIFT_MIN_SPEED = 6
+ export const DRIFT_TIERS = [0.6, 1.2, 2.0] as const
+ export const MINI_TURBO_MS = [500, 900, 1300] as const
+ /** |steer| 超過此值才算「轉向中」 */
+ export const DRIFT_STEER_MIN = 0.2
+ 
+ // 尾流
+ export const SLIP_DIST = 6
+-export const SLIP_CONE_DEG = 15
++export const SLIP_CONE_DEG = 25
+ export const SLIP_CHARGE_MS = 1200
+ export const SLIP_BOOST_MS = 1000
+ export const SLIP_SPEED_MULT = 1.15
+ export const SLIP_MIN_SPEED = 6
+ 
+ // 重生
+ export const STUCK_MS = 2000
+ export const STUCK_SPEED = 1
+ export const OFFTRACK_RESPAWN_MS = 3000
+ export const RESPAWN_GHOST_MS = 1500
+diff --git a/src/babylon/types.ts b/src/babylon/types.ts
+index c9de274..7a1b3f7 100644
+--- a/src/babylon/types.ts
++++ b/src/babylon/types.ts
+@@ -1,12 +1,13 @@
+ import type { Scene } from '@/babylon/babylonCore'
+ import type { GameNetMessage, NetTransport } from '@/core/webrtc'
++import type { ItemKind } from '@/babylon/games/raceRules/items'
+ 
+ /** 對戰中的玩家精簡資訊（由房間玩家列表帶入） */
+ export interface GamePlayer {
+   id: string
+   name: string
+ }
+ 
+ /** 覆蓋層按鈕（如「重新開始」） */
+ export interface OverlayAction {
+   label: string
+@@ -135,36 +136,81 @@ export interface TankHudFeed {
+  */
+ export interface TankHud {
+   kind: 'tank'
+   remainSec: number
+   suddenDeath: boolean
+   aliveCount: number
+   players: TankHudPlayer[]
+   feed: TankHudFeed[]
+ }
+ 
++/** 賽車小地圖上的一台車；座標量化到 0.1，colorIndex = 在「ctx.players 依序＋bots 依序」的序號 */
++export interface RaceHudCar {
++  id: string
++  colorIndex: 0 | 1 | 2 | 3
++  x: number
++  z: number
++  isSelf: boolean
++}
++
++/** 衝線名次表一列；totalMs 為 null 表示還在衝線（時間量化到 10ms） */
++export interface RaceHudResult {
++  id: string
++  name: string
++  colorIndex: 0 | 1 | 2 | 3
++  rank: number
++  totalMs: number | null
++  bestLapMs: number | null
++}
++
++/**
++ * 極速賽車的 React HUD 資料（共用契約：欄位只增不改）。
++ * lap 為目前第幾圈（1..laps，由遊戲端算好，HUD 直接顯示）；時間量化到 10ms；
++ * map.pts 開局傳一次後不變（React 以參照比對不重算賽道輪廓）。
++ */
++export interface RaceHud {
++  kind: 'race'
++  rank: number
++  total: number
++  lap: number
++  laps: number
++  lapMs: number
++  bestLapMs: number | null
++  item: ItemKind | null
++  /** 道具欄轉盤中（撿到道具箱到落定之間） */
++  rolling: boolean
++  wrongWay: boolean
++  finalLap: boolean
++  finished: boolean
++  map: { pts: [number, number][]; cars: RaceHudCar[] }
++  results: RaceHudResult[]
++}
++
++/** setHud 可收的所有 HUD：沒有 kind 的是 bomber，其餘依 kind 分流 */
++export type AnyGameHud = GameHud | KitchenHud | TankHud | RaceHud
++
+ /** GameModule 初始化情境（計畫 §3：Babylon 與網路同處 JS，直接拿 NetTransport） */
+ export interface GameContext {
+   scene: Scene
+   net: NetTransport
+   selfId: string
+   role: 'host' | 'guest'
+   /** 房主 uid（單人模式即自己）：guest 只信任來自它的權威訊息（安全審查 C1） */
+   hostId: string
+   players: GamePlayer[]
+   /** 設定/清除畫面覆蓋層 UI（由 BabylonCanvas 以 React 渲染）；傳 null 收起 */
+   setOverlay?: (overlay: GameOverlay | null) => void
+   /**
+    * 設定/清除 HUD（由 BabylonCanvas 以 React 渲染）；傳 null 收起。內容未變的呼叫會被略過，可每幀呼叫（每次傳新物件，勿原地改舊物件）。
+-   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD、'tank' 走坦克 HUD。
++   * 沒有 kind 的一律當 bomber 的 GameHud；kind 為 'kitchen' 走廚房 HUD、'tank' 走坦克 HUD、'race' 走賽車 HUD。
+    */
+-  setHud?: (hud: GameHud | KitchenHud | TankHud | null) => void
++  setHud?: (hud: AnyGameHud | null) => void
+ }
+ 
+ /**
+  * 對戰遊戲標準介面（計畫 §3）。
+  * 每款 Babylon 遊戲實作此介面 + 一個 Scene；新增遊戲不需 Godot 專案或匯出。
+  */
+ export interface GameModule {
+   readonly gameId: string
+   /** 建場景、註冊輸入、初始網路握手 */
+   init(ctx: GameContext): void
+diff --git a/src/index.css b/src/index.css
+index 1481e3f..40811fa 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -1929,10 +1929,328 @@ html {
+     @apply top-[calc(max(0.5rem,env(safe-area-inset-top))_+_2.25rem_+_6px)] right-[max(0.5rem,env(safe-area-inset-right))] [scale:0.85];
+   }
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .tank-timer-urgent,
+   .tank-feed-item {
+     @apply animate-none;
+   }
+ }
++
++/* ===== 極速賽車 HUD（A · Toy Racer，race spec §9）：960×540 設計尺寸，--race-scale 由 JS 依容器等比縮放；token 與 bomber／tank 同套 ===== */
++.race-hud {
++  @apply pointer-events-none absolute inset-0 z-10 select-none overflow-hidden text-(--race-ink) [--race-ink:#2b2440] [--race-paper:#fff6e3] [--race-plate:#f3e6cc] [--race-cell:56px];
++}
++.race-num {
++  @apply font-['Fredoka',_var(--font-sans)] font-bold leading-none tabular-nums;
++}
++
++/* 左上：道具欄＋圈數／時間欄 */
++.race-tl {
++  @apply absolute left-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-left))] top-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-top))] flex origin-top-left items-start gap-2.5 [scale:var(--race-scale)];
++}
++.race-tl-col {
++  @apply flex flex-col items-start gap-1.5;
++}
++.race-item {
++  @apply relative size-[76px] rounded-2xl border-[2.5px] border-(--race-ink) bg-(--race-paper) p-[6px] shadow-[0_5px_0_rgba(0,0,0,.4)];
++}
++.race-item-well {
++  @apply relative flex size-full items-center justify-center overflow-hidden rounded-xl bg-(--race-plate) shadow-[inset_0_3px_0_rgba(0,0,0,.12)];
++}
++.race-item-icon {
++  @apply size-[46px] animate-[race-item-pop_0.24s_ease-out];
++}
++.race-item-empty {
++  @apply size-[26px] text-[#cdbfa6];
++}
++.race-item-rolling {
++  @apply absolute inset-x-0 top-[calc((100%_-_var(--race-cell))_/_2)] flex flex-col animate-[race-roll_0.28s_linear_infinite];
++}
++.race-item-reel-cell {
++  @apply flex h-(--race-cell) w-full shrink-0 items-center justify-center;
++}
++.race-item-reel-icon {
++  @apply size-[calc(var(--race-cell)_-_10px)];
++}
++.race-item-flash {
++  @apply pointer-events-none absolute -inset-[2.5px] rounded-2xl opacity-0 ring-4 ring-white animate-[race-item-flash_0.12s_ease-out];
++}
++
++.race-lap {
++  @apply flex h-[40px] items-baseline gap-1 rounded-full border-[2.5px] border-(--race-ink) bg-(--race-paper) px-3.5 pt-[7px] shadow-[0_5px_0_rgba(0,0,0,.4)];
++}
++.race-lap-label {
++  @apply text-[13px] font-black tracking-wide text-[#8a7a66];
++}
++.race-lap-cur {
++  @apply text-[28px];
++}
++.race-lap-total {
++  @apply text-[17px] text-[#8a7a66];
++}
++.race-lap-final {
++  @apply bg-[#ffc21a];
++}
++.race-lap-final .race-lap-cur {
++  @apply text-white [paint-order:stroke_fill] [-webkit-text-stroke:5px_var(--race-ink)];
++}
++.race-lap-final .race-lap-label,
++.race-lap-final .race-lap-total {
++  @apply text-(--race-ink);
++}
++
++.race-time {
++  @apply w-[132px] rounded-xl border-[2.5px] border-(--race-ink) bg-(--race-paper) px-2.5 py-1 shadow-[0_4px_0_rgba(0,0,0,.4)];
++}
++.race-time-row {
++  @apply flex items-center gap-1.5;
++}
++.race-time-icon {
++  @apply size-[14px] shrink-0 stroke-[2.5] text-[#ff7a1a];
++}
++.race-time-cur {
++  @apply text-[20px];
++}
++.race-time-best {
++  @apply mt-0.5 flex items-baseline gap-1.5;
++}
++.race-time-best-label {
++  @apply text-[10px] font-black text-[#8a7a66];
++}
++.race-time-best-num {
++  @apply text-[13px];
++}
++.race-time-best-new {
++  @apply animate-[race-best-flash_1.2s_ease-out];
++}
++
++/* 左下：小地圖 */
++.race-map {
++  @apply absolute bottom-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-bottom))] left-[calc(18px_*_var(--race-scale)_+_env(safe-area-inset-left))] h-[148px] w-[168px] origin-bottom-left rounded-2xl border-[2.5px] border-(--race-ink) bg-(--race-paper)/90 p-2 shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--race-scale)];
++}
++.race-map-svg {
++  @apply block size-full overflow-visible;
++}
++
++/* 右下：名次大字 */
++.race-rank {
++  @apply absolute right-[calc(24px_*_var(--race-scale)_+_env(safe-area-inset-right))] bottom-[calc(12px_*_var(--race-scale)_+_env(safe-area-inset-bottom))] flex origin-bottom-right items-end [scale:var(--race-scale)];
++}
++.race-rank-num {
++  @apply flex origin-bottom items-baseline font-['Fredoka',_var(--font-sans)] text-[96px] font-bold leading-none text-(--race-rank-fill) [paint-order:stroke_fill] [-webkit-text-stroke:8px_var(--race-ink)] [text-shadow:0_5px_0_rgba(0,0,0,.4)] animate-[race-rank-bump_0.3s_ease-out];
++}
++.race-rank-suffix {
++  @apply text-[40px];
++}
++.race-rank-total {
++  @apply mb-3 ml-1 font-['Fredoka',_var(--font-sans)] text-[22px] font-bold leading-none text-white [paint-order:stroke_fill] [-webkit-text-stroke:4px_var(--race-ink)];
++}
++
++/* 中上：逆向警告 */
++.race-wrongway {
++  @apply absolute left-1/2 top-[calc(112px_*_var(--race-scale))] flex h-[56px] -translate-x-1/2 origin-top items-center gap-2.5 whitespace-nowrap rounded-full border-[3px] border-(--race-ink) bg-[#ff3b4e] px-6 text-[26px] font-black text-white shadow-[0_5px_0_rgba(0,0,0,.4)] [scale:var(--race-scale)] animate-[race-pulse_0.6s_ease-in-out_infinite];
++}
++.race-wrongway-icon {
++  @apply size-7 stroke-[3];
++}
++
++/* 中央：最後一圈大字（finalLap 轉 true 時掛 2.2 秒） */
++.race-finallap {
++  @apply absolute left-1/2 top-[calc(150px_*_var(--race-scale))] flex -translate-x-1/2 items-center justify-center [scale:var(--race-scale)];
++}
++.race-finallap-ribbon {
++  @apply absolute h-[46px] w-[420px] -skew-x-12 rounded-lg border-[2.5px] border-(--race-ink) bg-[#ffc21a] shadow-[0_5px_0_rgba(0,0,0,.4)];
++}
++.race-finallap-text {
++  @apply relative whitespace-nowrap text-[52px] font-black leading-none text-white [paint-order:stroke_fill] [-webkit-text-stroke:8px_var(--race-ink)];
++}
++.race-finallap-ribbon,
++.race-finallap-text {
++  @apply animate-[race-banner_2.2s_ease-out_forwards];
++}
++
++/* 衝線後名次表 */
++.race-results {
++  @apply absolute left-1/2 top-1/2 w-[440px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border-[3px] border-(--race-ink) bg-(--race-paper) shadow-[0_6px_0_rgba(0,0,0,.4)] [scale:var(--race-scale)];
++}
++.race-results-flagbar {
++  @apply h-2 bg-[repeating-linear-gradient(90deg,#2b2440_0_12px,#fff_12px_24px)];
++}
++.race-results-head {
++  @apply flex h-[44px] items-center justify-center gap-2 border-b-[2.5px] border-(--race-ink) text-[28px] font-black;
++}
++.race-results-flag {
++  @apply size-6 stroke-[2.5];
++}
++.race-results-row {
++  @apply grid h-[44px] grid-cols-[40px_14px_1fr_92px_78px] items-center gap-2 px-4 even:bg-(--race-plate);
++}
++.race-results-row-pending {
++  @apply opacity-60;
++}
++.race-results-badge {
++  @apply flex size-8 items-center justify-center rounded-full border-[2.5px] border-(--race-ink) font-['Fredoka',_var(--font-sans)] text-[17px] font-bold leading-none text-white [paint-order:stroke_fill] [-webkit-text-stroke:3px_var(--race-ink)];
++}
++.race-results-dot {
++  @apply size-3 rounded-full border-[1.5px] border-(--race-ink);
++}
++.race-results-name {
++  @apply flex min-w-0 items-center text-[16px] font-black;
++}
++.race-results-name-text {
++  @apply truncate;
++}
++.race-ai-tag {
++  @apply mr-1 shrink-0 rounded-[4px] bg-[#39e6ff] px-1 font-['Fredoka',_var(--font-sans)] text-[10px] font-bold leading-[14px] text-(--race-ink);
++}
++.race-results-time {
++  @apply text-right text-[17px];
++}
++.race-results-pending {
++  @apply text-right text-[13px] font-black;
++}
++.race-results-best {
++  @apply text-right text-[13px] text-[#8a7a66];
++}
++
++@keyframes race-roll {
++  from { transform: translateY(0); }
++  to { transform: translateY(calc(-4 * var(--race-cell))); }
++}
++@keyframes race-item-pop {
++  from { transform: scale(1.25); }
++  to { transform: scale(1); }
++}
++@keyframes race-item-flash {
++  from { opacity: 1; }
++  to { opacity: 0; }
++}
++@keyframes race-pulse {
++  0%, 100% { transform: scale(1); }
++  50% { transform: scale(1.08); }
++}
++@keyframes race-rank-bump {
++  from { transform: scale(1.3); }
++  to { transform: scale(1); }
++}
++@keyframes race-best-flash {
++  0%, 80% { color: #2fcf5e; }
++  100% { color: inherit; }
++}
++@keyframes race-banner {
++  0% { opacity: 0; transform: translateY(0) scale(0.6); }
++  8% { opacity: 1; transform: translateY(0) scale(1.1); }
++  14% { opacity: 1; transform: translateY(0) scale(1); }
++  86% { opacity: 1; transform: translateY(0) scale(1); }
++  100% { opacity: 0; transform: translateY(-20px) scale(1); }
++}
++
++/* 矮畫面（手機橫向）：道具欄縮小、圈數＋時間併一條膠囊、小地圖移到道具欄下、名次移到右上全螢幕鈕左邊 */
++@media (max-height: 500px) {
++  .race-hud {
++    @apply [--race-cell:42px];
++  }
++  .race-tl {
++    @apply left-[calc(12px_+_env(safe-area-inset-left))] top-[calc(12px_+_env(safe-area-inset-top))] items-center gap-2 [scale:1];
++  }
++  .race-item {
++    @apply size-[56px] rounded-xl p-[4px];
++  }
++  .race-item-well {
++    @apply rounded-lg;
++  }
++  .race-item-icon {
++    @apply size-[36px];
++  }
++  .race-item-flash {
++    @apply rounded-xl;
++  }
++  .race-tl-col {
++    @apply h-[40px] flex-row items-center gap-0 rounded-full border-[2.5px] border-(--race-ink) bg-(--race-paper) pr-3 shadow-[0_4px_0_rgba(0,0,0,.4)];
++  }
++  .race-lap {
++    @apply h-full items-center rounded-full border-0 bg-transparent px-3 pt-0 shadow-none;
++  }
++  .race-lap-final {
++    @apply bg-[#ffc21a];
++  }
++  .race-lap-cur {
++    @apply text-[22px];
++  }
++  .race-lap-total {
++    @apply text-[14px];
++  }
++  .race-time {
++    @apply flex w-auto items-center gap-2 rounded-none border-0 border-l-2 border-l-(--race-ink)/20 bg-transparent py-0 pl-2.5 pr-0 shadow-none;
++  }
++  .race-time-cur {
++    @apply text-[17px];
++  }
++  .race-time-best {
++    @apply mt-0;
++  }
++  .race-time-best-num {
++    @apply text-[12px];
++  }
++  .race-map {
++    @apply bottom-auto left-[calc(12px_+_env(safe-area-inset-left))] top-[calc(76px_+_env(safe-area-inset-top))] h-[96px] w-[112px] origin-top-left rounded-xl p-1 [scale:1];
++  }
++  .race-rank {
++    @apply bottom-auto right-[calc(max(12px,env(safe-area-inset-right))_+_2.25rem_+_8px)] top-[max(8px,env(safe-area-inset-top))] origin-top-right [scale:1];
++  }
++  .race-rank-num {
++    @apply text-[56px] [-webkit-text-stroke:6px_var(--race-ink)] [text-shadow:0_3px_0_rgba(0,0,0,.4)];
++  }
++  .race-rank-suffix {
++    @apply text-[24px];
++  }
++  .race-rank-total {
++    @apply mb-1.5 text-[15px] [-webkit-text-stroke:3px_var(--race-ink)];
++  }
++  .race-wrongway {
++    @apply top-[64px] [scale:0.8];
++  }
++  .race-finallap {
++    @apply top-[110px] [scale:1];
++  }
++  .race-finallap-ribbon {
++    @apply h-[32px] w-[280px];
++  }
++  .race-finallap-text {
++    @apply text-[34px] [-webkit-text-stroke:6px_var(--race-ink)];
++  }
++  .race-results {
++    @apply [scale:1];
++  }
++  .race-results-head {
++    @apply h-[38px] text-[22px];
++  }
++  .race-results-row {
++    @apply h-[32px];
++  }
++  .race-results-badge {
++    @apply size-6 text-[14px];
++  }
++}
++
++/* 觸控大螢幕（平板橫向，高度 > 500）：底部讓給搖桿與四顆觸控鈕，小地圖移到左上群下方、名次移到右上全螢幕鈕左邊 */
++@media (pointer: coarse) and (min-height: 501px) {
++  .race-map {
++    @apply bottom-auto top-[calc(128px_*_var(--race-scale)_+_env(safe-area-inset-top))] origin-top-left;
++  }
++  .race-rank {
++    @apply bottom-auto right-[calc(max(12px,env(safe-area-inset-right))_+_2.25rem_+_8px)] top-[max(8px,env(safe-area-inset-top))] origin-top-right;
++  }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .race-wrongway,
++  .race-rank-num,
++  .race-item-rolling,
++  .race-item-icon,
++  .race-finallap-ribbon,
++  .race-finallap-text {
++    @apply animate-none;
++  }
++}
+diff --git a/src/pages/Battle/BabylonCanvas.tsx b/src/pages/Battle/BabylonCanvas.tsx
+index fd26bb2..a395cf3 100644
+--- a/src/pages/Battle/BabylonCanvas.tsx
++++ b/src/pages/Battle/BabylonCanvas.tsx
+@@ -1,24 +1,27 @@
+ import { useEffect, useMemo, useRef, useState } from 'react'
+ import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
+ import { RotateCw } from 'lucide-react'
+ import { Button } from '@/components/ui/button'
+ import type { NetTransport } from '@/core/webrtc'
+-import type { GameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder, TankHud } from '@/babylon/types'
++import type { AnyGameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder, TankHud } from '@/babylon/types'
+ import { getGameFactory } from '@/babylon/games'
+ import type { GameType } from '@/core/room'
+ import { TouchControls, type TouchAction } from './TouchControls'
+ import { BomberHud } from '@/pages/Battle/BomberHud'
+ import { sameHud } from '@/pages/Battle/bomberHud'
+ import { KitchenHud as KitchenHudPanel } from '@/pages/Battle/KitchenHud'
+ import { KITCHEN_LEAVE_MS, collectLeaving, freshGone, isKitchenHud, type LeavingOrder } from '@/pages/Battle/kitchenHud'
+ import { TankHud as TankHudPanel } from '@/pages/Battle/TankHud'
++import { RaceHud as RaceHudPanel } from '@/pages/Battle/RaceHud'
++import { RACE_TOUCH_ACTIONS, isRaceHud } from '@/pages/Battle/raceHud'
++import type { JoyAxes } from '@/pages/Battle/touchDirs'
+ import {
+   TANK_FEED_LEAVE_MS,
+   TANK_FEED_MAX,
+   TANK_FEED_SHOW_MS,
+   TANK_TOUCH_ACTIONS,
+   feedRestarted,
+   freshFeed,
+   isTankHud,
+   type TankFeedItem,
+ } from '@/pages/Battle/tankHud'
+@@ -32,37 +35,42 @@ interface BabylonCanvasProps {
+   hostId: string
+   players: GamePlayer[]
+ }
+ 
+ /**
+  * 各遊戲的行動裝置動作鈕（移動一律由虛擬搖桿 → 方向鍵）。
+  * key 對應遊戲端 e.key.toLowerCase() 後的比對值。
+  */
+ const TOUCH_ACTIONS: Record<GameType, TouchAction[]> = {
+   tank: TANK_TOUCH_ACTIONS,
+-  race: [],
++  race: RACE_TOUCH_ACTIONS,
+   bomber: [
+     { label: '💣', key: ' ' },
+     { label: '🧤', key: 'f' },
+   ],
+   overcooked: [{ label: '✋', key: 'e' }],
+ }
+ 
++/** 觸控版面例外：賽車搖桿只轉向、四顆鈕排 2×2（AC8）；沒列的遊戲維持上下左右＋橫排 */
++const TOUCH_LAYOUT: Partial<Record<GameType, { axes: JoyAxes; grid: boolean }>> = {
++  race: { axes: 'x', grid: true },
++}
++
+ /**
+  * Babylon 引擎掛載點（計畫 §2）。負責 Engine/Scene 生命週期、
+  * 依 gameType 實例化 GameModule、把 NetTransport 訊息轉進場景、跑 render loop，
+  * 卸載時依序釋放所有資源。遊戲本身與網路同處 JS context，無 iframe/postMessage。
+  */
+ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: BabylonCanvasProps) {
+   const canvasRef = useRef<HTMLCanvasElement>(null)
+   const [overlay, setOverlay] = useState<GameOverlay | null>(null)
+-  const [hud, setHudState] = useState<GameHud | KitchenHud | TankHud | null>(null)
++  const [hud, setHudState] = useState<AnyGameHud | null>(null)
+   // 廚房 HUD 正在播離場動畫的訂單卡（gone 只出現在一次 setHud，另存起來播完才移除）
+   const [leaving, setLeaving] = useState<LeavingOrder[]>([])
+   // 坦克 HUD 畫面上的擊殺通知：每則從第一次收到起顯示 3 秒、淡出後移除
+   const [tankFeed, setTankFeed] = useState<TankFeedItem[]>([])
+   // 觸控為主的裝置（手機/平板）才顯示虛擬搖桿與動作鈕
+   const isTouch = useMemo(() => window.matchMedia?.('(pointer: coarse)')?.matches ?? false, [])
+   // 觸控裝置強制橫向：直向時以提示蓋住遊戲，並嘗試原生鎖定方向
+   const [portrait, setPortrait] = useState(false)
+   // players 走 ref，避免列表變動觸發引擎重建（init 只在掛載時讀一次初始值）
+   const playersRef = useRef(players)
+@@ -135,25 +143,25 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+           fn()
+         }, ms)
+         leaveTimers.add(t)
+       }
+       for (const f of fresh) {
+         later(TANK_FEED_SHOW_MS, () => setTankFeed((prev) => prev.map((x) => (x.id === f.id ? { ...x, leaving: true } : x))))
+         later(TANK_FEED_SHOW_MS + TANK_FEED_LEAVE_MS, () => setTankFeed((prev) => prev.filter((x) => x.id !== f.id)))
+       }
+     }
+     // 遊戲可能每幀呼叫：內容沒變就沿用舊參照，React 不重繪；沒有 kind 的一律當 bomber
+-    const setHud = (next: GameHud | KitchenHud | TankHud | null) => {
++    const setHud = (next: AnyGameHud | null) => {
+       if (isKitchenHud(next)) queueLeaving(next)
+       else prevKitchenOrders = []
+       if (isTankHud(next)) queueTankFeed(next)
+-      setHudState((prev) => (sameHud<GameHud | KitchenHud | TankHud>(prev, next) ? prev : next))
++      setHudState((prev) => (sameHud<AnyGameHud>(prev, next) ? prev : next))
+     }
+     game.init({ scene, net, selfId, role, hostId, players: playersRef.current, setOverlay, setHud })
+ 
+     const offMessage = net.on('message', (from, msg) => game.onNetworkMessage(from, msg))
+ 
+     // 遊戲操作鍵（空白鍵/方向鍵）在 canvas 聚焦時不可觸發頁面捲動
+     const SCROLL_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+     const blockScrollKeys = (e: KeyboardEvent) => {
+       if (SCROLL_KEYS.includes(e.key)) e.preventDefault()
+     }
+@@ -220,24 +228,26 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }:
+         ref={canvasRef}
+         data-testid="battle-canvas"
+         className="block size-full bg-slate-950 outline-none touch-none"
+         tabIndex={0}
+       />
+       {hud &&
+         (isKitchenHud(hud) ? (
+           <KitchenHudPanel hud={hud} leaving={leaving} />
+         ) : isTankHud(hud) ? (
+           <TankHudPanel hud={hud} feed={tankFeed} />
++        ) : isRaceHud(hud) ? (
++          <RaceHudPanel hud={hud} />
+         ) : (
+           <BomberHud hud={hud} />
+         ))}
+-      {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} />}
++      {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} {...TOUCH_LAYOUT[gameType]} />}
+       {isTouch && portrait && (
+         <div
+           className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/95 p-6 text-center"
+           data-testid="rotate-prompt"
+         >
+           <RotateCw className="size-14 animate-pulse text-indigo-400" aria-hidden="true" />
+           <p className="text-lg font-bold text-slate-100">請將手機轉為橫向</p>
+           <p className="text-sm text-slate-400">本遊戲需橫向遊玩</p>
+         </div>
+       )}
+diff --git a/src/pages/Battle/RaceHud.tsx b/src/pages/Battle/RaceHud.tsx
+new file mode 100644
+index 0000000..53080f6
+--- /dev/null
++++ b/src/pages/Battle/RaceHud.tsx
+@@ -0,0 +1,295 @@
++import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type Ref } from 'react'
++import { Box, Flag, RotateCcw, Shield, Timer } from 'lucide-react'
++import type { RaceHud } from '@/babylon/types'
++import type { ItemKind } from '@/babylon/games/raceRules/items'
++import { hudScale } from '@/pages/Battle/bomberHud'
++import {
++  RACE_BEST_FLASH_MS,
++  RACE_COLORS,
++  RACE_FINAL_BANNER_MS,
++  RACE_ITEM_LABELS,
++  RACE_ITEM_REEL,
++  RACE_MAP_H,
++  RACE_MAP_PAD,
++  RACE_MAP_W,
++  RANK_TONES,
++  bestLapImproved,
++  formatLapMs,
++  itemSlotView,
++  mapCars,
++  mapTransform,
++  ordinalSuffix,
++  rankOf,
++  rankTone,
++  resultRows,
++  startTick,
++  trackPoints,
++} from '@/pages/Battle/raceHud'
++
++const INK = '#2B2440'
++
++/** 道具圖示（spec §9.6）：viewBox 48×48、墨色描邊 2.5 */
++export function RaceItemIcon({ kind, className }: { kind: ItemKind; className?: string }) {
++  const uid = useId().replace(/[^\w-]/g, '')
++  if (kind === 'shield') {
++    return (
++      <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
++        <circle cx="24" cy="24" r="19" fill="#1FB5E0" stroke={INK} strokeWidth="2.5" />
++        <Shield x="11" y="11" size={26} color="#FFFFFF" strokeWidth={2.5} fill="#7FE8FF" />
++      </svg>
++    )
++  }
++  if (kind === 'banana') {
++    return (
++      <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
++        <g stroke={INK} strokeWidth="2.5" strokeLinejoin="round">
++          <path d="M24 14 C16 18 10 28 9 38 C14 36 19 30 22 24 Z" fill="#FFD23F" />
++          <path d="M24 14 C32 18 38 28 39 38 C34 36 29 30 26 24 Z" fill="#FFD23F" />
++          <path d="M21 16 C20 26 21 34 24 40 C27 34 28 26 27 16 Z" fill="#FFD23F" />
++          <circle cx="9" cy="38" r="2" fill="#C79A00" />
++          <circle cx="39" cy="38" r="2" fill="#C79A00" />
++          <circle cx="24" cy="40" r="2" fill="#C79A00" />
++          <rect x="22" y="8" width="4" height="7" rx="1.5" fill="#7A4A1D" />
++        </g>
++      </svg>
++    )
++  }
++  if (kind === 'shell') {
++    const grad = `race-shell-${uid}`
++    return (
++      <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
++        <defs>
++          <radialGradient id={grad} cx="35%" cy="25%" r="80%">
++            <stop offset="0%" stopColor="#FF8A80" />
++            <stop offset="50%" stopColor="#E8413A" />
++            <stop offset="100%" stopColor="#A82A24" />
++          </radialGradient>
++        </defs>
++        <g stroke={INK} strokeWidth="2.5" strokeLinejoin="round">
++          <path d="M8 30 A16 15 0 0 1 40 30 Z" fill={`url(#${grad})`} />
++          <rect x="6" y="29" width="36" height="7" rx="3.5" fill="#FFF6E3" />
++          <g fill="#FF8A80" strokeWidth="1.5">
++            <circle cx="17" cy="22" r="3" />
++            <circle cx="24" cy="17" r="3" />
++            <circle cx="31" cy="22" r="3" />
++          </g>
++        </g>
++      </svg>
++    )
++  }
++  return (
++    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
++      <g stroke={INK} strokeWidth="2.5" strokeLinejoin="round">
++        <path d="M6 26 C6 14 14 8 24 8 C34 8 42 14 42 26 Z" fill="#FF7A3D" />
++        <g fill="#FFF6E3" strokeWidth="1.5">
++          <circle cx="16" cy="17" r="4" />
++          <circle cx="30" cy="14" r="3.5" />
++          <circle cx="37" cy="22" r="2.5" />
++        </g>
++        <rect x="15" y="25" width="18" height="15" rx="6" fill="#FFF1E0" />
++      </g>
++      <ellipse cx="21" cy="31" rx="1.6" ry="2.4" fill={INK} />
++      <ellipse cx="27" cy="31" rx="1.6" ry="2.4" fill={INK} />
++    </svg>
++  )
++}
++
++/** 左上道具欄：轉盤膠卷／落定圖示（彈一下＋外框閃白）／空 */
++function ItemSlot({ item, rolling }: { item: ItemKind | null; rolling: boolean }) {
++  const slot = itemSlotView(item, rolling)
++  const label = slot === 'item' && item ? RACE_ITEM_LABELS[item] : slot === 'rolling' ? '抽道具中' : '沒有道具'
++  return (
++    <div className="race-item" data-race-item={slot === 'item' ? item : slot} aria-label={`道具：${label}`}>
++      <div className="race-item-well">
++        {slot === 'rolling' ? (
++          <div className="race-item-rolling">
++            {[...RACE_ITEM_REEL, RACE_ITEM_REEL[0]].map((k, i) => (
++              <span key={i} className="race-item-reel-cell" data-race-reel={k}>
++                <RaceItemIcon kind={k} className="race-item-reel-icon" />
++              </span>
++            ))}
++          </div>
++        ) : slot === 'item' && item ? (
++          <RaceItemIcon key={item} kind={item} className="race-item-icon" />
++        ) : (
++          <Box className="race-item-empty" />
++        )}
++      </div>
++      {slot === 'item' && item && <span key={item} className="race-item-flash" />}
++    </div>
++  )
++}
++
++/** 左下小地圖：賽道輪廓只在 pts 參照改變時重算 */
++function MiniMap({ map }: { map: RaceHud['map'] }) {
++  const { pts, cars } = map
++  const tf = useMemo(() => mapTransform(pts, RACE_MAP_W, RACE_MAP_H, RACE_MAP_PAD), [pts])
++  const track = useMemo(() => trackPoints(pts, tf), [pts, tf])
++  const tick = useMemo(() => startTick(pts, tf, 4), [pts, tf])
++  return (
++    <div className="race-map" data-race-map="">
++      <svg viewBox={`0 0 ${RACE_MAP_W} ${RACE_MAP_H}`} className="race-map-svg" aria-label="小地圖">
++        <polyline points={track} fill="none" stroke={INK} strokeWidth="9" strokeLinejoin="round" strokeLinecap="round" />
++        <polyline points={track} fill="none" stroke="#5A5380" strokeWidth="5.5" strokeLinejoin="round" strokeLinecap="round" />
++        <line {...tick} stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
++        {mapCars(cars, tf).map((c) => (
++          <g key={c.id} data-race-car={c.isSelf ? 'self' : c.id}>
++            {c.isSelf && <circle cx={c.cx} cy={c.cy} r={c.r + 2} fill="#FFFFFF" />}
++            <circle cx={c.cx} cy={c.cy} r={c.r} fill={c.fill} stroke={INK} strokeWidth="1.5" />
++          </g>
++        ))}
++      </svg>
++    </div>
++  )
++}
++
++/** 衝線後置中的名次表 */
++function Results({ hud }: { hud: RaceHud }) {
++  const selfId = hud.map.cars.find((c) => c.isSelf)?.id ?? null
++  return (
++    <div className="race-results" data-race-results="">
++      <div className="race-results-flagbar" />
++      <div className="race-results-head">
++        <Flag className="race-results-flag" />
++        <span>完賽！</span>
++      </div>
++      {resultRows(hud.results, selfId).map((r) => (
++        <div
++          key={r.id}
++          className={r.time === null ? 'race-results-row race-results-row-pending' : 'race-results-row'}
++          data-race-row={r.id}
++        >
++          <span className="race-results-badge" style={{ backgroundColor: RANK_TONES[r.tone] }}>
++            {r.rank}
++          </span>
++          <span className="race-results-dot" style={{ backgroundColor: (RACE_COLORS[r.colorIndex] ?? RACE_COLORS[0]).base }} />
++          <span className="race-results-name">
++            {r.isBot && <span className="race-ai-tag">AI</span>}
++            <span className="race-results-name-text">{r.isSelf ? '你' : r.name}</span>
++          </span>
++          {r.time === null ? (
++            <span className="race-results-pending">衝線中…</span>
++          ) : (
++            <span className="race-num race-results-time">{r.time}</span>
++          )}
++          <span className="race-num race-results-best">{r.best}</span>
++        </div>
++      ))}
++    </div>
++  )
++}
++
++interface RaceHudViewProps {
++  hud: RaceHud
++  /** 「最後一圈！」大字是否顯示（由外層在 finalLap 轉 true 時掛 2.2 秒） */
++  banner?: boolean
++  /** BEST 是否正在閃新最佳圈色 */
++  bestFlash?: boolean
++  scale?: number
++  rootRef?: Ref<HTMLDivElement>
++}
++
++/** 賽車 HUD 的純呈現（無副作用，可在 node 靜態渲染自查） */
++export function RaceHudView({ hud, banner = false, bestFlash = false, scale = 1, rootRef }: RaceHudViewProps) {
++  const tone = rankTone(hud.rank)
++  const rankStyle = { '--race-rank-fill': RANK_TONES[tone] } as CSSProperties
++  return (
++    <div ref={rootRef} className="race-hud" style={{ '--race-scale': scale } as CSSProperties} data-race-hud="">
++      <div className="race-tl">
++        <ItemSlot item={hud.item} rolling={hud.rolling} />
++        <div className="race-tl-col">
++          <div className={hud.finalLap ? 'race-lap race-lap-final' : 'race-lap'} data-race-lap={hud.lap}>
++            <span className="race-lap-label">LAP</span>
++            <span className="race-num race-lap-cur">{hud.lap}</span>
++            <span className="race-num race-lap-total">/{hud.laps}</span>
++          </div>
++          <div className="race-time">
++            <div className="race-time-row">
++              <Timer className="race-time-icon" />
++              <span className="race-num race-time-cur">{formatLapMs(hud.lapMs)}</span>
++            </div>
++            <div className={bestFlash ? 'race-time-best race-time-best-new' : 'race-time-best'}>
++              <span className="race-time-best-label">BEST</span>
++              <span className="race-num race-time-best-num">{formatLapMs(hud.bestLapMs)}</span>
++            </div>
++          </div>
++        </div>
++      </div>
++
++      <MiniMap map={hud.map} />
++
++      <div className="race-rank" style={rankStyle} data-race-rank={hud.rank} data-race-tone={tone}>
++        <span key={hud.rank} className="race-rank-num">
++          <span>{rankOf(hud.rank)}</span>
++          <span className="race-rank-suffix">{ordinalSuffix(hud.rank)}</span>
++        </span>
++        <span className="race-rank-total">/{hud.total}</span>
++      </div>
++
++      {hud.wrongWay && (
++        <div className="race-wrongway" data-race-wrongway="" role="alert">
++          <RotateCcw className="race-wrongway-icon" />
++          <span>逆向行駛！</span>
++        </div>
++      )}
++
++      {banner && (
++        <div className="race-finallap" data-race-finallap="">
++          <span className="race-finallap-ribbon" />
++          <span className="race-finallap-text">最後一圈！</span>
++        </div>
++      )}
++
++      {hud.finished && <Results hud={hud} />}
++    </div>
++  )
++}
++
++/**
++ * 極速賽車的 React HUD（spec §9）：左上道具欄＋圈數＋時間、左下小地圖、右下名次大字，
++ * 中上逆向警告、最後一圈大字、衝線後名次表。以 960×540 設計尺寸排版，依容器等比縮放（--race-scale）；
++ * 矮畫面（max-height 500px）由 CSS 改排精簡版。
++ */
++export function RaceHud({ hud }: { hud: RaceHud }) {
++  const rootRef = useRef<HTMLDivElement>(null)
++  const [scale, setScale] = useState(1)
++  // finalLap 由 false 轉 true 的瞬間掛上大字；best 刷新時閃色（render 期間比對前值，見 React「依 props 調整 state」）
++  const [prevFinal, setPrevFinal] = useState(hud.finalLap)
++  const [banner, setBanner] = useState(false)
++  const [prevBest, setPrevBest] = useState(hud.bestLapMs)
++  const [bestFlash, setBestFlash] = useState(false)
++  if (hud.finalLap !== prevFinal) {
++    setPrevFinal(hud.finalLap)
++    setBanner(hud.finalLap)
++  }
++  if (hud.bestLapMs !== prevBest) {
++    setPrevBest(hud.bestLapMs)
++    if (bestLapImproved(prevBest, hud.bestLapMs)) setBestFlash(true)
++  }
++
++  useEffect(() => {
++    if (!banner) return
++    const t = window.setTimeout(() => setBanner(false), RACE_FINAL_BANNER_MS)
++    return () => window.clearTimeout(t)
++  }, [banner])
++
++  useEffect(() => {
++    if (!bestFlash) return
++    const t = window.setTimeout(() => setBestFlash(false), RACE_BEST_FLASH_MS)
++    return () => window.clearTimeout(t)
++  }, [bestFlash, prevBest])
++
++  useEffect(() => {
++    const el = rootRef.current
++    if (!el) return
++    const update = () => setScale(hudScale(el.clientWidth, el.clientHeight))
++    update()
++    const ro = new ResizeObserver(update)
++    ro.observe(el)
++    return () => ro.disconnect()
++  }, [])
++
++  return <RaceHudView hud={hud} banner={banner} bestFlash={bestFlash} scale={scale} rootRef={rootRef} />
++}
++
++export default RaceHud
+diff --git a/src/pages/Battle/TouchControls.tsx b/src/pages/Battle/TouchControls.tsx
+index e446beb..b35724b 100644
+--- a/src/pages/Battle/TouchControls.tsx
++++ b/src/pages/Battle/TouchControls.tsx
+@@ -1,27 +1,38 @@
+ import { useEffect, useRef } from 'react'
++import { joyDirs, type JoyAxes } from '@/pages/Battle/touchDirs'
+ 
+ /** 動作鈕：點按時對 window 派發對應按鍵事件 */
+ export interface TouchAction {
+   label: string
+   /** KeyboardEvent.key（小寫即遊戲端 e.key.toLowerCase() 後比對值），如 ' '、'e' */
+   key: string
+ }
+ 
+ /**
+  * 行動裝置觸控操作層：左側虛擬搖桿 → 方向鍵、右側動作鈕。
+  *
+  * 透過對 window 派發合成 KeyboardEvent（keydown/keyup）驅動，
+  * 所有遊戲既有的鍵盤監聽（window + e.key.toLowerCase()）即可直接吃到，
+  * 因此新增遊戲無須改動輸入邏輯，只要在 BabylonCanvas 登記動作鈕。
+  */
+-export function TouchControls({ actions }: { actions: TouchAction[] }) {
++export function TouchControls({
++  actions,
++  axes = 'xy',
++  grid = false,
++}: {
++  actions: TouchAction[]
++  /** 搖桿派發的軸：'x' 只派發左右（賽車），預設 'xy' */
++  axes?: JoyAxes
++  /** 動作鈕排成 2×2（依 actions 順序左上、右上、左下、右下），預設橫排 */
++  grid?: boolean
++}) {
+   const baseRef = useRef<HTMLDivElement>(null)
+   const thumbRef = useRef<HTMLDivElement>(null)
+   const activeDirs = useRef<Set<string>>(new Set())
+   const joyPointer = useRef<number | null>(null)
+ 
+   const dispatchKey = (type: 'keydown' | 'keyup', key: string) =>
+     window.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }))
+ 
+   // 比對前後方向集合，差異處才派發按鍵（避免重複 keydown）
+   const setDirs = (next: Set<string>) => {
+@@ -37,32 +48,24 @@ export function TouchControls({ actions }: { actions: TouchAction[] }) {
+     const r = base.getBoundingClientRect()
+     const cx = r.left + r.width / 2
+     const cy = r.top + r.height / 2
+     const dx = clientX - cx
+     const dy = clientY - cy
+     const radius = r.width / 2
+     const mag = Math.hypot(dx, dy)
+     const clamped = Math.min(mag, radius)
+     const ang = Math.atan2(dy, dx)
+     const tx = Math.cos(ang) * clamped
+-    const ty = Math.sin(ang) * clamped
++    const ty = axes === 'x' ? 0 : Math.sin(ang) * clamped
+     if (thumbRef.current) thumbRef.current.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px))`
+ 
+-    const nx = dx / radius
+-    const ny = dy / radius
+-    const dz = 0.35 // 死區，避免輕觸誤判
+-    const next = new Set<string>()
+-    if (ny < -dz) next.add('arrowup')
+-    else if (ny > dz) next.add('arrowdown')
+-    if (nx < -dz) next.add('arrowleft')
+-    else if (nx > dz) next.add('arrowright')
+-    setDirs(next)
++    setDirs(joyDirs(dx / radius, dy / radius, axes))
+   }
+ 
+   const onJoyDown = (e: React.PointerEvent) => {
+     e.preventDefault()
+     joyPointer.current = e.pointerId
+     baseRef.current?.setPointerCapture(e.pointerId)
+     updateFromPoint(e.clientX, e.clientY)
+   }
+   const onJoyMove = (e: React.PointerEvent) => {
+     if (joyPointer.current !== e.pointerId) return
+@@ -111,21 +114,24 @@ export function TouchControls({ actions }: { actions: TouchAction[] }) {
+       >
+         <div
+           ref={thumbRef}
+           style={{ transform: 'translate(-50%, -50%)' }}
+           className="absolute left-1/2 top-1/2 size-12 rounded-full bg-white/45 shadow-lg"
+         />
+       </div>
+ 
+       {/* 動作鈕（右下） */}
+       {actions.length > 0 && (
+-        <div className="pointer-events-auto absolute flex gap-3 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))]">
++        <div
++          className={`pointer-events-auto absolute ${grid ? 'grid grid-cols-2' : 'flex'} gap-3 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))]`}
++          data-touch-layout={grid ? 'grid' : 'row'}
++        >
+           {actions.map((a) => (
+             <button
+               key={a.key}
+               onPointerDown={onActDown(a.key)}
+               onPointerUp={onActUp(a.key)}
+               onPointerCancel={onActUp(a.key)}
+               onPointerLeave={onActUp(a.key)}
+               className="size-16 touch-none rounded-full border border-white/20 bg-indigo-500/40 text-3xl text-white backdrop-blur-sm shadow-lg active:bg-indigo-500/70"
+               aria-label={`動作 ${a.label}`}
+               data-testid="touch-action"
+diff --git a/src/pages/Battle/kitchenHud.ts b/src/pages/Battle/kitchenHud.ts
+index 8d3c5a5..fa6b432 100644
+--- a/src/pages/Battle/kitchenHud.ts
++++ b/src/pages/Battle/kitchenHud.ts
+@@ -1,29 +1,29 @@
+ import { PLAYER_PALETTE } from '@/babylon/fx/palette'
+ import { ORDER_LIFE_MS, RECIPES, SCORE_SERVE } from '@/babylon/games/overcookedKitchen'
+-import type { GameHud, KitchenHud, KitchenHudGone, KitchenHudOrder, KitchenHudPlayer, KitchenIng, TankHud } from '@/babylon/types'
++import type { AnyGameHud, KitchenHud, KitchenHudGone, KitchenHudOrder, KitchenHudPlayer, KitchenIng } from '@/babylon/types'
+ import { formatTimer } from '@/pages/Battle/bomberHud'
+ 
+ /** 固定 4 色（kitchen spec §4），與 3D 廚師同源；索引 = colorIndex */
+ export const KITCHEN_COLORS = PLAYER_PALETTE
+ 
+ /** 剩這麼多秒（含）以內計時膠囊變紅跳動 */
+ const URGENT_SECONDS = 15
+ /** 計時條分級門檻（剩餘比例） */
+ const WARN_RATIO = 0.5
+ const DANGER_RATIO = 0.25
+ 
+ /** 離場動畫時長（spec §7：出餐 600ms、逾時 400ms） */
+ export const KITCHEN_LEAVE_MS = { served: 600, expired: 400 } as const
+ 
+ /** setHud 收到的是不是廚房 HUD（沒有 kind 的一律當 bomber） */
+-export function isKitchenHud(hud: GameHud | KitchenHud | TankHud | null): hud is KitchenHud {
++export function isKitchenHud(hud: AnyGameHud | null): hud is KitchenHud {
+   return hud !== null && 'kind' in hud && hud.kind === 'kitchen'
+ }
+ 
+ const recipeName = (id: string, fallback: string) => RECIPES.find((r) => r.id === id)?.name ?? fallback
+ 
+ /**
+  * HUD 照實顯示的菜（裁決 ⑤）：出餐只比對 ing，所以訂單卡與食譜只分蔬菜湯／肉湯，
+  * 分數一律是實際得分 SCORE_SERVE。
+  */
+ export const KITCHEN_DISHES: readonly { ing: KitchenIng; name: string; score: number }[] = [
+diff --git a/src/pages/Battle/raceHud.test.ts b/src/pages/Battle/raceHud.test.ts
+new file mode 100644
+index 0000000..affcfec
+--- /dev/null
++++ b/src/pages/Battle/raceHud.test.ts
+@@ -0,0 +1,321 @@
++import { createElement } from 'react'
++import { renderToStaticMarkup } from 'react-dom/server'
++import { describe, expect, it } from 'vitest'
++import type { GameHud, KitchenHud, RaceHud, TankHud } from '@/babylon/types'
++import { sameHud } from '@/pages/Battle/bomberHud'
++import { isKitchenHud } from '@/pages/Battle/kitchenHud'
++import { isTankHud } from '@/pages/Battle/tankHud'
++import {
++  RACE_COLORS,
++  RACE_ITEM_REEL,
++  RACE_TOUCH_ACTIONS,
++  RANK_TONES,
++  bestLapImproved,
++  formatLapMs,
++  isRaceBotId,
++  isRaceHud,
++  itemSlotView,
++  mapTransform,
++  mapView,
++  ordinal,
++  ordinalSuffix,
++  rankTone,
++  resultRows,
++  startTick,
++} from '@/pages/Battle/raceHud'
++import { RaceHudView } from '@/pages/Battle/RaceHud'
++
++/** 方形測試賽道（逆時針），x 0..100、z 0..50 */
++const PTS: [number, number][] = [
++  [0, 0],
++  [100, 0],
++  [100, 50],
++  [0, 50],
++]
++
++/** 假資料（照 RaceHud 共用契約）：第 2 圈、自己第 4、手上加速菇、3 台 bot */
++function race(extra: Partial<RaceHud> = {}): RaceHud {
++  return {
++    kind: 'race',
++    rank: 4,
++    total: 4,
++    lap: 2,
++    laps: 3,
++    lapMs: 18420,
++    bestLapMs: 41070,
++    item: 'mushroom',
++    rolling: false,
++    wrongWay: false,
++    finalLap: false,
++    finished: false,
++    map: {
++      pts: PTS,
++      cars: [
++        { id: 'me', colorIndex: 0, x: 90, z: 10, isSelf: true },
++        { id: 'bot-0', colorIndex: 1, x: 95, z: 20, isSelf: false },
++        { id: 'bot-1', colorIndex: 2, x: 50, z: 50, isSelf: false },
++        { id: 'bot-2', colorIndex: 3, x: 0, z: 25, isSelf: false },
++      ],
++    },
++    results: [],
++    ...extra,
++  }
++}
++
++const RESULTS: RaceHud['results'] = [
++  { id: 'bot-1', name: '電腦2', colorIndex: 2, rank: 2, totalMs: 131250, bestLapMs: 42100 },
++  { id: 'me', name: '小紅', colorIndex: 0, rank: 1, totalMs: 128400, bestLapMs: 41070 },
++  { id: 'bot-2', name: '電腦3', colorIndex: 3, rank: 4, totalMs: null, bestLapMs: 44800 },
++  { id: 'bot-0', name: '電腦1', colorIndex: 1, rank: 3, totalMs: 133900, bestLapMs: null },
++]
++
++describe('isRaceHud：setHud 依 kind 分流', () => {
++  it('race 才是 race；其他三款不是', () => {
++    const bomber: GameHud = { timer: { secondsLeft: 60, suddenDeath: false }, aliveCount: 1, totalCount: 1, players: [] }
++    const kitchen = { kind: 'kitchen' } as KitchenHud
++    const tank = { kind: 'tank' } as TankHud
++    expect(isRaceHud(race())).toBe(true)
++    expect(isRaceHud(null)).toBe(false)
++    expect(isRaceHud(bomber)).toBe(false)
++    expect(isRaceHud(kitchen)).toBe(false)
++    expect(isRaceHud(tank)).toBe(false)
++  })
++
++  it('race 不會被當成 kitchen／tank', () => {
++    expect(isKitchenHud(race())).toBe(false)
++    expect(isTankHud(race())).toBe(false)
++  })
++
++  it('內容相同視為同一張 HUD（每幀 setHud 不重繪）', () => {
++    expect(sameHud<RaceHud>(race(), race())).toBe(true)
++    expect(sameHud<RaceHud>(race(), race({ lapMs: 18430 }))).toBe(false)
++  })
++})
++
++describe('名次字尾 ordinal', () => {
++  it('1st／2nd／3rd／4th', () => {
++    expect([1, 2, 3, 4].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th'])
++  })
++
++  it('11–13 一律 th，21／22／23 回到 st／nd／rd', () => {
++    expect([11, 12, 13].map(ordinalSuffix)).toEqual(['th', 'th', 'th'])
++    expect([21, 22, 23, 101, 111].map(ordinal)).toEqual(['21st', '22nd', '23rd', '101st', '111th'])
++  })
++
++  it('非正整數夾成 1', () => {
++    expect(ordinal(0)).toBe('1st')
++    expect(ordinal(Number.NaN)).toBe('1st')
++    expect(ordinal(2.4)).toBe('2nd')
++  })
++})
++
++describe('圈時 formatLapMs → m:ss.cc', () => {
++  it('一般值', () => {
++    expect(formatLapMs(18420)).toBe('0:18.42')
++    expect(formatLapMs(41070)).toBe('0:41.07')
++    expect(formatLapMs(128400)).toBe('2:08.40')
++    expect(formatLapMs(0)).toBe('0:00.00')
++  })
++
++  it('不足 10ms 的部分捨去（不進位成下一秒）', () => {
++    expect(formatLapMs(59999)).toBe('0:59.99')
++    expect(formatLapMs(60000)).toBe('1:00.00')
++  })
++
++  it('null、負數、非數字 → -:--.--', () => {
++    expect(formatLapMs(null)).toBe('-:--.--')
++    expect(formatLapMs(-1)).toBe('-:--.--')
++    expect(formatLapMs(Number.NaN)).toBe('-:--.--')
++    expect(formatLapMs(Number.POSITIVE_INFINITY)).toBe('-:--.--')
++  })
++})
++
++describe('名次色 rankTone／RANK_TONES（spec §9.5）', () => {
++  it('1 金、2 銀、3 銅、4 以後 plain', () => {
++    expect([1, 2, 3, 4, 5].map(rankTone)).toEqual(['gold', 'silver', 'bronze', 'plain', 'plain'])
++  })
++
++  it('填色照 spec', () => {
++    expect(RANK_TONES).toEqual({ gold: '#FFC21A', silver: '#E3E6EF', bronze: '#FF9A5A', plain: '#C9BEDB' })
++  })
++})
++
++describe('小地圖 mapTransform（等比塞進、z 往上）', () => {
++  it('寬賽道貼齊左右 pad、垂直置中；z 越大 py 越小', () => {
++    const tf = mapTransform(PTS, 120, 100, 10)
++    // 可用 100×80，賽道 100×50 → 比例 1，垂直餘 30 → 上下各 15
++    expect(tf(0, 0)).toEqual([10, 75])
++    expect(tf(100, 0)).toEqual([110, 75])
++    expect(tf(0, 50)).toEqual([10, 25])
++    expect(tf(100, 50)[1]).toBeLessThan(tf(100, 0)[1])
++  })
++
++  it('高賽道貼齊上下、水平置中', () => {
++    const tall: [number, number][] = [
++      [0, 0],
++      [10, 0],
++      [10, 40],
++      [0, 40],
++    ]
++    const tf = mapTransform(tall, 100, 100, 10)
++    expect(tf(0, 0)).toEqual([40, 90])
++    expect(tf(10, 40)).toEqual([60, 10])
++  })
++
++  it('空陣列或單點不會除以 0', () => {
++    const [x, y] = mapTransform([], 100, 80, 8)(3, 4)
++    expect(Number.isFinite(x) && Number.isFinite(y)).toBe(true)
++    expect(mapTransform([[5, 5]], 100, 80, 8)(5, 5)).toEqual([50, 40])
++  })
++})
++
++describe('小地圖 mapView', () => {
++  it('賽道折線首尾閉合', () => {
++    const v = mapView(race().map)
++    const pts = v.track.split(' ')
++    expect(pts).toHaveLength(PTS.length + 1)
++    expect(pts[0]).toBe(pts[pts.length - 1])
++  })
++
++  it('自己畫在最上層（排最後）且較大', () => {
++    const v = mapView(race().map)
++    expect(v.cars).toHaveLength(4)
++    expect(v.cars[v.cars.length - 1].id).toBe('me')
++    expect(v.cars[v.cars.length - 1].r).toBeGreaterThan(v.cars[0].r)
++    expect(v.cars[0].fill).toBe(RACE_COLORS[1].base)
++  })
++
++  it('起跑線短橫垂直於第一段', () => {
++    const t = startTick(PTS, mapTransform(PTS, 120, 100, 10), 4)
++    // 第一段沿 +x → 短橫是垂直線（x 相同、y 差 8）
++    expect(t.x1).toBeCloseTo(t.x2)
++    expect(Math.abs(t.y1 - t.y2)).toBeCloseTo(8)
++  })
++})
++
++describe('道具欄狀態 itemSlotView', () => {
++  it('轉盤中一律 rolling；落定後有道具 item、沒有 empty', () => {
++    expect(itemSlotView(null, true)).toBe('rolling')
++    expect(itemSlotView('shell', true)).toBe('rolling')
++    expect(itemSlotView('shell', false)).toBe('item')
++    expect(itemSlotView(null, false)).toBe('empty')
++  })
++
++  it('轉盤膠卷依序 4 種道具', () => {
++    expect(RACE_ITEM_REEL).toEqual(['banana', 'shell', 'mushroom', 'shield'])
++  })
++})
++
++describe('最佳圈刷新 bestLapImproved', () => {
++  it('第一次有最佳圈或變快才算', () => {
++    expect(bestLapImproved(null, 41070)).toBe(true)
++    expect(bestLapImproved(41070, 40000)).toBe(true)
++    expect(bestLapImproved(41070, 41070)).toBe(false)
++    expect(bestLapImproved(41070, null)).toBe(false)
++    expect(bestLapImproved(null, null)).toBe(false)
++  })
++})
++
++describe('衝線名次表 resultRows', () => {
++  it('依名次排序、自己標 isSelf、bot 依 id 判定', () => {
++    const rows = resultRows(RESULTS, 'me')
++    expect(rows.map((r) => r.id)).toEqual(['me', 'bot-1', 'bot-0', 'bot-2'])
++    expect(rows[0].isSelf).toBe(true)
++    expect(rows.filter((r) => r.isBot)).toHaveLength(3)
++    expect(rows[3].time).toBeNull()
++    expect(rows[0].time).toBe('2:08.40')
++    expect(rows[2].best).toBe('-:--.--')
++  })
++
++  it('isRaceBotId 只認 bot- 前綴', () => {
++    expect(isRaceBotId('bot-0')).toBe(true)
++    expect(isRaceBotId('robot')).toBe(false)
++  })
++})
++
++describe('手機觸控鈕（AC8、spec §9.3）', () => {
++  it('2×2：上排道具／煞車、下排甩尾／油門', () => {
++    expect(RACE_TOUCH_ACTIONS.map((a) => a.key)).toEqual(['e', 's', ' ', 'w'])
++  })
++})
++
++describe('RaceHudView 元件（假資料靜態渲染）', () => {
++  const render = (hud: RaceHud, opts: { banner?: boolean; bestFlash?: boolean } = {}) =>
++    renderToStaticMarkup(createElement(RaceHudView, { hud, ...opts }))
++
++  it('根節點 [data-race-hud]，不出現其他三款 HUD', () => {
++    const html = render(race())
++    expect(html).toContain('data-race-hud=""')
++    expect(html).not.toContain('data-tank-hud')
++    expect(html).not.toContain('data-bomber-hud')
++    expect(html).not.toContain('data-kitchen-hud')
++  })
++
++  it('名次大字、圈數、圈時與最佳圈', () => {
++    const html = render(race())
++    expect(html).toContain('data-race-rank="4"')
++    expect(html).toContain('>4<')
++    expect(html).toContain('>th<')
++    expect(html).toContain('/4')
++    expect(html).toContain('data-race-lap="2"')
++    expect(html).toContain('/3')
++    expect(html).toContain('0:18.42')
++    expect(html).toContain('0:41.07')
++    expect(html).toContain('data-race-tone="plain"')
++  })
++
++  it('圈數照送來的值直接顯示（不換算）', () => {
++    expect(render(race({ lap: 1 }))).toContain('data-race-lap="1"')
++    expect(render(race({ lap: 3 }))).toContain('data-race-lap="3"')
++  })
++
++  it('道具欄：持有／空／轉盤三態', () => {
++    expect(render(race())).toContain('data-race-item="mushroom"')
++    expect(render(race({ item: null }))).toContain('data-race-item="empty"')
++    const rolling = render(race({ item: null, rolling: true }))
++    expect(rolling).toContain('data-race-item="rolling"')
++    expect(rolling).toContain('race-item-rolling')
++    // 膠卷 4 種＋首張重複一次接縫
++    expect(rolling.match(/data-race-reel="/g)).toHaveLength(5)
++  })
++
++  it('小地圖：4 個車點、自己較大', () => {
++    const html = render(race())
++    expect(html).toContain('data-race-map=""')
++    expect(html.match(/data-race-car="/g)).toHaveLength(4)
++    expect(html).toContain('data-race-car="self"')
++  })
++
++  it('逆向警告只在 wrongWay 時出現', () => {
++    expect(render(race())).not.toContain('data-race-wrongway')
++    const html = render(race({ wrongWay: true }))
++    expect(html).toContain('data-race-wrongway=""')
++    expect(html).toContain('逆向行駛！')
++  })
++
++  it('最後一圈：膠囊變色；大字由 banner 決定', () => {
++    const html = render(race({ lap: 3, finalLap: true }))
++    expect(html).toContain('race-lap-final')
++    expect(html).not.toContain('data-race-finallap')
++    expect(render(race({ lap: 3, finalLap: true }), { banner: true })).toContain('最後一圈！')
++  })
++
++  it('新最佳圈時 BEST 閃色', () => {
++    expect(render(race())).not.toContain('race-time-best-new')
++    expect(render(race(), { bestFlash: true })).toContain('race-time-best-new')
++  })
++
++  it('衝線名次表：finished 才出現、依名次排、衝線中的列淡化', () => {
++    expect(render(race({ results: RESULTS }))).not.toContain('data-race-results')
++    const html = render(race({ finished: true, results: RESULTS, rank: 1 }))
++    expect(html).toContain('data-race-results=""')
++    expect(html).toContain('完賽！')
++    expect(html.match(/data-race-row="/g)).toHaveLength(4)
++    const order = [...html.matchAll(/data-race-row="([^"]+)"/g)].map((m) => m[1])
++    expect(order).toEqual(['me', 'bot-1', 'bot-0', 'bot-2'])
++    expect(html).toContain('>你<')
++    expect(html.match(/class="race-ai-tag"/g)).toHaveLength(3)
++    expect(html).toContain('衝線中…')
++    expect(html.match(/race-results-row-pending/g)).toHaveLength(1)
++  })
++})
+diff --git a/src/pages/Battle/raceHud.ts b/src/pages/Battle/raceHud.ts
+new file mode 100644
+index 0000000..3d5ba42
+--- /dev/null
++++ b/src/pages/Battle/raceHud.ts
+@@ -0,0 +1,225 @@
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import type { AnyGameHud, RaceHud, RaceHudResult } from '@/babylon/types'
++import type { ItemKind } from '@/babylon/games/raceRules/items'
++import type { TouchAction } from '@/pages/Battle/TouchControls'
++
++/** 固定 4 色（與 3D 車同源）；索引 = colorIndex */
++export const RACE_COLORS = PLAYER_PALETTE
++
++/** 名次色（spec §9.5） */
++export type RankTone = 'gold' | 'silver' | 'bronze' | 'plain'
++export const RANK_TONES: Record<RankTone, string> = {
++  gold: '#FFC21A',
++  silver: '#E3E6EF',
++  bronze: '#FF9A5A',
++  plain: '#C9BEDB',
++}
++
++/** 道具名稱（無障礙標籤用） */
++export const RACE_ITEM_LABELS: Record<ItemKind, string> = {
++  banana: '香蕉皮',
++  shell: '紅龜殼',
++  mushroom: '加速菇',
++  shield: '防護罩',
++}
++
++/** 道具欄轉盤膠卷的排列順序（spec §9.2） */
++export const RACE_ITEM_REEL: readonly ItemKind[] = ['banana', 'shell', 'mushroom', 'shield']
++
++/** 「最後一圈！」大字停留多久、新最佳圈閃色多久（spec §9.2） */
++export const RACE_FINAL_BANNER_MS = 2200
++export const RACE_BEST_FLASH_MS = 1200
++
++/** 小地圖 SVG 的 viewBox 尺寸與留白（168×148 卡片扣掉邊框與 p-2） */
++export const RACE_MAP_W = 147
++export const RACE_MAP_H = 127
++export const RACE_MAP_PAD = 7
++
++/**
++ * 手機動作鈕（AC8、spec §9.3）：2×2，上排道具／煞車、下排甩尾／油門；搖桿只負責轉向。
++ * ▲／▼ 為 U+25B2／U+25BC。
++ */
++export const RACE_TOUCH_ACTIONS: TouchAction[] = [
++  { label: '🎁', key: 'e' },
++  { label: '▼', key: 's' },
++  { label: '💨', key: ' ' },
++  { label: '▲', key: 'w' },
++]
++
++/** setHud 收到的是不是賽車 HUD（沒有 kind 的一律當 bomber） */
++export function isRaceHud(hud: AnyGameHud | null): hud is RaceHud {
++  return hud !== null && 'kind' in hud && hud.kind === 'race'
++}
++
++/** 名次夾成正整數（非數字當 1） */
++export function rankOf(rank: number): number {
++  return Number.isFinite(rank) ? Math.max(1, Math.round(rank)) : 1
++}
++
++/** 名次字尾 st／nd／rd／th（11–13 一律 th） */
++export function ordinalSuffix(rank: number): string {
++  const n = rankOf(rank)
++  const mod100 = n % 100
++  if (mod100 >= 11 && mod100 <= 13) return 'th'
++  if (n % 10 === 1) return 'st'
++  if (n % 10 === 2) return 'nd'
++  if (n % 10 === 3) return 'rd'
++  return 'th'
++}
++
++/** 1st／2nd／3rd／4th… */
++export function ordinal(rank: number): string {
++  return `${rankOf(rank)}${ordinalSuffix(rank)}`
++}
++
++/** 圈時 m:ss.cc（不足 10ms 捨去）；null 或不合法 → -:--.-- */
++export function formatLapMs(ms: number | null): string {
++  if (ms === null || !Number.isFinite(ms) || ms < 0) return '-:--.--'
++  const cs = Math.floor(ms / 10)
++  const m = Math.floor(cs / 6000)
++  const s = Math.floor((cs % 6000) / 100)
++  const c = cs % 100
++  return `${m}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`
++}
++
++/** 名次 → 色調：1 金、2 銀、3 銅、其餘 plain */
++export function rankTone(rank: number): RankTone {
++  const n = rankOf(rank)
++  if (n === 1) return 'gold'
++  if (n === 2) return 'silver'
++  if (n === 3) return 'bronze'
++  return 'plain'
++}
++
++/**
++ * 小地圖座標轉換：賽道 bbox 等比塞進 w×h（四周留 pad）並置中；z 往上（SVG y 反向）。
++ * 空賽道或單點時退回畫面中心，不會除以 0。
++ */
++export function mapTransform(pts: readonly [number, number][], w: number, h: number, pad: number): (x: number, z: number) => [number, number] {
++  if (pts.length === 0) return () => [w / 2, h / 2]
++  let minX = Infinity
++  let maxX = -Infinity
++  let minZ = Infinity
++  let maxZ = -Infinity
++  for (const [x, z] of pts) {
++    minX = Math.min(minX, x)
++    maxX = Math.max(maxX, x)
++    minZ = Math.min(minZ, z)
++    maxZ = Math.max(maxZ, z)
++  }
++  const spanX = maxX - minX
++  const spanZ = maxZ - minZ
++  const availW = Math.max(0, w - pad * 2)
++  const availH = Math.max(0, h - pad * 2)
++  const k = spanX > 0 || spanZ > 0 ? Math.min(spanX > 0 ? availW / spanX : Infinity, spanZ > 0 ? availH / spanZ : Infinity) : 0
++  const cx = (minX + maxX) / 2
++  const cz = (minZ + maxZ) / 2
++  return (x, z) => [w / 2 + (x - cx) * k, h / 2 - (z - cz) * k]
++}
++
++/** 小數 1 位（SVG 屬性字串短一點） */
++const r1 = (v: number) => Math.round(v * 10) / 10
++
++/** 起跑線短橫：在第一個點、垂直於第一段，半長 half（SVG 單位） */
++export function startTick(
++  pts: readonly [number, number][],
++  tf: (x: number, z: number) => [number, number],
++  half: number
++): { x1: number; y1: number; x2: number; y2: number } {
++  if (pts.length < 2) return { x1: 0, y1: 0, x2: 0, y2: 0 }
++  const [ax, ay] = tf(pts[0][0], pts[0][1])
++  const [bx, by] = tf(pts[1][0], pts[1][1])
++  const len = Math.hypot(bx - ax, by - ay) || 1
++  const nx = (-(by - ay) / len) * half
++  const ny = ((bx - ax) / len) * half
++  return { x1: ax - nx, y1: ay - ny, x2: ax + nx, y2: ay + ny }
++}
++
++export interface RaceMapCarView {
++  id: string
++  cx: number
++  cy: number
++  r: number
++  fill: string
++  isSelf: boolean
++}
++
++/** 賽道輪廓 points 字串（首尾閉合），pts 參照不變時由元件 useMemo 沿用 */
++export function trackPoints(pts: readonly [number, number][], tf: (x: number, z: number) => [number, number]): string {
++  const closed = pts.length > 1 ? [...pts, pts[0]] : pts
++  return closed.map(([x, z]) => tf(x, z).map(r1).join(',')).join(' ')
++}
++
++/** 車點：自己 r 6.5 畫最後（最上層），其他 r 4.5；填玩家 base 色 */
++export function mapCars(
++  cars: RaceHud['map']['cars'],
++  tf: (x: number, z: number) => [number, number]
++): RaceMapCarView[] {
++  return [...cars]
++    .sort((a, b) => Number(a.isSelf) - Number(b.isSelf))
++    .map((c) => {
++      const [cx, cy] = tf(c.x, c.z)
++      return {
++        id: c.id,
++        cx: r1(cx),
++        cy: r1(cy),
++        r: c.isSelf ? 6.5 : 4.5,
++        fill: (RACE_COLORS[c.colorIndex] ?? RACE_COLORS[0]).base,
++        isSelf: c.isSelf,
++      }
++    })
++}
++
++/** 小地圖整體（用預設尺寸）：賽道輪廓與車點 */
++export function mapView(map: RaceHud['map']): { track: string; cars: RaceMapCarView[] } {
++  const tf = mapTransform(map.pts, RACE_MAP_W, RACE_MAP_H, RACE_MAP_PAD)
++  return { track: trackPoints(map.pts, tf), cars: mapCars(map.cars, tf) }
++}
++
++/** 道具欄三態：轉盤中、持有、空 */
++export type ItemSlot = 'rolling' | 'item' | 'empty'
++export function itemSlotView(item: ItemKind | null, rolling: boolean): ItemSlot {
++  if (rolling) return 'rolling'
++  return item ? 'item' : 'empty'
++}
++
++/** 最佳圈是否刷新（第一次有、或變快） */
++export function bestLapImproved(prev: number | null, next: number | null): boolean {
++  if (next === null) return false
++  return prev === null || next < prev
++}
++
++/** bot 的實體 id 一律 bot- 開頭（raceRules/roster） */
++export function isRaceBotId(id: string): boolean {
++  return id.startsWith('bot-')
++}
++
++export interface RaceResultRow {
++  id: string
++  name: string
++  colorIndex: 0 | 1 | 2 | 3
++  rank: number
++  tone: RankTone
++  isSelf: boolean
++  isBot: boolean
++  /** 總時間；null 表示還在衝線 */
++  time: string | null
++  best: string
++}
++
++/** 衝線名次表：依名次排序（同名次依 id），自己依 selfId 判定 */
++export function resultRows(results: readonly RaceHudResult[], selfId: string | null): RaceResultRow[] {
++  return [...results]
++    .sort((a, b) => a.rank - b.rank || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
++    .map((r) => ({
++      id: r.id,
++      name: r.name,
++      colorIndex: r.colorIndex,
++      rank: rankOf(r.rank),
++      tone: rankTone(r.rank),
++      isSelf: r.id === selfId,
++      isBot: isRaceBotId(r.id),
++      time: r.totalMs === null ? null : formatLapMs(r.totalMs),
++      best: formatLapMs(r.bestLapMs),
++    }))
++}
+diff --git a/src/pages/Battle/tankHud.ts b/src/pages/Battle/tankHud.ts
+index e2bf489..de92fbc 100644
+--- a/src/pages/Battle/tankHud.ts
++++ b/src/pages/Battle/tankHud.ts
+@@ -1,12 +1,12 @@
+ import { PLAYER_PALETTE } from '@/babylon/fx/palette'
+-import type { GameHud, KitchenHud, TankBuffKind, TankHud, TankHudFeed, TankHudPlayer } from '@/babylon/types'
++import type { AnyGameHud, TankBuffKind, TankHud, TankHudFeed, TankHudPlayer } from '@/babylon/types'
+ import { timerView, type TimerMode } from '@/pages/Battle/bomberHud'
+ import type { TouchAction } from '@/pages/Battle/TouchControls'
+ 
+ /** 固定 4 色（tank spec §2.1），與 3D 坦克同源；索引 = colorIndex */
+ export const TANK_COLORS = PLAYER_PALETTE
+ 
+ /** buff 徽章底色與圖示／字色（tank spec §2.3） */
+ export const TANK_BUFFS: Record<TankBuffKind, { label: string; bg: string; fg: string }> = {
+   speed: { label: '加速', bg: '#FFD23F', fg: '#3A2A00' },
+   rapid: { label: '連射', bg: '#FF6B3D', fg: '#FFFFFF' },
+@@ -25,21 +25,21 @@ const MAX_HEARTS = 6
+  * 手機動作鈕（AC4、spec §9.3）：砲塔左轉 q、右轉 e（tank.ts 按住即轉），開火放最右。
+  * ↺／↻ 為 U+21BA／U+21BB。
+  */
+ export const TANK_TOUCH_ACTIONS: TouchAction[] = [
+   { label: '↺', key: 'q' },
+   { label: '↻', key: 'e' },
+   { label: '🔥', key: ' ' },
+ ]
+ 
+ /** setHud 收到的是不是坦克 HUD（沒有 kind 的一律當 bomber） */
+-export function isTankHud(hud: GameHud | KitchenHud | TankHud | null): hud is TankHud {
++export function isTankHud(hud: AnyGameHud | null): hud is TankHud {
+   return hud !== null && 'kind' in hud && hud.kind === 'tank'
+ }
+ 
+ /** 計時膠囊：到突然死亡的 m:ss，最後 10 秒（含）變紅跳動，進入後變「縮圈中」（同 bomber） */
+ export function tankTimerView(hud: Pick<TankHud, 'remainSec' | 'suddenDeath'>): { mode: TimerMode; text: string } {
+   return timerView({ secondsLeft: hud.remainSec, suddenDeath: hud.suddenDeath })
+ }
+ 
+ export type HpView = { mode: 'hearts'; hearts: boolean[] } | { mode: 'count'; text: string }
+ 
+diff --git a/src/pages/Battle/touchDirs.test.ts b/src/pages/Battle/touchDirs.test.ts
+new file mode 100644
+index 0000000..4a55b89
+--- /dev/null
++++ b/src/pages/Battle/touchDirs.test.ts
+@@ -0,0 +1,19 @@
++import { describe, expect, it } from 'vitest'
++import { joyDirs } from '@/pages/Battle/touchDirs'
++
++describe('虛擬搖桿方向 joyDirs', () => {
++  it("預設 'xy'：上下左右都派發（其他遊戲行為不變）", () => {
++    expect([...joyDirs(-0.8, -0.8)].sort()).toEqual(['arrowleft', 'arrowup'])
++    expect([...joyDirs(0.8, 0.8, 'xy')].sort()).toEqual(['arrowdown', 'arrowright'])
++  })
++
++  it('死區內不派發', () => {
++    expect(joyDirs(0.2, -0.3).size).toBe(0)
++  })
++
++  it("'x'：只派發左右，推上下也不出 arrowup／arrowdown", () => {
++    expect([...joyDirs(-0.8, -0.9, 'x')]).toEqual(['arrowleft'])
++    expect([...joyDirs(0.6, 0.9, 'x')]).toEqual(['arrowright'])
++    expect(joyDirs(0.1, -1, 'x').size).toBe(0)
++  })
++})
+diff --git a/src/pages/Battle/touchDirs.ts b/src/pages/Battle/touchDirs.ts
+new file mode 100644
+index 0000000..4731a53
+--- /dev/null
++++ b/src/pages/Battle/touchDirs.ts
+@@ -0,0 +1,17 @@
++/** 虛擬搖桿派發哪些軸：'xy' 上下左右（預設）、'x' 只派發左右（賽車：油門煞車改用按鈕） */
++export type JoyAxes = 'xy' | 'x'
++
++/** 死區，避免輕觸誤判 */
++const JOY_DEADZONE = 0.35
++
++/** 搖桿偏移（以半徑正規化，y 往下為正）→ 應按住的方向鍵集合 */
++export function joyDirs(nx: number, ny: number, axes: JoyAxes = 'xy'): Set<string> {
++  const next = new Set<string>()
++  if (axes === 'xy') {
++    if (ny < -JOY_DEADZONE) next.add('arrowup')
++    else if (ny > JOY_DEADZONE) next.add('arrowdown')
++  }
++  if (nx < -JOY_DEADZONE) next.add('arrowleft')
++  else if (nx > JOY_DEADZONE) next.add('arrowright')
++  return next
++}
+

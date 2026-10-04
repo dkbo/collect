@@ -1,0 +1,635 @@
+# 賽車美術＋可玩度（A Toy Racer） — wave 5 since 87fbc92 — 2026-10-04T02:53
+# files changed: 10 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/games/race.ts                  | 12 ++++-----
+ src/babylon/games/raceFx/effects.ts        |  8 +++---
+ src/babylon/games/raceFx/fxModel.test.ts   | 16 ++++++++++++
+ src/babylon/games/raceFx/fxModel.ts        | 12 +++++++++
+ src/babylon/games/raceRules/drive.test.ts  | 29 ++++++++++++++++++++++
+ src/babylon/games/raceRules/drive.ts       | 17 ++++++++-----
+ src/babylon/games/raceRules/raceAI.test.ts | 11 ++++++++
+ src/babylon/games/raceRules/raceAI.ts      |  4 +--
+ src/babylon/games/raceRules/track.test.ts  | 20 +++++++++++++++
+ src/babylon/games/raceRules/track.ts       | 40 +++++++++++-------------------
+ 10 files changed, 125 insertions(+), 44 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/games/race.ts b/src/babylon/games/race.ts
+index 8fecaa0..d1a9b11 100644
+--- a/src/babylon/games/race.ts
++++ b/src/babylon/games/race.ts
+@@ -359,26 +359,26 @@ class RaceScene implements GameModule {
+       { id: this.ctx.selfId, lap: r.lap.lap, cp: r.lap.cp, s: r.s, fin: this.fin },
+       ...this.remotePlayers().map(({ id, snap }) => ({ id, lap: snap.lap, cp: snap.cp, s: snap.s, fin: snap.fin })),
+       ...this.botStates().map((b) => ({ id: b.id, lap: b.lap, cp: b.cp, s: b.s, fin: b.fin })),
+     ]
+   }
+ 
+   private order(): string[] {
+     return liveOrder(TRACK, this.liveCars())
+   }
+ 
+-  /** 其他車的位置（推擠、尾流用），排除 exclude */
+-  private positionsExcept(exclude: string): { x: number; z: number }[] {
+-    const out: { x: number; z: number }[] = []
+-    if (exclude !== this.ctx.selfId) out.push({ x: this.racer.car.x, z: this.racer.car.z })
+-    for (const { id, snap } of this.remotePlayers()) if (id !== exclude) out.push({ x: snap.x, z: snap.z })
+-    for (const b of this.botStates()) if (b.id !== exclude) out.push({ x: b.x, z: b.z })
++  /** 其他車的位置與朝向（推擠、尾流用；尾流要 ry 判斷同向），排除 exclude */
++  private positionsExcept(exclude: string): { x: number; z: number; ry: number }[] {
++    const out: { x: number; z: number; ry: number }[] = []
++    if (exclude !== this.ctx.selfId) out.push({ x: this.racer.car.x, z: this.racer.car.z, ry: this.racer.car.ry })
++    for (const { id, snap } of this.remotePlayers()) if (id !== exclude) out.push({ x: snap.x, z: snap.z, ry: snap.ry })
++    for (const b of this.botStates()) if (b.id !== exclude) out.push({ x: b.x, z: b.z, ry: b.ry })
+     return out
+   }
+ 
+   // ---- 重置 ----
+ 
+   private resetRace(): void {
+     this.racer = makeRacer(COURSE, this.slotOf(this.ctx.selfId))
+     this.item = null
+     this.fin = null
+     this.reqBox = null
+diff --git a/src/babylon/games/raceFx/effects.ts b/src/babylon/games/raceFx/effects.ts
+index 024b428..0f3da9a 100644
+--- a/src/babylon/games/raceFx/effects.ts
++++ b/src/babylon/games/raceFx/effects.ts
+@@ -18,20 +18,21 @@ import { ThinGroup } from '@/babylon/fx/thin'
+ import { distanceSteps } from '@/babylon/games/tankFx/fxModel'
+ import type { DriftTier } from '@/babylon/games/raceFx/raceNet'
+ import {
+   DROP_MS,
+   DUST_SPACING,
+   FLAME,
+   LAP_CARD_MS,
+   SHIELD_BREAK_MS,
+   SKID_SPACING,
+   boostColor,
++  turboTier,
+   driftSparkLook,
+   SPARK_SIZE,
+   sparkHot,
+   finishConfetti,
+   ghostVisibility,
+   landSquash,
+   lapCardPose,
+   mushroomPose,
+   respawnDropY,
+   shieldPose,
+@@ -151,22 +152,20 @@ const EXHAUST = { x: 0.26, y: 0.34, z: -1.2 } as const
+ /** 後輪外下緣（火花、胎痕） */
+ const REAR = { x: 0.95, y: 0.08, z: -0.7 } as const
+ const RING_POOL = 4
+ const RING_Y = 0.06
+ const CARD_POOL = 2
+ const CARD_Y = 3.2
+ const MUSH_POOL = 4
+ const MUSH_Y = 2.0
+ const STAR_POOL = 12
+ const SLIP_LINES = 6
+-/** 加速 mini-turbo 判定：放開甩尾到加速開始之間的容許時間 */
+-const TURBO_WINDOW_MS = 250
+ const CONFETTI = [...PLAYER_PALETTE.map((p) => p.base), '#FFFFFF']
+ const SKID_COLOR = '#2B2440'
+ /** flame 三層預建（噴焰每幀換色不再 new Color3） */
+ const FLAME_C = FLAME.map((h) => Color3.FromHexString(h))
+ /** 揚塵／胎痕瞬移判定用的速度上限（BOOST_SPEED 22 再留餘裕） */
+ const MAX_STEP_SPEED = 24
+ 
+ /** 平貼地面的長條（x 寬 w、z 長 d，法線朝上） */
+ function flatStrip(w: number, d: number): MeshData {
+   const x = w / 2
+@@ -457,24 +456,23 @@ export class RaceFx {
+         const [wx, wz] = local(c.x, c.z, ryT, REAR.x * side, REAR.z)
+         const [ax, az] = local(0, 0, ryT, side * 0.55, -1)
+         this.spark.emit(wx, y + REAR.y, wz, 0.05, 1, sparkStyle(c.drift, look.size, ax, az))
+       }
+     } else s.sparkAcc = 0
+     if (c.drift > 0) {
+       s.lastTier = c.drift
+       s.lastTierAt = now
+     }
+ 
+-    // 噴焰（§8 #2）：加速剛開始時決定色（mini-turbo 段位色或 flame 三層）
++    // 噴焰（§8 #2）：加速剛開始時決定色（mini-turbo 段位色或 flame 三層；甩尾中壓加速帶算 flame）
+     if (c.boost && !s.boosting) {
+-      const prev: DriftTier = now - s.lastTierAt <= TURBO_WINDOW_MS ? s.lastTier : 0
+-      const bc = boostColor(prev)
++      const bc = boostColor(turboTier({ drift: c.drift, lastTier: s.lastTier, lastTierAt: s.lastTierAt, now }))
+       s.boostAt = now
+       s.boostHex = bc.color
+       s.boostColor.copyFrom(Color3.FromHexString(bc.color))
+       s.boostFlame = bc.kind === 'flame'
+       s.flames = this.takeFlames(2)
+     }
+     if (!c.boost && s.boosting) this.releaseFlames(s)
+     s.boosting = c.boost
+     if (c.boost) this.flames(c, s, y, ryT, now, dtMs)
+ 
+diff --git a/src/babylon/games/raceFx/fxModel.test.ts b/src/babylon/games/raceFx/fxModel.test.ts
+index 92bda3e..7db6b5e 100644
+--- a/src/babylon/games/raceFx/fxModel.test.ts
++++ b/src/babylon/games/raceFx/fxModel.test.ts
+@@ -3,20 +3,22 @@ import {
+   BOX_POP_MS,
+   CLASH_COOLDOWN_MS,
+   CLASH_SPEED,
+   DROP_H,
+   DROP_MS,
+   GHOST_DIM,
+   LAND_MS,
+   SHAKE_AMP,
+   SHAKE_MS,
+   boostColor,
++  TURBO_WINDOW_MS,
++  turboTier,
+   boxPopScale,
+   chunkPose,
+   clashKey,
+   clashReady,
+   driftSparkLook,
+   SPARK_SIZE,
+   sparkHot,
+   finishConfetti,
+   finishEdges,
+   ghostVisibility,
+@@ -267,10 +269,24 @@ describe('raceFx/fxModel — 甩尾火花可見度（波 4 qa BUG：紫段在深
+       const k = ch(hot)
+       expect(k.indexOf(Math.max(...k))).toBe(b.indexOf(Math.max(...b)))
+     }
+     expect(sparkHot('#FFFFFF')).toBe('#FFFFFF')
+   })
+ 
+   it('火花基準尺寸放大到 0.45 以上（fx_spark 只有約 11% 面積不透明，ADD 混色在深色路面上才看得到）', () => {
+     expect(SPARK_SIZE).toBeGreaterThanOrEqual(0.45)
+   })
+ })
++
++describe('raceFx/fxModel — 噴焰來源判定（mini-turbo 段位 vs 加速帶／菇 flame）', () => {
++  it('剛放開甩尾（本幀段位 0、窗內有段位）→ 該段位', () => {
++    expect(turboTier({ drift: 0, lastTier: 2, lastTierAt: 1000, now: 1000 + TURBO_WINDOW_MS })).toBe(2)
++  })
++  it('甩尾中（本幀段位 > 0）壓加速帶 → 0（flame），不是段位色', () => {
++    expect(turboTier({ drift: 2, lastTier: 2, lastTierAt: 1000, now: 1000 })).toBe(0)
++    expect(boostColor(turboTier({ drift: 3, lastTier: 3, lastTierAt: 5, now: 5 })).kind).toBe('flame')
++  })
++  it('放開超過窗口才加速 → 0', () => {
++    expect(turboTier({ drift: 0, lastTier: 1, lastTierAt: 1000, now: 1001 + TURBO_WINDOW_MS })).toBe(0)
++    expect(turboTier({ drift: 0, lastTier: 0, lastTierAt: -Infinity, now: 0 })).toBe(0)
++  })
++})
+diff --git a/src/babylon/games/raceFx/fxModel.ts b/src/babylon/games/raceFx/fxModel.ts
+index f50a94d..ee2d818 100644
+--- a/src/babylon/games/raceFx/fxModel.ts
++++ b/src/babylon/games/raceFx/fxModel.ts
+@@ -52,20 +52,32 @@ export function sparkHot(hex: string): string {
+ }
+ 
+ /** flame 三層（加速帶、加速菇；spec §3.2） */
+ export const FLAME = ['#FFF6C8', '#FFC53A', '#FF7A1A'] as const
+ 
+ /** 加速剛開始時：前一刻有甩尾段位 → mini-turbo 段位色；否則 flame */
+ export function boostColor(prevTier: DriftTier): { kind: 'turbo' | 'flame'; color: string } {
+   return prevTier > 0 ? { kind: 'turbo', color: DRIFT_COLORS[prevTier] } : { kind: 'flame', color: FLAME[1] }
+ }
+ 
++/** 加速 mini-turbo 判定：放開甩尾到加速開始之間的容許時間 */
++export const TURBO_WINDOW_MS = 250
++
++/**
++ * 加速剛開始時算前一刻的甩尾段位（給 boostColor）：mini-turbo 只在放開甩尾那一刻給，
++ * 所以本幀仍在甩尾（段位 > 0）就是加速帶／菇 → 0；否則看放開是否在窗口內
++ */
++export function turboTier(o: { drift: DriftTier; lastTier: DriftTier; lastTierAt: number; now: number }): DriftTier {
++  if (o.drift > 0) return 0
++  return o.now - o.lastTierAt <= TURBO_WINDOW_MS ? o.lastTier : 0
++}
++
+ // ---- 尾流風線（§8 #3）、速度線（§8 #4） ----
+ 
+ export function slipLook(charging: boolean, active: boolean): { count: number; alpha: number } {
+   if (active) return { count: 6, alpha: 0.7 }
+   if (charging) return { count: 2, alpha: 0.35 }
+   return { count: 0, alpha: 0 }
+ }
+ 
+ /** speedRatio = |speed| / MAX_SPEED；cap 見 speedLineCap */
+ export function speedLineAlpha(speedRatio: number, boosting: boolean, cap: number): number {
+diff --git a/src/babylon/games/raceRules/drive.test.ts b/src/babylon/games/raceRules/drive.test.ts
+index 9ce0d38..c47aab0 100644
+--- a/src/babylon/games/raceRules/drive.test.ts
++++ b/src/babylon/games/raceRules/drive.test.ts
+@@ -113,20 +113,30 @@ describe('slipCharge — 尾流', () => {
+     expect(SLIP_CONE_DEG).toBe(25)
+     const at = (deg: number) => {
+       const a = (deg * Math.PI) / 180
+       return [{ x: Math.sin(a) * 5, z: Math.cos(a) * 5 }]
+     }
+     expect(run(at(24), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+     expect(run(at(-24), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
+     expect(run(at(26), 3000)).toBe(0)
+   })
+ 
++  it('前車朝向與自己夾角 > 90°（迎面）不累計；≤ 90° 照常；沒給 ry 維持舊行為', () => {
++    const ahead = (ry?: number) => [{ x: 0, z: 5, ry }]
++    expect(run(ahead(Math.PI), 3000)).toBe(0)
++    expect(run(ahead(-Math.PI * 0.6), 3000)).toBe(0)
++    expect(run(ahead(0), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++    expect(run(ahead(Math.PI / 2), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++    expect(run(ahead(Math.PI * 2 - 0.3), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++    expect(run(ahead(), SLIP_CHARGE_MS)).toBe(SLIP_BOOST_MS)
++  })
++
+   it('中途離開條件即歸零', () => {
+     let st = slipCharge(0, self, [{ x: 0, z: 5 }], 1000)
+     expect(st.ms).toBe(1000)
+     st = slipCharge(st.ms, self, [], 100)
+     expect(st.ms).toBe(0)
+   })
+ })
+ 
+ describe('shouldRespawn／respawnPose — 出界與卡住', () => {
+   const t0 = { stuckMs: 0, offMs: 0 }
+@@ -169,20 +179,39 @@ describe('shouldRespawn／respawnPose — 出界與卡住', () => {
+ 
+ describe('stepCar — 基準運動學', () => {
+   const car: CarPhys = { x: 0, z: 0, ry: 0, speed: 0 }
+   const mods = { onTrack: true, boosting: false, slipping: false, spinning: false }
+   const drive = (m = mods, secs = 5, throttle = 1) => {
+     let c = car
+     for (let i = 0; i < secs * 30; i++) c = stepCar(c, { throttle, steer: 0, drifting: false }, m, 1 / 30)
+     return c
+   }
+ 
++  it('ry 環繞到 (−π, π]：一直右轉多圈不累積大值，位置與不環繞時相同', () => {
++    let c: CarPhys = { x: 0, z: 0, ry: Math.PI - 0.01, speed: 10 }
++    const step = (p: CarPhys) => stepCar(p, { throttle: 0, steer: 1, drifting: false }, mods, 0.1)
++    const first = step(c)
++    expect(first.ry).toBeLessThanOrEqual(Math.PI)
++    expect(first.ry).toBeGreaterThan(-Math.PI)
++    for (let i = 0; i < 300; i++) {
++      c = step(c)
++      expect(c.ry).toBeLessThanOrEqual(Math.PI)
++      expect(c.ry).toBeGreaterThan(-Math.PI)
++    }
++    const left = stepCar({ x: 0, z: 0, ry: -Math.PI + 0.01, speed: 10 }, { throttle: 0, steer: -1, drifting: false }, mods, 0.1)
++    expect(left.ry).toBeGreaterThan(-Math.PI)
++    expect(left.ry).toBeLessThanOrEqual(Math.PI)
++    // 環繞只改表示法：位移仍依原本轉過的角度
++    expect(first.x).toBeCloseTo(Math.sin(first.ry) * first.speed * 0.1, 9)
++    expect(first.z).toBeCloseTo(Math.cos(first.ry) * first.speed * 0.1, 9)
++  })
++
+   it('油門到底收斂到 MAX_SPEED，沿朝向前進', () => {
+     const c = drive()
+     expect(c.speed).toBeCloseTo(MAX_SPEED, 6)
+     expect(c.x).toBeCloseTo(0, 6)
+     expect(c.z).toBeGreaterThan(50)
+   })
+ 
+   it('路面外上限 MAX_SPEED × OFFTRACK_FACTOR', () => {
+     expect(drive({ ...mods, onTrack: false }).speed).toBeCloseTo(MAX_SPEED * OFFTRACK_FACTOR, 6)
+   })
+diff --git a/src/babylon/games/raceRules/drive.ts b/src/babylon/games/raceRules/drive.ts
+index ba218e2..fd78dc6 100644
+--- a/src/babylon/games/raceRules/drive.ts
++++ b/src/babylon/games/raceRules/drive.ts
+@@ -4,20 +4,21 @@
+  * 時間參數：名為 dt 的是秒，名為 *Ms 的是毫秒。
+  */
+ import {
+   LAPS,
+   advanceLap,
+   inSpan,
+   pointAt,
+   sectorOf,
+   stepWrongWay,
+   trackProgress,
++  wrapAngle,
+   type Course,
+   type LapState,
+   type Track,
+ } from '@/babylon/games/raceRules/track'
+ 
+ // 基準運動學（沿用舊 race.ts 數值）
+ export const MAX_SPEED = 17
+ export const MAX_REVERSE = 5
+ export const ACCEL = 13
+ export const BRAKE = 22
+@@ -125,21 +126,21 @@ export function stepCar(c: CarPhys, input: DriveInput, mods: DriveMods, dt: numb
+     (mods.onTrack ? 1 : OFFTRACK_FACTOR)
+   // 本來就在上限內 → 直接夾住；從加速等狀態超速 → 逐步降回，不讓油門再往上推
+   if (speed > cap) {
+     speed = c.speed > cap ? Math.max(cap, Math.min(speed, c.speed - (mods.onTrack ? OVERSPEED_DECAY : OFFTRACK_DECAY) * dt)) : cap
+   }
+   speed = Math.max(-MAX_REVERSE, speed)
+ 
+   const steer = Math.max(-1, Math.min(1, input.steer))
+   if (!mods.spinning && steer !== 0 && Math.abs(speed) > 0.3) {
+     const f = Math.min(1, Math.abs(speed) / (MAX_SPEED * 0.5)) * Math.sign(speed)
+-    ry += steer * TURN_RATE * (input.drifting ? DRIFT_TURN_MULT : 1) * f * dt
++    ry = wrapAngle(ry + steer * TURN_RATE * (input.drifting ? DRIFT_TURN_MULT : 1) * f * dt)
+   }
+   if (!mods.spinning && input.drifting && Math.abs(speed) > 2) {
+     speed -= Math.sign(speed) * Math.min(DRIFT_DRAG * 0.3 * dt, Math.abs(speed))
+   }
+   return { x: c.x + Math.sin(ry) * speed * dt, z: c.z + Math.cos(ry) * speed * dt, ry, speed }
+ }
+ 
+ /**
+  * 甩尾蓄力：按住甩尾、轉向中、速度 > DRIFT_MIN_SPEED 才累積；沒轉向時保留已蓄量；
+  * 掉到 DRIFT_MIN_SPEED 以下取消；放開時依段位給 MINI_TURBO_MS。
+@@ -150,37 +151,41 @@ export function stepDrift(
+   dt: number
+ ): { state: DriftState; turboMs: number } {
+   if (!input.drifting) return { state: NO_DRIFT, turboMs: d.tier > 0 ? MINI_TURBO_MS[d.tier - 1] : 0 }
+   if (input.speed <= DRIFT_MIN_SPEED) return { state: NO_DRIFT, turboMs: 0 }
+   if (Math.abs(input.steer) <= DRIFT_STEER_MIN) return { state: d, turboMs: 0 }
+   const charge = d.charge + dt
+   const tier = DRIFT_TIERS.filter((t) => charge >= t).length as DriftState['tier']
+   return { state: { charge, tier }, turboMs: 0 }
+ }
+ 
+-/** 尾流：前方 SLIP_DIST 內、夾角 ≤ SLIP_CONE_DEG 有車且自己夠快才累積；滿 SLIP_CHARGE_MS 給 SLIP_BOOST_MS 並歸零 */
++/**
++ * 尾流：前方 SLIP_DIST 內、夾角 ≤ SLIP_CONE_DEG 有車且自己夠快才累積；滿 SLIP_CHARGE_MS 給 SLIP_BOOST_MS 並歸零。
++ * 前車有給 ry 時，它的朝向與自己夾角須 ≤ 90°（迎面車不算）。
++ */
+ export function slipCharge(
+   ms: number,
+   self: { x: number; z: number; ry: number; speed: number },
+-  others: readonly { x: number; z: number }[],
++  others: readonly { x: number; z: number; ry?: number }[],
+   dtMs: number
+ ): { ms: number; slipMs: number } {
+   const cosCone = Math.cos((SLIP_CONE_DEG * Math.PI) / 180)
+   const fx = Math.sin(self.ry)
+   const fz = Math.cos(self.ry)
+   const inCone =
+     self.speed > SLIP_MIN_SPEED &&
+     others.some((o) => {
+       const dx = o.x - self.x
+       const dz = o.z - self.z
+       const d = Math.hypot(dx, dz)
+-      return d > 0.01 && d <= SLIP_DIST && (dx * fx + dz * fz) / d >= cosCone
++      const sameWay = o.ry === undefined || Math.cos(o.ry - self.ry) >= 0
++      return d > 0.01 && d <= SLIP_DIST && (dx * fx + dz * fz) / d >= cosCone && sameWay
+     })
+   if (!inCone) return { ms: 0, slipMs: 0 }
+   const next = ms + dtMs
+   return next >= SLIP_CHARGE_MS ? { ms: 0, slipMs: SLIP_BOOST_MS } : { ms: next, slipMs: 0 }
+ }
+ 
+ /**
+  * 重生判定：出界立即；離開賽道累計 ≥ OFFTRACK_RESPAWN_MS；
+  * 踩油門（含倒車）但 |速度| < STUCK_SPEED 累計 ≥ STUCK_MS（停著不動不算卡住）。觸發時計時歸零。
+  */
+@@ -259,22 +264,22 @@ export interface RacerState {
+   wrongWay: boolean
+   /** 騰空中：已過秒數與起跳垂直初速；在地面為 null */
+   air: { t: number; vy: number } | null
+   onPad: boolean
+   /** 上一 tick 在斜坡上（越過坡頂才起跳） */
+   onRamp: boolean
+ }
+ 
+ export interface RacerWorld {
+   course: Course
+-  /** 其他車的位置（推擠與尾流用） */
+-  others: readonly { x: number; z: number }[]
++  /** 其他車的位置（推擠與尾流用）；ry 給了才做尾流的朝向判定 */
++  others: readonly { x: number; z: number; ry?: number }[]
+ }
+ 
+ /** 起跑格 slot 的初始狀態 */
+ export function makeRacer(course: Course, slot: number): RacerState {
+   const g = course.grid[slot % course.grid.length]
+   const p = trackProgress(course.track, g.x, g.z)
+   return {
+     car: { x: g.x, z: g.z, ry: g.ry, speed: 0 },
+     y: 0,
+     drift: NO_DRIFT,
+diff --git a/src/babylon/games/raceRules/raceAI.test.ts b/src/babylon/games/raceRules/raceAI.test.ts
+index f6d350a..bebd3f7 100644
+--- a/src/babylon/games/raceRules/raceAI.test.ts
++++ b/src/babylon/games/raceRules/raceAI.test.ts
+@@ -75,20 +75,31 @@ describe('decideRaceBot — 開車', () => {
+   })
+ 
+   it('長彎內按住甩尾，彎前、出口前 6 以後、skipDrift 都不甩', () => {
+     const t1 = LONG_CORNERS[0]
+     expect(decideRaceBot(input(t1.s0, {}, 0, 15)).drift).toBe(true)
+     expect(decideRaceBot(input(t1.s0 - 10, {}, 0, 15)).drift).toBe(false)
+     expect(decideRaceBot(input(t1.s1 - 5, {}, 0, 15)).drift).toBe(false)
+     expect(decideRaceBot(input(t1.s0, { mind: calm({ skipDrift: true }) }, 0, 15)).drift).toBe(false)
+   })
+ 
++  it('跨起點的長彎 span（s1 > len、或進彎提前量使 s0 < 0）用 inSpan 判定', () => {
++    const L = track.len
++    const across: Course = { ...course, driftZones: [[L - 20, L + 30]] }
++    expect(decideRaceBot(input(5, { course: across }, 0, 15)).drift).toBe(true)
++    expect(decideRaceBot(input(L - 10, { course: across }, 0, 15)).drift).toBe(true)
++    expect(decideRaceBot(input(30, { course: across }, 0, 15)).drift).toBe(false)
++    const nearStart: Course = { ...course, driftZones: [[1, 40]] }
++    expect(decideRaceBot(input(L - 2, { course: nearStart }, 0, 15)).drift).toBe(true)
++    expect(decideRaceBot(input(L - 10, { course: nearStart }, 0, 15)).drift).toBe(false)
++  })
++
+   it('不在長彎（T3）不甩尾', () => {
+     expect(decideRaceBot(input(325, {}, 0, 12)).drift).toBe(false)
+   })
+ 
+   it('走大線失誤：目標點往彎外偏，轉向比平常小', () => {
+     const normal = decideRaceBot(input(80, {}, 0, 15)).steer
+     const wide = decideRaceBot(input(80, { mind: calm({ mistakeMs: 500 }) }, 0, 15)).steer
+     expect(wide).toBeGreaterThan(normal)
+   })
+ })
+diff --git a/src/babylon/games/raceRules/raceAI.ts b/src/babylon/games/raceRules/raceAI.ts
+index 565624d..d0d2d84 100644
+--- a/src/babylon/games/raceRules/raceAI.ts
++++ b/src/babylon/games/raceRules/raceAI.ts
+@@ -2,21 +2,21 @@
+  * 賽車電腦對手（純函式，host 每 tick 對每台 bot 呼叫；數值見 spec §2.3）。
+  *
+  * - 轉向：中心線 s + AI_LOOKAHEAD 取目標點，彎道往內偏 AI_LINE_OFFSET；路面外改朝 s + 4 的中心
+  * - 速度：s+4..s+20 的最大 |κ| 換成目標速度 AI_CORNER_K / |κ|，超過收油、超過 +3 煞車
+  * - 甩尾：只在 course.driftZones（spec 的長彎）內按住
+  * - 道具：依 spec 條件使用，撿到後至少等 itemDelayMs
+  * 失誤（雜訊、走大線、晚煞車、放甩尾時機、跳過甩尾、道具延遲）都放在 BotMind，由 seed 化亂數推進，不碰 Math.random。
+  */
+ import { DRIFT_MIN_SPEED, MAX_SPEED } from '@/babylon/games/raceRules/drive'
+ import type { ItemKind } from '@/babylon/games/raceRules/items'
+-import { LONG_CORNER_K, curvatureAt, placeAt, wrapAngle, type Course } from '@/babylon/games/raceRules/track'
++import { LONG_CORNER_K, curvatureAt, inSpan, placeAt, wrapAngle, type Course } from '@/babylon/games/raceRules/track'
+ 
+ export const AI_LOOKAHEAD = 8
+ export const AI_CORNER_K = 1.5
+ /** 彎前限速掃描範圍 s + FROM .. s + TO */
+ export const AI_CORNER_FROM = 4
+ export const AI_CORNER_TO = 20
+ /** 超過目標速度多少才煞車（其間只收油） */
+ export const AI_BRAKE_MARGIN = 3
+ export const AI_LINE_OFFSET = 1.5
+ export const AI_STEER_GAIN = 2.2
+@@ -206,14 +206,14 @@ export function decideRaceBot(inp: BotInput): BotOutput {
+   const shift = mind.lateBrake ? AI_LATE_BRAKE : 0
+   const k = maxAbsK(course, inp.s + AI_CORNER_FROM - shift, inp.s + AI_CORNER_TO - shift)
+   const vT = k > 0 ? Math.min(MAX_SPEED, AI_CORNER_K / k) : MAX_SPEED
+   const throttle = offTrack ? 1 : car.speed > vT + AI_BRAKE_MARGIN ? -1 : car.speed > vT ? 0 : 1
+ 
+   const release = (mind.releaseJitterMs / 1000) * Math.max(0, car.speed)
+   const drift =
+     !offTrack &&
+     !mind.skipDrift &&
+     car.speed > DRIFT_MIN_SPEED &&
+-    course.driftZones.some(([s0, s1]) => inp.s >= s0 - AI_DRIFT_IN && inp.s <= s1 - AI_DRIFT_OUT + release)
++    course.driftZones.some(([s0, s1]) => inSpan(track, inp.s, [s0 - AI_DRIFT_IN, s1 - AI_DRIFT_OUT + release]))
+ 
+   return { throttle, steer, drift, useItem: wantsItem(inp) }
+ }
+diff --git a/src/babylon/games/raceRules/track.test.ts b/src/babylon/games/raceRules/track.test.ts
+index 99c05de..64d557f 100644
+--- a/src/babylon/games/raceRules/track.test.ts
++++ b/src/babylon/games/raceRules/track.test.ts
+@@ -150,20 +150,40 @@ describe('normalizeProgress — 名次用的 (lap, s)', () => {
+   })
+ 
+   it('過線後倒車回起點線後：算回上一圈末段', () => {
+     expect(normalizeProgress(sq, { lap: 1, cp: 0, s: sq.len - 2 })).toEqual({ lap: 0, s: sq.len - 2 })
+   })
+ 
+   it('起跑格在起點線後（lap 0）：夾成 s = 0', () => {
+     expect(normalizeProgress(sq, { lap: 0, cp: 0, s: sq.len - 2 })).toEqual({ lap: 0, s: 0 })
+   })
+ 
++  it('長距離倒車過起點（超過半圈）：算回上一圈、不夾成 CP1（名次不偏高）', () => {
++    expect(sq.checkpoints[0]).toBe(0)
++    const s = sq.len * 0.4 // 從起點倒車 0.6 圈
++    expect(normalizeProgress(sq, { lap: 2, cp: 0, s })).toEqual({ lap: 1, s })
++    // 在 cp 3 之後倒車越過起點、再倒過 cp 7 進到 cp 6 區：仍在上一圈
++    const s2 = sq.checkpoints[6] + 1
++    expect(normalizeProgress(sq, { lap: 1, cp: 3, s: s2 })).toEqual({ lap: 0, s: s2 })
++    // lap 0 倒車一大段仍夾在起跑格
++    expect(normalizeProgress(sq, { lap: 0, cp: 0, s })).toEqual({ lap: 0, s: 0 })
++  })
++
++  it('已進下一個檢查點區（cp 未推進）或跳過一個檢查點（身在下下個區）：夾在下一個未通過檢查點', () => {
++    // 下一個區（sector cp+1）
++    expect(normalizeProgress(sq, { lap: 1, cp: 1, s: sq.checkpoints[2] + 3 })).toEqual({ lap: 1, s: sq.checkpoints[2] })
++    expect(normalizeProgress(sq, { lap: 1, cp: 7, s: sq.checkpoints[1] - 1 })).toEqual({ lap: 2, s: 0 })
++    // 真的跳過一個檢查點（sector cp+2），含跨起點
++    expect(normalizeProgress(sq, { lap: 1, cp: 1, s: sq.checkpoints[3] + 2 })).toEqual({ lap: 1, s: sq.checkpoints[2] })
++    expect(normalizeProgress(sq, { lap: 1, cp: 7, s: sq.checkpoints[1] + 2 })).toEqual({ lap: 2, s: 0 })
++  })
++
+   it('跳區抄到前方：s 不得超過下一個未通過檢查點', () => {
+     const r = normalizeProgress(sq, { lap: 0, cp: 2, s: sq.checkpoints[5] })
+     expect(r.lap).toBe(0)
+     expect(r.s).toBeLessThanOrEqual(sq.checkpoints[3])
+   })
+ })
+ 
+ describe('stepWrongWay — 逆向判定', () => {
+   const dt = 100
+   const go = (n: number, heading: number, speed: number) => {
+diff --git a/src/babylon/games/raceRules/track.ts b/src/babylon/games/raceRules/track.ts
+index 6dcef2b..c5a3a3f 100644
+--- a/src/babylon/games/raceRules/track.ts
++++ b/src/babylon/games/raceRules/track.ts
+@@ -153,50 +153,40 @@ export function sectorOf(t: Track, s: number): number {
+ /** 進到檢查點區 sector：只有「下一個」檢查點會前進，回到 0 號才加圈；跑滿 LAPS 後不變 */
+ export function advanceLap(prev: LapState, sector: number): LapState {
+   if (prev.lap >= LAPS) return prev
+   const next = (prev.cp + 1) % CHECKPOINTS
+   if (sector !== next) return prev
+   return next === 0 ? { lap: prev.lap + 1, cp: 0 } : { lap: prev.lap, cp: next }
+ }
+ 
+ /**
+  * 名次用的 (lap, s)：以「最後通過的檢查點」為錨修正原始 s。
+- * - 倒車越過起點線（cp 0、s 在上一圈末段）→ 算回上一圈；lap 0 時夾成 s = 0（起跑格）
+- * - 抄捷徑跳到前方 → s 不超過下一個未通過的檢查點
++ * 連續行駛只可能在本區（往前 ≤ gap）或檢查點後方（倒車，距離不限）。
++ * - 本區內 → 原樣
++ * - 落在下一個檢查點區（cp 尚未推進）或下下個區（跳過一個檢查點的捷徑、路外投影跳段）→ s 夾在下一個未通過的檢查點
++ * - 其餘 → 倒車：從最後通過的檢查點往回算，越過起點線就算回上一圈；lap 0 時夾成 s = 0（起跑格）
++ *   （8 個檢查點時，倒車超過約 5/8 圈才進到這裡；再少就與跳過一個檢查點無法區分）
+  * 各 client 對同一份快照算出相同結果；rankCars 前先套這個。
+  */
+ export function normalizeProgress(t: Track, c: { lap: number; cp: number; s: number }): { lap: number; s: number } {
+   const cpS = t.checkpoints[c.cp] ?? 0
+   const nextCp = (c.cp + 1) % CHECKPOINTS
+-  const gap = nextCp === 0 ? t.len - cpS : t.checkpoints[nextCp] - cpS
+-  let lap = c.lap
+-  let s = c.s
+-  const raw = s - cpS
+-  let ds = raw
+-  if (raw > t.len / 2) {
+-    ds = raw - t.len
+-    lap -= 1
+-  } else if (raw <= -t.len / 2) {
+-    ds = raw + t.len
+-    lap += 1
+-  }
+-  if (ds > gap) {
+-    if (nextCp === 0) {
+-      lap = c.lap + 1
+-      s = 0
+-    } else {
+-      lap = c.lap
+-      s = t.checkpoints[nextCp]
+-    }
++  const ahead = (k: number) => wrapS(t, (t.checkpoints[k] ?? 0) - cpS) || t.len
++  const gap = ahead(nextCp)
++  const fwd = wrapS(t, c.s - cpS)
++  if (fwd > gap && fwd <= ahead((c.cp + 3) % CHECKPOINTS)) {
++    return nextCp === 0 ? { lap: c.lap + 1, s: 0 } : { lap: c.lap, s: t.checkpoints[nextCp] }
+   }
++  const at = cpS + (fwd <= gap ? fwd : fwd - t.len)
++  const lap = c.lap + (at >= t.len ? 1 : at < 0 ? -1 : 0)
+   if (lap < 0) return { lap: 0, s: 0 }
+-  return { lap, s }
++  return { lap, s: c.s }
+ }
+ 
+ /** 逆向累計：車的行進方向與賽道切線夾角 > WRONG_WAY_ANGLE 且在動才累計，否則歸零 */
+ export function stepWrongWay(
+   ms: number,
+   input: { heading: number; trackHeading: number; speed: number },
+   dtMs: number
+ ): { ms: number; wrongWay: boolean } {
+   const moving = Math.abs(input.speed) > WRONG_WAY_MIN_SPEED
+   const dir = input.speed < 0 ? input.heading + Math.PI : input.heading
+@@ -218,24 +208,24 @@ export function rankCars(list: readonly RankEntry[]): string[] {
+   return [...list]
+     .sort((a, b) => {
+       if (a.finishedAt !== null && b.finishedAt !== null) return a.finishedAt - b.finishedAt || byId(a, b)
+       if (a.finishedAt !== null) return -1
+       if (b.finishedAt !== null) return 1
+       return b.lap - a.lap || b.s - a.s || byId(a, b)
+     })
+     .map((c) => c.id)
+ }
+ 
+-/** s 是否落在 [s0, s1)（s1 可大於 len 表示跨起點） */
++/** s 是否落在 [s0, s1)（跨起點時 s1 可大於 len，或 s0 為負） */
+ export function inSpan(t: Track, s: number, span: readonly [number, number]): boolean {
+   const w = wrapS(t, s)
+-  return (w >= span[0] && w < span[1]) || (w + t.len >= span[0] && w + t.len < span[1])
++  return [w - t.len, w, w + t.len].some((v) => v >= span[0] && v < span[1])
+ }
+ 
+ /** 視窗曲率（rad / 單位），正 = 右彎 */
+ export function curvatureAt(t: Track, s: number, window = CURVE_WINDOW): number {
+   const a = pointAt(t, s - window / 2).heading
+   const b = pointAt(t, s + window / 2).heading
+   return wrapAngle(b - a) / window
+ }
+ 
+ /**
+

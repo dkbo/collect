@@ -1,0 +1,13 @@
+main	src/babylon/games/race.ts	169942390042489
+main	src/babylon/games/raceFx/carPose.test.ts	22313223972209
+main	src/babylon/games/raceFx/carPose.ts	6882526911138
+main	src/babylon/games/raceFx/carVisual.ts	4664428362163
+main	src/babylon/games/raceFx/effects.ts	213957618332848
+main	src/babylon/games/raceFx/fxModel.test.ts	112396732012007
+main	src/babylon/games/raceFx/fxModel.ts	149513969410607
+main	src/babylon/games/raceFx/hudModel.test.ts	1544531454167
+main	src/babylon/games/raceFx/hudModel.ts	39038190603115
+main	src/babylon/games/raceFx/models.test.ts	33207277481604
+main	src/babylon/games/raceFx/models.ts	10454145122023
+main	src/babylon/games/raceFx/textures.ts	26744548783354
+main	src/babylon/games/raceFx/world.ts	378306963614472

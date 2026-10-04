@@ -1,0 +1,10 @@
+main	src/babylon/games/race.ts	14184756671908
+main	src/babylon/games/raceFx/effects.ts	40873167332859
+main	src/babylon/games/raceFx/fxModel.test.ts	16339875791910
+main	src/babylon/games/raceFx/fxModel.ts	33725600691740
+main	src/babylon/games/raceRules/drive.test.ts	41945193343401
+main	src/babylon/games/raceRules/drive.ts	6319636525019
+main	src/babylon/games/raceRules/raceAI.test.ts	26368100991867
+main	src/babylon/games/raceRules/raceAI.ts	26098088592446
+main	src/babylon/games/raceRules/track.test.ts	36266761782423
+main	src/babylon/games/raceRules/track.ts	37760289734310

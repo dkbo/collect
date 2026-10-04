@@ -1,0 +1,3690 @@
+# 賽車美術＋可玩度（A Toy Racer） — wave 3 since 44925ca — 2026-10-03T23:50
+# files changed: 22 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/babylonCore.ts                 |   4 +-
+ src/babylon/fx/look.shadowCenter.test.ts   |  41 +++
+ src/babylon/fx/look.ts                     |  10 +
+ src/babylon/games/race.ts                  | 528 ++++++++++++++++-------------
+ src/babylon/games/raceFx/bench.test.ts     |  28 ++
+ src/babylon/games/raceFx/bench.ts          |  32 ++
+ src/babylon/games/raceFx/carPose.test.ts   |  61 ++++
+ src/babylon/games/raceFx/carPose.ts        |  68 ++++
+ src/babylon/games/raceFx/carVisual.test.ts |  54 ++-
+ src/babylon/games/raceFx/carVisual.ts      | 286 +++++++++++++---
+ src/babylon/games/raceFx/chaseCam.test.ts  |  91 +++++
+ src/babylon/games/raceFx/chaseCam.ts       |  92 +++++
+ src/babylon/games/raceFx/models.test.ts    | 155 +++++++++
+ src/babylon/games/raceFx/models.ts         | 320 +++++++++++++++++
+ src/babylon/games/raceFx/palette.test.ts   |  35 ++
+ src/babylon/games/raceFx/palette.ts        |  77 +++++
+ src/babylon/games/raceFx/raceGeom.test.ts  |  22 +-
+ src/babylon/games/raceFx/raceGeom.ts       |  25 +-
+ src/babylon/games/raceFx/scenery.test.ts   |  97 ++++++
+ src/babylon/games/raceFx/scenery.ts        | 203 +++++++++++
+ src/babylon/games/raceFx/textures.ts       | 274 +++++++++++++++
+ src/babylon/games/raceFx/world.ts          | 462 +++++++++++++++++++++++++
+ 22 files changed, 2630 insertions(+), 335 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/babylonCore.ts b/src/babylon/babylonCore.ts
+index bc453f5..4103fa6 100644
+--- a/src/babylon/babylonCore.ts
++++ b/src/babylon/babylonCore.ts
+@@ -30,24 +30,26 @@ export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'
+ export { DirectionalLight } from '@babylonjs/core/Lights/directionalLight'
+ export { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
+ export { GlowLayer } from '@babylonjs/core/Layers/glowLayer'
+ export { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline'
+ export { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration'
+ export { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase'
+ export type { MaterialDefines } from '@babylonjs/core/Materials/materialDefines'
+ export type { Material } from '@babylonjs/core/Materials/material'
+ export { ShaderLanguage } from '@babylonjs/core/Materials/shaderLanguage'
+ export { Color3, Color4 } from '@babylonjs/core/Maths/math.color'
+-export { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector'
++export { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector'
+ export { Mesh } from '@babylonjs/core/Meshes/mesh'
++export { TransformNode } from '@babylonjs/core/Meshes/transformNode'
+ export { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
+ export { Texture } from '@babylonjs/core/Materials/Textures/texture'
++export type { BaseTexture } from '@babylonjs/core/Materials/Textures/baseTexture'
+ export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture'
+ export { ParticleSystem } from '@babylonjs/core/Particles/particleSystem'
+ export { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData'
+ export { FresnelParameters } from '@babylonjs/core/Materials/fresnelParameters'
+ export { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation'
+ 
+ /** 只收專案用到的 builder；官方 MeshBuilder 會把所有形狀一起帶進來 */
+ export const MeshBuilder = {
+   CreateBox,
+   CreateCylinder,
+diff --git a/src/babylon/fx/look.shadowCenter.test.ts b/src/babylon/fx/look.shadowCenter.test.ts
+new file mode 100644
+index 0000000..21ea40c
+--- /dev/null
++++ b/src/babylon/fx/look.shadowCenter.test.ts
+@@ -0,0 +1,41 @@
++import { describe, it, expect, afterEach } from 'vitest'
++import { NullEngine } from '@babylonjs/core/Engines/nullEngine'
++import { ArcRotateCamera, DirectionalLight, Scene, Vector3 } from '@/babylon/babylonCore'
++import { ToyLook } from '@/babylon/fx/look'
++
++let engine: NullEngine | null = null
++afterEach(() => {
++  engine?.dispose()
++  engine = null
++})
++
++const setup = (tag: string) => {
++  engine = new NullEngine()
++  const scene = new Scene(engine)
++  const cam = new ArcRotateCamera('cam', 0, 1, 10, Vector3.Zero(), scene)
++  const look = new ToyLook(scene, cam, { shadowRadius: 22, tag, outline: '#2B2440' })
++  const sun = scene.lights.find((l) => l.name === `${tag}-sun`) as DirectionalLight
++  return { look, sun }
++}
++
++describe('ToyLook.setShadowCenter（賽車陰影框跟車，新增可選方法）', () => {
++  it('不呼叫＝建構時的原點中心；(0, 0) 等於原行為', () => {
++    const { look, sun } = setup('t1')
++    const before = sun.position.clone()
++    look.setShadowCenter(0, 0)
++    expect(sun.position.x).toBeCloseTo(before.x, 6)
++    expect(sun.position.y).toBeCloseTo(before.y, 6)
++    expect(sun.position.z).toBeCloseTo(before.z, 6)
++  })
++
++  it('移到 (x, z)：主光沿原方向平移 x／z，高度與方向不變', () => {
++    const { look, sun } = setup('t2')
++    const before = sun.position.clone()
++    const dir = sun.direction.clone()
++    look.setShadowCenter(12, -20)
++    expect(sun.position.x).toBeCloseTo(before.x + 12, 6)
++    expect(sun.position.y).toBeCloseTo(before.y, 6)
++    expect(sun.position.z).toBeCloseTo(before.z - 20, 6)
++    expect(sun.direction.equalsWithEpsilon(dir, 1e-9)).toBe(true)
++  })
++})
+diff --git a/src/babylon/fx/look.ts b/src/babylon/fx/look.ts
+index 6da82be..c72d3de 100644
+--- a/src/babylon/fx/look.ts
++++ b/src/babylon/fx/look.ts
+@@ -295,20 +295,30 @@ export class ToyLook {
+     this.syncGlowEnabled()
+   }
+ 
+   private readonly hexCache = new Map<string, Color3>()
+   private hexColor(hex: string): Color3 {
+     let c = this.hexCache.get(hex)
+     if (!c) this.hexCache.set(hex, (c = Color3.FromHexString(hex)))
+     return c
+   }
+ 
++  /**
++   * 陰影框中心移到 (x, z)（賽車：賽道太大、正交投影罩不住，陰影框跟著自己的車走）。
++   * 只移動主光位置，正交範圍（shadowRadius）不變；不呼叫＝建構時的原點中心（其他遊戲行為不變）。
++   * 呼叫端自己量化座標，避免每幀微移造成陰影抖動。
++   */
++  setShadowCenter(x: number, z: number): void {
++    const d = SUN_DIR.normalizeToNew()
++    this.sun.position.set(x - d.x * 40, -d.y * 40, z - d.z * 40)
++  }
++
+   // ---- 每幀 ----
+ 
+   /** 餵幀時間；連續 60 幀平均低於 45fps 就降一級 */
+   update(deltaMs: number): void {
+     if (!this.watch || !this.watch.push(deltaMs)) return
+     const step = nextDegrade(this.active)
+     if (!step) {
+       this.watch = null
+       return
+     }
+diff --git a/src/babylon/games/race.ts b/src/babylon/games/race.ts
+index fb0da9d..09e7f41 100644
+--- a/src/babylon/games/race.ts
++++ b/src/babylon/games/race.ts
+@@ -1,45 +1,39 @@
+-import {
+-  ArcRotateCamera,
+-  Color3,
+-  HemisphericLight,
+-  Mesh,
+-  MeshBuilder,
+-  StandardMaterial,
+-  Vector3,
+-  VertexData,
+-} from '@/babylon/babylonCore'
++import { ArcRotateCamera, Color3, Color4, Scene, SceneInstrumentation, Vector3 } from '@/babylon/babylonCore'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import type { GameContext, GameModule, GameOverlay, GamePlayer } from '@/babylon/types'
+ import { lerpAngle } from '@/babylon/math'
+ import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
++import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
++import { COUNTDOWN_THEME } from '@/babylon/fx/countdown'
++import { perfLogLine } from '@/babylon/fx/perfLog'
++import { tierQuery } from '@/babylon/fx/quality'
+ import { attachFlowAudio, engineStart, engineSet, engineStop, playSfx, stopAllAudio } from '@/babylon/audio'
+ import {
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   createSnapshotBuffer,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
+   type SnapshotBuffer,
+ } from '@/babylon/net'
+-import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
+-import { LAPS, pointAt, raceOver, sectorOf, trackProgress, normalizeProgress } from '@/babylon/games/raceRules/track'
++import { JUMP_S0, JUMP_S1, RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++import { LAPS, raceOver, sectorOf, trackProgress, normalizeProgress, wrapAngle } from '@/babylon/games/raceRules/track'
+ import {
+   BOOST_SPEED,
++  JUMP_G,
+   JUMP_H,
+   MAX_SPEED,
+-  PAD_HALF_LEN,
+-  PAD_HALF_W,
+-  RAMP_HALF_W,
+   makeRacer,
++  rampY,
+   stepRacer,
+   type DriveInput,
+   type RacerState,
+ } from '@/babylon/games/raceRules/drive'
+ import {
+   BOX_RADIUS,
+   applySpin,
+   boxLayout,
+   claimBox,
+   rollItem,
+@@ -75,25 +69,30 @@ import {
+   finalStandings,
+   formatRaceMs,
+   liveOrder,
+   makeLapClock,
+   stepLapClock,
+   type LapClock,
+   type LiveCar,
+   type StandingCar,
+ } from '@/babylon/games/raceFx/raceResult'
+ import { emptyField, spawnField, stepField, type FieldEvent, type ItemField } from '@/babylon/games/raceFx/raceField'
+-import { roadStrip } from '@/babylon/games/raceFx/raceGeom'
+-import { disposeCarVisual, makeCarVisual, type CarVisual } from '@/babylon/games/raceFx/carVisual'
++import { CarKit, disposeCarVisual, type CarVisual } from '@/babylon/games/raceFx/carVisual'
++import { RaceWorld, type WorldItem } from '@/babylon/games/raceFx/world'
++import { CHASE, initChase, snapGrid, stepChase, type ChaseMode, type ChaseState } from '@/babylon/games/raceFx/chaseCam'
++import { bodyPose, remoteY, steerFromYaw } from '@/babylon/games/raceFx/carPose'
++import { benchEnabled, benchLayout } from '@/babylon/games/raceFx/bench'
++import { WHEEL_R } from '@/babylon/games/raceFx/models'
++import { DRIFT_COLORS, OUTLINE, RACE } from '@/babylon/games/raceFx/palette'
+ 
+ /**
+- * 極速賽車 v3 — A Toy Racer 玩法（波 2：玩法面；美術、特效、React HUD 在波 3／4）。
++ * 極速賽車 v3 — A Toy Racer（波 2 玩法、波 3 車輛／場景／光影／追尾相機；特效與 React HUD 在波 4）。
+  *
+  * 同步模型：分散式所有權——每人本機模擬自己的車（零輸入延遲），20Hz 廣播 own 快照
+  * `{ x, z, ry, lap, cp, s, fin, ghost, drift, boost, spin, shield }`；他車插值。
+  * host 裁決道具箱、道具生成、命中（以最近收到的 own 快照為準）、bot 與結算；
+  * 規則全部在 raceRules／raceFx 純函式，這裡只接線與畫面。訊息表見 brief AC6b。
+  */
+ 
+ const SIM_HZ = 30
+ /** botState 廣播週期（20Hz） */
+ const BOT_STATE_MS = 50
+@@ -101,53 +100,70 @@ const BOT_STATE_MS = 50
+ const ITEM_STATE_MS = 100
+ /** guest 對同一個箱子重送 itemReq 的間隔 */
+ const ITEM_REQ_RETRY_MS = 400
+ /** host 驗 itemReq：請求者最近快照離箱子的容許距離（20Hz 延遲＋最高速） */
+ const ITEM_REQ_SLACK = 5
+ /** bot 追擊判定：龜殼在 bot 這距離內且鎖定它 */
+ const SHELL_CHASE_DIST = 15
+ /** 衝線後自己的車交給 AI 巡航的油門倍率（spec §6） */
+ const CRUISE_THROTTLE = 0.6
+ const RESULT_RESTART_MS = 10000
+-const GROUND_W = RACE_COURSE.bound.x * 2
+-const GROUND_D = RACE_COURSE.bound.z * 2
+-/** 甩尾段位火花色（白／藍／橘／紫，波 4 換 spec 色票） */
+-const DRIFT_COLORS = [new Color3(1, 1, 1), new Color3(0.3, 0.6, 1), new Color3(1, 0.55, 0.1), new Color3(0.75, 0.3, 1)]
++/** 陰影正交範圍半徑（spec §5：跟著自己的車走） */
++const SHADOW_RADIUS = 22
++/** 陰影中心量化格（避免每幀微移造成 shimmering） */
++const SHADOW_SNAP = 4
++/** AC14：每 2 秒印一次 draw calls 與 fps */
++const PERF_LOG_MS = 2000
++/** 斜坡上的車身俯仰（spec §1.4：−atan(JUMP_H / 6)） */
++const RAMP_PITCH = -Math.atan(JUMP_H / 6)
++/** 前輪轉向擺角（spec §4.1；甩尾時 ×1.3 反打） */
++const FRONT_STEER = 0.42
++/** 暫用火花：加速中的焰色（波 4 換噴焰特效） */
++const FLAME = '#FFC53A'
+ const ITEM_LABEL: Record<ItemKind, string> = { banana: '香蕉', shell: '龜殼', mushroom: '加速菇', shield: '護盾' }
+ 
+ const COURSE = RACE_COURSE
+ const TRACK = COURSE.track
+ const BOXES = boxLayout(COURSE)
+ 
+ interface BotSim {
+   racer: RacerState
+   mind: BotMind
+   item: ItemKind | null
+   fin: number | null
+ }
+ 
+ /** 一台車在畫面上要用的姿態（自己、他車、bot 共用） */
+ interface CarPose {
+   x: number
+   z: number
+   ry: number
+-  y: number
++  /** 本機知道的高度；null = 他車／guest 的 bot，依 s 對照跳台推算 */
++  y: number | null
++  /** 沿線距離（推算跳台高度時先用它粗篩，免得每幀對每台車做投影） */
++  s: number
+   drift: DriftTier
++  /** 正在蓄甩尾（含 0 段）；他車以 drift > 0 近似 */
++  drifting: boolean
+   spin: boolean
+   ghost: boolean
+   shield: boolean
+   boost: boolean
++  /** 本機輸入的轉向；他車沒有，以偏航角速度反推 */
++  steer?: number
++  /** 本機知道的騰空垂直速度與是否在坡上（自己與 host 的 bot） */
++  air?: { vy: number } | null
++  onRamp?: boolean
+ }
+ 
+ interface ItemView {
+   kind: 'banana' | 'shell'
+-  mesh: Mesh
+   x: number
+   z: number
+   vx: number
+   vz: number
+ }
+ 
+ class RaceScene implements GameModule {
+   readonly gameId = 'race'
+   private ctx!: GameContext
+   private keys = new Set<string>()
+@@ -185,29 +201,37 @@ class RaceScene implements GameModule {
+   // 結算（host）
+   private finishOrder: string[] = []
+   private firstFinAt: number | null = null
+   private prevFin = new Map<string, number | null>()
+   private lapClocks = new Map<string, LapClock>()
+ 
+   // 畫面
+   private selfVisual?: CarVisual
+   private carVisuals = new Map<string, CarVisual>()
+   private camera!: ArcRotateCamera
++  private chase!: ChaseState
++  private look!: ToyLook
++  private world!: RaceWorld
++  private kit!: CarKit
++  /** 陰影被自動降級關掉後，車改墊 blob 影 */
++  private blobShadows = false
++  private shadowKey = ''
++  private lastInput: DriveInput = { throttle: 0, steer: 0, drifting: false }
+   private resultElapsed = 0
+   private lastOverlayKey = ''
+-  private statics: Mesh[] = []
+-  private boxMeshes: Mesh[] = []
+-  private boostPads: Mesh[] = []
+-  private sparks: { mesh: Mesh; life: number }[] = []
+   private hud!: TextPanel
+   private banner!: TextPanel
+-  private mats = new Map<string, StandardMaterial>()
++  // AC14：draw calls 量測；?raceBench=1（限 raceNoDegrade=1）擺固定量測場景
++  private instr: SceneInstrumentation | null = null
++  private lastPerfLog = 0
++  private bench = false
++  private benchItems: WorldItem[] = []
+   /** 本端看到的道具事件計數（給 qa 從 __BATTLE_POS 判讀，波 4 隨文字 HUD 一起整理） */
+   private seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const k = e.key.toLowerCase()
+     this.keys.add(k)
+     if (k === 'r') this.requestRestart()
+     if (k === 'e' && !e.repeat) this.useQueued = true
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+@@ -311,41 +335,54 @@ class RaceScene implements GameModule {
+     this.racer = makeRacer(COURSE, this.slotOf(this.ctx.selfId))
+     this.item = null
+     this.fin = null
+     this.reqBox = null
+     this.useQueued = false
+     this.cruiseMind = makeBotMind(7)
+     this.taken = []
+     this.respawnAt = BOXES.map(() => 0)
+     this.hold.clear()
+     this.field = emptyField()
+-    for (const v of this.itemViews.values()) v.mesh.dispose()
+     this.itemViews.clear()
+     this.sentTakenKey = ''
+     this.seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
+     this.finishOrder = []
+     this.firstFinAt = null
+     this.prevFin.clear()
+     this.lapClocks.clear()
+     this.botLatest.clear()
+     for (const b of this.botBufs.values()) b.clear()
+     this.botSims.clear()
+     if (this.ctx.role === 'host') {
+       this.bots.forEach((b, i) => {
+         this.botSims.set(b.id, {
+           racer: makeRacer(COURSE, this.slotOf(b.id)),
+           mind: makeBotMind(0x9e3779b9 + i * 7919),
+           item: null,
+           fin: null,
+         })
+       })
+     }
++    if (this.bench) this.applyBench()
++  }
++
++  /** ?raceBench=1：每台車各持一種道具（bot 不會用掉，量測條件固定） */
++  private applyBench(): void {
++    const held = benchLayout(COURSE).held
++    const kindOf = (id: string) => held[this.slotOf(id) % held.length]
++    this.item = kindOf(this.ctx.selfId)
++    if (this.ctx.role !== 'host') return
++    this.hold.set(this.ctx.selfId, this.item)
++    for (const [id, b] of this.botSims) {
++      b.item = kindOf(id)
++      this.hold.set(id, b.item)
++    }
+   }
+ 
+   private onPlaying(): void {
+     const now = performance.now()
+     this.playStart = now
+     for (const id of this.entityIds()) this.lapClocks.set(id, makeLapClock(now))
+   }
+ 
+   // ---- 重開 ----
+ 
+@@ -401,33 +438,85 @@ class RaceScene implements GameModule {
+     this.lastOverlayKey = key
+     setOverlay(overlay)
+   }
+ 
+   // ---- 生命週期 ----
+ 
+   init(ctx: GameContext): void {
+     this.ctx = ctx
+     const { scene } = ctx
+ 
+-    this.camera = new ArcRotateCamera('cam', -Math.PI / 2, 1.05, 12, Vector3.Zero(), scene)
+-    this.camera.maxZ = 600
+-    new HemisphericLight('light', new Vector3(0, 1, 0), scene)
+-
+-    this.buildTrack()
+-    this.buildBoxes()
++    // 追尾相機（spec §7）
++    this.camera = new ArcRotateCamera('cam', -Math.PI / 2, CHASE.beta, CHASE.radius[0], Vector3.Zero(), scene)
++    this.camera.minZ = CHASE.minZ
++    this.camera.maxZ = CHASE.maxZ
++    // 光影與後製（AC10）：雙光、陰影（跟車走）、Glow 白名單、描邊、後製、解析度與檔位（AC13）；陰影被降級關掉時車改墊 blob 影
++    this.look = new ToyLook(scene, this.camera, {
++      shadowRadius: SHADOW_RADIUS,
++      tag: 'race',
++      outline: OUTLINE,
++      exposure: 1.08,
++      contrast: 1.08,
++      onDegrade: (step) => {
++        if (step === 'shadow') this.blobShadows = true
++      },
++    })
++    // 天色＝霧色（同一個後製轉換，地平線才接得上）；用 skyClear 預先補償 ACES 壓掉的飽和度
++    scene.clearColor = Color4.FromHexString(`${RACE.skyClear}FF`)
++    scene.fogMode = Scene.FOGMODE_LINEAR
++    scene.fogStart = 110
++    scene.fogEnd = 230
++    scene.fogColor = Color3.FromHexString(RACE.skyClear)
++
++    // 場景（AC9）：桌墊、路面、路緣、拱門、看台、積木、樹、錐、跳台、加速帶、道具箱、香蕉、龜殼
++    const mobile = this.look.tier === 'mobile'
++    this.world = new RaceWorld(scene, COURSE, BOXES, {
++      matSize: mobile ? 512 : 1024,
++      crowdHop: !mobile,
++      sparkCap: this.look.settings.particleCap,
++    })
++    const fx = this.world.fxTargets()
++    this.look.toon(...fx.toon)
++    this.look.receiver(...fx.receivers)
++    this.look.caster(...fx.casters)
++    this.look.outline(...fx.outlined)
++    for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
++    for (const g of fx.glowOwn) this.look.glowOwnMaterial(g.mesh, g.strength)
++    // 車：合併車身（投影＋描邊在 makeCar 登記）、共用輪胎 thin instance（投影、不描邊）、3 段火花芯（Glow）
++    this.kit = new CarKit(scene)
++    this.look.toon(...this.kit.litMaterials)
++    this.look.caster(this.kit.wheels.mesh)
++    this.look.glowMesh(this.kit.cores.mesh, DRIFT_COLORS[3], 1)
++
++    // AC14：draw calls 量測；量測場景只在 raceNoDegrade=1 下生效
++    this.instr = new SceneInstrumentation(scene)
++    this.bench = typeof window !== 'undefined' && benchEnabled(tierQuery(window.location.search, window.location.hash))
++    if (this.bench) {
++      const lay = benchLayout(COURSE)
++      this.benchItems = [
++        ...lay.bananas.map((p, i): WorldItem => ({ id: `bench-b${i}`, kind: 'banana', ...p })),
++        ...lay.shells.map((p, i): WorldItem => ({ id: `bench-s${i}`, kind: 'shell', ...p })),
++      ]
++    }
+ 
+     if (ctx.role === 'host') this.bots = makeRaceBots(ctx.players.length)
+     this.resetRace()
+     this.selfVisual = this.makeCar(ctx.selfId)
++    this.chase = initChase(this.chaseInput('playing'))
+ 
+     this.hud = createTextPanel(scene, this.camera, 'hud', 6, 0.8, new Vector3(0, 2.4, 8))
+-    this.banner = createCountdownPanel(scene, this.camera, 'banner', 7, 4, new Vector3(0, 0.3, 8))
++    // 開局倒數：玩具系列配色，掛在不經後製的 UI 相機
++    if (typeof document !== 'undefined') void document.fonts?.load('bold 64px Fredoka').catch(() => undefined)
++    this.banner = createCountdownPanel(scene, this.look.uiCamera, 'banner', 7, 4, new Vector3(0, 0.3, 8), {
++      theme: COUNTDOWN_THEME,
++      layerMask: UI_LAYER,
++    })
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+     window.addEventListener('keyup', this.onKeyUp)
+ 
+     this.flow = createGameFlow({ net: ctx.net, game: this.gameId, role: ctx.role, hostId: ctx.hostId })
+     attachFlowAudio(this.flow, 'race', {
+       resultSfx: (r) => (decodeResult(r)?.[0]?.id === ctx.selfId ? 'win' : 'lose'),
+     })
+     this.flow.onChange((s) => {
+       if (s.phase === 'countdown') {
+@@ -451,187 +540,132 @@ class RaceScene implements GameModule {
+       this.broadcast('start', { bots: this.bots })
+       // 晚開的通道補送名冊與道具箱狀態
+       this.offOpen = ctx.net.on('open', (peerId) => {
+         ctx.net.send(peerId, { game: this.gameId, type: 'start', payload: { bots: this.bots } })
+         ctx.net.send(peerId, { game: this.gameId, type: 'boxState', payload: { taken: this.taken } })
+       })
+       this.flow.startCountdown(3)
+     }
+   }
+ 
+-  // ---- 場景（波 2 暫用簡單 mesh，波 3 照 spec 換掉） ----
+-
+-  private mat(name: string, color: Color3, emissive?: Color3): StandardMaterial {
+-    let m = this.mats.get(name)
+-    if (!m) {
+-      m = new StandardMaterial(`race-${name}`, this.ctx.scene)
+-      m.diffuseColor = color
+-      if (emissive) m.emissiveColor = emissive
+-      this.mats.set(name, m)
+-    }
+-    return m
+-  }
+-
+-  private buildTrack(): void {
+-    const scene = this.ctx.scene
+-    const ground = MeshBuilder.CreateGround('race-ground', { width: GROUND_W, height: GROUND_D }, scene)
+-    ground.material = this.mat('ground', new Color3(0.36, 0.62, 0.4))
+-    this.statics.push(ground)
+-
+-    const addStrip = (name: string, halfW: number, y: number, color: Color3) => {
+-      const g = roadStrip(TRACK, halfW, y)
+-      const mesh = new Mesh(name, scene)
+-      const vd = new VertexData()
+-      vd.positions = g.positions
+-      vd.indices = g.indices
+-      vd.normals = g.normals
+-      vd.uvs = g.uvs
+-      vd.applyToMesh(mesh)
+-      const m = this.mat(name, color)
+-      m.backFaceCulling = false
+-      mesh.material = m
+-      this.statics.push(mesh)
+-    }
+-    // 路緣（稍寬一圈紅色帶）＋路面
+-    addStrip('curb', TRACK.width / 2 + 0.6, 0.01, new Color3(0.9, 0.25, 0.22))
+-    addStrip('road', TRACK.width / 2, 0.02, new Color3(0.3, 0.32, 0.38))
+-
+-    // 起跑線（棋盤格）＋拱門
+-    const start = pointAt(TRACK, 0)
+-    const cells = 8
+-    for (let i = 0; i < cells; i++) {
+-      const lat = ((i + 0.5) / cells - 0.5) * TRACK.width
+-      const cell = MeshBuilder.CreateBox(`race-start-${i}`, { width: TRACK.width / cells, height: 0.02, depth: 0.8 }, scene)
+-      cell.position.set(start.x + Math.cos(start.heading) * lat, 0.035, start.z - Math.sin(start.heading) * lat)
+-      cell.rotation.y = start.heading
+-      cell.material = i % 2 === 0 ? this.mat('white', Color3.White()) : this.mat('black', new Color3(0.1, 0.1, 0.1))
+-      this.statics.push(cell)
+-    }
+-    for (const side of [-1, 1]) {
+-      const lat = side * (TRACK.width / 2 + 0.8)
+-      const pillar = MeshBuilder.CreateBox(`race-arch-${side}`, { width: 0.5, height: 4, depth: 0.5 }, scene)
+-      pillar.position.set(start.x + Math.cos(start.heading) * lat, 2, start.z - Math.sin(start.heading) * lat)
+-      pillar.material = this.mat('arch', new Color3(0.85, 0.2, 0.15))
+-      this.statics.push(pillar)
+-    }
+-    const beam = MeshBuilder.CreateBox('race-arch-beam', { width: TRACK.width + 2.2, height: 0.5, depth: 0.5 }, scene)
+-    beam.position.set(start.x, 4, start.z)
+-    beam.rotation.y = start.heading
+-    beam.material = this.mat('arch', new Color3(0.85, 0.2, 0.15))
+-    this.statics.push(beam)
+-
+-    // 固定加速帶
+-    for (const [i, p] of COURSE.pads.entries()) {
+-      const pad = MeshBuilder.CreateBox(`race-pad-${i}`, { width: PAD_HALF_W * 2, height: 0.04, depth: PAD_HALF_LEN * 2 }, scene)
+-      pad.position.set(p.x, 0.04, p.z)
+-      pad.rotation.y = p.heading
+-      pad.material = this.mat('pad', new Color3(0.1, 0.6, 0.95), new Color3(0.05, 0.35, 0.7))
+-      this.boostPads.push(pad)
+-    }
+-
+-    // 跳台斜坡：從 s0 升到 s1（唇口 JUMP_H）
+-    for (const [i, [s0, s1]] of COURSE.jumps.entries()) {
+-      const a = pointAt(TRACK, s0)
+-      const b = pointAt(TRACK, s1)
+-      const run = Math.hypot(b.x - a.x, b.z - a.z)
+-      const ramp = MeshBuilder.CreateBox(
+-        `race-ramp-${i}`,
+-        { width: RAMP_HALF_W * 2, height: 0.2, depth: Math.hypot(run, JUMP_H) },
+-        scene
+-      )
+-      ramp.position.set((a.x + b.x) / 2, JUMP_H / 2, (a.z + b.z) / 2)
+-      ramp.rotation.set(-Math.atan2(JUMP_H, run), Math.atan2(b.x - a.x, b.z - a.z), 0)
+-      ramp.material = this.mat('ramp', new Color3(0.95, 0.75, 0.2))
+-      this.statics.push(ramp)
+-    }
+-  }
+-
+-  private buildBoxes(): void {
+-    const scene = this.ctx.scene
+-    const m = this.mat('box', new Color3(1, 0.8, 0.2), new Color3(0.4, 0.25, 0))
+-    for (const b of BOXES) {
+-      const mesh = MeshBuilder.CreateBox(`race-box-${b.id}`, { size: 1.1 }, scene)
+-      mesh.position.set(b.x, 1, b.z)
+-      mesh.material = m
+-      this.boxMeshes.push(mesh)
+-    }
+-  }
+-
+-  // ---- 車輛視覺（波 3 換成 spec 的 Q 版玩具車） ----
++  // ---- 車輛視覺（spec §4.1） ----
+ 
+   private makeCar(id: string): CarVisual {
+-    return makeCarVisual(this.ctx.scene, id, this.colorIndexOf(id), (name, color, emissive) => this.mat(name, color, emissive))
++    const v = this.kit.make(id, this.colorIndexOf(id), !this.isPlayer(id), id === this.ctx.selfId)
++    // 投影只限車與道具（AC10）；描邊車身（輪胎不描）
++    this.look.caster(v.body)
++    this.look.outline(v.body)
++    return v
+   }
+ 
+   private visualFor(id: string): CarVisual {
+     let v = this.carVisuals.get(id)
+     if (!v) {
+       v = this.makeCar(id)
+       this.carVisuals.set(id, v)
+     }
+     return v
+   }
+ 
++  private removeCar(v: CarVisual): void {
++    this.world.setCarBlob(v.id, 0, 0, false)
++    disposeCarVisual(this.kit, v)
++  }
++
+   private applyPose(v: CarVisual, p: CarPose, dt: number, now: number): void {
+-    const moved = Math.hypot(p.x - v.prevX, p.z - v.prevZ)
++    const dx = p.x - v.prevX
++    const dz = p.z - v.prevZ
++    // 起跑、重生是瞬移：不算輪胎轉動、不估轉向
++    const teleport = Math.hypot(dx, dz) > 5
++    const fwd = teleport ? 0 : dx * Math.sin(p.ry) + dz * Math.cos(p.ry)
++    const dRy = teleport ? 0 : wrapAngle(p.ry - v.prevRy)
+     v.prevX = p.x
+     v.prevZ = p.z
+-    for (const w of v.wheels) w.rotation.x += moved * 3
++    v.prevRy = p.ry
++    v.wheelSpin += fwd / WHEEL_R
++    if (dt > 0) v.speedEst += (Math.abs(fwd) / dt - v.speedEst) * Math.min(1, dt * 8)
++    const steer = p.steer ?? steerFromYaw(dRy, dt, v.speedEst)
++    v.steer += (steer - v.steer) * Math.min(1, dt * 10)
++
++    // 高度：自己與 host 的 bot 用模擬值；他車／guest 的 bot 由 s 對照跳台推算（波 2 Minor）
++    let y = p.y
++    let onRamp = p.onRamp ?? false
++    if (y === null) {
++      y = 0
++      // 快照的 s 比插值後的位置新（最多一個快照間隔），只拿來粗篩；高度用插值位置投影出來的 s
++      if (p.s > JUMP_S0 - 3 && p.s < JUMP_S1 + 32) {
++        const prog = trackProgress(TRACK, p.x, p.z)
++        y = remoteY(COURSE, prog.s, prog.lateral, v.speedEst)
++        onRamp = rampY(COURSE, prog.s, prog.lateral) > 0
++      }
++    }
++    const vy = dt > 0 ? (y - v.prevY) / dt : 0
++    v.prevY = y
++    const airborne = p.air !== undefined ? p.air !== null : y > 0 && !onRamp
++    if (p.drifting && !v.wasDrifting) v.hopAt = now
++    v.wasDrifting = p.drifting
++    const pose = bodyPose({
++      steer: v.steer,
++      speedRatio: Math.min(1, v.speedEst / MAX_SPEED),
++      drifting: p.drifting,
++      boosting: p.boost,
++      vy: p.air ? p.air.vy : vy,
++      airborne,
++      hopMs: v.hopAt < 0 ? -1 : now - v.hopAt,
++      rampPitch: onRamp ? RAMP_PITCH : 0,
++    })
+     v.spinAngle = p.spin ? v.spinAngle + dt * Math.PI * 5 : 0
+-    v.root.position.set(p.x, p.y, p.z)
+-    v.root.rotation.y = p.ry + v.spinAngle
+-    v.root.setEnabled(!p.ghost || Math.floor(now / 100) % 2 === 0)
++    v.root.position.set(p.x, y, p.z)
++    v.root.rotation.y = p.ry
++    v.visual.position.y = pose.dy
++    v.visual.rotation.set(pose.rx, pose.yaw + v.spinAngle, pose.rz)
++    v.hidden = p.ghost && Math.floor(now / 100) % 2 === 1
++    v.root.setEnabled(!v.hidden)
+     v.shield.setEnabled(p.shield)
+-    if (p.drift > 0 || p.boost) {
++    if (p.shield) v.shield.rotation.y += dt * 0.6
++
++    this.kit.putWheels(v, v.steer * FRONT_STEER * (p.drifting ? -1.3 : 1))
++    const cam = this.camera.position
++    this.kit.putCore(v, p.drift === 3, cam.x, cam.z, now)
++    this.world.setCarBlob(v.id, p.x, p.z, this.blobShadows && !v.hidden)
++
++    // 暫用火花（波 4 換 spec 特效表）：兩後輪外側交替
++    if ((p.drift > 0 || p.boost) && !v.hidden) {
+       v.sparkAcc += dt
+       if (v.sparkAcc > 0.05) {
+         v.sparkAcc = 0
+-        this.spawnSpark(p, p.boost && p.drift === 0 ? DRIFT_COLORS[2] : DRIFT_COLORS[p.drift])
++        v.sparkSide = -v.sparkSide
++        const ry = p.ry + pose.yaw
++        const bx = p.x - Math.sin(ry) * 1.1 + Math.cos(ry) * 0.75 * v.sparkSide
++        const bz = p.z - Math.cos(ry) * 1.1 - Math.sin(ry) * 0.75 * v.sparkSide
++        this.world.spark(bx, y + 0.15, bz, p.boost && p.drift === 0 ? FLAME : DRIFT_COLORS[p.drift])
+       }
+     }
+   }
+ 
+-  private spawnSpark(p: CarPose, color: Color3): void {
+-    if (this.sparks.length > 60) return
+-    const scene = this.ctx.scene
+-    const spark = MeshBuilder.CreateBox('race-spark', { size: 0.14 }, scene)
+-    const back = 1.1
+-    spark.position.set(p.x - Math.sin(p.ry) * back + (Math.random() - 0.5) * 0.8, p.y + 0.15, p.z - Math.cos(p.ry) * back)
+-    const m = new StandardMaterial('race-spark-mat', scene)
+-    m.emissiveColor = color
+-    m.disableLighting = true
+-    spark.material = m
+-    this.sparks.push({ mesh: spark, life: 0.3 })
+-  }
+-
+-  // ---- 道具畫面 ----
++  // ---- 道具畫面（香蕉、龜殼由 RaceWorld 的 thin instance 畫） ----
+ 
+   private spawnItemView(id: string, kind: 'banana' | 'shell', x: number, z: number, vx: number, vz: number): void {
+     if (this.itemViews.has(id)) return
+     this.seen.spawn++
+-    const scene = this.ctx.scene
+-    const mesh =
+-      kind === 'banana'
+-        ? MeshBuilder.CreateCylinder(`race-banana-${id}`, { diameterTop: 0.3, diameterBottom: 0.9, height: 0.5 }, scene)
+-        : MeshBuilder.CreateSphere(`race-shell-${id}`, { diameter: 0.9, segments: 8 }, scene)
+-    mesh.material = kind === 'banana' ? this.mat('banana', new Color3(1, 0.9, 0.2)) : this.mat('shell', new Color3(0.9, 0.15, 0.15))
+-    mesh.position.set(x, 0.4, z)
+-    this.itemViews.set(id, { kind, mesh, x, z, vx, vz })
++    this.itemViews.set(id, { kind, x, z, vx, vz })
+   }
+ 
+   private removeItemView(id: string): void {
+-    const v = this.itemViews.get(id)
+-    if (!v) return
+-    v.mesh.dispose()
+     this.itemViews.delete(id)
+   }
+ 
++  private *worldItems(): Iterable<WorldItem> {
++    for (const [id, v] of this.itemViews) yield { id, kind: v.kind, x: v.x, z: v.z }
++    yield* this.benchItems
++  }
++
+   // ---- 網路 ----
+ 
+   onNetworkMessage(from: string, msg: GameNetMessage): void {
+     if (msg.game !== this.gameId) return
+     const p = msg.payload
+     if (this.ctx.role === 'host') {
+       // 上行請求只收本局真人
+       if (!this.isPlayer(from) || from === this.ctx.selfId) return
+       if (msg.type === 'restartReq') {
+         if (this.flow.state.phase === 'result') this.hostRestart()
+@@ -830,21 +864,21 @@ class RaceScene implements GameModule {
+         dist: dist.get(id) ?? 0,
+         item: b.item,
+         others: cars.filter((c) => c.id !== id).map((c) => ({ dist: dist.get(c.id) ?? 0, lateral: lateralOf.get(c.id) ?? 0 })),
+         shellChasing,
+         mind: b.mind,
+       })
+       const input: DriveInput = { throttle: out.throttle, steer: out.steer, drifting: out.drift }
+       const step = stepRacer(r, input, { course: COURSE, others: this.positionsExcept(id) }, dt)
+       b.racer = step.state
+       if (step.events.includes('finish') && b.fin === null) b.fin = Math.min(OWN_FIN_MAX, Math.round(now - this.playStart))
+-      if (out.useItem && b.item && b.fin === null) {
++      if (out.useItem && b.item && b.fin === null && !this.bench) {
+         const kind = b.item
+         b.item = null
+         b.racer = applyItemSelf(b.racer, kind)
+         this.hostUseItem(id, kind, b.racer.car)
+       }
+       if (!b.item && b.fin === null) {
+         const box = touchedBox(BOXES, this.taken, b.racer.car.x, b.racer.car.z)
+         if (box !== null) this.hostClaim(id, box)
+       }
+     }
+@@ -943,36 +977,38 @@ class RaceScene implements GameModule {
+     this.broadcast('botState', { states: this.botStates() })
+   }
+ 
+   private simulate(dt: number): void {
+     const phase = this.flow.state.phase
+     if (phase === 'countdown' && this.ctx.role === 'host') this.sendBotState(dt)
+     if (phase !== 'playing') return
+     const now = performance.now()
+ 
+     const input = this.fin === null ? this.readInput() : this.cruiseInput(dt)
++    this.lastInput = input
+     const step = stepRacer(this.racer, input, { course: COURSE, others: this.positionsExcept(this.ctx.selfId) }, dt)
+     this.racer = step.state
+     for (const ev of step.events) {
+       if (ev === 'lap') playSfx('lap')
+       else if (ev === 'finish') {
+         if (this.fin === null) this.fin = Math.min(OWN_FIN_MAX, Math.round(now - this.playStart))
+         playSfx('round_end')
+       } else if (ev === 'turbo' || ev === 'pad') playSfx('tank_bounce')
+     }
+ 
+     // 使用道具（e）
+     if (this.useQueued) {
+       this.useQueued = false
+       const kind = this.item
+       // 過線後不撿不用道具，不干擾還在比賽的車
+-      if (kind && this.fin === null) {
++      // bench 量測條件固定：自己手上的道具也不用掉（不然會再去撿箱子）
++      if (kind && this.fin === null && !this.bench) {
+         this.item = null
+         this.racer = applyItemSelf(this.racer, kind)
+         if (this.ctx.role === 'host') this.hostUseItem(this.ctx.selfId, kind, this.racer.car)
+         else this.broadcast('useItem', { kind })
+       }
+     }
+ 
+     // 撿道具箱：host 直接裁決，guest 送 itemReq 等 itemGrant
+     if (!this.item && this.fin === null) {
+       const box = touchedBox(BOXES, this.taken, this.racer.car.x, this.racer.car.z)
+@@ -985,49 +1021,84 @@ class RaceScene implements GameModule {
+       }
+     }
+ 
+     if (this.ctx.role === 'host') this.hostTick(dt, now)
+ 
+     engineSet(Math.min(1, Math.abs(this.racer.car.speed) / MAX_SPEED))
+   }
+ 
+   // ---- 畫面更新 ----
+ 
++  private chaseMode(): ChaseMode {
++    if (this.fin !== null) return 'finished'
++    return this.flow?.state.phase === 'countdown' ? 'countdown' : 'playing'
++  }
++
++  private chaseInput(mode: ChaseMode) {
++    const r = this.racer
++    return {
++      x: r.car.x,
++      z: r.car.z,
++      y: r.y,
++      ry: r.car.ry,
++      speed: r.car.speed,
++      boosting: r.boostMs > 0,
++      mode,
++      countdownMs: mode === 'countdown' ? this.flow.countdownRemaining() : 0,
++    }
++  }
++
++  private selfPose(): CarPose {
++    const r = this.racer
++    return {
++      x: r.car.x,
++      z: r.car.z,
++      ry: r.car.ry,
++      y: r.y,
++      s: r.s,
++      drift: r.drift.tier,
++      drifting: r.drift.charge > 0,
++      spin: r.spinMs > 0,
++      ghost: r.ghostMs > 0,
++      shield: r.shieldMs > 0,
++      boost: r.boostMs > 0,
++      steer: this.lastInput.steer,
++      air: r.air ? { vy: r.air.vy - JUMP_G * r.air.t } : null,
++      onRamp: r.onRamp,
++    }
++  }
++
+   update(deltaMs: number): void {
+     const dt = deltaMs * 0.001
+     const phase = this.flow.state.phase
+     const now = performance.now()
+     const r = this.racer
+ 
+-    if (this.selfVisual) {
+-      this.applyPose(
+-        this.selfVisual,
+-        {
+-          x: r.car.x,
+-          z: r.car.z,
+-          ry: r.car.ry,
+-          y: r.y,
+-          drift: r.drift.tier,
+-          spin: r.spinMs > 0,
+-          ghost: r.ghostMs > 0,
+-          shield: r.shieldMs > 0,
+-          boost: r.boostMs > 0,
+-        },
+-        dt,
+-        now
+-      )
++    if (this.selfVisual) this.applyPose(this.selfVisual, this.selfPose(), dt, now)
++
++    // 追尾相機（spec §7）：甩尾時跟移動方向，不跟車身偏航
++    this.chase = stepChase(this.chase, this.chaseInput(this.chaseMode()), dt)
++    const c = this.chase
++    this.camera.alpha = c.alpha
++    this.camera.beta = c.beta
++    this.camera.radius = c.radius
++    this.camera.fov = c.fov
++    this.camera.target.set(c.target[0], c.target[1], c.target[2])
++    // 陰影框跟著自己的車走（4 單位量化）
++    const sx = snapGrid(r.car.x, SHADOW_SNAP)
++    const sz = snapGrid(r.car.z, SHADOW_SNAP)
++    const key = `${sx},${sz}`
++    if (key !== this.shadowKey) {
++      this.shadowKey = key
++      this.look.setShadowCenter(sx, sz)
+     }
+ 
+-    // 追尾相機（波 3 照 spec §7 換掉）
+-    this.camera.target.set(r.car.x, 0.5 + r.y, r.car.z)
+-    this.camera.alpha = lerpAngle(this.camera.alpha, -r.car.ry - Math.PI / 2, Math.min(1, dt * 5))
+-
+     // 他車與 bot
+     const live = new Set<string>()
+     for (const id of this.own.remoteIds()) {
+       if (!this.isPlayer(id)) continue
+       const s = this.own.sampleRemote(id)
+       const a = s && decodeOwn(s.a, TRACK.len)
+       const b = s && decodeOwn(s.b, TRACK.len)
+       if (!s || !a || !b) continue
+       live.add(id)
+       this.applyPose(this.visualFor(id), this.lerpPose(a, b, s.alpha, b), dt, now)
+@@ -1036,69 +1107,62 @@ class RaceScene implements GameModule {
+       let pose: CarPose | null = null
+       if (this.ctx.role === 'host') {
+         const sim = this.botSims.get(bot.id)
+         if (sim) {
+           const br = sim.racer
+           pose = {
+             x: br.car.x,
+             z: br.car.z,
+             ry: br.car.ry,
+             y: br.y,
++            s: br.s,
+             drift: br.drift.tier,
++            drifting: br.drift.charge > 0,
+             spin: br.spinMs > 0,
+             ghost: br.ghostMs > 0,
+             shield: br.shieldMs > 0,
+             boost: br.boostMs > 0,
++            air: br.air ? { vy: br.air.vy - JUMP_G * br.air.t } : null,
++            onRamp: br.onRamp,
+           }
+         }
+       } else {
+         const s = this.botBufs.get(bot.id)?.sample()
+         if (s) pose = this.lerpPose(s.a, s.b, s.alpha, null)
+       }
+       if (!pose) continue
+       live.add(bot.id)
+       this.applyPose(this.visualFor(bot.id), pose, dt, now)
+     }
+     for (const [id, v] of this.carVisuals) {
+       if (live.has(id)) continue
+-      disposeCarVisual(v)
++      this.removeCar(v)
+       this.carVisuals.delete(id)
+     }
+ 
+-    // 道具箱、道具
+-    const bob = Math.sin(now * 0.004) * 0.15
+-    for (const [i, m] of this.boxMeshes.entries()) {
+-      m.setEnabled(!this.taken.includes(i))
+-      m.position.y = 1 + bob
+-      m.rotation.y += dt * 1.5
+-      m.rotation.x += dt * 0.7
+-    }
+-    for (const v of this.itemViews.values()) {
+-      if (this.ctx.role !== 'host') {
++    // 香蕉／龜殼外插（guest）、場景動畫、thin instance 上傳、自動降級
++    if (this.ctx.role !== 'host') {
++      for (const v of this.itemViews.values()) {
+         v.x += v.vx * dt
+         v.z += v.vz * dt
+       }
+-      v.mesh.position.set(v.x, 0.4, v.z)
+-      if (v.kind === 'shell') v.mesh.rotation.y += dt * 10
+     }
+-    for (const pad of this.boostPads) pad.position.y = 0.04 + Math.sin(now * 0.006) * 0.02
+-
+-    this.sparks = this.sparks.filter((s) => {
+-      s.life -= dt
+-      if (s.life <= 0) {
+-        s.mesh.material?.dispose()
+-        s.mesh.dispose()
+-        return false
+-      }
+-      s.mesh.position.y += dt * 1.5
+-      return true
+-    })
++    this.world.update(now, dt, this.taken, this.worldItems())
++    this.kit.sync()
++    this.look.update(deltaMs)
++
++    // AC14：每 2 秒印 draw calls 與 fps（讀上一幀的完整計數；還沒渲染過的首次取樣不印）
++    if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
++      this.lastPerfLog = now
++      const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps(), 'race')
++      if (line) console.info(line)
++    }
+ 
+     this.drawHud(phase)
+ 
+     if (phase === 'countdown') {
+       const n = Math.ceil(this.flow.countdownRemaining() / 1000)
+       this.banner.draw(n > 0 ? String(n) : 'GO!', 200)
+     } else if (phase === 'result') {
+       this.banner.draw('')
+       if (this.ctx.role === 'host') {
+         this.resultElapsed += deltaMs
+@@ -1106,31 +1170,33 @@ class RaceScene implements GameModule {
+       }
+     } else {
+       this.resultElapsed = 0
+       this.banner.draw('')
+     }
+ 
+     this.syncOverlay()
+   }
+ 
+   private lerpPose(
+-    a: { x: number; z: number; ry: number; drift: DriftTier; spin: boolean },
+-    b: { x: number; z: number; ry: number; drift: DriftTier; spin: boolean },
++    a: { x: number; z: number; ry: number; s: number; drift: DriftTier; spin: boolean },
++    b: { x: number; z: number; ry: number; s: number; drift: DriftTier; spin: boolean },
+     alpha: number,
+     flags: RaceOwn | null
+   ): CarPose {
+     return {
+       x: a.x + (b.x - a.x) * alpha,
+       z: a.z + (b.z - a.z) * alpha,
+       ry: lerpAngle(a.ry, b.ry, alpha),
+-      y: 0,
++      y: null,
++      s: b.s,
+       drift: b.drift,
++      drifting: b.drift > 0,
+       spin: b.spin,
+       ghost: flags?.ghost ?? false,
+       shield: flags?.shield ?? false,
+       boost: flags?.boost ?? false,
+     }
+   }
+ 
+   /** 暫用文字 HUD（波 4 改 React setHud 後刪）：名次／圈數／道具供 qa 判讀 */
+   private drawHud(phase: string): void {
+     const r = this.racer
+@@ -1184,32 +1250,26 @@ class RaceScene implements GameModule {
+   }
+ 
+   dispose(): void {
+     window.removeEventListener('keydown', this.onKeyDown)
+     window.removeEventListener('keyup', this.onKeyUp)
+     stopAllAudio()
+     this.ticker.stop()
+     this.own.stop()
+     this.flow.dispose()
+     this.offOpen?.()
+-    if (this.selfVisual) disposeCarVisual(this.selfVisual)
+-    for (const v of this.carVisuals.values()) disposeCarVisual(v)
++    if (this.selfVisual) this.removeCar(this.selfVisual)
++    for (const v of this.carVisuals.values()) this.removeCar(v)
+     this.carVisuals.clear()
+-    for (const v of this.itemViews.values()) v.mesh.dispose()
+     this.itemViews.clear()
+-    for (const s of this.sparks) {
+-      s.mesh.material?.dispose()
+-      s.mesh.dispose()
+-    }
+-    this.sparks = []
+     this.hud.dispose()
+     this.banner.dispose()
+-    for (const m of [...this.statics, ...this.boxMeshes, ...this.boostPads]) m.dispose()
+-    this.statics = []
+-    this.boxMeshes = []
+-    this.boostPads = []
+-    for (const m of this.mats.values()) m.dispose()
+-    this.mats.clear()
++    this.instr?.dispose()
++    this.instr = null
++    this.world.dispose()
++    this.kit.dispose()
++    this.look.dispose()
++    this.ctx.scene.fogMode = Scene.FOGMODE_NONE
+   }
+ }
+ 
+ export const createRaceScene = (): GameModule => new RaceScene()
+diff --git a/src/babylon/games/raceFx/bench.test.ts b/src/babylon/games/raceFx/bench.test.ts
+new file mode 100644
+index 0000000..bbb5c6b
+--- /dev/null
++++ b/src/babylon/games/raceFx/bench.test.ts
+@@ -0,0 +1,28 @@
++import { describe, it, expect } from 'vitest'
++import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++import { trackProgress } from '@/babylon/games/raceRules/track'
++import { ITEM_KINDS } from '@/babylon/games/raceRules/items'
++import { benchEnabled, benchLayout } from '@/babylon/games/raceFx/bench'
++
++describe('raceFx/bench（AC14 N1 量測場景）', () => {
++  it('只在 raceBench=1 且 raceNoDegrade=1 時生效', () => {
++    expect(benchEnabled('?raceBench=1&raceNoDegrade=1')).toBe(true)
++    expect(benchEnabled('?raceBench=1')).toBe(false)
++    expect(benchEnabled('?raceNoDegrade=1')).toBe(false)
++    expect(benchEnabled('?tankBench=1&tankNoDegrade=1')).toBe(false)
++    expect(benchEnabled('')).toBe(false)
++  })
++
++  it('每台車各持一種道具、香蕉 4 根、龜殼 2 顆擺在起跑線前方路面上', () => {
++    const lay = benchLayout(RACE_COURSE)
++    expect([...lay.held].sort()).toEqual([...ITEM_KINDS].sort())
++    expect(lay.bananas).toHaveLength(4)
++    expect(lay.shells).toHaveLength(2)
++    for (const p of [...lay.bananas, ...lay.shells]) {
++      const q = trackProgress(RACE_COURSE.track, p.x, p.z)
++      expect(Math.abs(q.lateral)).toBeLessThan(RACE_COURSE.track.width / 2)
++      expect(q.s).toBeGreaterThan(10)
++      expect(q.s).toBeLessThan(60)
++    }
++  })
++})
+diff --git a/src/babylon/games/raceFx/bench.ts b/src/babylon/games/raceFx/bench.ts
+new file mode 100644
+index 0000000..a91d2c4
+--- /dev/null
++++ b/src/babylon/games/raceFx/bench.ts
+@@ -0,0 +1,32 @@
++/**
++ * 效能量測場景（AC14 N1，純函式）：`?raceBench=1` 且 `?raceNoDegrade=1` 時，每台車各持一種道具、
++ * 起跑線前方路面擺 4 根香蕉與 2 顆龜殼。只是視覺擺設（不進 host 的場上道具、不會命中），固定 draw call 量測條件。
++ */
++import { placeAt, type Course } from '@/babylon/games/raceRules/track'
++import { ITEM_KINDS, type ItemKind } from '@/babylon/games/raceRules/items'
++
++/** search 為合併過 hash 的 query（fx/quality 的 tierQuery） */
++export function benchEnabled(search: string): boolean {
++  const q = new URLSearchParams(search)
++  return q.get('raceBench') === '1' && q.get('raceNoDegrade') === '1'
++}
++
++export interface BenchLayout {
++  /** 依實體序（自己、他人、bot）各持一種 */
++  held: ItemKind[]
++  bananas: { x: number; z: number }[]
++  shells: { x: number; z: number }[]
++}
++
++export function benchLayout(course: Course): BenchLayout {
++  const t = course.track
++  const at = (s: number, lat: number) => {
++    const p = placeAt(t, s, lat)
++    return { x: p.x, z: p.z }
++  }
++  return {
++    held: [...ITEM_KINDS],
++    bananas: [at(18, -3), at(22, 2), at(26, -1), at(30, 3.5)],
++    shells: [at(24, 0), at(34, -2.5)],
++  }
++}
+diff --git a/src/babylon/games/raceFx/carPose.test.ts b/src/babylon/games/raceFx/carPose.test.ts
+new file mode 100644
+index 0000000..2739c72
+--- /dev/null
++++ b/src/babylon/games/raceFx/carPose.test.ts
+@@ -0,0 +1,61 @@
++import { describe, it, expect } from 'vitest'
++import { JUMP_S0, JUMP_S1, RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++import { JUMP_H, MAX_SPEED, jumpY, launchVy } from '@/babylon/games/raceRules/drive'
++import { HOP_MS, bodyPose, remoteY, steerFromYaw } from '@/babylon/games/raceFx/carPose'
++
++const C = RACE_COURSE
++
++describe('raceFx/carPose — 他車／bot 跳台 y 由 s 本機推算（波 2 Minor）', () => {
++  it('不在跳台附近 → 0', () => {
++    expect(remoteY(C, 10, 0, 17)).toBe(0)
++    expect(remoteY(C, 300, 2, 17)).toBe(0)
++  })
++
++  it('坡上（|lateral| ≤ 4）→ 斜坡高度；坡外側走旁邊 → 0', () => {
++    const mid = (JUMP_S0 + JUMP_S1) / 2
++    expect(remoteY(C, mid, 0, 10)).toBeCloseTo(JUMP_H / 2, 2)
++    expect(remoteY(C, mid, 5, 10)).toBe(0)
++  })
++
++  it('越過唇口且夠快 → 騰空弧線同 drive.jumpY（t = 飛行距離 / 速度）', () => {
++    const v = MAX_SPEED
++    const d = 4
++    expect(remoteY(C, JUMP_S1 + d, 0, v)).toBeCloseTo(jumpY(d / v, launchVy(v)), 3)
++    expect(remoteY(C, JUMP_S1 + d, 0, v)).toBeGreaterThan(JUMP_H)
++    // 落地後 → 0
++    expect(remoteY(C, JUMP_S1 + 30, 0, v)).toBe(0)
++  })
++
++  it('太慢（< 6）不騰空', () => {
++    expect(remoteY(C, JUMP_S1 + 1, 0, 4)).toBe(0)
++  })
++})
++
++describe('raceFx/carPose — 車身姿態（spec §4.1）', () => {
++  it('由偏航角速度估轉向 −1..1', () => {
++    expect(steerFromYaw(0, 1 / 30, 17)).toBe(0)
++    expect(steerFromYaw(2.4 / 30, 1 / 30, 17)).toBeCloseTo(1)
++    expect(steerFromYaw(-10, 1 / 30, 17)).toBe(-1)
++    expect(steerFromYaw(1, 1 / 30, 0)).toBe(0)
++  })
++
++  it('側傾 rz = −steer·0.07·speedRatio；甩尾偏航 0.38·steer；加速車頭抬 −0.06', () => {
++    const p = bodyPose({ steer: 1, speedRatio: 1, drifting: true, boosting: true, vy: 0, airborne: false, hopMs: -1, rampPitch: 0 })
++    expect(p.rz).toBeCloseTo(-0.07)
++    expect(p.yaw).toBeCloseTo(0.38)
++    expect(p.rx).toBeCloseTo(-0.06)
++    expect(p.dy).toBe(0)
++  })
++
++  it('騰空依 vy 俯仰 ±12°；甩尾起跳 0.25 高 160ms', () => {
++    const up = bodyPose({ steer: 0, speedRatio: 1, drifting: false, boosting: false, vy: 20, airborne: true, hopMs: -1, rampPitch: 0 })
++    expect(up.rx).toBeCloseTo((-12 * Math.PI) / 180)
++    const down = bodyPose({ steer: 0, speedRatio: 1, drifting: false, boosting: false, vy: -20, airborne: true, hopMs: -1, rampPitch: 0 })
++    expect(down.rx).toBeCloseTo((12 * Math.PI) / 180)
++    expect(HOP_MS).toBe(160)
++    const hop = bodyPose({ steer: 0, speedRatio: 0, drifting: true, boosting: false, vy: 0, airborne: false, hopMs: 80, rampPitch: 0 })
++    expect(hop.dy).toBeCloseTo(0.25)
++    const done = bodyPose({ steer: 0, speedRatio: 0, drifting: true, boosting: false, vy: 0, airborne: false, hopMs: 200, rampPitch: 0 })
++    expect(done.dy).toBe(0)
++  })
++})
+diff --git a/src/babylon/games/raceFx/carPose.ts b/src/babylon/games/raceFx/carPose.ts
+new file mode 100644
+index 0000000..c135185
+--- /dev/null
++++ b/src/babylon/games/raceFx/carPose.ts
+@@ -0,0 +1,68 @@
++/**
++ * 車身視覺姿態（spec §4.1／§1.4，純函式）：側傾、甩尾偏航、甩尾起跳、加速抬頭、騰空俯仰；
++ * 他車與 bot 的跳台高度由 s 對照賽道跳台本機推算（own／botState 不帶 y）。只影響畫面，x/z 不動。
++ */
++import { inSpan, type Course } from '@/babylon/games/raceRules/track'
++import { JUMP_MIN_SPEED, MAX_SPEED, RAMP_HALF_W, TURN_RATE, jumpY, launchVy, rampY } from '@/babylon/games/raceRules/drive'
++
++/** 甩尾起跳：按下甩尾瞬間車身跳 0.25、160ms */
++export const HOP_MS = 160
++const HOP_H = 0.25
++const LEAN = 0.07
++const DRIFT_YAW = 0.38
++const BOOST_PITCH = -0.06
++const AIR_PITCH = (12 * Math.PI) / 180
++/** 騰空俯仰：vy 達這個值時到 ±12° */
++const AIR_VY_FULL = 8
++
++/** 他車／bot 的 y：坡上照斜坡高度；越過唇口且速度 ≥ 起跳門檻時照 drive 的拋物線（t = 飛行距離 / 速度） */
++export function remoteY(course: Course, s: number, lateral: number, speed: number): number {
++  const ramp = rampY(course, s, lateral)
++  if (ramp > 0) return ramp
++  if (Math.abs(lateral) > RAMP_HALF_W || speed < JUMP_MIN_SPEED) return 0
++  for (const [, s1] of course.jumps) {
++    const d = s - s1
++    if (d <= 0 || !inSpan(course.track, s, [s1, s1 + 40])) continue
++    return jumpY(d / speed, launchVy(speed))
++  }
++  return 0
++}
++
++/** 由偏航角速度反推轉向 −1..1（他車沒有輸入，只有 ry 序列；公式同 drive.stepCar 的轉向） */
++export function steerFromYaw(dRy: number, dt: number, speed: number): number {
++  const f = Math.min(1, Math.abs(speed) / (MAX_SPEED * 0.5))
++  if (dt <= 0 || f < 1e-3) return 0
++  const s = dRy / (TURN_RATE * f * dt)
++  return Math.max(-1, Math.min(1, s))
++}
++
++export interface PoseInput {
++  steer: number
++  /** |speed| / MAX_SPEED（0..1） */
++  speedRatio: number
++  drifting: boolean
++  boosting: boolean
++  /** 垂直速度（騰空俯仰用） */
++  vy: number
++  airborne: boolean
++  /** 距甩尾按下的毫秒；< 0 表示沒在起跳 */
++  hopMs: number
++  /** 在斜坡上的俯仰（−atan(h/len)），不在坡上為 0 */
++  rampPitch: number
++}
++
++export interface BodyPose {
++  rx: number
++  rz: number
++  /** 相對移動方向的車身偏航（甩尾甩出車尾） */
++  yaw: number
++  dy: number
++}
++
++export function bodyPose(p: PoseInput): BodyPose {
++  let rx = p.rampPitch
++  if (p.airborne) rx = -Math.max(-1, Math.min(1, p.vy / AIR_VY_FULL)) * AIR_PITCH
++  else if (p.boosting) rx += BOOST_PITCH
++  const dy = p.hopMs >= 0 && p.hopMs < HOP_MS ? HOP_H * Math.sin((Math.PI * p.hopMs) / HOP_MS) : 0
++  return { rx, rz: -p.steer * LEAN * p.speedRatio, yaw: p.drifting ? DRIFT_YAW * p.steer : 0, dy }
++}
+diff --git a/src/babylon/games/raceFx/carVisual.test.ts b/src/babylon/games/raceFx/carVisual.test.ts
+index d0f9a00..a9a40cf 100644
+--- a/src/babylon/games/raceFx/carVisual.test.ts
++++ b/src/babylon/games/raceFx/carVisual.test.ts
+@@ -1,53 +1,49 @@
+ import { describe, it, expect, afterEach } from 'vitest'
+ import { NullEngine } from '@babylonjs/core/Engines/nullEngine'
+-import { Scene, StandardMaterial } from '@/babylon/babylonCore'
+-import { disposeCarVisual, makeCarVisual, type MatCache } from '@/babylon/games/raceFx/carVisual'
++import { Scene } from '@/babylon/babylonCore'
++import { CarKit, disposeCarVisual } from '@/babylon/games/raceFx/carVisual'
+ 
+ let engine: NullEngine | null = null
+ afterEach(() => {
+   engine?.dispose()
+   engine = null
+ })
+ 
+ const setup = () => {
+   engine = new NullEngine()
+   const scene = new Scene(engine)
+-  const cache = new Map<string, StandardMaterial>()
+-  const mat: MatCache = (name, color) => {
+-    let m = cache.get(name)
+-    if (!m) {
+-      m = new StandardMaterial(name, scene)
+-      m.diffuseColor = color
+-      cache.set(name, m)
+-    }
+-    return m
+-  }
+-  return { scene, cache, mat }
++  return { scene, kit: new CarKit(scene, { youTexture: () => null }) }
+ }
+ 
+ describe('disposeCarVisual（共用材質）', () => {
+-  it('拆掉一台車後，其他車的輪胎／護盾／同色車身材質仍在、未被釋放', () => {
+-    const { scene, cache, mat } = setup()
+-    const self = makeCarVisual(scene, 'p1', 0, mat)
+-    const bot = makeCarVisual(scene, 'bot-0', 0, mat)
+-    disposeCarVisual(bot)
+-    expect(bot.root.isDisposed()).toBe(true)
+-    for (const m of self.root.getChildMeshes()) {
++  it('拆掉一台車後，其他車的車身／輪胎／護盾材質仍在、未被釋放', () => {
++    const { scene, kit } = setup()
++    const self = kit.make('p1', 0, false, true)
++    const bot = kit.make('bot-0', 0, true, false)
++    kit.putWheels(self, 0)
++    kit.putWheels(bot, 0)
++    expect(kit.wheels.count).toBe(8)
++    disposeCarVisual(kit, bot)
++    expect(bot.body.isDisposed()).toBe(true)
++    expect(kit.wheels.count).toBe(4)
++    for (const m of [self.body, self.shield]) {
+       expect(m.material).not.toBeNull()
+       expect(scene.materials).toContain(m.material)
+     }
+-    for (const m of cache.values()) expect(scene.materials).toContain(m)
+-    // 之後新建的車拿到的快取材質也還能用
+-    const again = makeCarVisual(scene, 'bot-0', 0, mat)
+-    expect(again.wheels[0].material).toBe(cache.get('wheel'))
+-    expect(scene.materials).toContain(again.wheels[0].material)
++    for (const m of kit.litMaterials) expect(scene.materials).toContain(m)
++    expect(scene.materials).toContain(kit.shieldMat)
++    // 之後新建的車拿到的共用材質也還能用
++    const again = kit.make('bot-0', 0, true, false)
++    expect(again.body.material).toBe(kit.bodyMat)
++    expect(scene.materials).toContain(again.body.material)
+   })
+ 
+-  it('子 mesh 一併拆掉', () => {
+-    const { scene, mat } = setup()
+-    const v = makeCarVisual(scene, 'p1', 1, mat)
++  it('子 mesh（車身、護盾、你標記）一併拆掉', () => {
++    const { kit } = setup()
++    const v = kit.make('p1', 1, false, true)
+     const kids = v.root.getChildMeshes()
+-    disposeCarVisual(v)
++    expect(kids.length).toBeGreaterThanOrEqual(3)
++    disposeCarVisual(kit, v)
+     for (const k of kids) expect(k.isDisposed()).toBe(true)
+   })
+ })
+diff --git a/src/babylon/games/raceFx/carVisual.ts b/src/babylon/games/raceFx/carVisual.ts
+index 31cd36b..5218d75 100644
+--- a/src/babylon/games/raceFx/carVisual.ts
++++ b/src/babylon/games/raceFx/carVisual.ts
+@@ -1,72 +1,248 @@
+ /**
+- * 賽車車輛視覺（波 2 暫用方塊車，波 3 照 spec §4 換成 Q 版玩具車）。
+- * 材質由呼叫端的 mat 快取提供、多台車共用：拆一台車只拆 mesh，材質統一在場景 dispose 時釋放。
++ * 賽車車輛視覺（spec §4.1）：每台車 1 個合併車身 mesh（頂點色、4 色共用 1 個材質）＋全場共用的輪胎 thin instance、
++ * 護盾泡泡、自己頭上的「你」標記、3 段甩尾火花芯（thin instance，進 Glow）。
++ * 材質與 thin instance 群組都在 CarKit（場景共用），拆一台車只拆它自己的 mesh 與實例，材質在 kit.dispose 統一釋放。
+  */
+-import { Color3, Mesh, MeshBuilder, type Scene, type StandardMaterial } from '@/babylon/babylonCore'
+-import { PLAYER_PALETTE, hexToRgb, type ColorIndex } from '@/babylon/fx/palette'
+-
+-export type MatCache = (name: string, color: Color3, emissive?: Color3) => StandardMaterial
++import {
++  Color3,
++  Matrix,
++  Mesh,
++  MeshBuilder,
++  StandardMaterial,
++  Texture,
++  TransformNode,
++  FresnelParameters,
++  type BaseTexture,
++  type Scene,
++} from '@/babylon/babylonCore'
++import { ThinGroup } from '@/babylon/fx/thin'
++import { toMesh } from '@/babylon/fx/models'
++import type { MeshData } from '@/babylon/fx/geometry'
++import { PLAYER_PALETTE, type ColorIndex } from '@/babylon/fx/palette'
++import { CORE_POS, WHEELS, YOU_Y, carBodyData, wheelData } from '@/babylon/games/raceFx/models'
++import { DRIFT_COLORS, RACE } from '@/babylon/games/raceFx/palette'
++import { createYouTexture, fxAssetUrl } from '@/babylon/games/raceFx/textures'
+ 
+ export interface CarVisual {
+-  root: Mesh
+-  wheels: Mesh[]
++  id: string
++  /** 世界位置與移動方向（ry） */
++  root: TransformNode
++  /** 車身姿態（側傾、甩尾偏航、打滑、俯仰、起跳） */
++  visual: TransformNode
++  body: Mesh
+   shield: Mesh
++  you: Mesh | null
++  wheelSpin: number
++  steer: number
++  /** 由畫面位移估的速度（他車沒有速度欄位） */
++  speedEst: number
++  /** 暫用火花左右交替 */
++  sparkSide: number
+   spinAngle: number
+   prevX: number
+   prevZ: number
++  prevRy: number
++  prevY: number
++  /** 甩尾按下的時間（起跳動畫），-1 = 無 */
++  hopAt: number
++  wasDrifting: boolean
+   sparkAcc: number
++  hidden: boolean
+ }
+ 
+-export function makeCarVisual(scene: Scene, id: string, colorIndex: ColorIndex, mat: MatCache): CarVisual {
+-  const pal = PLAYER_PALETTE[colorIndex]
+-  const body = mat(`car-${pal.base}`, Color3.FromArray(hexToRgb(pal.base)))
+-  const darkMat = mat(`car-${pal.dark}`, Color3.FromArray(hexToRgb(pal.dark)))
+-  const wheelMat = mat('wheel', new Color3(0.12, 0.12, 0.14))
+-
+-  const root = new Mesh(`car-${id}`, scene)
+-  const chassis = MeshBuilder.CreateBox(`chassis-${id}`, { width: 1.3, height: 0.35, depth: 2.2 }, scene)
+-  chassis.material = body
+-  chassis.parent = root
+-  chassis.position.y = 0.3
+-  const cabin = MeshBuilder.CreateBox(`cabin-${id}`, { width: 0.85, height: 0.35, depth: 0.8 }, scene)
+-  cabin.material = darkMat
+-  cabin.parent = root
+-  cabin.position.set(0, 0.62, -0.1)
+-  const wing = MeshBuilder.CreateBox(`wing-${id}`, { width: 1.1, height: 0.08, depth: 0.25 }, scene)
+-  wing.material = darkMat
+-  wing.parent = root
+-  wing.position.set(0, 0.75, -0.95)
+-
+-  const wheels: Mesh[] = []
+-  for (const [wx, wz] of [
+-    [-0.65, 0.6],
+-    [0.65, 0.6],
+-    [-0.65, -0.6],
+-    [0.65, -0.6],
+-  ]) {
+-    const wheel = MeshBuilder.CreateCylinder(`wheel-${wx}-${wz}-${id}`, { height: 0.18, diameter: 0.4 }, scene)
+-    wheel.material = wheelMat
+-    wheel.parent = root
+-    wheel.position.set(wx, 0.2, wz)
+-    wheel.rotation.z = Math.PI / 2
+-    wheels.push(wheel)
++const WHEELS_PER_CAR = WHEELS.length
++const tmpA = new Matrix()
++const tmpB = new Matrix()
++const tmpC = new Matrix()
++
++export class CarKit {
++  readonly bodyMat: StandardMaterial
++  readonly shieldMat: StandardMaterial
++  readonly wheels: ThinGroup<string>
++  readonly cores: ThinGroup<string>
++  private readonly wheelMat: StandardMaterial
++  private readonly coreMat: StandardMaterial
++  private readonly bodyData = new Map<string, MeshData>()
++  private readonly youMats: StandardMaterial[] = []
++  private readonly scene: Scene
++
++  private readonly youTexture: (scene: Scene, bg: string) => BaseTexture | null
++
++  /** youTexture：「你」標記貼圖（預設程式繪製；node 單測沒有 Canvas 時可給 () => null） */
++  constructor(scene: Scene, opts: { youTexture?: (scene: Scene, bg: string) => BaseTexture | null } = {}) {
++    this.scene = scene
++    this.youTexture = opts.youTexture ?? createYouTexture
++    this.bodyMat = new StandardMaterial('race-car-body', scene)
++    this.bodyMat.diffuseColor = Color3.White()
++    this.bodyMat.specularColor = new Color3(0.25, 0.25, 0.25)
++    this.bodyMat.specularPower = 48
++
++    this.wheelMat = new StandardMaterial('race-car-wheel', scene)
++    this.wheelMat.diffuseColor = Color3.White()
++    this.wheelMat.specularColor = new Color3(0.08, 0.08, 0.08)
++    this.wheels = new ThinGroup<string>(toMesh('race-wheels', wheelData(), scene), 16)
++    this.wheels.mesh.material = this.wheelMat
++
++    this.shieldMat = new StandardMaterial('race-shield', scene)
++    this.shieldMat.diffuseColor = Color3.FromHexString(RACE.shieldFill)
++    this.shieldMat.emissiveColor = Color3.FromHexString(RACE.shieldFill).scale(0.35)
++    this.shieldMat.specularColor = Color3.Black()
++    this.shieldMat.alpha = 0.22
++    const fr = new FresnelParameters()
++    fr.leftColor = Color3.FromHexString(RACE.shield)
++    fr.rightColor = Color3.Black()
++    fr.bias = 0.15
++    fr.power = 2
++    this.shieldMat.emissiveFresnelParameters = fr
++
++    // 3 段甩尾火花芯（spec §8 #1）：fx_star 平面，紫色、加亮
++    const core = MeshBuilder.CreatePlane('race-drift-core', { size: 0.5 }, scene)
++    this.coreMat = new StandardMaterial('race-drift-core', scene)
++    const star = new Texture(fxAssetUrl('fx_star.webp'), scene)
++    star.hasAlpha = true
++    this.coreMat.diffuseTexture = star
++    this.coreMat.useAlphaFromDiffuseTexture = true
++    this.coreMat.emissiveColor = Color3.FromHexString(DRIFT_COLORS[3])
++    this.coreMat.disableLighting = true
++    this.coreMat.backFaceCulling = false
++    core.material = this.coreMat
++    this.cores = new ThinGroup<string>(core, 4)
++  }
++
++  /** 材質登記用（ToyLook.toon） */
++  get litMaterials(): StandardMaterial[] {
++    return [this.bodyMat, this.wheelMat]
++  }
++
++  private bodyFor(ci: ColorIndex, isBot: boolean): MeshData {
++    const key = `${ci}-${isBot ? 'bot' : 'p'}`
++    let d = this.bodyData.get(key)
++    if (!d) this.bodyData.set(key, (d = carBodyData(ci, isBot)))
++    return d
++  }
++
++  make(id: string, ci: ColorIndex, isBot: boolean, isSelf: boolean): CarVisual {
++    const scene = this.scene
++    const root = new TransformNode(`race-car-${id}`, scene)
++    const visual = new TransformNode(`race-car-visual-${id}`, scene)
++    visual.parent = root
++    const body = toMesh(`race-car-body-${id}`, this.bodyFor(ci, isBot), scene)
++    body.material = this.bodyMat
++    body.parent = visual
++
++    const shield = MeshBuilder.CreateSphere(`race-shield-${id}`, { diameter: 3.2, segments: 24 }, scene)
++    shield.material = this.shieldMat
++    shield.parent = root
++    shield.position.y = 0.75
++    shield.isPickable = false
++    shield.setEnabled(false)
++
++    let you: Mesh | null = null
++    if (isSelf) {
++      you = MeshBuilder.CreatePlane(`race-you-${id}`, { width: 0.9, height: 0.675 }, scene)
++      const m = new StandardMaterial(`race-you-${id}`, scene)
++      const tex = this.youTexture(scene, PLAYER_PALETTE[ci].base)
++      // disableLighting：輸出 = clamp(emissive) × 貼圖色。只掛 diffuse（色＋alpha）＋白 emissive；
++      // 同一張再掛 emissiveTexture 會變成 貼圖 × 貼圖，玩家色偏暗
++      m.diffuseTexture = tex
++      m.emissiveColor = Color3.White()
++      m.useAlphaFromDiffuseTexture = true
++      m.disableLighting = true
++      m.backFaceCulling = false
++      m.fogEnabled = false
++      you.material = m
++      this.youMats.push(m)
++      you.billboardMode = Mesh.BILLBOARDMODE_ALL
++      you.parent = root
++      // 三角尖端在安全帽正上方：標記中心 YOU_Y、整張往上偏半個三角
++      you.position.set(0, YOU_Y + 0.11, -0.18)
++      you.isPickable = false
++    }
++
++    return {
++      id,
++      root,
++      visual,
++      body,
++      shield,
++      you,
++      wheelSpin: 0,
++      steer: 0,
++      speedEst: 0,
++      sparkSide: 1,
++      spinAngle: 0,
++      prevX: 0,
++      prevZ: 0,
++      prevRy: 0,
++      prevY: 0,
++      hopAt: -1,
++      wasDrifting: false,
++      sparkAcc: 0,
++      hidden: false,
++    }
+   }
+ 
+-  const shield = MeshBuilder.CreateSphere(`shield-${id}`, { diameter: 3, segments: 12 }, scene)
+-  const sm = mat('shield', new Color3(0.4, 0.8, 1), new Color3(0.2, 0.5, 0.8))
+-  sm.alpha = 0.3
+-  shield.material = sm
+-  shield.parent = root
+-  shield.position.y = 0.5
+-  shield.setEnabled(false)
++  /** 依車身姿態寫 4 個輪胎的實例矩陣（前輪 steerYaw 擺動）；hidden 時移除 */
++  putWheels(v: CarVisual, steerYaw: number): void {
++    if (v.hidden) {
++      for (let i = 0; i < WHEELS_PER_CAR; i++) this.wheels.remove(`${v.id}:${i}`)
++      return
++    }
++    // 父節點本幀剛改過位置：先算它，子節點才不會拿到上一幀的矩陣（輪胎慢一幀）
++    v.root.computeWorldMatrix(true)
++    const world = v.visual.computeWorldMatrix(true)
++    WHEELS.forEach((w, i) => {
++      const key = `${v.id}:${i}`
++      Matrix.ScalingToRef(w.scale, w.scale, w.scale, tmpA)
++      Matrix.RotationXToRef(v.wheelSpin, tmpB)
++      tmpA.multiplyToRef(tmpB, tmpC)
++      Matrix.RotationYToRef(w.front ? steerYaw : 0, tmpB)
++      tmpC.multiplyToRef(tmpB, tmpA)
++      tmpA.setTranslationFromFloats(w.x, w.y, w.z)
++      tmpA.multiplyToRef(world, tmpC)
++      this.wheels.slots.add(key)
++      this.wheels.slots.write(key, (buf, o) => tmpC.copyToArray(buf, o))
++    })
++  }
+ 
+-  return { root, wheels, shield, spinAngle: 0, prevX: 0, prevZ: 0, sparkAcc: 0 }
++  /** 3 段甩尾時兩後輪之間的火花芯（面向相機） */
++  putCore(v: CarVisual, on: boolean, camX: number, camZ: number, now: number): void {
++    const key = v.id
++    if (!on || v.hidden) {
++      this.cores.remove(key)
++      return
++    }
++    const p = v.visual.getAbsolutePosition()
++    const ry = v.root.rotation.y + v.visual.rotation.y
++    const x = p.x - Math.sin(ry) * -CORE_POS.z
++    const z = p.z - Math.cos(ry) * -CORE_POS.z
++    const pulse = 1 + 0.15 * Math.sin(now * 0.03)
++    this.cores.put(key, { x, y: p.y + CORE_POS.y, z, yaw: Math.atan2(camX - x, camZ - z), sx: pulse, sy: pulse })
++  }
++
++  /** 每幀一次：上傳有變動的實例 */
++  sync(): void {
++    this.wheels.sync()
++    this.cores.sync()
++  }
++
++  /** 拆一台車：自己的 mesh 與實例；材質是共用的，不帶 disposeMaterialAndTextures（「你」標記材質例外，只有自己有） */
++  remove(v: CarVisual): void {
++    for (let i = 0; i < WHEELS_PER_CAR; i++) this.wheels.remove(`${v.id}:${i}`)
++    this.cores.remove(v.id)
++    v.root.dispose()
++  }
++
++  dispose(): void {
++    this.wheels.dispose()
++    this.cores.dispose()
++    for (const m of [this.bodyMat, this.wheelMat, this.shieldMat, this.coreMat, ...this.youMats]) m.dispose(true, true)
++    this.youMats.length = 0
++    this.bodyData.clear()
++  }
+ }
+ 
+-/**
+- * 拆一台車：連子 mesh 一起拆，但不帶 disposeMaterialAndTextures —— 材質是多台車共用的快取，
+- * Material.dispose 會把所有用到它的 mesh 的 material 設成 null（其他車跟著變無材質）。
+- */
+-export function disposeCarVisual(v: CarVisual): void {
+-  v.root.dispose()
++/** 拆一台車（相容舊介面）：見 CarKit.remove */
++export function disposeCarVisual(kit: CarKit, v: CarVisual): void {
++  kit.remove(v)
+ }
+diff --git a/src/babylon/games/raceFx/chaseCam.test.ts b/src/babylon/games/raceFx/chaseCam.test.ts
+new file mode 100644
+index 0000000..ed9fd26
+--- /dev/null
++++ b/src/babylon/games/raceFx/chaseCam.test.ts
+@@ -0,0 +1,91 @@
++import { describe, it, expect } from 'vitest'
++import {
++  CHASE,
++  chaseFov,
++  chaseRadius,
++  chaseTarget,
++  initChase,
++  snapGrid,
++  stepChase,
++  type ChaseInput,
++} from '@/babylon/games/raceFx/chaseCam'
++import { MAX_SPEED } from '@/babylon/games/raceRules/drive'
++
++const car = (o: Partial<ChaseInput> = {}): ChaseInput => ({
++  x: 0,
++  z: 0,
++  y: 0,
++  ry: 0,
++  speed: 0,
++  boosting: false,
++  mode: 'playing',
++  countdownMs: 0,
++  ...o,
++})
++
++describe('raceFx/chaseCam（spec §7）', () => {
++  it('radius 煞停 9.5 → 全速 10.5 線性', () => {
++    expect(chaseRadius(0)).toBeCloseTo(9.5)
++    expect(chaseRadius(MAX_SPEED)).toBeCloseTo(10.5)
++    expect(chaseRadius(MAX_SPEED / 2)).toBeCloseTo(10)
++    expect(chaseRadius(MAX_SPEED * 2)).toBeCloseTo(10.5)
++  })
++
++  it('fov = 0.80 + 0.10·clamp01((speed−8)/9) + 加速 0.08', () => {
++    expect(chaseFov(0, false)).toBeCloseTo(0.8)
++    expect(chaseFov(8, false)).toBeCloseTo(0.8)
++    expect(chaseFov(17, false)).toBeCloseTo(0.9)
++    expect(chaseFov(30, true)).toBeCloseTo(0.98)
++  })
++
++  it('target = 車 + (0, 1.6 + 0.5·y, 0) + 車頭方向 × 2.5', () => {
++    const t = chaseTarget(car({ x: 1, z: 2, y: 1, ry: Math.PI / 2 }))
++    expect(t[0]).toBeCloseTo(1 + 2.5)
++    expect(t[1]).toBeCloseTo(1.6 + 0.5)
++    expect(t[2]).toBeCloseTo(2)
++  })
++
++  it('對局中 beta 1.36、alpha 往 −ry − π/2 收斂、fov 平滑趨近', () => {
++    let s = initChase(car({ ry: 0 }))
++    expect(s.beta).toBeCloseTo(CHASE.beta)
++    expect(CHASE.beta).toBeCloseTo(1.36)
++    const input = car({ ry: 0.5, speed: 17 })
++    for (let i = 0; i < 120; i++) s = stepChase(s, input, 1 / 60)
++    expect(s.alpha).toBeCloseTo(-0.5 - Math.PI / 2, 3)
++    expect(s.fov).toBeCloseTo(0.9, 2)
++    expect(s.radius).toBeCloseTo(10.5)
++    // 一幀內 fov 不會跳到目標
++    const s2 = stepChase(initChase(car()), car({ speed: 17 }), 1 / 60)
++    expect(s2.fov).toBeLessThan(0.9)
++    expect(s2.fov).toBeGreaterThan(0.8)
++  })
++
++  it('倒數最後 0.9 s 從車正前方繞到車後，GO 時正好在車後', () => {
++    const ry = 0.3
++    const s0 = stepChase(initChase(car({ ry })), car({ ry, mode: 'countdown', countdownMs: 2000 }), 1 / 60)
++    expect(s0.alpha).toBeCloseTo(-ry + Math.PI / 2)
++    const mid = stepChase(s0, car({ ry, mode: 'countdown', countdownMs: 450 }), 1 / 60)
++    const front = -ry + Math.PI / 2
++    expect(mid.alpha).toBeLessThan(front)
++    expect(mid.alpha).toBeGreaterThan(front - Math.PI)
++    const end = stepChase(mid, car({ ry, mode: 'countdown', countdownMs: 0 }), 1 / 60)
++    expect(end.alpha).toBeCloseTo(-ry - Math.PI / 2)
++  })
++
++  it('衝線後拉遠到 14、beta 1.15，每秒繞 0.25 rad', () => {
++    let s = initChase(car())
++    for (let i = 0; i < 600; i++) s = stepChase(s, car({ mode: 'finished' }), 1 / 60)
++    expect(s.radius).toBeCloseTo(14, 1)
++    expect(s.beta).toBeCloseTo(1.15, 2)
++    const a0 = s.alpha
++    s = stepChase(s, car({ mode: 'finished' }), 1)
++    expect(s.alpha - a0).toBeCloseTo(0.25)
++  })
++
++  it('snapGrid 以 4 單位量化陰影中心（避免 shimmering）', () => {
++    expect(snapGrid(0, 4)).toBe(0)
++    expect(snapGrid(1.9, 4)).toBe(0)
++    expect(snapGrid(2.1, 4)).toBe(4)
++    expect(snapGrid(-6.1, 4)).toBe(-8)
++  })
++})
+diff --git a/src/babylon/games/raceFx/chaseCam.ts b/src/babylon/games/raceFx/chaseCam.ts
+new file mode 100644
+index 0000000..e1bf741
+--- /dev/null
++++ b/src/babylon/games/raceFx/chaseCam.ts
+@@ -0,0 +1,92 @@
++/**
++ * 追尾相機（spec §7，純函式）：ArcRotateCamera 的 alpha／beta／radius／fov／target 每幀怎麼走。
++ * 對局中跟在車後（甩尾時用移動方向的 ry，畫面不跟著車身甩）、速度越快拉遠一點且 fov 微增；
++ * 倒數最後 0.9 s 從車正前方繞到車後；衝線後拉遠慢慢環繞。
++ */
++import { lerpAngle } from '@/babylon/math'
++import { clamp01, easeOut } from '@/babylon/fx/curves'
++import { MAX_SPEED } from '@/babylon/games/raceRules/drive'
++
++export const CHASE = {
++  beta: 1.36,
++  radius: [9.5, 10.5] as const,
++  lift: 1.6,
++  liftK: 0.5,
++  lead: 2.5,
++  alphaRate: 6,
++  fovRate: 4,
++  introMs: 900,
++  finish: { radius: 14, beta: 1.15, orbit: 0.25, rate: 2 },
++  minZ: 0.3,
++  maxZ: 260,
++} as const
++
++export type ChaseMode = 'countdown' | 'playing' | 'finished'
++
++export interface ChaseInput {
++  x: number
++  z: number
++  y: number
++  /** 移動方向（state 的 ry，不是車身視覺偏航） */
++  ry: number
++  speed: number
++  boosting: boolean
++  mode: ChaseMode
++  /** 倒數剩餘毫秒（mode 為 countdown 時用） */
++  countdownMs: number
++}
++
++export interface ChaseState {
++  alpha: number
++  beta: number
++  radius: number
++  fov: number
++  target: [number, number, number]
++}
++
++export const chaseRadius = (speed: number): number =>
++  CHASE.radius[0] + (CHASE.radius[1] - CHASE.radius[0]) * clamp01(Math.abs(speed) / MAX_SPEED)
++
++export const chaseFov = (speed: number, boosting: boolean): number =>
++  0.8 + 0.1 * clamp01((Math.abs(speed) - 8) / 9) + (boosting ? 0.08 : 0)
++
++export function chaseTarget(c: Pick<ChaseInput, 'x' | 'z' | 'y' | 'ry'>): [number, number, number] {
++  return [c.x + Math.sin(c.ry) * CHASE.lead, CHASE.lift + CHASE.liftK * c.y, c.z + Math.cos(c.ry) * CHASE.lead]
++}
++
++const behind = (ry: number): number => -ry - Math.PI / 2
++const front = (ry: number): number => -ry + Math.PI / 2
++
++export function initChase(c: ChaseInput): ChaseState {
++  return { alpha: behind(c.ry), beta: CHASE.beta, radius: chaseRadius(c.speed), fov: chaseFov(c.speed, c.boosting), target: chaseTarget(c) }
++}
++
++export function stepChase(s: ChaseState, c: ChaseInput, dt: number): ChaseState {
++  const target = chaseTarget(c)
++  const fov = s.fov + (chaseFov(c.speed, c.boosting) - s.fov) * Math.min(1, dt * CHASE.fovRate)
++  if (c.mode === 'finished') {
++    const k = Math.min(1, dt * CHASE.finish.rate)
++    return {
++      alpha: s.alpha + CHASE.finish.orbit * dt,
++      beta: s.beta + (CHASE.finish.beta - s.beta) * k,
++      radius: s.radius + (CHASE.finish.radius - s.radius) * k,
++      fov,
++      target,
++    }
++  }
++  if (c.mode === 'countdown') {
++    // 開場運鏡：最後 introMs 從車正前方往車後繞半圈（easeOut），GO 時剛好在車後
++    const t = clamp01(1 - c.countdownMs / CHASE.introMs)
++    return { alpha: front(c.ry) - Math.PI * easeOut(t), beta: CHASE.beta, radius: chaseRadius(c.speed), fov, target }
++  }
++  return {
++    alpha: lerpAngle(s.alpha, behind(c.ry), Math.min(1, dt * CHASE.alphaRate)),
++    beta: CHASE.beta,
++    radius: chaseRadius(c.speed),
++    fov,
++    target,
++  }
++}
++
++/** 量化到 step 的格點（陰影中心跟車走但不每幀抖動） */
++export const snapGrid = (v: number, step: number): number => Math.round(v / step) * step + 0
+diff --git a/src/babylon/games/raceFx/models.test.ts b/src/babylon/games/raceFx/models.test.ts
+new file mode 100644
+index 0000000..fd96139
+--- /dev/null
++++ b/src/babylon/games/raceFx/models.test.ts
+@@ -0,0 +1,155 @@
++import { describe, it, expect } from 'vitest'
++import type { MeshData } from '@/babylon/fx/geometry'
++import {
++  BOX_SIZE,
++  WHEELS,
++  archData,
++  bananaData,
++  blockData,
++  boxData,
++  carBodyData,
++  coneData,
++  crowdData,
++  curbData,
++  flagData,
++  rampData,
++  shellData,
++  standData,
++  treeData,
++  wheelData,
++} from '@/babylon/games/raceFx/models'
++
++function expectWellFormed(d: MeshData): void {
++  const n = d.positions.length / 3
++  expect(Number.isInteger(n)).toBe(true)
++  expect(n).toBeGreaterThan(0)
++  expect(d.normals.length).toBe(d.positions.length)
++  expect(d.uvs.length).toBe(n * 2)
++  if (d.colors) expect(d.colors.length).toBe(n * 4)
++  expect(d.indices.length % 3).toBe(0)
++  expect(Math.max(...d.indices)).toBeLessThan(n)
++  expect(Math.min(...d.indices)).toBeGreaterThanOrEqual(0)
++  expect(d.positions.every(Number.isFinite)).toBe(true)
++}
++
++function bounds(d: MeshData): { min: number[]; max: number[] } {
++  const min = [Infinity, Infinity, Infinity]
++  const max = [-Infinity, -Infinity, -Infinity]
++  for (let i = 0; i < d.positions.length; i += 3) {
++    for (let k = 0; k < 3; k++) {
++      min[k] = Math.min(min[k], d.positions[i + k])
++      max[k] = Math.max(max[k], d.positions[i + k])
++    }
++  }
++  return { min, max }
++}
++
++describe('raceFx/models — 玩具車（spec §4.1）', () => {
++  it('4 色真人與 bot 車身都是合法 mesh、帶頂點色', () => {
++    for (const ci of [0, 1, 2, 3] as const) {
++      for (const bot of [false, true]) {
++        const d = carBodyData(ci, bot)
++        expectWellFormed(d)
++        expect(d.colors).toBeDefined()
++      }
++    }
++  })
++
++  it('外接框約 1.6 寬 × 2.3 長，車頭朝 +z、原點在地面', () => {
++    const b = bounds(carBodyData(0, false))
++    expect(b.max[0]).toBeLessThanOrEqual(0.8)
++    expect(b.min[0]).toBeGreaterThanOrEqual(-0.8)
++    expect(b.max[2]).toBeGreaterThan(1.1)
++    expect(b.max[2]).toBeLessThanOrEqual(1.25)
++    expect(b.min[2]).toBeGreaterThanOrEqual(-1.25)
++    expect(b.min[1]).toBeGreaterThanOrEqual(0)
++    // 安全帽頂約 1.55–1.65
++    expect(b.max[1]).toBeGreaterThan(1.5)
++    expect(b.max[1]).toBeLessThan(1.7)
++  })
++
++  it('bot 多一根天線（比真人高）', () => {
++    expect(bounds(carBodyData(1, true)).max[1]).toBeGreaterThan(bounds(carBodyData(1, false)).max[1] + 0.15)
++  })
++
++  it('4 個輪位：前輪 z>0、後輪 z<0 且放大 1.08；輪胎模型軸向沿 x、直徑約 0.62', () => {
++    expect(WHEELS).toHaveLength(4)
++    expect(WHEELS.filter((w) => w.front && w.z > 0)).toHaveLength(2)
++    expect(WHEELS.filter((w) => !w.front && w.z < 0 && w.scale === 1.08)).toHaveLength(2)
++    const d = wheelData()
++    expectWellFormed(d)
++    const b = bounds(d)
++    expect(b.max[1] - b.min[1]).toBeCloseTo(0.62, 1)
++    expect(b.max[2] - b.min[2]).toBeCloseTo(0.62, 1)
++    expect(b.max[0] - b.min[0]).toBeLessThan(0.45)
++  })
++})
++
++describe('raceFx/models — 道具與道具箱（spec §4.2）', () => {
++  it('道具箱 1.3 立方，6 面 uv 落在 4 格圖集內', () => {
++    const d = boxData()
++    expectWellFormed(d)
++    const b = bounds(d)
++    expect(b.max[0] - b.min[0]).toBeCloseTo(BOX_SIZE, 2)
++    expect(BOX_SIZE).toBe(1.3)
++    for (let i = 0; i < d.uvs.length; i += 2) {
++      expect(d.uvs[i]).toBeGreaterThanOrEqual(0)
++      expect(d.uvs[i]).toBeLessThanOrEqual(1)
++    }
++    // 至少用到 3 格（對面同色）
++    const cells = new Set<number>()
++    for (let i = 0; i < d.uvs.length; i += 2) cells.add(Math.max(0, Math.floor(d.uvs[i] * 4 - 1e-6)))
++    expect(cells.size).toBeGreaterThanOrEqual(3)
++  })
++
++  it('香蕉貼地約 1.0×0.4×1.0、龜殼約 0.9 寬', () => {
++    const ba = bananaData()
++    expectWellFormed(ba)
++    const bb = bounds(ba)
++    expect(bb.min[1]).toBeGreaterThanOrEqual(-0.01)
++    expect(bb.max[1]).toBeLessThan(0.6)
++    expect(bb.max[0] - bb.min[0]).toBeGreaterThan(0.7)
++    expect(bb.max[0] - bb.min[0]).toBeLessThan(1.2)
++    const sh = shellData()
++    expectWellFormed(sh)
++    const sb = bounds(sh)
++    expect(sb.max[0] - sb.min[0]).toBeGreaterThan(0.85)
++    expect(sb.max[0] - sb.min[0]).toBeLessThan(1.15)
++  })
++})
++
++describe('raceFx/models — 場景物件（spec §4.3）', () => {
++  it('積木、路緣、觀眾、樹、錐、旗面、看台、拱門都是合法 mesh', () => {
++    for (const d of [
++      blockData('2x2'),
++      blockData('2x4'),
++      curbData(),
++      crowdData(),
++      treeData(),
++      coneData(),
++      flagData(),
++      standData(40),
++      archData(),
++    ])
++      expectWellFormed(d)
++  })
++
++  it('2×4 積木長是 2×2 的兩倍', () => {
++    const a = bounds(blockData('2x2'))
++    const b = bounds(blockData('2x4'))
++    expect(b.max[0] - b.min[0]).toBeCloseTo(2 * (a.max[0] - a.min[0]), 1)
++  })
++
++  it('跳台楔形：前緣近地、後緣（唇口）高 h，長 len、寬 w', () => {
++    const d = rampData(6, 8, 1.1)
++    expectWellFormed(d)
++    const b = bounds(d)
++    expect(b.max[2] - b.min[2]).toBeGreaterThanOrEqual(6)
++    expect(b.max[0] - b.min[0]).toBeGreaterThanOrEqual(8)
++    expect(b.max[1]).toBeGreaterThanOrEqual(1.1)
++    // 前緣（z 最小）的頂點都很低
++    for (let i = 0; i < d.positions.length; i += 3) {
++      if (d.positions[i + 2] < b.min[2] + 0.01) expect(d.positions[i + 1]).toBeLessThan(0.1)
++    }
++  })
++})
+diff --git a/src/babylon/games/raceFx/models.ts b/src/babylon/games/raceFx/models.ts
+new file mode 100644
+index 0000000..7c351e3
+--- /dev/null
++++ b/src/babylon/games/raceFx/models.ts
+@@ -0,0 +1,320 @@
++/**
++ * A「Toy Racer」程式建模（spec §4，純資料，可在 node 單測）：玩具車、輪胎、道具箱、香蕉、龜殼、場景積木與裝飾。
++ * 頂點色、車頭朝 +z、原點在地面中心；需要依實例換色的（積木、路緣、觀眾、旗面）頂點色只放明暗，顏色走 instance color。
++ */
++import { mergeData, roundedBox, colorize, type FaceUV, type MeshData } from '@/babylon/fx/geometry'
++import { at, cylinder, frustum, radial, rgba, solid, sphere, torus, type Rgba } from '@/babylon/fx/models'
++import { OUTLINE, PLAYER_PALETTE, type ColorIndex } from '@/babylon/fx/palette'
++import { BOX_FACE_COLORS, ITEM_COLORS, RACE } from '@/babylon/games/raceFx/palette'
++
++const rb = (w: number, h: number, d: number, r: number): MeshData => roundedBox({ width: w, height: h, depth: d, radius: r })
++const HALF_PI = Math.PI / 2
++const deg = (d: number): number => (d * Math.PI) / 180
++
++/** 依法線分明暗：頂面 1、側面 side、底面 bottom（給 instance color 乘） */
++const shade = (d: MeshData, side = 0.78, bottom = 0.6): MeshData =>
++  colorize(d, (_p, n) => {
++    const k = n[1] > 0.5 ? 1 : n[1] < -0.5 ? bottom : side
++    return [k, k, k, 1]
++  })
++
++/** 兩色依法線：頂面 top、其餘 side */
++const topSide = (d: MeshData, top: string, side: string): MeshData => {
++  const T = rgba(top)
++  const S = rgba(side)
++  return colorize(d, (_p, n) => (n[1] > 0.5 ? T : S))
++}
++
++// ---- 玩具車（§4.1） ----
++
++/** 輪位（車身座標）：前輪隨轉向擺動，後輪大一點 */
++export const WHEELS: readonly { x: number; y: number; z: number; scale: number; front: boolean }[] = [
++  { x: -0.8, y: 0.31, z: 0.7, scale: 1, front: true },
++  { x: 0.8, y: 0.31, z: 0.7, scale: 1, front: true },
++  { x: -0.82, y: 0.33, z: -0.7, scale: 1.08, front: false },
++  { x: 0.82, y: 0.33, z: -0.7, scale: 1.08, front: false },
++]
++/** 輪胎半徑（轉動角 = 移動距離 / 半徑） */
++export const WHEEL_R = 0.31
++/** 「你」標記中心高度（安全帽正上方，spec §4.1） */
++export const YOU_Y = 2.0
++/** 後輪之間火花芯的位置（車身座標） */
++export const CORE_POS = { y: 0.3, z: -0.9 } as const
++
++/** 一台車的車身（合併單一 mesh）；bot 多天線、安全帽不畫白條 */
++export function carBodyData(ci: ColorIndex, isBot: boolean): MeshData {
++  const pal = PLAYER_PALETTE[ci]
++  const base = rgba(pal.base)
++  const dark = rgba(pal.dark)
++  const c = (hex: string): Rgba => rgba(hex)
++  const parts: MeshData[] = [
++    // 底盤車身、車鼻、前保桿
++    at(radial(rb(1.36, 0.4, 2.0, 0.2), pal.light, pal.base, pal.dark), { x: 0, y: 0.42, z: 0 }),
++    at(solid(rb(1.0, 0.24, 0.46, 0.12), base), { x: 0, y: 0.38, z: 0.98 }),
++    at(solid(rb(1.3, 0.14, 0.18, 0.07), c(RACE.bumper)), { x: 0, y: 0.22, z: 1.12 }),
++    // 側裙
++    at(solid(rb(0.14, 0.18, 1.3, 0.06), dark), { x: -0.7, y: 0.28, z: 0 }),
++    at(solid(rb(0.14, 0.18, 1.3, 0.06), dark), { x: 0.7, y: 0.28, z: 0 }),
++    // 車頭燈
++    at(solid(sphere(0.18, 8), c(RACE.headlight)), { x: -0.36, y: 0.48, z: 1.02, sz: 0.6 }),
++    at(solid(sphere(0.18, 8), c(RACE.headlight)), { x: 0.36, y: 0.48, z: 1.02, sz: 0.6 }),
++    // 座艙、方向盤
++    at(solid(rb(0.86, 0.2, 0.86, 0.12), c(RACE.seat)), { x: 0, y: 0.72, z: -0.18 }),
++    at(solid(torus(0.34, 0.06, 14), c(RACE.steer)), { x: 0, y: 0.92, z: 0.22, pitch: deg(-60) }),
++    // 尾翼：支柱、翼板、端板
++    at(solid(cylinder(0.36, 0.08, 6), c(RACE.exhaust)), { x: -0.34, y: 0.8, z: -0.86 }),
++    at(solid(cylinder(0.36, 0.08, 6), c(RACE.exhaust)), { x: 0.34, y: 0.8, z: -0.86 }),
++    at(solid(rb(1.5, 0.09, 0.42, 0.04), base), { x: 0, y: 1.0, z: -0.92 }),
++    at(solid(rb(0.06, 0.26, 0.46, 0.02), dark), { x: -0.76, y: 1.0, z: -0.92 }),
++    at(solid(rb(0.06, 0.26, 0.46, 0.02), dark), { x: 0.76, y: 1.0, z: -0.92 }),
++    // 排氣管＋管口
++    at(solid(cylinder(0.22, 0.14, 8), c(RACE.exhaust)), { x: -0.26, y: 0.34, z: -1.08, pitch: HALF_PI }),
++    at(solid(cylinder(0.22, 0.14, 8), c(RACE.exhaust)), { x: 0.26, y: 0.34, z: -1.08, pitch: HALF_PI }),
++    at(solid(cylinder(0.02, 0.08, 8), c(OUTLINE)), { x: -0.26, y: 0.34, z: -1.19, pitch: HALF_PI }),
++    at(solid(cylinder(0.02, 0.08, 8), c(OUTLINE)), { x: 0.26, y: 0.34, z: -1.19, pitch: HALF_PI }),
++    // 駕駛：身體、安全帽、護目鏡與反光條、臉、眼
++    at(solid(rb(0.52, 0.34, 0.36, 0.12), base), { x: 0, y: 0.91, z: -0.2 }),
++    at(radial(sphere(0.64, 14), pal.light, pal.base, pal.dark), { x: 0, y: 1.3, z: -0.18 }),
++    at(solid(rb(0.5, 0.18, 0.1, 0.06), c(RACE.visor)), { x: 0, y: 1.3, z: 0.12 }),
++    at(solid(rb(0.3, 0.03, 0.02, 0.01), c(RACE.visorShine)), { x: -0.06, y: 1.37, z: 0.175 }),
++    at(solid(rb(0.36, 0.1, 0.06, 0.03), c(RACE.face)), { x: 0, y: 1.17, z: 0.12 }),
++    at(solid(sphere(0.07, 6), c(RACE.eye)), { x: -0.08, y: 1.3, z: 0.17 }),
++    at(solid(sphere(0.07, 6), c(RACE.eye)), { x: 0.08, y: 1.3, z: 0.17 }),
++  ]
++  if (isBot) {
++    parts.push(
++      at(solid(cylinder(0.32, 0.04, 6), c(RACE.exhaust)), { x: 0.18, y: 1.6, z: -0.25 }),
++      at(solid(sphere(0.14, 8), c(RACE.aiBall)), { x: 0.18, y: 1.8, z: -0.25 })
++    )
++  } else {
++    parts.push(at(solid(rb(0.12, 0.04, 0.6, 0.02), c('#FFFFFF')), { x: 0, y: 1.6, z: -0.18 }))
++  }
++  return mergeData(parts)
++}
++
++/** 輪胎：胎身＋輪轂，軸向沿 x；胎紋每 30° 一條（看得出轉動） */
++export function wheelData(): MeshData {
++  const axisX = { x: 0, y: 0, z: 0, pitch: HALF_PI, yaw: HALF_PI }
++  const tire = at(cylinder(0.34, 0.62, 24), axisX)
++  const T = rgba(RACE.tire)
++  const S = rgba(RACE.tread)
++  const striped = colorize(tire, (p) => {
++    const r = Math.hypot(p[1], p[2])
++    if (r < 0.28) return T
++    const a = ((Math.atan2(p[1], p[2]) * 180) / Math.PI + 360) % 30
++    return a < 6 ? S : T
++  })
++  const hub = solid(at(cylinder(0.36, 0.32, 12), axisX), rgba(RACE.hub))
++  return mergeData([striped, hub])
++}
++
++// ---- 道具與道具箱（§4.2） ----
++
++export const BOX_SIZE = 1.3
++
++/** 道具箱：6 面 uv 對到 1024×256 圖集的格（±Z 第 0 格、±X 第 1 格、±Y 第 2 格；對面同色） */
++export function boxData(): MeshData {
++  const cell = (k: number): FaceUV => [k / 4, 0, (k + 1) / 4, 1]
++  return roundedBox({
++    width: BOX_SIZE,
++    height: BOX_SIZE,
++    depth: BOX_SIZE,
++    radius: 0.2,
++    faceUV: [cell(0), cell(0), cell(1), cell(1), cell(2), cell(2)],
++  })
++}
++/** 道具箱圖集各格的底色（textures 畫圖集用） */
++export const BOX_CELL_COLORS = BOX_FACE_COLORS
++
++/** 香蕉皮：壓扁的果肉＋3 片往外趴的皮＋暗色尖端＋蒂，貼地 */
++export function bananaData(): MeshData {
++  const { main, dark, accent } = ITEM_COLORS.banana
++  const parts: MeshData[] = [at(solid(sphere(0.42, 10), rgba(main)), { x: 0, y: 0.13, z: 0, sy: 0.6 })]
++  const tilt = deg(70)
++  for (let i = 0; i < 3; i++) {
++    const yaw = (i * 2 * Math.PI) / 3
++    const dir = [Math.sin(yaw), Math.cos(yaw)]
++    const mid = 0.25
++    const lift = Math.cos(tilt)
++    const out = Math.sin(tilt)
++    parts.push(
++      at(solid(frustum(0.5, 0.08, 0.26, 8), rgba(main)), {
++        x: dir[0] * out * mid,
++        y: 0.12 + lift * mid,
++        z: dir[1] * out * mid,
++        pitch: tilt,
++        yaw,
++      }),
++      at(solid(sphere(0.1, 6), rgba(dark)), { x: dir[0] * out * 0.5, y: 0.12 + lift * 0.5, z: dir[1] * out * 0.5 })
++    )
++  }
++  parts.push(at(solid(cylinder(0.16, 0.08, 6), rgba(accent)), { x: 0, y: 0.28, z: 0 }))
++  return mergeData(parts)
++}
++
++/** 紅龜殼：壓扁的殼頂（radial）＋白殼緣＋3 顆凸點；原點在殼心（實例 y 0.3 貼地） */
++export function shellData(): MeshData {
++  const { main, dark, accent } = ITEM_COLORS.shell
++  const parts: MeshData[] = [
++    at(radial(sphere(0.9, 14), accent, main, dark), { x: 0, y: 0, z: 0, sy: 0.62 }),
++    at(solid(torus(0.92, 0.16, 20), rgba(RACE.roadEdge)), { x: 0, y: -0.06, z: 0 }),
++  ]
++  for (let i = 0; i < 3; i++) {
++    const a = (i * 2 * Math.PI) / 3
++    parts.push(at(solid(sphere(0.18, 6), rgba(accent)), { x: Math.sin(a) * 0.2, y: 0.22, z: Math.cos(a) * 0.2 }))
++  }
++  return mergeData(parts)
++}
++
++// ---- 場景（§4.3） ----
++
++/** 凸點積木（2×2 或 2×4），原點在底面中心、高 1.2；頂點色只有明暗，顏色走 instance color */
++export function blockData(kind: '2x2' | '2x4'): MeshData {
++  const w = kind === '2x2' ? 2 : 4
++  const parts: MeshData[] = [shade(at(rb(w, 1.2, 2, 0.12), { x: 0, y: 0.6, z: 0 }))]
++  for (let i = 0; i < w; i++) {
++    for (const z of [-0.5, 0.5]) parts.push(shade(at(cylinder(0.2, 0.5, 10), { x: -w / 2 + 0.5 + i, y: 1.3, z }), 0.85))
++  }
++  return mergeData(parts)
++}
++
++/** 路緣小方塊：沿線 1.5（z）× 0.12 高 × 0.9 寬 */
++export function curbData(): MeshData {
++  return shade(at(rb(0.9, 0.12, 1.5, 0.04), { x: 0, y: 0.06, z: 0 }))
++}
++
++/** 棋子觀眾：圓台身體＋頭，原點在底面 */
++export function crowdData(): MeshData {
++  return mergeData([
++    shade(at(frustum(0.7, 0.3, 0.5, 10), { x: 0, y: 0.35, z: 0 }), 0.85),
++    shade(at(sphere(0.36, 8), { x: 0, y: 0.86, z: 0 }), 0.85),
++  ])
++}
++
++/** 棒棒糖樹：樹幹＋樹冠（上亮下暗），原點在地面 */
++export function treeData(): MeshData {
++  const crown = colorize(at(sphere(2.4, 12), { x: 0, y: 2.7, z: 0 }), (p) => {
++    const t = Math.max(0, Math.min(1, (p[1] - 1.5) / 2.4))
++    const [r, g, b] = rgba(RACE.treeTop)
++    const k = 0.72 + 0.28 * t
++    return [r * k, g * k, b * k, 1]
++  })
++  return mergeData([at(solid(cylinder(1.8, 0.4, 8), rgba(RACE.treeTrunk)), { x: 0, y: 0.9, z: 0 }), crown])
++}
++
++/** 三角錐：橘身、中段白環，原點在底面 */
++export function coneData(): MeshData {
++  const O = rgba(RACE.cone)
++  const W = rgba(RACE.coneStripe)
++  const body = colorize(at(frustum(0.9, 0.1, 0.6, 12), { x: 0, y: 0.45, z: 0 }), (p) => (p[1] > 0.38 && p[1] < 0.55 ? W : O))
++  return mergeData([body, at(solid(rb(0.7, 0.06, 0.7, 0.03), O), { x: 0, y: 0.03, z: 0 })])
++}
++
++/** 雙面四邊形（法線 ±z），x 從 x0 到 x0 + w、y 置中 */
++function quad2(w: number, h: number, x0: number, colorHex = '#FFFFFF'): MeshData {
++  const c = rgba(colorHex)
++  const y0 = -h / 2
++  const y1 = h / 2
++  const x1 = x0 + w
++  return {
++    positions: [x0, y0, 0, x1, y0, 0, x1, y1, 0, x0, y1, 0, x0, y0, 0, x1, y0, 0, x1, y1, 0, x0, y1, 0],
++    normals: [0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1],
++    uvs: [0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1],
++    indices: [0, 1, 2, 0, 2, 3, 5, 4, 7, 5, 7, 6],
++    colors: Array.from({ length: 8 }, () => [...c]).flat(),
++  }
++}
++
++/** 旗面 1.2×0.7（雙面，左緣貼旗桿），顏色走 instance color */
++export const flagData = (): MeshData => quad2(1.2, 0.7, 0)
++
++/** 起跑拱門橫幅（雙面；背面 u 反向，從兩側看字都是正的），寬 w 高 h，中心在原點 */
++export const bannerData = (w: number, h: number): MeshData => quad2(w, h, -w / 2)
++
++/** 看台：3 階（每階高 1.2、深 2）＋屋頂＋紅條＋柱＋8 支旗桿；x 沿賽道、+z 遠離賽道，原點在前緣中心 */
++export function standData(len: number): MeshData {
++  const parts: MeshData[] = []
++  for (let i = 0; i < 3; i++) {
++    const h = 1.2 * (i + 1)
++    parts.push(topSide(at(rb(len, h, 2, 0.1), { x: 0, y: h / 2, z: 1 + i * 2 }), RACE.stand, RACE.standSide))
++  }
++  parts.push(
++    at(solid(rb(len, 0.3, 7, 0.1), rgba(RACE.roof)), { x: 0, y: 5.6, z: 3, pitch: deg(-8) }),
++    at(solid(rb(len, 0.32, 0.5, 0.1), rgba(RACE.roofStripe)), { x: 0, y: 5.15, z: -0.3 })
++  )
++  for (const x of [-len / 2 + 0.4, len / 2 - 0.4]) {
++    for (const z of [-0.2, 6]) parts.push(at(solid(cylinder(z < 0 ? 5 : 6, 0.24, 8), rgba(RACE.flagPole)), { x, y: z < 0 ? 2.5 : 3, z }))
++  }
++  for (const p of flagPoles(len)) parts.push(at(solid(cylinder(2.4, 0.1, 6), rgba(RACE.flagPole)), { x: p.x, y: p.y - 1.2, z: p.z }))
++  return mergeData(parts)
++}
++
++/** 看台屋頂上 8 支旗桿的頂端（看台座標），旗面掛在這裡 */
++export function flagPoles(len: number): { x: number; y: number; z: number }[] {
++  return Array.from({ length: 8 }, (_, i) => ({ x: -len / 2 + (len * (i + 0.5)) / 8, y: 8.1, z: 3 }))
++}
++
++/** 起跑拱門：兩根 3 塊積木疊的立柱＋橫樑＋4 面玩家色三角旗；x 橫跨賽道、z 沿行進方向 */
++export function archData(): MeshData {
++  const parts: MeshData[] = []
++  for (const x of [-7.6, 7.6]) {
++    for (let k = 0; k < 3; k++) {
++      const col = k % 2 === 0 ? RACE.arch : RACE.archDark
++      parts.push(topSide(at(rb(1.4, 1.6, 1.4, 0.12), { x, y: 0.8 + k * 1.6, z: 0 }), col, col))
++    }
++    for (const dx of [-0.35, 0.35]) for (const dz of [-0.35, 0.35]) parts.push(at(solid(cylinder(0.2, 0.36, 8), rgba(RACE.arch)), { x: x + dx, y: 4.9, z: dz }))
++  }
++  parts.push(solid(at(rb(16.6, 1.5, 0.8, 0.15), { x: 0, y: 5.3, z: 0 }), rgba(RACE.arch)))
++  PLAYER_PALETTE.forEach((p, i) => {
++    const x = -4.5 + i * 3
++    const c = rgba(p.base)
++    parts.push({
++      positions: [x - 0.6, 4.55, 0, x + 0.6, 4.55, 0, x, 3.7, 0, x - 0.6, 4.55, 0, x + 0.6, 4.55, 0, x, 3.7, 0],
++      normals: [0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 1],
++      uvs: new Array(12).fill(0),
++      indices: [0, 1, 2, 3, 5, 4],
++      colors: Array.from({ length: 6 }, () => [...c]).flat(),
++    })
++  })
++  return mergeData(parts)
++}
++
++/** 跳台貼圖的白色區（v 0..1/8）：側面、唇口、護欄以頂點色上色，uv 都指到這裡 */
++const WHITE_UV: [number, number] = [0.5, 0.06]
++
++/** 跳台楔形（長 len 沿 z、寬 w、唇口高 h）＋唇口白邊＋兩側護欄；頂面 uv 走斜紋區（v 1/8..1） */
++export function rampData(len: number, w: number, h: number): MeshData {
++  const x0 = -w / 2
++  const x1 = w / 2
++  const y0 = 0.02
++  const ny = len / Math.hypot(len, h - y0)
++  const nz = -(h - y0) / Math.hypot(len, h - y0)
++  const top: MeshData = {
++    positions: [x0, y0, 0, x1, y0, 0, x1, h, len, x0, h, len],
++    normals: [0, ny, nz, 0, ny, nz, 0, ny, nz, 0, ny, nz],
++    uvs: [0, 0.125, 1, 0.125, 1, 1, 0, 1],
++    indices: [0, 1, 2, 0, 2, 3],
++    colors: new Array(16).fill(1),
++  }
++  const S = rgba(RACE.rampSide)
++  const side = (x: number, nx: number): MeshData => ({
++    positions: [x, 0, 0, x, 0, len, x, h, len, x, y0, 0],
++    normals: [nx, 0, 0, nx, 0, 0, nx, 0, 0, nx, 0, 0],
++    uvs: [...WHITE_UV, ...WHITE_UV, ...WHITE_UV, ...WHITE_UV],
++    indices: nx < 0 ? [1, 0, 3, 1, 3, 2] : [1, 3, 0, 1, 2, 3],
++    colors: Array.from({ length: 4 }, () => [...S]).flat(),
++  })
++  const back: MeshData = {
++    positions: [x0, 0, len, x1, 0, len, x1, h, len, x0, h, len],
++    normals: [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1],
++    uvs: [...WHITE_UV, ...WHITE_UV, ...WHITE_UV, ...WHITE_UV],
++    indices: [1, 0, 3, 1, 3, 2],
++    colors: Array.from({ length: 4 }, () => [...S]).flat(),
++  }
++  const whiteUv = (d: MeshData): MeshData => ({ ...d, uvs: d.uvs.map((_, i) => WHITE_UV[i % 2]) })
++  const lip = whiteUv(at(solid(rb(w, 0.14, 0.3, 0.05), rgba(RACE.roadEdge)), { x: 0, y: h + 0.02, z: len - 0.15 }))
++  const rails = [-1, 1].map((sd) =>
++    whiteUv(at(topSide(rb(0.5, 0.5, len - 0.5, 0.1), RACE.arch, RACE.archDark), { x: sd * (w / 2 + 0.3), y: 0.25, z: (len + 0.5) / 2 }))
++  )
++  return mergeData([top, side(x0, -1), side(x1, 1), back, lip, ...rails])
++}
+diff --git a/src/babylon/games/raceFx/palette.test.ts b/src/babylon/games/raceFx/palette.test.ts
+new file mode 100644
+index 0000000..19a25c3
+--- /dev/null
++++ b/src/babylon/games/raceFx/palette.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it, expect } from 'vitest'
++import { BOX_FACE_COLORS, DRIFT_COLORS, ITEM_COLORS, RACE } from '@/babylon/games/raceFx/palette'
++import { ITEM_KINDS } from '@/babylon/games/raceRules/items'
++
++const HEX = /^#[0-9A-F]{6}$/i
++
++describe('raceFx/palette（spec §3.2／§3.3）', () => {
++  it('場景色票全部是 #RRGGBB', () => {
++    for (const [k, v] of Object.entries(RACE)) {
++      const list = Array.isArray(v) ? v : [v]
++      for (const c of list) expect(c, k).toMatch(HEX)
++    }
++  })
++
++  it('關鍵色照 spec：天空、路面、路緣、加速帶', () => {
++    expect(RACE.sky).toBe('#9ED8F5')
++    expect(RACE.road).toBe('#5A5380')
++    expect(RACE.curbRed).toBe('#F0503C')
++    expect(RACE.boostPad).toBe('#FFB21F')
++  })
++
++  it('甩尾段位色 0..3 = 白／藍／橘／紫', () => {
++    expect(DRIFT_COLORS).toEqual(['#FFFFFF', '#39C2FF', '#FF9A1F', '#C05CFF'])
++  })
++
++  it('4 種道具都有主色／暗階／點綴，道具箱 4 種面色', () => {
++    for (const k of ITEM_KINDS) {
++      expect(ITEM_COLORS[k].main).toMatch(HEX)
++      expect(ITEM_COLORS[k].dark).toMatch(HEX)
++      expect(ITEM_COLORS[k].accent).toMatch(HEX)
++    }
++    expect(BOX_FACE_COLORS).toHaveLength(4)
++    for (const c of BOX_FACE_COLORS) expect(c).toMatch(HEX)
++  })
++})
+diff --git a/src/babylon/games/raceFx/palette.ts b/src/babylon/games/raceFx/palette.ts
+new file mode 100644
+index 0000000..f9c8bcc
+--- /dev/null
++++ b/src/babylon/games/raceFx/palette.ts
+@@ -0,0 +1,77 @@
++/**
++ * 極速賽車 A「Toy Racer」場景與道具色票（spec §3.2／§3.3）：純資料，不依賴 Babylon。玩家色沿用 fx/palette 的 PLAYER_PALETTE。
++ */
++import type { ItemKind } from '@/babylon/games/raceRules/items'
++
++export { OUTLINE, PLAYER_PALETTE, type ColorIndex } from '@/babylon/fx/palette'
++
++export const RACE = {
++  sky: '#9ED8F5',
++  /** 實際填進 clearColor／fogColor 的天色：ACES＋對比會把 #9ED8F5 壓成灰藍 (188,202,208)，這個值渲染後約 (149,192,206) */
++  skyClear: '#4FB4EE',
++  matA: '#EBD9AF',
++  matB: '#E2CE9F',
++  matLine: '#D3BD8A',
++  matMajor: '#C4AA72',
++  table: '#C08A55',
++  tableGrain: '#A97646',
++  road: '#5A5380',
++  roadSeam: '#47406A',
++  roadEdge: '#FFF6E3',
++  curbRed: '#F0503C',
++  curbWhite: '#FFF6E3',
++  curbRedSide: '#B8392B',
++  curbWhiteSide: '#D9CBB0',
++  startA: '#FFFFFF',
++  startB: '#2B2440',
++  arch: '#FF8A3D',
++  archDark: '#C2561B',
++  banner: '#FFF6E3',
++  stand: '#B3A4C9',
++  standSide: '#6F6490',
++  roof: '#FFF6E3',
++  roofStripe: '#F0503C',
++  flagPole: '#E3E6EF',
++  block: ['#FF8A94', '#8CC4FF', '#93F0A8', '#FFF0A0'],
++  treeTop: '#7CCB6A',
++  treeTrunk: '#A97646',
++  cone: '#FF8A3D',
++  coneStripe: '#FFF6E3',
++  boostPad: '#FFB21F',
++  boostArrow: '#FFF6C8',
++  ramp: '#FFD23F',
++  rampSide: '#C79A00',
++  rampStripe: '#2B2440',
++  tire: '#2F2A40',
++  tread: '#3A3556',
++  hub: '#C3CBD8',
++  seat: '#3A3556',
++  steer: '#2B2440',
++  bumper: '#3A3556',
++  visor: '#2E3A4F',
++  visorShine: '#9FE4FF',
++  face: '#FFF1E0',
++  eye: '#2B2440',
++  headlight: '#FFF6C8',
++  exhaust: '#8E9AB0',
++  aiBall: '#39E6FF',
++  slip: '#E8F7FF',
++  dust: '#E4D3A8',
++  spark: '#FFE38A',
++  shield: '#39D5FF',
++  shieldFill: '#7FE8FF',
++} as const
++
++/** 甩尾段位 0..3：白（未滿第一段）／藍／橘／紫（spec §3.2 drift1..3，放開噴焰同色） */
++export const DRIFT_COLORS = ['#FFFFFF', '#39C2FF', '#FF9A1F', '#C05CFF'] as const
++
++/** 道具（HUD 道具欄與 3D 共用） */
++export const ITEM_COLORS: Record<ItemKind, { main: string; dark: string; accent: string }> = {
++  banana: { main: '#FFD23F', dark: '#C79A00', accent: '#7A4A1D' },
++  shell: { main: '#E8413A', dark: '#A82A24', accent: '#FF8A80' },
++  mushroom: { main: '#FF7A3D', dark: '#C2561B', accent: '#FFF6E3' },
++  shield: { main: '#1FB5E0', dark: '#0B7FA6', accent: '#7FE8FF' },
++}
++
++/** 道具箱面色輪替（圖集 4 格的底色） */
++export const BOX_FACE_COLORS = ['#FF5C8A', '#FFD23F', '#39D5FF', '#7CF06A'] as const
+diff --git a/src/babylon/games/raceFx/raceGeom.test.ts b/src/babylon/games/raceFx/raceGeom.test.ts
+index 3d16788..94121a9 100644
+--- a/src/babylon/games/raceFx/raceGeom.test.ts
++++ b/src/babylon/games/raceFx/raceGeom.test.ts
+@@ -2,33 +2,43 @@ import { describe, it, expect } from 'vitest'
+ import { roadStrip } from '@/babylon/games/raceFx/raceGeom'
+ import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
+ import { trackProgress } from '@/babylon/games/raceRules/track'
+ 
+ const T = RACE_COURSE.track
+ 
+ describe('roadStrip（閉合路面帶）', () => {
+   const g = roadStrip(T, T.width / 2, 0.02)
+   const n = T.pts.length
+ 
+-  it('每個取樣點左右各一個頂點、每段兩個三角形（閉合）', () => {
+-    expect(g.positions).toHaveLength(n * 2 * 3)
++  it('每個取樣點左右各一個頂點，閉合處多一圈（uv 不共用）；每段兩個三角形', () => {
++    expect(g.positions).toHaveLength((n + 1) * 2 * 3)
+     expect(g.indices).toHaveLength(n * 6)
+-    expect(Math.max(...g.indices)).toBe(n * 2 - 1)
+-    expect(g.uvs).toHaveLength(n * 2 * 2)
++    expect(Math.max(...g.indices)).toBe((n + 1) * 2 - 1)
++    expect(g.uvs).toHaveLength((n + 1) * 2 * 2)
+   })
+ 
+   it('頂點落在中心線兩側 ±半寬、高度為 y', () => {
+-    for (let i = 0; i < n; i += 37) {
++    for (let i = 0; i <= n; i += 37) {
+       for (const side of [0, 1]) {
+         const k = (i * 2 + side) * 3
+         expect(g.positions[k + 1]).toBe(0.02)
+         const p = trackProgress(T, g.positions[k], g.positions[k + 2])
+         expect(Math.abs(Math.abs(p.lateral) - T.width / 2)).toBeLessThan(0.5)
+       }
+     }
+   })
+ 
+   it('法線一律朝上（路面材質關背面剔除，繞向不影響光照）', () => {
+-    expect(g.normals).toHaveLength(n * 2 * 3)
++    expect(g.normals).toHaveLength((n + 1) * 2 * 3)
+     for (let i = 0; i < g.normals.length; i += 3) expect([g.normals[i], g.normals[i + 1], g.normals[i + 2]]).toEqual([0, 1, 0])
+   })
++
++  it('閉合處 uv 不反向拉伸：v 沿線單調遞增，最後一圈 v = len·vPerUnit、位置同第一圈（波 2 Minor）', () => {
++    const k = 1 / 8
++    const h = roadStrip(T, T.width / 2, 0.02, k)
++    const v = (ring: number) => h.uvs[ring * 4 + 1]
++    for (let i = 1; i <= n; i++) expect(v(i)).toBeGreaterThan(v(i - 1))
++    expect(v(n)).toBeCloseTo(T.len * k, 6)
++    expect(v(0)).toBe(0)
++    for (let c = 0; c < 6; c++) expect(h.positions[n * 6 + c]).toBeCloseTo(h.positions[c], 9)
++  })
+ })
+diff --git a/src/babylon/games/raceFx/raceGeom.ts b/src/babylon/games/raceFx/raceGeom.ts
+index 9da63a5..3adc26d 100644
+--- a/src/babylon/games/raceFx/raceGeom.ts
++++ b/src/babylon/games/raceFx/raceGeom.ts
+@@ -1,38 +1,43 @@
+ /**
+  * 賽車路面幾何（純函式，產頂點資料給 VertexData）：閉合中心線兩側 ±halfW 的帶狀網格。
+- * 波 2 暫用的簡單路面；uv 的 v 沿線累積距離（每單位 1），u 左 0 右 1。
++ * uv：u 左 0 右 1，v = 沿線距離 × vPerUnit（spec §4.3 路面貼圖每 8 單位一格 → 1/8）。
++ * 閉合處多放一圈頂點（位置同第 0 圈、v = len·vPerUnit），最後一段 v 才會往前走、不會倒著拉伸整張貼圖。
+  */
+ import type { Track } from '@/babylon/games/raceRules/track'
+ 
+ export interface StripData {
+   positions: number[]
+   indices: number[]
+   normals: number[]
+   uvs: number[]
+ }
+ 
+-export function roadStrip(track: Track, halfW: number, y: number): StripData {
++export function roadStrip(track: Track, halfW: number, y: number, vPerUnit = 1): StripData {
+   const n = track.pts.length
+   const positions: number[] = []
+   const normals: number[] = []
+   const uvs: number[] = []
+   const indices: number[] = []
+-  for (let i = 0; i < n; i++) {
+-    const prev = track.pts[(i - 1 + n) % n]
+-    const next = track.pts[(i + 1) % n]
++  for (let i = 0; i <= n; i++) {
++    const k = i % n
++    const prev = track.pts[(k - 1 + n) % n]
++    const next = track.pts[(k + 1) % n]
+     // 切線取前後點平均方向，右側 = (dz, −dx)（同 track.ts 的 lateral 右正）
+     const dx = next[0] - prev[0]
+     const dz = next[1] - prev[1]
+     const l = Math.hypot(dx, dz) || 1
+     const rx = dz / l
+     const rz = -dx / l
+-    const [cx, cz] = track.pts[i]
++    const [cx, cz] = track.pts[k]
++    const v = (i === n ? track.len : track.cum[k]) * vPerUnit
+     positions.push(cx - rx * halfW, y, cz - rz * halfW, cx + rx * halfW, y, cz + rz * halfW)
+     normals.push(0, 1, 0, 0, 1, 0)
+-    uvs.push(0, track.cum[i], 1, track.cum[i])
+-    const a = i * 2
+-    const b = ((i + 1) % n) * 2
+-    indices.push(a, a + 1, b, b, a + 1, b + 1)
++    uvs.push(0, v, 1, v)
++    if (i < n) {
++      const a = i * 2
++      const b = a + 2
++      indices.push(a, a + 1, b, b, a + 1, b + 1)
++    }
+   }
+   return { positions, indices, normals, uvs }
+ }
+diff --git a/src/babylon/games/raceFx/scenery.test.ts b/src/babylon/games/raceFx/scenery.test.ts
+new file mode 100644
+index 0000000..0316759
+--- /dev/null
++++ b/src/babylon/games/raceFx/scenery.test.ts
+@@ -0,0 +1,97 @@
++import { describe, it, expect } from 'vitest'
++import { RACE_COURSE } from '@/babylon/games/raceRules/trackData'
++import { curvatureAt, trackProgress } from '@/babylon/games/raceRules/track'
++import {
++  CURB_K,
++  CURB_LATERAL,
++  DECOR_CLEAR,
++  blockSpots,
++  boxPose,
++  coneSpots,
++  crowdSpots,
++  curbSpots,
++  standPose,
++  treeSpots,
++} from '@/babylon/games/raceFx/scenery'
++
++const T = RACE_COURSE.track
++const lat = (x: number, z: number) => Math.abs(trackProgress(T, x, z).lateral)
++
++describe('raceFx/scenery — 路緣（spec §4.3）', () => {
++  const curbs = curbSpots(T)
++
++  it('只放在 |κ| ≥ 1/40 的路段、左右兩側 lateral ±6.45', () => {
++    expect(CURB_K).toBeCloseTo(1 / 40)
++    expect(CURB_LATERAL).toBeCloseTo(6.45)
++    for (const c of curbs) {
++      expect(Math.abs(curvatureAt(T, c.s))).toBeGreaterThanOrEqual(CURB_K - 1e-9)
++      expect(lat(c.x, c.z)).toBeCloseTo(CURB_LATERAL, 0)
++    }
++  })
++
++  it('起跑直線（s 0–60）沒有路緣；總數約 300、紅白交替', () => {
++    expect(curbs.some((c) => c.s > 1 && c.s < 60)).toBe(false)
++    expect(curbs.length).toBeGreaterThan(200)
++    expect(curbs.length).toBeLessThan(420)
++    const left = curbs.filter((c) => c.side < 0)
++    for (let i = 1; i < left.length; i++) {
++      if (Math.abs(left[i].s - left[i - 1].s - 1.6) < 1e-6) expect(left[i].red).not.toBe(left[i - 1].red)
++    }
++  })
++})
++
++describe('raceFx/scenery — 裝飾離路緣 ≥ 9（不穿模）', () => {
++  it(`積木約 40 筆、樹約 24 棵，中心離中心線 ≥ ${DECOR_CLEAR}`, () => {
++    const blocks = blockSpots(T)
++    const trees = treeSpots(T)
++    expect(blocks.length).toBeGreaterThanOrEqual(30)
++    expect(blocks.length).toBeLessThanOrEqual(50)
++    expect(trees.length).toBeGreaterThanOrEqual(20)
++    expect(trees.length).toBeLessThanOrEqual(28)
++    for (const b of blocks) expect(lat(b.x, b.z)).toBeGreaterThanOrEqual(DECOR_CLEAR)
++    for (const t of trees) expect(lat(t.x, t.z)).toBeGreaterThanOrEqual(DECOR_CLEAR)
++    // 疊層：y 是 1.2 的整數倍
++    for (const b of blocks) expect((b.y / 1.2) % 1).toBeCloseTo(0, 5)
++  })
++
++  it('三角錐 12 個：T2 外側 8 個（右側 +8.5）、T3 外側 4 個（左側 −8.5）', () => {
++    const cones = coneSpots(T)
++    expect(cones).toHaveLength(12)
++    for (const c of cones) expect(lat(c.x, c.z)).toBeCloseTo(8.5, 0)
++  })
++})
++
++describe('raceFx/scenery — 看台與觀眾', () => {
++  it('看台在起跑直線北側（左側 lateral −15～−21），觀眾約 100 個都在看台範圍', () => {
++    const st = standPose(T)
++    const p = trackProgress(T, st.x, st.z)
++    expect(p.lateral).toBeLessThan(-15)
++    expect(p.lateral).toBeGreaterThan(-21)
++    const crowd = crowdSpots(T)
++    expect(crowd.length).toBeGreaterThanOrEqual(80)
++    expect(crowd.length).toBeLessThanOrEqual(130)
++    for (const c of crowd) {
++      const q = trackProgress(T, c.x, c.z)
++      expect(q.lateral).toBeLessThanOrEqual(-14)
++      expect(q.lateral).toBeGreaterThanOrEqual(-22)
++      expect(c.y).toBeGreaterThan(0)
++    }
++  })
++})
++
++describe('raceFx/scenery — 道具箱浮動（spec §4.2）', () => {
++  it('y 在 1.1 ± 0.15、週期 1.6s，相位依 id 錯開 0.4s；斜放 0.35', () => {
++    const a = boxPose(0, 0)
++    const b = boxPose(0, 1.6)
++    expect(a.y).toBeCloseTo(b.y, 6)
++    for (let t = 0; t < 2; t += 0.1) {
++      const p = boxPose(3, t)
++      expect(p.y).toBeGreaterThanOrEqual(1.1 - 0.15 - 1e-9)
++      expect(p.y).toBeLessThanOrEqual(1.1 + 0.15 + 1e-9)
++      expect(p.pitch).toBeCloseTo(0.35)
++    }
++    expect(boxPose(1, 0).y).toBeCloseTo(boxPose(0, 0.4).y, 6)
++    // 每秒轉 1.4 rad
++    expect(boxPose(0, 1).yaw - boxPose(0, 0).yaw).toBeCloseTo(1.4)
++  })
++})
+diff --git a/src/babylon/games/raceFx/scenery.ts b/src/babylon/games/raceFx/scenery.ts
+new file mode 100644
+index 0000000..552e1a3
+--- /dev/null
++++ b/src/babylon/games/raceFx/scenery.ts
+@@ -0,0 +1,203 @@
++/**
++ * A「Toy Racer」場景擺放（spec §4.3，純函式）：路緣、積木、樹、錐、看台與觀眾、旗子、拱門、跳台、道具箱浮動。
++ * 全部由賽道幾何決定（各端一致、不吃亂數）；裝飾一律擺在路緣外 ≥ 9 單位，正常開不會穿模。
++ */
++import { curvatureAt, placeAt, pointAt, trackProgress, type Track } from '@/babylon/games/raceRules/track'
++import { flagPoles } from '@/babylon/games/raceFx/models'
++
++/** 路緣只放在 |κ| ≥ 1/40 的路段 */
++export const CURB_K = 1 / 40
++/** 路緣中心離中心線（路半寬 6 + 半塊 0.45） */
++export const CURB_LATERAL = 6.45
++/** 路緣沿線間距 */
++export const CURB_STEP = 1.6
++/** 裝飾中心離中心線的最小距離（路緣外緣 6.9 + 9）；積木群中心再多留 3（群內位移與積木半長） */
++export const DECOR_CLEAR = 16
++/** 看台：起跑直線北側 s 4–44，前緣 lateral −15.3、深 6 */
++export const STAND = { s: 24, front: -15.3, len: 40 } as const
++const BLOCK_H = 1.2
++const GROUND = { x: 97, z: 89 }
++
++export interface Spot {
++  x: number
++  z: number
++  yaw: number
++}
++
++export interface CurbSpot extends Spot {
++  s: number
++  side: -1 | 1
++  red: boolean
++}
++
++export function curbSpots(t: Track): CurbSpot[] {
++  const out: CurbSpot[] = []
++  for (const side of [-1, 1] as const) {
++    for (let k = 0; k * CURB_STEP < t.len; k++) {
++      const s = k * CURB_STEP
++      if (Math.abs(curvatureAt(t, s)) < CURB_K) continue
++      const p = placeAt(t, s, side * CURB_LATERAL)
++      out.push({ s, side, red: k % 2 === 0, x: p.x, z: p.z, yaw: p.heading })
++    }
++  }
++  return out
++}
++
++/** 離中心線不到 min 就沿「最近中心線點 → 該點」方向往外推（最多 6 次），再夾在桌墊內 */
++export function pushClear(t: Track, x: number, z: number, min: number): { x: number; z: number } {
++  let px = x
++  let pz = z
++  for (let i = 0; i < 6; i++) {
++    const p = trackProgress(t, px, pz)
++    const d = Math.abs(p.lateral)
++    if (d >= min) break
++    const c = pointAt(t, p.s)
++    let dx = px - c.x
++    let dz = pz - c.z
++    const l = Math.hypot(dx, dz)
++    if (l < 1e-6) {
++      dx = Math.cos(c.heading)
++      dz = -Math.sin(c.heading)
++    } else {
++      dx /= l
++      dz /= l
++    }
++    const step = min - d + 0.5
++    px += dx * step
++    pz += dz * step
++  }
++  return { x: Math.max(-GROUND.x, Math.min(GROUND.x, px)), z: Math.max(-GROUND.z, Math.min(GROUND.z, pz)) }
++}
++
++export interface BlockSpot extends Spot {
++  y: number
++  kind: '2x2' | '2x4'
++  color: 0 | 1 | 2 | 3
++}
++
++/** 積木群：中心、層數（第 L 層 layers − L 塊，往上收成小塔）；前 4 群是 spec 指定的位置 */
++const BLOCK_GROUPS: { x: number; z: number; layers: number }[] = [
++  { x: -30, z: -40, layers: 3 },
++  { x: 40, z: 20, layers: 2 },
++  { x: 52, z: 80, layers: 2 },
++  { x: -86, z: -84, layers: 2 },
++  { x: 94, z: -62, layers: 2 },
++  { x: 94, z: 20, layers: 2 },
++  { x: 94, z: 62, layers: 1 },
++  { x: -94, z: 50, layers: 2 },
++  { x: -94, z: 12, layers: 1 },
++  { x: -50, z: 84, layers: 2 },
++  { x: -10, z: 84, layers: 1 },
++  { x: 86, z: -86, layers: 2 },
++  { x: 96, z: -24, layers: 1 },
++  { x: -40, z: 30, layers: 2 },
++  { x: -60, z: -40, layers: 1 },
++]
++
++export function blockSpots(t: Track): BlockSpot[] {
++  const out: BlockSpot[] = []
++  BLOCK_GROUPS.forEach((g, gi) => {
++    const c = pushClear(t, g.x, g.z, DECOR_CLEAR + 3)
++    const yaw = (gi % 4) * (Math.PI / 4)
++    const ax = Math.cos(yaw)
++    const az = -Math.sin(yaw)
++    for (let L = 0; L < g.layers; L++) {
++      const n = g.layers - L
++      for (let i = 0; i < n; i++) {
++        const off = (i - (n - 1) / 2) * 2.1
++        const kind = (gi + L + i) % 3 === 0 ? '2x4' : '2x2'
++        out.push({
++          x: c.x + ax * off,
++          z: c.z + az * off,
++          y: L * BLOCK_H,
++          yaw: yaw + (L % 2) * (Math.PI / 2),
++          kind,
++          color: ((gi + L * 2 + i) % 4) as 0 | 1 | 2 | 3,
++        })
++      }
++    }
++  })
++  return out
++}
++
++/** spec 稿上 12 棵＋場外與內野補 12 棵 */
++const TREES: [number, number][] = [
++  [-50, -40], [-20, -30], [2, -42], [36, -26], [32, 34], [-58, 18], [-40, 22], [62, 60], [-88, 30], [88, -10], [10, 80], [-60, -84],
++  [-95, -60], [95, 40], [-30, 86], [60, -88], [-95, 80], [95, -40], [0, 30], [-55, 60], [80, 86], [-15, -88], [40, -45], [-70, 40],
++]
++
++export function treeSpots(t: Track): Spot[] {
++  return TREES.map(([x, z], i) => ({ ...pushClear(t, x, z, DECOR_CLEAR), yaw: i * 0.7 }))
++}
++
++/** 三角錐：T2 髮夾外側（右 +8.5）s 228–252 每 3.4、T3 外側（左 −8.5）s 322–334 每 4 */
++export function coneSpots(t: Track): Spot[] {
++  const out: Spot[] = []
++  for (let i = 0; i < 8; i++) {
++    const p = placeAt(t, 228 + i * 3.4, 8.5)
++    out.push({ x: p.x, z: p.z, yaw: p.heading })
++  }
++  for (let i = 0; i < 4; i++) {
++    const p = placeAt(t, 322 + i * 4, -8.5)
++    out.push({ x: p.x, z: p.z, yaw: p.heading })
++  }
++  return out
++}
++
++/** 看台座標系：原點在前緣中心，x 沿行進方向、+z 遠離賽道（左側）；yaw 對應 fx/geometry 的 Trs */
++export function standPose(t: Track): Spot & { len: number } {
++  const p = placeAt(t, STAND.s, STAND.front)
++  return { x: p.x, z: p.z, yaw: p.heading - Math.PI / 2, len: STAND.len }
++}
++
++/** 看台座標 → 世界（Trs 的 yaw：local x → (cos, −sin)，local z → (sin, cos)） */
++function standToWorld(pose: Spot, lx: number, lz: number): { x: number; z: number } {
++  const c = Math.cos(pose.yaw)
++  const s = Math.sin(pose.yaw)
++  return { x: pose.x + lx * c + lz * s, z: pose.z - lx * s + lz * c }
++}
++
++export interface CrowdSpot extends Spot {
++  y: number
++  color: number
++}
++
++/** 觀眾：3 階 × 每 1.1 一個，站在各階頂面中線 */
++export function crowdSpots(t: Track): CrowdSpot[] {
++  const pose = standPose(t)
++  const out: CrowdSpot[] = []
++  const per = Math.floor(pose.len / 1.1)
++  for (let tier = 0; tier < 3; tier++) {
++    for (let i = 0; i < per; i++) {
++      const lx = -pose.len / 2 + 0.55 + i * 1.1
++      const w = standToWorld(pose, lx, 1 + tier * 2)
++      out.push({ ...w, y: BLOCK_H * (tier + 1), yaw: pose.yaw, color: (i * 3 + tier) % 5 })
++    }
++  }
++  return out
++}
++
++/** 看台屋頂旗子：旗桿頂端世界座標（旗面左緣掛在這） */
++export function flagSpots(t: Track): (Spot & { y: number })[] {
++  const pose = standPose(t)
++  return flagPoles(pose.len).map((p) => ({ ...standToWorld(pose, p.x, p.z), y: p.y - 0.4, yaw: pose.yaw }))
++}
++
++/** 起跑拱門：s = 0 中心、x 橫跨賽道 */
++export function archPose(t: Track): Spot {
++  const p = pointAt(t, 0)
++  return { x: p.x, z: p.z, yaw: p.heading }
++}
++
++/** 跳台：從 s0 的中心線點朝 s1 擺，長度 = 兩點距離 */
++export function rampPose(t: Track, s0: number, s1: number): Spot & { len: number } {
++  const a = pointAt(t, s0)
++  const b = pointAt(t, s1)
++  return { x: a.x, z: a.z, yaw: Math.atan2(b.x - a.x, b.z - a.z), len: Math.hypot(b.x - a.x, b.z - a.z) }
++}
++
++/** 道具箱浮動：y 1.1 ± 0.15（週期 1.6s，相位依 id 錯開 0.4s）、每秒轉 1.4 rad、斜放 0.35 */
++export function boxPose(id: number, tSec: number): { y: number; yaw: number; pitch: number } {
++  const ph = tSec + id * 0.4
++  return { y: 1.1 + 0.15 * Math.sin((ph / 1.6) * Math.PI * 2), yaw: ph * 1.4, pitch: 0.35 }
++}
+diff --git a/src/babylon/games/raceFx/textures.ts b/src/babylon/games/raceFx/textures.ts
+new file mode 100644
+index 0000000..4deeb21
+--- /dev/null
++++ b/src/babylon/games/raceFx/textures.ts
+@@ -0,0 +1,274 @@
++/**
++ * A「Toy Racer」程式貼圖（spec §4.3／§10，DynamicTexture + Canvas 2D，不新增圖檔）：
++ * 桌墊、木桌、路面、起跑格、道具箱圖集、跳台斜紋、加速帶箭頭、拱門橫幅、「你」標記、blob 影。
++ * 粒子與火花芯重用 public/battle/bomber/fx_*.webp 原路徑。
++ */
++import { DynamicTexture, Texture, type Scene } from '@/babylon/babylonCore'
++import { ctxOf, roundRect, whenFontReady, type Ctx } from '@/babylon/fx/textures'
++import { OUTLINE } from '@/babylon/fx/palette'
++import { BOX_FACE_COLORS, RACE } from '@/babylon/games/raceFx/palette'
++
++const dyn = (scene: Scene, name: string, w: number, h: number, alpha = false): DynamicTexture => {
++  const tex = new DynamicTexture(name, { width: w, height: h }, scene, true, Texture.TRILINEAR_SAMPLINGMODE)
++  tex.hasAlpha = alpha
++  return tex
++}
++
++/** 粒子貼圖（bomber 的 fx_*.webp，原路徑） */
++export const fxAssetUrl = (file: string): string => `${import.meta.env.BASE_URL}battle/bomber/${file}`
++
++/** 桌墊：10 單位一大格的奶茶色棋盤、每 2 單位細線、每 10 單位粗線、四邊圓角包邊、左下角尺規刻度 */
++export function createMatTexture(scene: Scene, worldW: number, worldH: number, size = 1024): DynamicTexture {
++  const tex = dyn(scene, 'race-mat-tex', size, size)
++  const g = ctxOf(tex)
++  const kx = size / worldW
++  const kz = size / worldH
++  for (let i = 0; i < worldW / 10; i++) {
++    for (let j = 0; j < worldH / 10; j++) {
++      g.fillStyle = (i + j) % 2 === 0 ? RACE.matA : RACE.matB
++      g.fillRect(i * 10 * kx, j * 10 * kz, 10 * kx + 1, 10 * kz + 1)
++    }
++  }
++  g.fillStyle = RACE.matLine
++  for (let x = 0; x <= worldW; x += 2) g.fillRect(x * kx, 0, 1, size)
++  for (let z = 0; z <= worldH; z += 2) g.fillRect(0, z * kz, size, 1)
++  g.fillStyle = RACE.matMajor
++  for (let x = 0; x <= worldW; x += 10) g.fillRect(x * kx - 1, 0, 2, size)
++  for (let z = 0; z <= worldH; z += 10) g.fillRect(0, z * kz - 1, size, 2)
++  // 包邊
++  const b = 1.5 * kx
++  g.lineWidth = b
++  g.strokeStyle = RACE.matMajor
++  roundRect(g, b / 2, b / 2, size - b, size - b, b * 2)
++  g.stroke()
++  // 尺規刻度（左下角，純裝飾）
++  g.fillStyle = RACE.matMajor
++  for (let i = 0; i < 30; i++) g.fillRect(b * 2 + i * kx, size - b * 2 - (i % 5 === 0 ? 14 : 7), 1.5, i % 5 === 0 ? 14 : 7)
++  tex.update()
++  return tex
++}
++
++/** 木桌：table 底＋6 條縱向木紋（WRAP 重複） */
++export function createTableTexture(scene: Scene): DynamicTexture {
++  const S = 256
++  const tex = dyn(scene, 'race-table-tex', S, S)
++  const g = ctxOf(tex)
++  g.fillStyle = RACE.table
++  g.fillRect(0, 0, S, S)
++  g.fillStyle = RACE.tableGrain
++  for (let i = 0; i < 6; i++) g.fillRect(i * 43 + 8, 0, 3 + (i % 3) * 2, S)
++  g.globalAlpha = 0.35
++  for (let i = 0; i < 6; i++) g.fillRect(i * 43 + 26, 0, 1, S)
++  g.globalAlpha = 1
++  tex.update()
++  tex.wrapU = Texture.WRAP_ADDRESSMODE
++  tex.wrapV = Texture.WRAP_ADDRESSMODE
++  return tex
++}
++
++/** 路面 128×256（一格 = 沿線 8 單位）：深紫灰底、拼接縫＋兩個凸榫、兩側內緣白線 */
++export function createRoadTexture(scene: Scene): DynamicTexture {
++  const W = 128
++  const H = 256
++  const tex = dyn(scene, 'race-road-tex', W, H)
++  const g = ctxOf(tex)
++  g.fillStyle = RACE.road
++  g.fillRect(0, 0, W, H)
++  g.fillStyle = RACE.roadSeam
++  g.fillRect(0, 0, W, 3)
++  for (const cx of [W * 0.3, W * 0.7]) {
++    g.beginPath()
++    g.arc(cx, 3, 9, 0, Math.PI)
++    g.fill()
++  }
++  g.fillStyle = RACE.roadEdge
++  g.fillRect(4, 0, 6, H)
++  g.fillRect(W - 10, 0, 6, H)
++  tex.update()
++  tex.wrapU = Texture.CLAMP_ADDRESSMODE
++  tex.wrapV = Texture.WRAP_ADDRESSMODE
++  tex.anisotropicFilteringLevel = 8
++  return tex
++}
++
++/** 起跑線 128×32：2 列 × 8 欄黑白格 */
++export function createStartTexture(scene: Scene): DynamicTexture {
++  const tex = dyn(scene, 'race-start-tex', 128, 32)
++  const g = ctxOf(tex)
++  for (let i = 0; i < 8; i++) {
++    for (let j = 0; j < 2; j++) {
++      g.fillStyle = (i + j) % 2 === 0 ? RACE.startA : RACE.startB
++      g.fillRect(i * 16, j * 16, 16, 16)
++    }
++  }
++  tex.update()
++  return tex
++}
++
++const shadeHex = (hex: string, k: number): string => {
++  const n = parseInt(hex.slice(1), 16)
++  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v * k))
++  return `rgb(${c[0]},${c[1]},${c[2]})`
++}
++
++/** 道具箱圖集 1024×256：4 格各一種底色＋暗框＋白「?」深紫描邊 */
++export function createBoxAtlas(scene: Scene): DynamicTexture {
++  const T = 256
++  const tex = dyn(scene, 'race-box-atlas', T * 4, T)
++  const draw = (): void => {
++    const g = ctxOf(tex)
++    BOX_FACE_COLORS.forEach((c, i) => {
++      const x = i * T
++      g.fillStyle = shadeHex(c, 0.75)
++      g.fillRect(x, 0, T, T)
++      g.fillStyle = c
++      roundRect(g, x + 18, 18, T - 36, T - 36, 30)
++      g.fill()
++      g.font = '700 190px Fredoka, sans-serif'
++      g.textAlign = 'center'
++      g.textBaseline = 'middle'
++      g.lineJoin = 'round'
++      g.lineWidth = 20
++      g.strokeStyle = OUTLINE
++      g.strokeText('?', x + T / 2, T / 2 + 10)
++      g.fillStyle = '#FFFFFF'
++      g.fillText('?', x + T / 2, T / 2 + 10)
++    })
++    tex.update()
++  }
++  whenFontReady('700 190px Fredoka', tex, draw)
++  return tex
++}
++
++/** 跳台 128×128：上 7/8 黃底 45° 深紫斜紋（頂面）、下 1/8 純白（側面／唇口用頂點色） */
++export function createRampTexture(scene: Scene): DynamicTexture {
++  const S = 128
++  const tex = dyn(scene, 'race-ramp-tex', S, S)
++  const g = ctxOf(tex)
++  const top = S - S / 8
++  g.fillStyle = RACE.ramp
++  g.fillRect(0, 0, S, top)
++  g.save()
++  g.beginPath()
++  g.rect(0, 0, S, top)
++  g.clip()
++  g.fillStyle = RACE.rampStripe
++  for (let k = -S; k < S * 2; k += 32) {
++    g.beginPath()
++    g.moveTo(k, 0)
++    g.lineTo(k + 14, 0)
++    g.lineTo(k + 14 - top, top)
++    g.lineTo(k - top, top)
++    g.closePath()
++    g.fill()
++  }
++  g.restore()
++  g.fillStyle = '#FFFFFF'
++  g.fillRect(0, top, S, S - top)
++  tex.update()
++  return tex
++}
++
++/** 加速帶箭頭 64×128：boostPad 底＋3 個 boostArrow V 形（v 方向 WRAP 捲動） */
++export function createPadTexture(scene: Scene): DynamicTexture {
++  const W = 64
++  const H = 128
++  const tex = dyn(scene, 'race-pad-tex', W, H)
++  const g = ctxOf(tex)
++  g.fillStyle = RACE.boostPad
++  g.fillRect(0, 0, W, H)
++  g.strokeStyle = RACE.boostArrow
++  g.lineWidth = 9
++  g.lineCap = 'round'
++  g.lineJoin = 'round'
++  for (let i = 0; i < 3; i++) {
++    const y = 22 + i * 42
++    g.beginPath()
++    g.moveTo(12, y + 16)
++    g.lineTo(W / 2, y)
++    g.lineTo(W - 12, y + 16)
++    g.stroke()
++  }
++  tex.update()
++  tex.wrapU = Texture.CLAMP_ADDRESSMODE
++  tex.wrapV = Texture.WRAP_ADDRESSMODE
++  return tex
++}
++
++/** 拱門橫幅 1024×96：奶油底、兩端黑白格、中間 A TOY RACER */
++export function createBannerTexture(scene: Scene): DynamicTexture {
++  const W = 1024
++  const H = 96
++  const tex = dyn(scene, 'race-banner-tex', W, H)
++  const draw = (): void => {
++    const g = ctxOf(tex)
++    g.fillStyle = RACE.banner
++    g.fillRect(0, 0, W, H)
++    for (const x0 of [0, W - 96]) {
++      for (let i = 0; i < 4; i++) {
++        for (let j = 0; j < 4; j++) {
++          g.fillStyle = (i + j) % 2 === 0 ? '#FFFFFF' : OUTLINE
++          g.fillRect(x0 + i * 24, j * 24, 24, 24)
++        }
++      }
++    }
++    g.font = '700 70px Fredoka, sans-serif'
++    g.textAlign = 'center'
++    g.textBaseline = 'middle'
++    g.fillStyle = OUTLINE
++    g.fillText('A TOY RACER', W / 2, H / 2 + 4)
++    tex.update()
++  }
++  whenFontReady('700 70px Fredoka', tex, draw)
++  return tex
++}
++
++/** 「你」標記 128×96：上 64px 玩家色膠囊白字、下 32px 倒三角（指向安全帽） */
++export function createYouTexture(scene: Scene, bg: string): DynamicTexture {
++  const W = 128
++  const H = 96
++  const tex = dyn(scene, 'race-you-tex', W, H, true)
++  const draw = (): void => {
++    const g: Ctx = ctxOf(tex)
++    g.clearRect(0, 0, W, H)
++    g.lineWidth = 5
++    g.strokeStyle = OUTLINE
++    g.fillStyle = bg
++    g.beginPath()
++    g.moveTo(W / 2 - 16, 58)
++    g.lineTo(W / 2 + 16, 58)
++    g.lineTo(W / 2, 90)
++    g.closePath()
++    g.fill()
++    g.stroke()
++    roundRect(g, 4, 4, W - 8, 56, 28)
++    g.fill()
++    g.stroke()
++    g.font = '900 38px Fredoka, "Noto Sans TC", sans-serif'
++    g.textAlign = 'center'
++    g.textBaseline = 'middle'
++    g.lineWidth = 6
++    g.strokeText('你', W / 2, 34)
++    g.fillStyle = '#FFFFFF'
++    g.fillText('你', W / 2, 34)
++    tex.update()
++  }
++  whenFontReady('900 38px Fredoka', tex, draw)
++  return tex
++}
++
++/** blob 影 64²：深紫徑向漸層 30% → 0 */
++export function createBlobTexture(scene: Scene): DynamicTexture {
++  const S = 64
++  const tex = dyn(scene, 'race-blob-tex', S, S, true)
++  const g = ctxOf(tex)
++  g.clearRect(0, 0, S, S)
++  const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2)
++  gr.addColorStop(0, 'rgba(43,36,64,0.42)')
++  gr.addColorStop(0.6, 'rgba(43,36,64,0.28)')
++  gr.addColorStop(1, 'rgba(43,36,64,0)')
++  g.fillStyle = gr
++  g.fillRect(0, 0, S, S)
++  tex.update()
++  return tex
++}
+diff --git a/src/babylon/games/raceFx/world.ts b/src/babylon/games/raceFx/world.ts
+new file mode 100644
+index 0000000..9390e63
+--- /dev/null
++++ b/src/babylon/games/raceFx/world.ts
+@@ -0,0 +1,462 @@
++/**
++ * A「Toy Racer」場景（spec §4.2／§4.3）：桌墊＋木桌、路面、起跑線＋拱門、紅白路緣、看台與觀眾、旗子、積木、樹、錐、
++ * 跳台、固定加速帶、道具箱（浮動旋轉、問號圖集）、香蕉／龜殼、blob 影、暫用甩尾火花。
++ * 同形狀的東西一律 thin instance（1 個 draw call），遊戲邏輯留在 race.ts，這裡只管畫。
++ */
++import { Color3, Mesh, MeshBuilder, StandardMaterial, type DynamicTexture, type Material, type Scene } from '@/babylon/babylonCore'
++import { composeMatrix, type MeshData, type Trs } from '@/babylon/fx/geometry'
++import { rgba, toMesh, type Rgba } from '@/babylon/fx/models'
++import { ThinGroup } from '@/babylon/fx/thin'
++import { ThinSlots } from '@/babylon/fx/thinSlots'
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import type { Course } from '@/babylon/games/raceRules/track'
++import type { ItemBox } from '@/babylon/games/raceRules/items'
++import { JUMP_H, PAD_HALF_LEN, PAD_HALF_W, RAMP_HALF_W } from '@/babylon/games/raceRules/drive'
++import {
++  archData,
++  bananaData,
++  bannerData,
++  blockData,
++  boxData,
++  coneData,
++  crowdData,
++  curbData,
++  flagData,
++  rampData,
++  shellData,
++  standData,
++  treeData,
++} from '@/babylon/games/raceFx/models'
++import { RACE } from '@/babylon/games/raceFx/palette'
++import { roadStrip } from '@/babylon/games/raceFx/raceGeom'
++import {
++  archPose,
++  blockSpots,
++  boxPose,
++  coneSpots,
++  crowdSpots,
++  curbSpots,
++  flagSpots,
++  rampPose,
++  standPose,
++  treeSpots,
++} from '@/babylon/games/raceFx/scenery'
++import {
++  createBannerTexture,
++  createBlobTexture,
++  createBoxAtlas,
++  createMatTexture,
++  createPadTexture,
++  createRampTexture,
++  createRoadTexture,
++  createStartTexture,
++  createTableTexture,
++} from '@/babylon/games/raceFx/textures'
++
++/** 光影登記用：依用途分好的 mesh 與材質（ToyLook 用） */
++export interface WorldFxTargets {
++  toon: Material[]
++  receivers: Mesh[]
++  casters: Mesh[]
++  outlined: Mesh[]
++  glow: { mesh: Mesh; color: string; strength: number }[]
++  /** 用自己材質顏色發光的 mesh（道具箱：4 種面色各自發光，不是一片白暈） */
++  glowOwn: { mesh: Mesh; strength: number }[]
++}
++
++export interface WorldItem {
++  id: string
++  kind: 'banana' | 'shell'
++  x: number
++  z: number
++}
++
++export interface WorldOptions {
++  /** 桌墊貼圖邊長（手機可降 512） */
++  matSize: number
++  /** 觀眾彈跳（手機關） */
++  crowdHop: boolean
++  /** 暫用火花池上限 */
++  sparkCap: number
++}
++
++const ROAD_Y = 0.02
++const BLOB_Y = 0.045
++const SPARK_LIFE = 0.3
++const CROWD_COLORS = [...PLAYER_PALETTE.map((p) => p.base), RACE.roadEdge]
++
++/** 平貼地面的四邊形（法線朝上），x 寬 w、z 長 d，uv 從 (0,0) 到 (1,1) */
++function flatQuad(w: number, d: number): MeshData {
++  const x = w / 2
++  const z = d / 2
++  return {
++    positions: [-x, 0, -z, x, 0, -z, x, 0, z, -x, 0, z],
++    normals: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
++    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
++    indices: [0, 1, 2, 0, 2, 3],
++  }
++}
++
++/** 一次寫好的 thin instance（靜態場景物件）；回傳 matrix buffer 供動畫物件逐幀改寫 */
++function setThin(mesh: Mesh, trs: Trs[], colors?: Rgba[], dynamic = false): Float32Array {
++  const m = new Float32Array(Math.max(1, trs.length) * 16)
++  trs.forEach((t, i) => composeMatrix(m, i * 16, t))
++  mesh.thinInstanceSetBuffer('matrix', m, 16, !dynamic)
++  if (colors) {
++    const c = new Float32Array(colors.length * 4)
++    colors.forEach((col, i) => c.set(col, i * 4))
++    mesh.thinInstanceSetBuffer('color', c, 4, true)
++  }
++  mesh.thinInstanceRefreshBoundingInfo(false)
++  if (dynamic) mesh.alwaysSelectAsActiveMesh = true
++  return m
++}
++
++export class RaceWorld {
++  readonly boxes: ThinGroup<number>
++  readonly blobs: ThinGroup<string>
++  readonly bananas: ThinGroup<string>
++  readonly shells: ThinGroup<string>
++  private readonly sparks: ThinGroup<number>
++  private readonly sparkColors: ThinSlots<number>
++  private sparkColorVersion = -1
++  private sparkList: { key: number; x: number; y: number; z: number; vy: number; life: number }[] = []
++  private sparkSeq = 0
++  private readonly scene: Scene
++  private readonly opts: WorldOptions
++  private readonly meshes: Mesh[] = []
++  private readonly mats: StandardMaterial[] = []
++  private readonly lit: StandardMaterial[] = []
++  private readonly fx: WorldFxTargets = { toon: [], receivers: [], casters: [], outlined: [], glow: [], glowOwn: [] }
++  private readonly boxList: ItemBox[]
++  private padTex!: DynamicTexture
++  private flagMesh!: Mesh
++  private flagBuf!: Float32Array
++  private flagTrs: Trs[] = []
++  private crowdMesh!: Mesh
++  private crowdBuf!: Float32Array
++  private crowdTrs: Trs[] = []
++  private crowdHopUntil: number[] = []
++  private nextHop = 0
++  private hopSeed = 0x2545f491
++
++  constructor(scene: Scene, course: Course, boxes: ItemBox[], opts: WorldOptions) {
++    this.scene = scene
++    this.opts = opts
++    this.boxList = boxes
++    const t = course.track
++
++    // 桌墊＋木桌
++    const ground = MeshBuilder.CreateGround('race-mat', { width: course.bound.x * 2, height: course.bound.z * 2 }, scene)
++    ground.material = this.mat('mat', { tex: createMatTexture(scene, course.bound.x * 2, course.bound.z * 2, opts.matSize) })
++    this.add(ground, { receive: true })
++    const table = MeshBuilder.CreateGround('race-table', { width: 600, height: 600 }, scene)
++    table.position.y = -0.05
++    const tableTex = createTableTexture(scene)
++    tableTex.uScale = 12
++    tableTex.vScale = 12
++    // disableLighting 下輸出 = clamp(emissiveColor + emissiveTexture·level)：emissiveColor 留黑、亮度 0.85 走貼圖 level（加 0.85 會整片洗白）
++    tableTex.level = 0.85
++    const tm = this.mat('table', { emissiveTex: tableTex, lit: false })
++    table.material = tm
++    this.add(table)
++
++    // 路面（每 8 單位一格貼圖）
++    const road = toMesh('race-road', roadStrip(t, t.width / 2, ROAD_Y, 1 / 8), scene)
++    const rm = this.mat('road', { tex: createRoadTexture(scene) })
++    rm.backFaceCulling = false
++    road.material = rm
++    this.add(road, { receive: true })
++
++    // 起跑線＋拱門＋橫幅
++    const ap = archPose(t)
++    const start = toMesh('race-start', flatQuad(t.width, 1.4), scene)
++    start.position.set(ap.x, 0.03, ap.z)
++    start.rotation.y = ap.yaw
++    start.material = this.mat('start', { tex: createStartTexture(scene) })
++    this.add(start, { receive: true })
++    const arch = toMesh('race-arch', archData(), scene)
++    arch.position.set(ap.x, 0, ap.z)
++    arch.rotation.y = ap.yaw
++    const archMat = this.mat('arch', {})
++    archMat.backFaceCulling = false
++    arch.material = archMat
++    // 描邊只描車、道具與道具箱（brief AC10；spec §5 的拱門描邊依 brief 拿掉）
++    this.add(arch)
++    const banner = toMesh('race-banner', bannerData(15, 1.2), scene)
++    banner.parent = arch
++    banner.position.set(0, 5.3, 0)
++    const bannerMat = this.mat('banner', { tex: createBannerTexture(scene) })
++    banner.material = bannerMat
++    // 橫幅貼在橫樑兩面外側一點
++    const bannerBack = banner.clone('race-banner-b', arch)
++    banner.position.z = -0.42
++    bannerBack.position.z = 0.42
++    this.add(banner)
++    this.add(bannerBack)
++
++    // 紅白路緣（|κ| ≥ 1/40 的路段）
++    const curbs = curbSpots(t)
++    const curb = toMesh('race-curb', curbData(), scene)
++    curb.material = this.mat('curb', {})
++    setThin(
++      curb,
++      curbs.map((c) => ({ x: c.x, y: ROAD_Y, z: c.z, yaw: c.yaw })),
++      curbs.map((c) => rgba(c.red ? RACE.curbRed : RACE.curbWhite))
++    )
++    this.add(curb, { receive: true })
++
++    // 看台＋觀眾＋旗子
++    const sp = standPose(t)
++    const stand = toMesh('race-stand', standData(sp.len), scene)
++    stand.position.set(sp.x, 0, sp.z)
++    stand.rotation.y = sp.yaw
++    stand.material = this.mat('stand', {})
++    this.add(stand)
++    const crowd = crowdSpots(t)
++    this.crowdMesh = toMesh('race-crowd', crowdData(), scene)
++    this.crowdMesh.material = this.mat('crowd', {})
++    this.crowdTrs = crowd.map((c) => ({ x: c.x, y: c.y, z: c.z, yaw: c.yaw }))
++    this.crowdHopUntil = crowd.map(() => 0)
++    this.crowdBuf = setThin(
++      this.crowdMesh,
++      this.crowdTrs,
++      crowd.map((c) => rgba(CROWD_COLORS[c.color])),
++      opts.crowdHop
++    )
++    this.add(this.crowdMesh)
++    const flags = flagSpots(t)
++    this.flagMesh = toMesh('race-flag', flagData(), scene)
++    const fm = this.mat('flag', {})
++    fm.backFaceCulling = false
++    this.flagMesh.material = fm
++    this.flagTrs = flags.map((f) => ({ x: f.x, y: f.y, z: f.z, yaw: f.yaw }))
++    this.flagBuf = setThin(
++      this.flagMesh,
++      this.flagTrs,
++      flags.map((_, i) => rgba(PLAYER_PALETTE[i % 4].base)),
++      true
++    )
++    this.add(this.flagMesh)
++
++    // 場邊積木（2 種形狀各 1 組）、棒棒糖樹、三角錐
++    const blocks = blockSpots(t)
++    for (const kind of ['2x2', '2x4'] as const) {
++      const list = blocks.filter((b) => b.kind === kind)
++      const mesh = toMesh(`race-block-${kind}`, blockData(kind), scene)
++      mesh.material = this.mat(`block-${kind}`, {})
++      setThin(
++        mesh,
++        list.map((b) => ({ x: b.x, y: b.y, z: b.z, yaw: b.yaw })),
++        list.map((b) => rgba(RACE.block[b.color]))
++      )
++      this.add(mesh)
++    }
++    const trees = toMesh('race-tree', treeData(), scene)
++    trees.material = this.mat('tree', {})
++    setThin(
++      trees,
++      treeSpots(t).map((p, i) => ({ x: p.x, y: 0, z: p.z, yaw: p.yaw, sx: 0.9 + (i % 3) * 0.12, sy: 0.9 + (i % 4) * 0.08, sz: 0.9 + (i % 3) * 0.12 }))
++    )
++    this.add(trees)
++    const cones = toMesh('race-cone', coneData(), scene)
++    cones.material = this.mat('cone', {})
++    setThin(
++      cones,
++      coneSpots(t).map((c) => ({ x: c.x, y: 0, z: c.z, yaw: c.yaw }))
++    )
++    this.add(cones)
++
++    // 跳台（收陰影、不投影：投影只限車與道具）
++    for (const [i, [s0, s1]] of course.jumps.entries()) {
++      const rp = rampPose(t, s0, s1)
++      const ramp = toMesh(`race-ramp-${i}`, rampData(rp.len, RAMP_HALF_W * 2, JUMP_H), scene)
++      ramp.position.set(rp.x, 0, rp.z)
++      ramp.rotation.y = rp.yaw
++      const m = this.mat(`ramp-${i}`, { tex: createRampTexture(scene) })
++      m.backFaceCulling = false
++      ramp.material = m
++      this.add(ramp, { receive: true })
++    }
++
++    // 固定加速帶：箭頭往前捲動，自發光、進 Glow
++    this.padTex = createPadTexture(scene)
++    const pads = toMesh('race-pads', flatQuad(PAD_HALF_W * 2, PAD_HALF_LEN * 2), scene)
++    const pm = this.mat('pad', { emissiveTex: this.padTex, lit: false })
++    pads.material = pm
++    setThin(
++      pads,
++      course.pads.map((p) => ({ x: p.x, y: 0.035, z: p.z, yaw: p.heading }))
++    )
++    this.add(pads, { glow: { color: RACE.boostPad, strength: 0.55 } })
++
++    // 道具箱（12）＋ blob 影（道具箱常駐、車在陰影被降級後才墊）
++    this.boxes = new ThinGroup<number>(toMesh('race-boxes', boxData(), scene), boxes.length)
++    this.boxes.mesh.material = this.mat('box', { tex: createBoxAtlas(scene) })
++    this.add(this.boxes.mesh, { cast: true, outline: true })
++    this.fx.glowOwn.push({ mesh: this.boxes.mesh, strength: 0.35 })
++    this.blobs = new ThinGroup<string>(toMesh('race-blobs', flatQuad(1, 1), scene), 16)
++    const bm = this.mat('blob', { tex: createBlobTexture(scene), lit: false })
++    bm.useAlphaFromDiffuseTexture = true
++    // disableLighting：輸出 = clamp(emissive) × 貼圖色，emissive 白才是貼圖的深紫（留黑會變純黑）
++    bm.emissiveColor = Color3.White()
++    bm.zOffset = -2
++    this.blobs.mesh.material = bm
++    this.meshes.push(this.blobs.mesh)
++
++    // 香蕉、龜殼（host 生成，各端畫）
++    this.bananas = new ThinGroup<string>(toMesh('race-bananas', bananaData(), scene), 8)
++    this.bananas.mesh.material = this.mat('banana', {})
++    this.add(this.bananas.mesh, { cast: true, outline: true })
++    this.shells = new ThinGroup<string>(toMesh('race-shells', shellData(), scene), 4)
++    this.shells.mesh.material = this.mat('shell', {})
++    this.add(this.shells.mesh, { cast: true, outline: true, glow: { color: '#E8413A', strength: 0.45 } })
++
++    // 暫用甩尾火花（波 4 換 spec 特效表的粒子）：小方塊 thin instance＋實例色
++    this.sparks = new ThinGroup<number>(MeshBuilder.CreateBox('race-sparks', { size: 0.14 }, scene), opts.sparkCap)
++    // disableLighting 下 diffuseBase = 0：輸出 = clamp(emissive) × 實例色，emissive 要白才看得到實例色（留黑會全黑）
++    const skm = this.mat('spark', { lit: false })
++    skm.emissiveColor = Color3.White()
++    this.sparks.mesh.material = skm
++    this.sparkColors = new ThinSlots<number>(opts.sparkCap, 4)
++    this.meshes.push(this.sparks.mesh)
++  }
++
++  private mat(name: string, o: { tex?: DynamicTexture; emissiveTex?: DynamicTexture; lit?: boolean }): StandardMaterial {
++    const m = new StandardMaterial(`race-${name}`, this.scene)
++    m.diffuseColor = Color3.White()
++    m.specularColor = new Color3(0.06, 0.06, 0.06)
++    if (o.tex) m.diffuseTexture = o.tex
++    if (o.emissiveTex) m.emissiveTexture = o.emissiveTex
++    if (o.lit === false) m.disableLighting = true
++    else this.lit.push(m)
++    this.mats.push(m)
++    return m
++  }
++
++  private add(
++    mesh: Mesh,
++    o: { receive?: boolean; cast?: boolean; outline?: boolean; glow?: { color: string; strength: number } } = {}
++  ): void {
++    mesh.isPickable = false
++    this.meshes.push(mesh)
++    if (o.receive) this.fx.receivers.push(mesh)
++    if (o.cast) this.fx.casters.push(mesh)
++    if (o.outline) this.fx.outlined.push(mesh)
++    if (o.glow) this.fx.glow.push({ mesh, ...o.glow })
++  }
++
++  fxTargets(): WorldFxTargets {
++    return { ...this.fx, toon: [...this.lit] }
++  }
++
++  /** 每幀：道具箱浮動與被撿走、香蕉／龜殼、加速帶箭頭、旗子、觀眾、火花，最後上傳所有 thin instance */
++  update(now: number, dt: number, taken: readonly number[], items: Iterable<WorldItem>): void {
++    const tSec = now / 1000
++    for (const b of this.boxList) {
++      if (taken.includes(b.id)) {
++        this.boxes.remove(b.id)
++        this.blobs.remove(`box-${b.id}`)
++        continue
++      }
++      const p = boxPose(b.id, tSec)
++      this.boxes.put(b.id, { x: b.x, y: p.y, z: b.z, yaw: p.yaw, pitch: p.pitch })
++      this.blobs.put(`box-${b.id}`, { x: b.x, y: BLOB_Y, z: b.z, sx: 1.4, sz: 1.4 })
++    }
++
++    const live = new Set<string>()
++    for (const it of items) {
++      live.add(it.id)
++      if (it.kind === 'banana') this.bananas.put(it.id, { x: it.x, y: 0, z: it.z, yaw: hashYaw(it.id) })
++      else this.shells.put(it.id, { x: it.x, y: 0.3, z: it.z, yaw: tSec * 10 })
++    }
++    for (const g of [this.bananas, this.shells]) for (const k of g.keys()) if (!live.has(k)) g.remove(k)
++
++    this.padTex.vOffset -= dt * 2.2
++
++    // 旗面擺動
++    this.flagTrs.forEach((f, i) => composeMatrix(this.flagBuf, i * 16, { ...f, yaw: (f.yaw ?? 0) + 0.25 * Math.sin(tSec * 3 + i) }))
++    this.flagMesh.thinInstanceBufferUpdated('matrix')
++
++    // 觀眾：每 0.6 s 隨機 20% 的人彈一下（手機檔靜止）
++    if (this.opts.crowdHop) {
++      if (now >= this.nextHop) {
++        this.nextHop = now + 600
++        for (let i = 0; i < this.crowdHopUntil.length; i++) if (this.rand() < 0.2) this.crowdHopUntil[i] = now + 300
++      }
++      this.crowdTrs.forEach((c, i) => {
++        const left = this.crowdHopUntil[i] - now
++        const lift = left > 0 ? 0.2 * Math.sin((Math.PI * left) / 300) : 0
++        composeMatrix(this.crowdBuf, i * 16, { ...c, y: c.y + lift })
++      })
++      this.crowdMesh.thinInstanceBufferUpdated('matrix')
++    }
++
++    this.updateSparks(dt)
++    for (const g of [this.boxes, this.blobs, this.bananas, this.shells]) g.sync()
++  }
++
++  /** 車的 blob 影（陰影被降級關掉、或 ghost 時拿掉） */
++  setCarBlob(id: string, x: number, z: number, on: boolean): void {
++    if (on) this.blobs.put(`car-${id}`, { x, y: BLOB_Y, z, sx: 1.9, sz: 2.4 })
++    else this.blobs.remove(`car-${id}`)
++  }
++
++  /** 暫用甩尾火花 */
++  spark(x: number, y: number, z: number, hex: string): void {
++    if (this.sparkList.length >= this.opts.sparkCap) return
++    const key = this.sparkSeq++
++    this.sparkList.push({ key, x, y, z, vy: 1.5, life: SPARK_LIFE })
++    this.sparkColors.add(key)
++    const c = rgba(hex)
++    this.sparkColors.write(key, (buf, o) => buf.set(c, o))
++  }
++
++  private updateSparks(dt: number): void {
++    this.sparkList = this.sparkList.filter((s) => {
++      s.life -= dt
++      if (s.life <= 0) {
++        this.sparks.remove(s.key)
++        this.sparkColors.remove(s.key)
++        return false
++      }
++      s.y += s.vy * dt
++      const k = s.life / SPARK_LIFE
++      this.sparks.put(s.key, { x: s.x, y: s.y, z: s.z, sx: k, sy: k, sz: k })
++      return true
++    })
++    this.sparks.sync()
++    const cs = this.sparkColors
++    if (!cs.dirty) return
++    if (this.sparkColorVersion !== cs.bufferVersion) {
++      this.sparks.mesh.thinInstanceSetBuffer('color', cs.buffer, 4, false)
++      this.sparkColorVersion = cs.bufferVersion
++    } else {
++      this.sparks.mesh.thinInstanceBufferUpdated('color')
++    }
++    cs.dirty = false
++  }
++
++  private rand(): number {
++    let s = this.hopSeed
++    s ^= s << 13
++    s ^= s >>> 17
++    s ^= s << 5
++    this.hopSeed = s
++    return ((s >>> 0) % 10000) / 10000
++  }
++
++  dispose(): void {
++    for (const m of this.meshes) m.dispose()
++    this.meshes.length = 0
++    for (const m of this.mats) m.dispose(true, true)
++    this.mats.length = 0
++    this.sparkList = []
++  }
++}
++
++const hashYaw = (id: string): number => {
++  let h = 0
++  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
++  return ((h >>> 0) % 628) / 100
++}
+

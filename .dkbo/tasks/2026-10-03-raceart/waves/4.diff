@@ -1,0 +1,3361 @@
+# 賽車美術＋可玩度（A Toy Racer） — wave 4 since 7b47f48 — 2026-10-04T02:07
+# files changed: 13 (working tree included)
+
+## commits
+
+## stat
+ src/babylon/games/race.ts                 | 396 +++++++++++---
+ src/babylon/games/raceFx/carPose.test.ts  |  13 +-
+ src/babylon/games/raceFx/carPose.ts       |  10 +
+ src/babylon/games/raceFx/carVisual.ts     |  17 +-
+ src/babylon/games/raceFx/effects.ts       | 881 ++++++++++++++++++++++++++++++
+ src/babylon/games/raceFx/fxModel.test.ts  | 276 ++++++++++
+ src/babylon/games/raceFx/fxModel.ts       | 246 +++++++++
+ src/babylon/games/raceFx/hudModel.test.ts | 101 ++++
+ src/babylon/games/raceFx/hudModel.ts      |  81 +++
+ src/babylon/games/raceFx/models.test.ts   |  14 +
+ src/babylon/games/raceFx/models.ts        |  17 +
+ src/babylon/games/raceFx/textures.ts      |  71 +++
+ src/babylon/games/raceFx/world.ts         | 139 +++--
+ 13 files changed, 2134 insertions(+), 128 deletions(-)
+
+## diff (-U10)
+diff --git a/src/babylon/games/race.ts b/src/babylon/games/race.ts
+index 09e7f41..8fecaa0 100644
+--- a/src/babylon/games/race.ts
++++ b/src/babylon/games/race.ts
+@@ -1,45 +1,49 @@
+ import { ArcRotateCamera, Color3, Color4, Scene, SceneInstrumentation, Vector3 } from '@/babylon/babylonCore'
+ import type { GameNetMessage } from '@/core/webrtc'
+ import type { GameContext, GameModule, GameOverlay, GamePlayer } from '@/babylon/types'
+ import { lerpAngle } from '@/babylon/math'
+-import { createCountdownPanel, createTextPanel, type TextPanel } from '@/babylon/hud'
++import { createCountdownPanel, type TextPanel } from '@/babylon/hud'
+ import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
+ import { COUNTDOWN_THEME } from '@/babylon/fx/countdown'
+ import { perfLogLine } from '@/babylon/fx/perfLog'
++import { fxRandom } from '@/babylon/fx/emitter'
+ import { tierQuery } from '@/babylon/fx/quality'
+ import { attachFlowAudio, engineStart, engineSet, engineStop, playSfx, stopAllAudio } from '@/babylon/audio'
+ import {
+   createFixedTicker,
+   createGameFlow,
+   createOwnershipSync,
+   createSnapshotBuffer,
+   type FixedTicker,
+   type GameFlow,
+   type OwnershipSync,
+   type SnapshotBuffer,
+ } from '@/babylon/net'
+ import { JUMP_S0, JUMP_S1, RACE_COURSE } from '@/babylon/games/raceRules/trackData'
+ import { LAPS, raceOver, sectorOf, trackProgress, normalizeProgress, wrapAngle } from '@/babylon/games/raceRules/track'
+ import {
+   BOOST_SPEED,
++  CAR_PUSH_DIST,
+   JUMP_G,
+   JUMP_H,
+   MAX_SPEED,
++  RESPAWN_GHOST_MS,
+   makeRacer,
+   rampY,
+   stepRacer,
+   type DriveInput,
+   type RacerState,
+ } from '@/babylon/games/raceRules/drive'
+ import {
+   BOX_RADIUS,
++  SPIN_MS,
+   applySpin,
+   boxLayout,
+   claimBox,
+   rollItem,
+   shellTarget,
+   takenBoxes,
+   touchedBox,
+   useItemSelf as applyItemSelf,
+   type HitCar,
+   type ItemKind,
+@@ -72,27 +76,42 @@ import {
+   makeLapClock,
+   stepLapClock,
+   type LapClock,
+   type LiveCar,
+   type StandingCar,
+ } from '@/babylon/games/raceFx/raceResult'
+ import { emptyField, spawnField, stepField, type FieldEvent, type ItemField } from '@/babylon/games/raceFx/raceField'
+ import { CarKit, disposeCarVisual, type CarVisual } from '@/babylon/games/raceFx/carVisual'
+ import { RaceWorld, type WorldItem } from '@/babylon/games/raceFx/world'
+ import { CHASE, initChase, snapGrid, stepChase, type ChaseMode, type ChaseState } from '@/babylon/games/raceFx/chaseCam'
+-import { bodyPose, remoteY, steerFromYaw } from '@/babylon/games/raceFx/carPose'
++import { bodyPose, remoteY, steerFromYaw, yawToward } from '@/babylon/games/raceFx/carPose'
+ import { benchEnabled, benchLayout } from '@/babylon/games/raceFx/bench'
+ import { WHEEL_R } from '@/babylon/games/raceFx/models'
+ import { DRIFT_COLORS, OUTLINE, RACE } from '@/babylon/games/raceFx/palette'
++import { RaceFx } from '@/babylon/games/raceFx/effects'
++import {
++  CLASH_SPEED,
++  clashKey,
++  finishEdges,
++  clashReady,
++  relSpeed,
++  shakeAllowed,
++  shakeAmp,
++  slipLook,
++  speedLineAlpha,
++  speedLineCap,
++} from '@/babylon/games/raceFx/fxModel'
++import { ROLL_MS, buildRaceHud, mapOutline, type RaceHudCarInput } from '@/babylon/games/raceFx/hudModel'
++import { archPose } from '@/babylon/games/raceFx/scenery'
+ 
+ /**
+- * 極速賽車 v3 — A Toy Racer（波 2 玩法、波 3 車輛／場景／光影／追尾相機；特效與 React HUD 在波 4）。
++ * 極速賽車 v3 — A Toy Racer（波 2 玩法、波 3 車輛／場景／光影／追尾相機、波 4 特效與 React HUD）。
+  *
+  * 同步模型：分散式所有權——每人本機模擬自己的車（零輸入延遲），20Hz 廣播 own 快照
+  * `{ x, z, ry, lap, cp, s, fin, ghost, drift, boost, spin, shield }`；他車插值。
+  * host 裁決道具箱、道具生成、命中（以最近收到的 own 快照為準）、bot 與結算；
+  * 規則全部在 raceRules／raceFx 純函式，這裡只接線與畫面。訊息表見 brief AC6b。
+  */
+ 
+ const SIM_HZ = 30
+ /** botState 廣播週期（20Hz） */
+ const BOT_STATE_MS = 50
+@@ -110,27 +129,32 @@ const RESULT_RESTART_MS = 10000
+ /** 陰影正交範圍半徑（spec §5：跟著自己的車走） */
+ const SHADOW_RADIUS = 22
+ /** 陰影中心量化格（避免每幀微移造成 shimmering） */
+ const SHADOW_SNAP = 4
+ /** AC14：每 2 秒印一次 draw calls 與 fps */
+ const PERF_LOG_MS = 2000
+ /** 斜坡上的車身俯仰（spec §1.4：−atan(JUMP_H / 6)） */
+ const RAMP_PITCH = -Math.atan(JUMP_H / 6)
+ /** 前輪轉向擺角（spec §4.1；甩尾時 ×1.3 反打） */
+ const FRONT_STEER = 0.42
+-/** 暫用火花：加速中的焰色（波 4 換噴焰特效） */
+-const FLAME = '#FFC53A'
+-const ITEM_LABEL: Record<ItemKind, string> = { banana: '香蕉', shell: '龜殼', mushroom: '加速菇', shield: '護盾' }
++/** 胎痕池（spec §8 #6：桌機 160、手機 80） */
++const SKID_CAP = { desktop: 160, mobile: 80 } as const
++/** 碰撞火花：兩車中心距離在推擠距離＋這個餘裕內才算撞到 */
++const CLASH_SLACK = 0.3
++/** 小地圖輪廓最多幾個點 */
++const MAP_PTS = 160
+ 
+ const COURSE = RACE_COURSE
+ const TRACK = COURSE.track
+ const BOXES = boxLayout(COURSE)
++/** 小地圖輪廓：開局算一次、之後原參照傳給 React（共用契約：map.pts 不變） */
++const HUD_PTS = mapOutline(TRACK.pts, MAP_PTS)
+ 
+ interface BotSim {
+   racer: RacerState
+   mind: BotMind
+   item: ItemKind | null
+   fin: number | null
+ }
+ 
+ /** 一台車在畫面上要用的姿態（自己、他車、bot 共用） */
+ interface CarPose {
+@@ -146,20 +170,28 @@ interface CarPose {
+   drifting: boolean
+   spin: boolean
+   ghost: boolean
+   shield: boolean
+   boost: boolean
+   /** 本機輸入的轉向；他車沒有，以偏航角速度反推 */
+   steer?: number
+   /** 本機知道的騰空垂直速度與是否在坡上（自己與 host 的 bot） */
+   air?: { vy: number } | null
+   onRamp?: boolean
++  /** 本機知道的離中心線距離（自己與 host 的 bot）；其他車由位置投影 */
++  lateral?: number
++  /** 急煞（只有自己知道，胎痕用） */
++  braking?: boolean
++  /** 護盾剩餘（自己與 host 的 bot；最後 2 秒閃） */
++  shieldLeftMs?: number
++  /** 沒有 ghost 旗標（guest 端的 bot：botState 不帶 ghost） */
++  noGhost?: boolean
+ }
+ 
+ interface ItemView {
+   kind: 'banana' | 'shell'
+   x: number
+   z: number
+   vx: number
+   vz: number
+ }
+ 
+@@ -211,28 +243,42 @@ class RaceScene implements GameModule {
+   private chase!: ChaseState
+   private look!: ToyLook
+   private world!: RaceWorld
+   private kit!: CarKit
+   /** 陰影被自動降級關掉後，車改墊 blob 影 */
+   private blobShadows = false
+   private shadowKey = ''
+   private lastInput: DriveInput = { throttle: 0, steer: 0, drifting: false }
+   private resultElapsed = 0
+   private lastOverlayKey = ''
+-  private hud!: TextPanel
+   private banner!: TextPanel
++  // 特效（AC11）與 React HUD（AC12）
++  private fx!: RaceFx
++  /** 道具欄轉盤到這個時刻（撿到道具箱 + ROLL_MS） */
++  private rollUntil = 0
++  /** HUD 的本圈時間：只在比賽中、未完賽時前進，其餘時候凍結 */
++  private hudLapMs = 0
++  private lastHudKey = ''
++  private shakeAt = -Infinity
++  private shakeOk = false
++  private reducedMotion = false
++  private readonly clashLast = new Map<string, number>()
++  /** 衝線彩帶：各車上一幀的 fin（null → 數值時播） */
++  private readonly fxFin = new Map<string, number | null>()
++  /** 本端播過的特效計數（給 qa 從 __BATTLE_POS 判讀特效表連拍） */
++  private fxSeen = { respawn: 0, land: 0, lapCard: 0, confetti: 0, boxBreak: 0, pad: 0, mushroom: 0, shieldBreak: 0, shellBoom: 0, bananaDie: 0, clash: 0, shake: 0 }
+   // AC14：draw calls 量測；?raceBench=1（限 raceNoDegrade=1）擺固定量測場景
+   private instr: SceneInstrumentation | null = null
+   private lastPerfLog = 0
+   private bench = false
+   private benchItems: WorldItem[] = []
+-  /** 本端看到的道具事件計數（給 qa 從 __BATTLE_POS 判讀，波 4 隨文字 HUD 一起整理） */
++  /** 本端看到的道具事件計數（給 qa 從 __BATTLE_POS 判讀）；clash＝香蕉與龜殼互撞消失（itemGone reason），車對車碰撞火花在 fxSeen.clash */
+   private seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
+ 
+   private onKeyDown = (e: KeyboardEvent) => {
+     const k = e.key.toLowerCase()
+     this.keys.add(k)
+     if (k === 'r') this.requestRestart()
+     if (k === 'e' && !e.repeat) this.useQueued = true
+   }
+   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase())
+ 
+@@ -338,20 +384,28 @@ class RaceScene implements GameModule {
+     this.reqBox = null
+     this.useQueued = false
+     this.cruiseMind = makeBotMind(7)
+     this.taken = []
+     this.respawnAt = BOXES.map(() => 0)
+     this.hold.clear()
+     this.field = emptyField()
+     this.itemViews.clear()
+     this.sentTakenKey = ''
+     this.seen = { grant: 0, spawn: 0, spin: 0, blocked: 0, hit: 0, expire: 0, clash: 0 }
++    this.rollUntil = 0
++    this.hudLapMs = 0
++    this.lastHudKey = ''
++    this.shakeAt = -Infinity
++    this.clashLast.clear()
++    this.fxFin.clear()
++    this.fx.reset()
++    this.fxSeen = { respawn: 0, land: 0, lapCard: 0, confetti: 0, boxBreak: 0, pad: 0, mushroom: 0, shieldBreak: 0, shellBoom: 0, bananaDie: 0, clash: 0, shake: 0 }
+     this.finishOrder = []
+     this.firstFinAt = null
+     this.prevFin.clear()
+     this.lapClocks.clear()
+     this.botLatest.clear()
+     for (const b of this.botBufs.values()) b.clear()
+     this.botSims.clear()
+     if (this.ctx.role === 'host') {
+       this.bots.forEach((b, i) => {
+         this.botSims.set(b.id, {
+@@ -465,52 +519,61 @@ class RaceScene implements GameModule {
+     scene.fogMode = Scene.FOGMODE_LINEAR
+     scene.fogStart = 110
+     scene.fogEnd = 230
+     scene.fogColor = Color3.FromHexString(RACE.skyClear)
+ 
+     // 場景（AC9）：桌墊、路面、路緣、拱門、看台、積木、樹、錐、跳台、加速帶、道具箱、香蕉、龜殼
+     const mobile = this.look.tier === 'mobile'
+     this.world = new RaceWorld(scene, COURSE, BOXES, {
+       matSize: mobile ? 512 : 1024,
+       crowdHop: !mobile,
+-      sparkCap: this.look.settings.particleCap,
+     })
+     const fx = this.world.fxTargets()
+     this.look.toon(...fx.toon)
+     this.look.receiver(...fx.receivers)
+     this.look.caster(...fx.casters)
+     this.look.outline(...fx.outlined)
+     for (const g of fx.glow) this.look.glowMesh(g.mesh, g.color, g.strength)
+     for (const g of fx.glowOwn) this.look.glowOwnMaterial(g.mesh, g.strength)
+     // 車：合併車身（投影＋描邊在 makeCar 登記）、共用輪胎 thin instance（投影、不描邊）、3 段火花芯（Glow）
+     this.kit = new CarKit(scene)
+     this.look.toon(...this.kit.litMaterials)
+     this.look.caster(this.kit.wheels.mesh)
+     this.look.glowMesh(this.kit.cores.mesh, DRIFT_COLORS[3], 1)
++    // 特效（AC11、spec §8）：粒子每組上限依檔位；鏡頭微震在 prefers-reduced-motion 或手機檔關閉
++    const ap = archPose(TRACK)
++    const beamEnd = (lx: number): [number, number, number] => [ap.x + lx * Math.cos(ap.yaw), 6.2, ap.z - lx * Math.sin(ap.yaw)]
++    this.fx = new RaceFx(scene, this.look, {
++      cap: this.look.settings.particleCap,
++      skidCap: SKID_CAP[this.look.tier],
++      confettiAt: [beamEnd(-7.6), beamEnd(7.6)],
++      ghostMs: RESPAWN_GHOST_MS,
++    })
++    this.reducedMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
++    this.shakeOk = shakeAllowed({ reducedMotion: this.reducedMotion, mobile })
+ 
+     // AC14：draw calls 量測；量測場景只在 raceNoDegrade=1 下生效
+     this.instr = new SceneInstrumentation(scene)
+     this.bench = typeof window !== 'undefined' && benchEnabled(tierQuery(window.location.search, window.location.hash))
+     if (this.bench) {
+       const lay = benchLayout(COURSE)
+       this.benchItems = [
+         ...lay.bananas.map((p, i): WorldItem => ({ id: `bench-b${i}`, kind: 'banana', ...p })),
+         ...lay.shells.map((p, i): WorldItem => ({ id: `bench-s${i}`, kind: 'shell', ...p })),
+       ]
+     }
+ 
+     if (ctx.role === 'host') this.bots = makeRaceBots(ctx.players.length)
+     this.resetRace()
+     this.selfVisual = this.makeCar(ctx.selfId)
+     this.chase = initChase(this.chaseInput('playing'))
+ 
+-    this.hud = createTextPanel(scene, this.camera, 'hud', 6, 0.8, new Vector3(0, 2.4, 8))
+     // 開局倒數：玩具系列配色，掛在不經後製的 UI 相機
+     if (typeof document !== 'undefined') void document.fonts?.load('bold 64px Fredoka').catch(() => undefined)
+     this.banner = createCountdownPanel(scene, this.look.uiCamera, 'banner', 7, 4, new Vector3(0, 0.3, 8), {
+       theme: COUNTDOWN_THEME,
+       layerMask: UI_LAYER,
+     })
+ 
+     window.addEventListener('keydown', this.onKeyDown)
+     window.addEventListener('keyup', this.onKeyUp)
+ 
+@@ -561,106 +624,188 @@ class RaceScene implements GameModule {
+     let v = this.carVisuals.get(id)
+     if (!v) {
+       v = this.makeCar(id)
+       this.carVisuals.set(id, v)
+     }
+     return v
+   }
+ 
+   private removeCar(v: CarVisual): void {
+     this.world.setCarBlob(v.id, 0, 0, false)
++    this.fx.dropCar(v.id)
+     disposeCarVisual(this.kit, v)
+   }
+ 
+   private applyPose(v: CarVisual, p: CarPose, dt: number, now: number): void {
+     const dx = p.x - v.prevX
+     const dz = p.z - v.prevZ
+-    // 起跑、重生是瞬移：不算輪胎轉動、不估轉向
+-    const teleport = Math.hypot(dx, dz) > 5
++    // 起跑、重生是瞬移：不算輪胎轉動、不估轉向（門檻隨幀長放寬：低 fps 時一幀正常就能跑超過 5）
++    const teleport = Math.hypot(dx, dz) > Math.max(5, BOOST_SPEED * dt * 1.5)
++    // 剛建好的車 prev 在原點：第一幀的瞬移不算重生
++    const fresh = v.prevX === 0 && v.prevZ === 0
+     const fwd = teleport ? 0 : dx * Math.sin(p.ry) + dz * Math.cos(p.ry)
+     const dRy = teleport ? 0 : wrapAngle(p.ry - v.prevRy)
+     v.prevX = p.x
+     v.prevZ = p.z
+     v.prevRy = p.ry
+     v.wheelSpin += fwd / WHEEL_R
+     if (dt > 0) v.speedEst += (Math.abs(fwd) / dt - v.speedEst) * Math.min(1, dt * 8)
+     const steer = p.steer ?? steerFromYaw(dRy, dt, v.speedEst)
+     v.steer += (steer - v.steer) * Math.min(1, dt * 10)
+ 
+     // 高度：自己與 host 的 bot 用模擬值；他車／guest 的 bot 由 s 對照跳台推算（波 2 Minor）
+     let y = p.y
+     let onRamp = p.onRamp ?? false
++    let lateral = p.lateral
+     if (y === null) {
+       y = 0
+       // 快照的 s 比插值後的位置新（最多一個快照間隔），只拿來粗篩；高度用插值位置投影出來的 s
+       if (p.s > JUMP_S0 - 3 && p.s < JUMP_S1 + 32) {
+         const prog = trackProgress(TRACK, p.x, p.z)
+         y = remoteY(COURSE, prog.s, prog.lateral, v.speedEst)
+         onRamp = rampY(COURSE, prog.s, prog.lateral) > 0
++        lateral = prog.lateral
+       }
+     }
++    lateral ??= trackProgress(TRACK, p.x, p.z).lateral
+     const vy = dt > 0 ? (y - v.prevY) / dt : 0
+     v.prevY = y
+     const airborne = p.air !== undefined ? p.air !== null : y > 0 && !onRamp
+     if (p.drifting && !v.wasDrifting) v.hopAt = now
+     v.wasDrifting = p.drifting
+     const pose = bodyPose({
+       steer: v.steer,
+       speedRatio: Math.min(1, v.speedEst / MAX_SPEED),
+       drifting: p.drifting,
+       boosting: p.boost,
+       vy: p.air ? p.air.vy : vy,
+       airborne,
+       hopMs: v.hopAt < 0 ? -1 : now - v.hopAt,
+       rampPitch: onRamp ? RAMP_PITCH : 0,
+     })
+-    v.spinAngle = p.spin ? v.spinAngle + dt * Math.PI * 5 : 0
+-    v.root.position.set(p.x, y, p.z)
++    // 甩尾放開 120ms 回正（波 3 Minor M5）
++    v.driftYaw = yawToward(v.driftYaw, pose.yaw, dt * 1000)
++
++    // 重生（spec §8 #13）：ghost 由 false→true；guest 的 bot 沒有 ghost 旗標，以比賽中瞬移判定
++    const respawned = (p.ghost && !v.wasGhost) || (p.noGhost === true && teleport && !fresh && this.flow.state.phase === 'playing')
++    v.wasGhost = p.ghost
++    if (respawned) {
++      this.fx.respawn(v.id, p.x, p.z, now)
++      this.fxSeen.respawn++
++    }
++    if (v.wasAirFx && !airborne) this.fxSeen.land++
++    v.wasAirFx = airborne
++
++    const cam = this.camera.position
++    const fx = this.fx.car(
++      {
++        id: v.id,
++        x: p.x,
++        y,
++        z: p.z,
++        ry: p.ry,
++        yaw: v.driftYaw,
++        speed: v.speedEst,
++        drift: p.drift,
++        drifting: p.drifting,
++        boost: p.boost,
++        shield: p.shield,
++        shieldLeftMs: p.shieldLeftMs ?? null,
++        offTrack: Math.abs(lateral) > TRACK.width / 2,
++        airborne,
++        braking: p.braking ?? false,
++      },
++      now,
++      dt * 1000,
++      cam.x,
++      cam.z
++    )
++    v.root.position.set(p.x, y + fx.dropY + fx.lift, p.z)
+     v.root.rotation.y = p.ry
+     v.visual.position.y = pose.dy
+-    v.visual.rotation.set(pose.rx, pose.yaw + v.spinAngle, pose.rz)
+-    v.hidden = p.ghost && Math.floor(now / 100) % 2 === 1
+-    v.root.setEnabled(!v.hidden)
+-    v.shield.setEnabled(p.shield)
+-    if (p.shield) v.shield.rotation.y += dt * 0.6
++    v.visual.rotation.set(pose.rx, v.driftYaw + fx.spinYaw, pose.rz)
++    v.visual.scaling.set(fx.sxz, fx.sy, fx.sxz)
++    // 重生閃爍（spec §6）：visibility 1↔0.3 方波 10Hz；暗的半週期輪胎、火花芯、blob 影收起來
++    v.body.visibility = fx.visibility
++    if (v.you) v.you.visibility = fx.visibility
++    v.hidden = fx.visibility < 1
++    v.shield.setEnabled(fx.shield !== null)
++    if (fx.shield) {
++      v.shield.rotation.y += dt * 0.6
++      v.shield.scaling.setAll(fx.shield.scale)
++      v.shield.visibility = fx.shield.alpha
++    }
+ 
+     this.kit.putWheels(v, v.steer * FRONT_STEER * (p.drifting ? -1.3 : 1))
+-    const cam = this.camera.position
+-    this.kit.putCore(v, p.drift === 3, cam.x, cam.z, now)
++    this.kit.putCore(v, p.drift === 3 && p.drifting, cam.x, cam.z, now)
+     this.world.setCarBlob(v.id, p.x, p.z, this.blobShadows && !v.hidden)
+-
+-    // 暫用火花（波 4 換 spec 特效表）：兩後輪外側交替
+-    if ((p.drift > 0 || p.boost) && !v.hidden) {
+-      v.sparkAcc += dt
+-      if (v.sparkAcc > 0.05) {
+-        v.sparkAcc = 0
+-        v.sparkSide = -v.sparkSide
+-        const ry = p.ry + pose.yaw
+-        const bx = p.x - Math.sin(ry) * 1.1 + Math.cos(ry) * 0.75 * v.sparkSide
+-        const bz = p.z - Math.cos(ry) * 1.1 - Math.sin(ry) * 0.75 * v.sparkSide
+-        this.world.spark(bx, y + 0.15, bz, p.boost && p.drift === 0 ? FLAME : DRIFT_COLORS[p.drift])
+-      }
+-    }
+   }
+ 
+   // ---- 道具畫面（香蕉、龜殼由 RaceWorld 的 thin instance 畫） ----
+ 
+   private spawnItemView(id: string, kind: 'banana' | 'shell', x: number, z: number, vx: number, vz: number): void {
+     if (this.itemViews.has(id)) return
+     this.seen.spawn++
+     this.itemViews.set(id, { kind, x, z, vx, vz })
+   }
+ 
+-  private removeItemView(id: string): void {
++  /** reason 'hit' 的香蕉留一個被踩飛的動畫（spec §8 #9） */
++  private removeItemView(id: string, reason?: string): void {
++    const v = this.itemViews.get(id)
++    if (v && reason === 'hit' && v.kind === 'banana') {
++      this.world.killBanana(v.x, v.z, performance.now())
++      this.fxSeen.bananaDie++
++    }
++    if (v?.kind === 'shell') this.fx.forgetTrail(id)
+     this.itemViews.delete(id)
+   }
+ 
++  // ---- 事件特效（spec §8） ----
++
++  /** 撿道具箱：箱子碎裂（所有人播）；撿到的是自己就開始道具欄轉盤 */
++  private grantFx(box: number, who: string): void {
++    const now = performance.now()
++    const b = BOXES[box]
++    this.world.breakBox(box, now)
++    this.fx.boxBreak(b.x, b.z, now)
++    this.fxSeen.boxBreak++
++    if (who === this.ctx.selfId) this.rollUntil = now + ROLL_MS
++  }
++
++  /** 命中：打滑轉圈（龜殼另加爆炸與彈起）、護盾擋下碎裂、自己被打中鏡頭微震 */
++  private spinFx(target: string, ms: number, blocked: boolean): void {
++    const now = performance.now()
++    const v = target === this.ctx.selfId ? this.selfVisual : this.carVisuals.get(target)
++    const x = v?.root.position.x ?? 0
++    const z = v?.root.position.z ?? 0
++    if (blocked) {
++      if (v) this.fx.shieldBlock(target, x, z, now)
++      this.fxSeen.shieldBreak++
++      return
++    }
++    const shell = ms > SPIN_MS
++    this.fx.spin(target, ms, shell, now)
++    if (shell && v) {
++      this.fx.shellBoom(x, z)
++      this.fxSeen.shellBoom++
++    }
++    if (target === this.ctx.selfId && this.shakeOk) {
++      this.shakeAt = now
++      this.fxSeen.shake++
++    }
++  }
++
++  private mushroomFx(who: string): void {
++    this.fx.mushroom(who, performance.now())
++    this.fxSeen.mushroom++
++  }
++
+   private *worldItems(): Iterable<WorldItem> {
+     for (const [id, v] of this.itemViews) yield { id, kind: v.kind, x: v.x, z: v.z }
+     yield* this.benchItems
+   }
+ 
+   // ---- 網路 ----
+ 
+   onNetworkMessage(from: string, msg: GameNetMessage): void {
+     if (msg.game !== this.gameId) return
+     const p = msg.payload
+@@ -690,20 +835,21 @@ class RaceScene implements GameModule {
+     switch (msg.type) {
+       case 'start': {
+         const d = decodeStart(p)
+         if (d) this.bots = d.bots
+         break
+       }
+       case 'itemGrant': {
+         const d = decodeItemGrant(p, BOXES.length, ids)
+         if (!d) return
+         this.seen.grant++
++        this.grantFx(d.box, d.who)
+         if (!this.taken.includes(d.box)) this.taken = [...this.taken, d.box]
+         if (d.who === this.ctx.selfId) {
+           this.item = d.kind
+           this.reqBox = null
+           playSfx('pickup')
+         }
+         break
+       }
+       case 'boxState': {
+         const d = decodeBoxState(p, BOXES.length)
+@@ -724,28 +870,29 @@ class RaceScene implements GameModule {
+           v.vx = (e.x - v.x) / (ITEM_STATE_MS / 1000)
+           v.vz = (e.z - v.z) / (ITEM_STATE_MS / 1000)
+           v.x = e.x
+           v.z = e.z
+         }
+         break
+       }
+       case 'itemGone': {
+         const d = decodeItemGone(p)
+         if (!d) return
+-        this.removeItemView(d.id)
++        this.removeItemView(d.id, d.reason)
+         this.seen[d.reason]++
+         break
+       }
+       case 'spin': {
+         const d = decodeSpin(p, ids)
+         if (!d) return
+         this.seen[d.blocked ? 'blocked' : 'spin']++
++        this.spinFx(d.target, d.ms, d.blocked)
+         if (d.target === this.ctx.selfId) this.applySpinSelf(d.ms, d.blocked)
+         break
+       }
+       case 'botState': {
+         const d = decodeBotState(
+           p,
+           this.bots.map((b) => b.id),
+           TRACK.len
+         )
+         if (!d) return
+@@ -774,43 +921,46 @@ class RaceScene implements GameModule {
+     const now = performance.now()
+     const r = claimBox(this.respawnAt, box, this.hold.get(who) ?? null, now)
+     if (!r.ok) return
+     this.respawnAt = r.respawnAt
+     const order = this.order()
+     const rank = Math.max(1, order.indexOf(who) + 1)
+     const kind = rollItem(rank, order.length, Math.random())
+     this.hold.set(who, kind)
+     this.broadcast('itemGrant', { box, who, kind })
+     this.seen.grant++
++    this.grantFx(box, who)
+     this.taken = takenBoxes(this.respawnAt, now)
+     if (who === this.ctx.selfId) {
+       this.item = kind
+       playSfx('pickup')
+     }
+     const bot = this.botSims.get(who)
+     if (bot) bot.item = kind
+   }
+ 
+   /** host 生成香蕉／龜殼（加速菇、護盾在使用者本機生效，host 只清持有） */
+   private hostUseItem(who: string, kind: ItemKind, pose: { x: number; z: number; ry: number }): void {
+     if (this.hold.get(who) !== kind) return
+     this.hold.set(who, null)
++    // 自己的加速菇在本機使用時就播了
++    if (kind === 'mushroom' && who !== this.ctx.selfId) this.mushroomFx(who)
+     if (kind !== 'banana' && kind !== 'shell') return
+     const target = kind === 'shell' ? shellTarget(who, this.order()) : null
+     const r = spawnField(this.field, kind, who, pose, target)
+     this.field = r.field
+     const e = r.entry
+     this.broadcast('itemSpawn', { id: e.id, kind: e.kind, owner: who, x: e.x, z: e.z, vx: e.vx, vz: e.vz, target: e.target })
+     this.spawnItemView(e.id, e.kind, e.x, e.z, e.vx, e.vz)
+     for (const id of r.overflow) {
+       this.broadcast('itemGone', { id, reason: 'expire' })
+-      this.removeItemView(id)
++      this.removeItemView(id, 'expire')
+     }
+   }
+ 
+   private hitCars(): HitCar[] {
+     const r = this.racer
+     return [
+       { id: this.ctx.selfId, x: r.car.x, z: r.car.z, ghost: r.ghostMs > 0, shield: r.shieldMs > 0 },
+       ...this.remotePlayers().map(({ id, snap }) => ({ id, x: snap.x, z: snap.z, ghost: snap.ghost, shield: snap.shield })),
+       ...[...this.botSims].map(([id, b]) => ({
+         id,
+@@ -818,26 +968,27 @@ class RaceScene implements GameModule {
+         z: b.racer.car.z,
+         ghost: b.racer.ghostMs > 0,
+         shield: b.racer.shieldMs > 0,
+       })),
+     ]
+   }
+ 
+   private applyFieldEvent(ev: FieldEvent): void {
+     if (ev.type === 'gone') {
+       this.broadcast('itemGone', { id: ev.id, reason: ev.reason })
+-      this.removeItemView(ev.id)
++      this.removeItemView(ev.id, ev.reason)
+       this.seen[ev.reason]++
+       return
+     }
+     this.broadcast('spin', { target: ev.target, ms: ev.ms, blocked: ev.blocked })
+     this.seen[ev.blocked ? 'blocked' : 'spin']++
++    this.spinFx(ev.target, ev.ms, ev.blocked)
+     if (ev.target === this.ctx.selfId) this.applySpinSelf(ev.ms, ev.blocked)
+     const bot = this.botSims.get(ev.target)
+     if (bot) bot.racer = applySpin(bot.racer, ev.ms, ev.blocked)
+   }
+ 
+   private stepBots(dt: number, now: number): void {
+     const dtMs = dt * 1000
+     const cars = this.liveCars()
+     const dist = new Map(
+       cars.map((c) => {
+@@ -910,25 +1061,23 @@ class RaceScene implements GameModule {
+     }
+     this.itemStateAcc += dt * 1000
+     if (this.itemStateAcc >= ITEM_STATE_MS) {
+       this.itemStateAcc = 0
+       const shells = this.field.items.filter((it) => it.kind === 'shell')
+       if (shells.length) this.broadcast('itemState', { list: shells.map((s) => ({ id: s.id, x: s.x, z: s.z })) })
+     }
+ 
+     this.sendBotState(dt)
+ 
+-    // 最佳圈與過線順序（以 host 觀察到的先後）
++    // 過線順序（以 host 觀察到的先後；最佳圈在 stepClocks，各端都算）
+     const cars = this.liveCars()
+     for (const c of cars) {
+-      const clock = this.lapClocks.get(c.id) ?? makeLapClock(this.playStart)
+-      this.lapClocks.set(c.id, stepLapClock(clock, c.lap, now))
+       const was = this.prevFin.get(c.id) ?? null
+       if (was === null && c.fin !== null) {
+         this.finishOrder.push(c.id)
+         if (this.firstFinAt === null) this.firstFinAt = now
+       }
+       this.prevFin.set(c.id, c.fin)
+     }
+     if (raceOver(
+       cars.map((c) => c.fin),
+       this.firstFinAt,
+@@ -962,73 +1111,99 @@ class RaceScene implements GameModule {
+       lateral: r.lateral,
+       dist: 0,
+       item: null,
+       others: [],
+       shellChasing: false,
+       mind: this.cruiseMind,
+     })
+     return { throttle: out.throttle * CRUISE_THROTTLE, steer: out.steer, drifting: false }
+   }
+ 
++  /** 各車圈時（最佳圈給 HUD 與結算；各端都算，host 的結算用自己這份） */
++  private stepClocks(now: number): void {
++    for (const c of this.liveCars()) {
++      const clock = this.lapClocks.get(c.id) ?? makeLapClock(this.playStart)
++      this.lapClocks.set(c.id, stepLapClock(clock, c.lap, now))
++    }
++  }
++
+   /** host：botState 20Hz（倒數期間也送，guest 起跑格才看得到 bot） */
+   private sendBotState(dt: number): void {
+     this.botStateAcc += dt * 1000
+     if (this.botStateAcc < BOT_STATE_MS || !this.botSims.size) return
+     this.botStateAcc = 0
+     this.broadcast('botState', { states: this.botStates() })
+   }
+ 
+   private simulate(dt: number): void {
+     const phase = this.flow.state.phase
+     if (phase === 'countdown' && this.ctx.role === 'host') this.sendBotState(dt)
+     if (phase !== 'playing') return
+     const now = performance.now()
+ 
+     const input = this.fin === null ? this.readInput() : this.cruiseInput(dt)
+     this.lastInput = input
+     const step = stepRacer(this.racer, input, { course: COURSE, others: this.positionsExcept(this.ctx.selfId) }, dt)
+     this.racer = step.state
+     for (const ev of step.events) {
+-      if (ev === 'lap') playSfx('lap')
+-      else if (ev === 'finish') {
++      if (ev === 'lap') {
++        playSfx('lap')
++        // 換圈 3D 浮字（spec §8 #14）：LAP 2、LAP 3
++        const shown = this.racer.lap.lap + 1
++        if (shown === 2 || shown === 3) {
++          this.fx.card(shown === 2 ? 'LAP 2' : 'LAP 3', this.ctx.selfId, now)
++          this.fxSeen.lapCard++
++        }
++      } else if (ev === 'finish') {
+         if (this.fin === null) this.fin = Math.min(OWN_FIN_MAX, Math.round(now - this.playStart))
++        this.fx.card('完賽', this.ctx.selfId, now)
+         playSfx('round_end')
+-      } else if (ev === 'turbo' || ev === 'pad') playSfx('tank_bounce')
++      } else if (ev === 'turbo') playSfx('tank_bounce')
++      else if (ev === 'pad') {
++        playSfx('tank_bounce')
++        // 加速帶觸發閃光（spec §8 #17）
++        this.world.flashPads(now)
++        this.fx.padBurst(this.racer.car.x, this.racer.car.z, this.racer.car.ry)
++        this.fxSeen.pad++
++      }
+     }
+ 
+     // 使用道具（e）
+     if (this.useQueued) {
+       this.useQueued = false
+       const kind = this.item
+       // 過線後不撿不用道具，不干擾還在比賽的車
+       // bench 量測條件固定：自己手上的道具也不用掉（不然會再去撿箱子）
+       if (kind && this.fin === null && !this.bench) {
+         this.item = null
+         this.racer = applyItemSelf(this.racer, kind)
++        if (kind === 'mushroom') this.mushroomFx(this.ctx.selfId)
+         if (this.ctx.role === 'host') this.hostUseItem(this.ctx.selfId, kind, this.racer.car)
+         else this.broadcast('useItem', { kind })
+       }
+     }
+ 
+     // 撿道具箱：host 直接裁決，guest 送 itemReq 等 itemGrant
+     if (!this.item && this.fin === null) {
+       const box = touchedBox(BOXES, this.taken, this.racer.car.x, this.racer.car.z)
+       if (box !== null) {
+         if (this.ctx.role === 'host') this.hostClaim(this.ctx.selfId, box)
+         else if (!this.reqBox || this.reqBox.box !== box || now - this.reqBox.at > ITEM_REQ_RETRY_MS) {
+           this.reqBox = { box, at: now }
+           this.broadcast('itemReq', { box })
+         }
+       }
+     }
+ 
++    this.stepClocks(now)
+     if (this.ctx.role === 'host') this.hostTick(dt, now)
++    if (this.fin === null) this.hudLapMs = now - (this.lapClocks.get(this.ctx.selfId)?.startAt ?? this.playStart)
+ 
+     engineSet(Math.min(1, Math.abs(this.racer.car.speed) / MAX_SPEED))
+   }
+ 
+   // ---- 畫面更新 ----
+ 
+   private chaseMode(): ChaseMode {
+     if (this.fin !== null) return 'finished'
+     return this.flow?.state.phase === 'countdown' ? 'countdown' : 'playing'
+   }
+@@ -1057,39 +1232,45 @@ class RaceScene implements GameModule {
+       s: r.s,
+       drift: r.drift.tier,
+       drifting: r.drift.charge > 0,
+       spin: r.spinMs > 0,
+       ghost: r.ghostMs > 0,
+       shield: r.shieldMs > 0,
+       boost: r.boostMs > 0,
+       steer: this.lastInput.steer,
+       air: r.air ? { vy: r.air.vy - JUMP_G * r.air.t } : null,
+       onRamp: r.onRamp,
++      lateral: r.lateral,
++      braking: this.lastInput.throttle < 0 && r.car.speed > 0,
++      shieldLeftMs: r.shieldMs,
+     }
+   }
+ 
+   update(deltaMs: number): void {
+     const dt = deltaMs * 0.001
+     const phase = this.flow.state.phase
+     const now = performance.now()
+     const r = this.racer
+ 
+     if (this.selfVisual) this.applyPose(this.selfVisual, this.selfPose(), dt, now)
+ 
+     // 追尾相機（spec §7）：甩尾時跟移動方向，不跟車身偏航
+     this.chase = stepChase(this.chase, this.chaseInput(this.chaseMode()), dt)
+     const c = this.chase
+     this.camera.alpha = c.alpha
+     this.camera.beta = c.beta
+     this.camera.radius = c.radius
+     this.camera.fov = c.fov
+     this.camera.target.set(c.target[0], c.target[1], c.target[2])
++    // 鏡頭微震（spec §7、§8 #16）：自己被命中 220ms ±0.18 線性衰減
++    const amp = this.shakeOk ? shakeAmp(now - this.shakeAt) : 0
++    if (amp > 0) this.camera.target.addInPlaceFromFloats((fxRandom() * 2 - 1) * amp, (fxRandom() * 2 - 1) * amp, (fxRandom() * 2 - 1) * amp)
+     // 陰影框跟著自己的車走（4 單位量化）
+     const sx = snapGrid(r.car.x, SHADOW_SNAP)
+     const sz = snapGrid(r.car.z, SHADOW_SNAP)
+     const key = `${sx},${sz}`
+     if (key !== this.shadowKey) {
+       this.shadowKey = key
+       this.look.setShadowCenter(sx, sz)
+     }
+ 
+     // 他車與 bot
+@@ -1116,20 +1297,22 @@ class RaceScene implements GameModule {
+             y: br.y,
+             s: br.s,
+             drift: br.drift.tier,
+             drifting: br.drift.charge > 0,
+             spin: br.spinMs > 0,
+             ghost: br.ghostMs > 0,
+             shield: br.shieldMs > 0,
+             boost: br.boostMs > 0,
+             air: br.air ? { vy: br.air.vy - JUMP_G * br.air.t } : null,
+             onRamp: br.onRamp,
++            lateral: br.lateral,
++            shieldLeftMs: br.shieldMs,
+           }
+         }
+       } else {
+         const s = this.botBufs.get(bot.id)?.sample()
+         if (s) pose = this.lerpPose(s.a, s.b, s.alpha, null)
+       }
+       if (!pose) continue
+       live.add(bot.id)
+       this.applyPose(this.visualFor(bot.id), pose, dt, now)
+     }
+@@ -1140,31 +1323,33 @@ class RaceScene implements GameModule {
+     }
+ 
+     // 香蕉／龜殼外插（guest）、場景動畫、thin instance 上傳、自動降級
+     if (this.ctx.role !== 'host') {
+       for (const v of this.itemViews.values()) {
+         v.x += v.vx * dt
+         v.z += v.vz * dt
+       }
+     }
+     this.world.update(now, dt, this.taken, this.worldItems())
++    this.updateFx(phase, now, deltaMs)
+     this.kit.sync()
+     this.look.update(deltaMs)
+ 
+     // AC14：每 2 秒印 draw calls 與 fps（讀上一幀的完整計數；還沒渲染過的首次取樣不印）
+     if (this.instr && now - this.lastPerfLog >= PERF_LOG_MS) {
+       this.lastPerfLog = now
+       const line = perfLogLine(this.instr.drawCallsCounter.current, this.ctx.scene.getEngine().getFps(), 'race')
+       if (line) console.info(line)
+     }
+ 
+-    this.drawHud(phase)
++    this.syncHud(phase, now)
++    this.writeDebugPos()
+ 
+     if (phase === 'countdown') {
+       const n = Math.ceil(this.flow.countdownRemaining() / 1000)
+       this.banner.draw(n > 0 ? String(n) : 'GO!', 200)
+     } else if (phase === 'result') {
+       this.banner.draw('')
+       if (this.ctx.role === 'host') {
+         this.resultElapsed += deltaMs
+         if (this.resultElapsed > RESULT_RESTART_MS) this.hostRestart()
+       }
+@@ -1187,89 +1372,164 @@ class RaceScene implements GameModule {
+       z: a.z + (b.z - a.z) * alpha,
+       ry: lerpAngle(a.ry, b.ry, alpha),
+       y: null,
+       s: b.s,
+       drift: b.drift,
+       drifting: b.drift > 0,
+       spin: b.spin,
+       ghost: flags?.ghost ?? false,
+       shield: flags?.shield ?? false,
+       boost: flags?.boost ?? false,
++      noGhost: flags === null,
+     }
+   }
+ 
+-  /** 暫用文字 HUD（波 4 改 React setHud 後刪）：名次／圈數／道具供 qa 判讀 */
+-  private drawHud(phase: string): void {
++  /** 畫面上的所有車（自己、他車、bot），特效與 HUD 小地圖用 */
++  private visuals(): CarVisual[] {
++    return this.selfVisual ? [this.selfVisual, ...this.carVisuals.values()] : [...this.carVisuals.values()]
++  }
++
++  /** 自己的尾流風線、速度線、鏡頭微震以外的全場特效：碰撞火花、衝線彩帶、龜殼拖尾 */
++  private updateFx(phase: string, now: number, deltaMs: number): void {
+     const r = this.racer
+-    const order = this.order()
+-    const rank = order.indexOf(this.ctx.selfId) + 1
+-    const lapShown = Math.min(r.lap.lap + 1, LAPS)
+-    const kmh = Math.round(Math.abs(r.car.speed) * 15)
+-    const tags = [
+-      r.drift.tier > 0 ? `甩尾${r.drift.tier}` : '',
+-      r.boostMs > 0 ? '⚡' : '',
+-      r.slipMs > 0 ? '尾流' : '',
+-      r.shieldMs > 0 ? '🛡' : '',
+-      r.spinMs > 0 ? '打滑' : '',
+-      r.wrongWay ? '逆向!' : '',
+-      r.lap.lap === LAPS - 1 && this.fin === null ? '最後一圈' : '',
+-      this.fin !== null ? `完賽 ${formatRaceMs(this.fin)}` : '',
+-    ].filter(Boolean)
+-    const text =
+-      phase === 'playing'
+-        ? `第${rank}/${order.length}名  LAP ${lapShown}/${LAPS}  ${kmh}km/h  道具:${this.item ? ITEM_LABEL[this.item] : '—'}  ${tags.join(' ')}`
+-        : ''
+-    this.hud.draw(text, 34)
++    const playing = phase === 'playing'
++
++    // 碰撞火花（spec §8 #7）：各端播自己參與的那一對；bot 對 bot 由 host 播
++    const vis = this.visuals()
++    for (let i = 0; i < vis.length; i++) {
++      for (let j = i + 1; j < vis.length; j++) {
++        const a = vis[i]
++        const b = vis[j]
++        const mine = a.id === this.ctx.selfId || b.id === this.ctx.selfId
++        const botPair = this.ctx.role === 'host' && !this.isPlayer(a.id) && !this.isPlayer(b.id)
++        if (!playing || (!mine && !botPair)) continue
++        const pa = a.root.position
++        const pb = b.root.position
++        if (Math.hypot(pa.x - pb.x, pa.z - pb.z) > CAR_PUSH_DIST + CLASH_SLACK) continue
++        if (relSpeed({ speed: a.speedEst, ry: a.root.rotation.y }, { speed: b.speedEst, ry: b.root.rotation.y }) <= CLASH_SPEED) continue
++        if (!clashReady(this.clashLast, clashKey(a.id, b.id), now)) continue
++        this.fx.clash((pa.x + pb.x) / 2, Math.max(pa.y, pb.y), (pa.z + pb.z) / 2)
++        this.fxSeen.clash++
++      }
++    }
+ 
++    // 衝線彩帶（spec §8 #15）：任何車 fin 由 null 變成數值
++    for (const id of finishEdges(this.fxFin, this.liveCars(), playing)) {
++      this.fx.finish(id === this.ctx.selfId)
++      this.world.cheer(now)
++      this.fxSeen.confetti++
++    }
++
++    // 龜殼拖尾（spec §8 #10）
++    for (const [id, v] of this.itemViews) if (v.kind === 'shell') this.fx.shellTrail(id, v.x, v.z, deltaMs)
++
++    // 尾流風線（spec §8 #3，只畫自己）與速度線（§8 #4）
++    const slip = playing ? slipLook(r.slipChargeMs > 0, r.slipMs > 0) : { count: 0, alpha: 0 }
++    this.fx.slip(slip.count, slip.alpha, r.car.x, r.y, r.car.z, r.car.ry, now)
++    const cap = speedLineCap({ reducedMotion: this.reducedMotion, mobile: this.look.tier === 'mobile' })
++    const alpha = playing && this.fin === null ? speedLineAlpha(Math.abs(r.car.speed) / MAX_SPEED, r.boostMs > 0, cap) : 0
++    const engine = this.ctx.scene.getEngine()
++    this.fx.speedLines(alpha, now, this.look.uiCamera.fov, engine.getRenderWidth() / Math.max(1, engine.getRenderHeight()))
++    this.fx.update(now)
++  }
++
++  /** React HUD（AC12，共用契約 RaceHud）：比賽中每幀一張；結算凍結在最後一張 */
++  private syncHud(phase: string, now: number): void {
++    const setHud = this.ctx.setHud
++    if (!setHud || phase === 'result') return
++    const pos = new Map(this.visuals().map((v) => [v.id, v.root.position]))
++    const cars: RaceHudCarInput[] = this.liveCars().map((c) => {
++      const p = pos.get(c.id)
++      return {
++        id: c.id,
++        colorIndex: this.colorIndexOf(c.id),
++        x: p?.x ?? 0,
++        z: p?.z ?? 0,
++        fin: c.fin,
++        name: this.nameFor(c.id),
++        bestLapMs: this.lapClocks.get(c.id)?.bestMs ?? null,
++      }
++    })
++    const r = this.racer
++    const hud = buildRaceHud({
++      selfId: this.ctx.selfId,
++      order: this.order(),
++      laps: LAPS,
++      ownLap: r.lap.lap,
++      lapMs: phase === 'playing' ? this.hudLapMs : 0,
++      bestLapMs: this.lapClocks.get(this.ctx.selfId)?.bestMs ?? null,
++      item: this.item,
++      rollingUntil: this.rollUntil,
++      now,
++      wrongWay: phase === 'playing' && r.wrongWay,
++      fin: this.fin,
++      pts: HUD_PTS,
++      cars: cars.filter((c) => pos.has(c.id)),
++    })
++    const key = JSON.stringify({ ...hud, map: hud.map.cars })
++    if (key === this.lastHudKey) return
++    this.lastHudKey = key
++    setHud(hud)
++  }
++
++  /** 給 qa 判讀的數值（AC17：bot 座標兩端比對用 botPos，host 為模擬值、guest 為最新 botState） */
++  private writeDebugPos(): void {
++    const r = this.racer
++    const order = this.order()
+     ;(window as unknown as Record<string, unknown>).__BATTLE_POS = {
+       x: r.car.x,
+       z: r.car.z,
+       y: r.y,
+       ry: r.car.ry,
+       lap: r.lap.lap,
+       cp: r.lap.cp,
+       s: r.s,
+       lateral: r.lateral,
+       speed: r.car.speed,
+-      rank,
++      rank: order.indexOf(this.ctx.selfId) + 1,
+       total: order.length,
+       item: this.item,
+       fin: this.fin,
+       wrongWay: r.wrongWay,
+       drift: r.drift.tier,
+       boostMs: r.boostMs,
+       slipMs: r.slipMs,
+       spinMs: r.spinMs,
+       shieldMs: r.shieldMs,
+       ghostMs: r.ghostMs,
+       bots: this.bots.length,
++      botPos: this.botStates().map((b) => ({ id: b.id, x: b.x, z: b.z, ry: b.ry, lap: b.lap, cp: b.cp, s: b.s, fin: b.fin })),
++      order,
+       items: this.itemViews.size,
+       taken: this.taken.length,
+       seen: { ...this.seen },
++      fx: { ...this.fxSeen },
++      fxLive: this.fx.liveCounts(),
+       boostMax: BOOST_SPEED,
+     }
+   }
+ 
+   dispose(): void {
+     window.removeEventListener('keydown', this.onKeyDown)
+     window.removeEventListener('keyup', this.onKeyUp)
+     stopAllAudio()
+     this.ticker.stop()
+     this.own.stop()
+     this.flow.dispose()
+     this.offOpen?.()
+     if (this.selfVisual) this.removeCar(this.selfVisual)
+     for (const v of this.carVisuals.values()) this.removeCar(v)
+     this.carVisuals.clear()
+     this.itemViews.clear()
+-    this.hud.dispose()
++    this.ctx.setHud?.(null)
+     this.banner.dispose()
+     this.instr?.dispose()
+     this.instr = null
++    this.fx.dispose()
+     this.world.dispose()
+     this.kit.dispose()
+     this.look.dispose()
+     this.ctx.scene.fogMode = Scene.FOGMODE_NONE
+   }
+ }
+ 
+ export const createRaceScene = (): GameModule => new RaceScene()
+diff --git a/src/babylon/games/raceFx/carPose.test.ts b/src/babylon/games/raceFx/carPose.test.ts
+index 2739c72..dc3e319 100644
+--- a/src/babylon/games/raceFx/carPose.test.ts
++++ b/src/babylon/games/raceFx/carPose.test.ts
+@@ -1,14 +1,14 @@
+ import { describe, it, expect } from 'vitest'
+ import { JUMP_S0, JUMP_S1, RACE_COURSE } from '@/babylon/games/raceRules/trackData'
+ import { JUMP_H, MAX_SPEED, jumpY, launchVy } from '@/babylon/games/raceRules/drive'
+-import { HOP_MS, bodyPose, remoteY, steerFromYaw } from '@/babylon/games/raceFx/carPose'
++import { HOP_MS, YAW_RELAX_MS, bodyPose, remoteY, steerFromYaw, yawToward } from '@/babylon/games/raceFx/carPose'
+ 
+ const C = RACE_COURSE
+ 
+ describe('raceFx/carPose — 他車／bot 跳台 y 由 s 本機推算（波 2 Minor）', () => {
+   it('不在跳台附近 → 0', () => {
+     expect(remoteY(C, 10, 0, 17)).toBe(0)
+     expect(remoteY(C, 300, 2, 17)).toBe(0)
+   })
+ 
+   it('坡上（|lateral| ≤ 4）→ 斜坡高度；坡外側走旁邊 → 0', () => {
+@@ -52,10 +52,21 @@ describe('raceFx/carPose — 車身姿態（spec §4.1）', () => {
+     expect(up.rx).toBeCloseTo((-12 * Math.PI) / 180)
+     const down = bodyPose({ steer: 0, speedRatio: 1, drifting: false, boosting: false, vy: -20, airborne: true, hopMs: -1, rampPitch: 0 })
+     expect(down.rx).toBeCloseTo((12 * Math.PI) / 180)
+     expect(HOP_MS).toBe(160)
+     const hop = bodyPose({ steer: 0, speedRatio: 0, drifting: true, boosting: false, vy: 0, airborne: false, hopMs: 80, rampPitch: 0 })
+     expect(hop.dy).toBeCloseTo(0.25)
+     const done = bodyPose({ steer: 0, speedRatio: 0, drifting: true, boosting: false, vy: 0, airborne: false, hopMs: 200, rampPitch: 0 })
+     expect(done.dy).toBe(0)
+   })
+ })
++
++describe('raceFx/carPose — 甩尾放開 120ms 回正（波 3 Minor M5）', () => {
++  it('目標偏航變小時以 120ms 走完全幅；變大（進甩尾）立即到位', () => {
++    expect(YAW_RELAX_MS).toBe(120)
++    expect(yawToward(0, 0.38, 16)).toBe(0.38)
++    expect(yawToward(0.38, 0, 60)).toBeCloseTo(0.19)
++    expect(yawToward(0.38, 0, 120)).toBe(0)
++    expect(yawToward(-0.38, 0, 60)).toBeCloseTo(-0.19)
++    expect(yawToward(0.1, 0, 200)).toBe(0)
++  })
++})
+diff --git a/src/babylon/games/raceFx/carPose.ts b/src/babylon/games/raceFx/carPose.ts
+index c135185..463f682 100644
+--- a/src/babylon/games/raceFx/carPose.ts
++++ b/src/babylon/games/raceFx/carPose.ts
+@@ -59,10 +59,20 @@ export interface BodyPose {
+   dy: number
+ }
+ 
+ export function bodyPose(p: PoseInput): BodyPose {
+   let rx = p.rampPitch
+   if (p.airborne) rx = -Math.max(-1, Math.min(1, p.vy / AIR_VY_FULL)) * AIR_PITCH
+   else if (p.boosting) rx += BOOST_PITCH
+   const dy = p.hopMs >= 0 && p.hopMs < HOP_MS ? HOP_H * Math.sin((Math.PI * p.hopMs) / HOP_MS) : 0
+   return { rx, rz: -p.steer * LEAN * p.speedRatio, yaw: p.drifting ? DRIFT_YAW * p.steer : 0, dy }
+ }
++
++/** 甩尾放開回正時長（波 3 Minor M5）：偏航變小時以這段時間走完全幅，變大（進甩尾）立即到位 */
++export const YAW_RELAX_MS = 120
++
++export function yawToward(cur: number, target: number, dtMs: number): number {
++  if (Math.abs(target) >= Math.abs(cur)) return target
++  const step = (DRIFT_YAW * Math.max(0, dtMs)) / YAW_RELAX_MS
++  const d = target - cur
++  return Math.abs(d) <= step ? target : cur + Math.sign(d) * step
++}
+diff --git a/src/babylon/games/raceFx/carVisual.ts b/src/babylon/games/raceFx/carVisual.ts
+index 5218d75..8f80ff3 100644
+--- a/src/babylon/games/raceFx/carVisual.ts
++++ b/src/babylon/games/raceFx/carVisual.ts
+@@ -29,31 +29,34 @@ export interface CarVisual {
+   root: TransformNode
+   /** 車身姿態（側傾、甩尾偏航、打滑、俯仰、起跳） */
+   visual: TransformNode
+   body: Mesh
+   shield: Mesh
+   you: Mesh | null
+   wheelSpin: number
+   steer: number
+   /** 由畫面位移估的速度（他車沒有速度欄位） */
+   speedEst: number
+-  /** 暫用火花左右交替 */
+-  sparkSide: number
+-  spinAngle: number
++  /** 甩尾偏航（放開時 120ms 回正，carPose.yawToward） */
++  driftYaw: number
+   prevX: number
+   prevZ: number
+   prevRy: number
+   prevY: number
+   /** 甩尾按下的時間（起跳動畫），-1 = 無 */
+   hopAt: number
+   wasDrifting: boolean
+-  sparkAcc: number
++  /** 上一幀騰空（落地計數用） */
++  wasAirFx: boolean
++  /** 上一幀的 ghost 旗標（重生由 false→true 觸發） */
++  wasGhost: boolean
++  /** 重生閃爍暗的那半週期：輪胎、火花芯、blob 影收起來（thin instance 沒有逐筆透明度） */
+   hidden: boolean
+ }
+ 
+ const WHEELS_PER_CAR = WHEELS.length
+ const tmpA = new Matrix()
+ const tmpB = new Matrix()
+ const tmpC = new Matrix()
+ 
+ export class CarKit {
+   readonly bodyMat: StandardMaterial
+@@ -162,29 +165,29 @@ export class CarKit {
+     return {
+       id,
+       root,
+       visual,
+       body,
+       shield,
+       you,
+       wheelSpin: 0,
+       steer: 0,
+       speedEst: 0,
+-      sparkSide: 1,
+-      spinAngle: 0,
++      driftYaw: 0,
+       prevX: 0,
+       prevZ: 0,
+       prevRy: 0,
+       prevY: 0,
+       hopAt: -1,
+       wasDrifting: false,
+-      sparkAcc: 0,
++      wasGhost: false,
++      wasAirFx: false,
+       hidden: false,
+     }
+   }
+ 
+   /** 依車身姿態寫 4 個輪胎的實例矩陣（前輪 steerYaw 擺動）；hidden 時移除 */
+   putWheels(v: CarVisual, steerYaw: number): void {
+     if (v.hidden) {
+       for (let i = 0; i < WHEELS_PER_CAR; i++) this.wheels.remove(`${v.id}:${i}`)
+       return
+     }
+diff --git a/src/babylon/games/raceFx/effects.ts b/src/babylon/games/raceFx/effects.ts
+new file mode 100644
+index 0000000..024b428
+--- /dev/null
++++ b/src/babylon/games/raceFx/effects.ts
+@@ -0,0 +1,881 @@
++/**
++ * 賽車特效（spec §6／§8，AC11）：只管畫，什麼時候觸發由 race.ts 決定，時間曲線在 fxModel.ts。
++ *
++ * - 粒子：fx_spark／fx_smoke／fx_circle／fx_star 共 4 組 ParticleSystem（每組上限＝檔位 particleCap：桌機 150、手機 60）。
++ * - 胎痕、尾流風線、頭頂暈眩星各 1 組 thin instance；噴焰、地面白環、換圈字卡、加速菇是小物件池，平常收起來不畫。
++ * - 速度線是 UI 相機上的一片全螢幕 plane（不經後製、不吃霧）。
++ * - 道具箱碎塊、被踩香蕉、觀眾歡呼、加速帶閃光跟場景物件綁在一起，在 world.ts。
++ */
++import { Color3, Mesh, MeshBuilder, ParticleSystem, StandardMaterial, Texture, type DynamicTexture, type Scene } from '@/babylon/babylonCore'
++import { emitCount, ringPose } from '@/babylon/fx/curves'
++import { FxEmitter, fxRandom, style, type FxStyle } from '@/babylon/fx/emitter'
++import type { MeshData } from '@/babylon/fx/geometry'
++import { UI_LAYER, type ToyLook } from '@/babylon/fx/look'
++import { toMesh } from '@/babylon/fx/models'
++import { PLAYER_PALETTE } from '@/babylon/fx/palette'
++import { createRingTexture } from '@/babylon/fx/textures'
++import { ThinGroup } from '@/babylon/fx/thin'
++import { distanceSteps } from '@/babylon/games/tankFx/fxModel'
++import type { DriftTier } from '@/babylon/games/raceFx/raceNet'
++import {
++  DROP_MS,
++  DUST_SPACING,
++  FLAME,
++  LAP_CARD_MS,
++  SHIELD_BREAK_MS,
++  SKID_SPACING,
++  boostColor,
++  driftSparkLook,
++  SPARK_SIZE,
++  sparkHot,
++  finishConfetti,
++  ghostVisibility,
++  landSquash,
++  lapCardPose,
++  mushroomPose,
++  respawnDropY,
++  shieldPose,
++  skidScale,
++  spinPose,
++} from '@/babylon/games/raceFx/fxModel'
++import { mushroomData } from '@/babylon/games/raceFx/models'
++import { RACE } from '@/babylon/games/raceFx/palette'
++import { FLOAT_TEXTS, createFloatAtlas, createSpeedLineTexture, floatCellUV, fxAssetUrl, type FloatText } from '@/babylon/games/raceFx/textures'
++
++/** 一台車這一幀的畫面狀態（自己、他車、bot 共用；他車的旗標來自 own 快照） */
++export interface CarFxInput {
++  id: string
++  x: number
++  /** 跳台高度（不含重生落下） */
++  y: number
++  z: number
++  /** 移動方向 */
++  ry: number
++  /** 車身相對移動方向的偏航（甩尾） */
++  yaw: number
++  /** |速度|（他車用畫面位移估的） */
++  speed: number
++  drift: DriftTier
++  /** 正在蓄甩尾（含 0 段） */
++  drifting: boolean
++  boost: boolean
++  shield: boolean
++  /** 護盾剩餘（只有自己與 host 的 bot 知道；其他 null） */
++  shieldLeftMs: number | null
++  offTrack: boolean
++  airborne: boolean
++  /** 急煞（只有自己知道） */
++  braking: boolean
++}
++
++/** race.ts 套到車上的姿態修正 */
++export interface CarFxPose {
++  /** 重生落下（加在 root y） */
++  dropY: number
++  /** 打滑：額外偏航與龜殼彈起 */
++  spinYaw: number
++  lift: number
++  /** 落地擠壓（visual 縮放） */
++  sy: number
++  sxz: number
++  /** 重生閃爍 1／0.3 */
++  visibility: number
++  /** 護盾泡泡；null = 不畫 */
++  shield: { scale: number; alpha: number } | null
++}
++
++export interface RaceFxOptions {
++  /** 每組粒子上限（檔位 particleCap） */
++  cap: number
++  /** 胎痕池（桌機 160、手機 80） */
++  skidCap: number
++  /** 拱門橫樑兩端（衝線彩帶噴口） */
++  confettiAt: readonly [number, number, number][]
++  /** 重生閃爍時長（RESPAWN_GHOST_MS） */
++  ghostMs: number
++}
++
++interface CarState {
++  sparkAcc: number
++  flameAcc: number
++  dustAcc: number
++  skidAcc: number
++  px: number
++  pz: number
++  seen: boolean
++  /** 最近一次非 0 的甩尾段位與時間（判斷加速是 mini-turbo 還是加速帶／菇） */
++  lastTier: DriftTier
++  lastTierAt: number
++  boosting: boolean
++  boostAt: number
++  boostColor: Color3
++  boostHex: string
++  boostFlame: boolean
++  flames: Pooled[]
++  wasAir: boolean
++  landAt: number
++  shieldOn: boolean
++  shieldOffAt: number
++  brokeAt: number
++  spinAt: number
++  spinMs: number
++  spinShell: boolean
++  respawnAt: number
++  mushAt: number
++  mush: Mesh | null
++}
++
++interface Pooled {
++  mesh: Mesh
++  mat: StandardMaterial
++  start: number
++  x: number
++  y: number
++  z: number
++  size: number
++}
++
++interface Skid {
++  key: number
++  x: number
++  z: number
++  yaw: number
++  born: number
++}
++
++/** 噴焰 plane 池（每台 2 根排氣管 × 4 台） */
++const FLAME_POOL = 8
++const FLAME_POP_MS = 120
++/** 排氣管（車身座標，spec §4.1） */
++const EXHAUST = { x: 0.26, y: 0.34, z: -1.2 } as const
++/** 後輪外下緣（火花、胎痕） */
++const REAR = { x: 0.95, y: 0.08, z: -0.7 } as const
++const RING_POOL = 4
++const RING_Y = 0.06
++const CARD_POOL = 2
++const CARD_Y = 3.2
++const MUSH_POOL = 4
++const MUSH_Y = 2.0
++const STAR_POOL = 12
++const SLIP_LINES = 6
++/** 加速 mini-turbo 判定：放開甩尾到加速開始之間的容許時間 */
++const TURBO_WINDOW_MS = 250
++const CONFETTI = [...PLAYER_PALETTE.map((p) => p.base), '#FFFFFF']
++const SKID_COLOR = '#2B2440'
++/** flame 三層預建（噴焰每幀換色不再 new Color3） */
++const FLAME_C = FLAME.map((h) => Color3.FromHexString(h))
++/** 揚塵／胎痕瞬移判定用的速度上限（BOOST_SPEED 22 再留餘裕） */
++const MAX_STEP_SPEED = 24
++
++/** 平貼地面的長條（x 寬 w、z 長 d，法線朝上） */
++function flatStrip(w: number, d: number): MeshData {
++  const x = w / 2
++  const z = d / 2
++  return {
++    positions: [-x, 0, -z, x, 0, -z, x, 0, z, -x, 0, z],
++    normals: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
++    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
++    indices: [0, 1, 2, 0, 2, 3],
++  }
++}
++
++/** 車身座標 → 世界（只算偏航） */
++function local(x: number, z: number, ry: number, lx: number, lz: number): [number, number] {
++  const s = Math.sin(ry)
++  const c = Math.cos(ry)
++  return [x + lx * c + lz * s, z - lx * s + lz * c]
++}
++
++export class RaceFx {
++  private readonly scene: Scene
++  private readonly opts: RaceFxOptions
++  private readonly textures: (Texture | DynamicTexture)[] = []
++  private readonly mats: StandardMaterial[] = []
++  private readonly meshes: Mesh[] = []
++  private readonly emitters: FxEmitter[] = []
++  private readonly spark: FxEmitter
++  private readonly smoke: FxEmitter
++  private readonly circle: FxEmitter
++  private readonly star: FxEmitter
++  private readonly starTex: Texture
++  private readonly cars = new Map<string, CarState>()
++
++  private readonly flamePool: Pooled[] = []
++  private readonly rings: Pooled[] = []
++  private readonly cards: (Pooled & { follow: string | null })[] = []
++  private readonly mushPool: Mesh[] = []
++
++  private readonly skids: ThinGroup<number>
++  private skidList: Skid[] = []
++  private skidSeq = 0
++  private readonly slips: ThinGroup<number>
++  private readonly slipMat: StandardMaterial
++  private readonly heads: ThinGroup<string>
++  private readonly speedPlane: Mesh
++  private readonly speedMat: StandardMaterial
++  private speedSpinAt = 0
++  private readonly trailAcc = new Map<string, number>()
++
++  constructor(scene: Scene, look: ToyLook, opts: RaceFxOptions) {
++    this.scene = scene
++    this.opts = opts
++    const tex = (file: string): Texture => {
++      const t = new Texture(fxAssetUrl(file), scene)
++      t.hasAlpha = true
++      this.textures.push(t)
++      return t
++    }
++    this.starTex = tex('fx_star.webp')
++    const add = ParticleSystem.BLENDMODE_ADD
++    const std = ParticleSystem.BLENDMODE_STANDARD
++    const mk = (name: string, t: Texture, blend: number, gravity: number): FxEmitter => {
++      const e = new FxEmitter(scene, name, t, opts.cap, blend, gravity)
++      this.emitters.push(e)
++      return e
++    }
++    this.spark = mk('race-fx-spark', tex('fx_spark.webp'), add, -6)
++    this.smoke = mk('race-fx-smoke', tex('fx_smoke.webp'), std, 0.6)
++    this.circle = mk('race-fx-circle', tex('fx_circle.webp'), add, 0)
++    // 星：衝線彩帶要往下掉（重力 −9）；其他星粒子壽命短，看不太出來
++    this.star = mk('race-fx-star', this.starTex, add, -9)
++
++    // 噴焰：billboard 拉長的星芒（色＝段位色或 flame），自發光、不進 Glow（spec §5）
++    for (let i = 0; i < FLAME_POOL; i++) {
++      const mesh = MeshBuilder.CreatePlane(`race-flame-${i}`, { width: 0.5, height: 0.9 }, scene)
++      mesh.billboardMode = Mesh.BILLBOARDMODE_ALL
++      const mat = this.mat(`race-flame-${i}`, (m) => {
++        m.diffuseTexture = this.starTex
++        m.useAlphaFromDiffuseTexture = true
++        m.disableLighting = true
++        m.backFaceCulling = false
++      })
++      this.flamePool.push(this.pooled(mesh, mat))
++    }
++
++    // 地面白環（撿箱、落地、重生）
++    const ringTex = createRingTexture(scene, 'race-ring-tex')
++    this.textures.push(ringTex)
++    for (let i = 0; i < RING_POOL; i++) {
++      const mesh = MeshBuilder.CreatePlane(`race-ring-${i}`, { size: 1 }, scene)
++      mesh.rotation.x = Math.PI / 2
++      const mat = this.mat(`race-ring-${i}`, (m) => {
++        m.diffuseTexture = ringTex
++        m.useAlphaFromDiffuseTexture = true
++        m.emissiveColor = Color3.White()
++        m.disableLighting = true
++        m.zOffset = -2
++      })
++      this.rings.push(this.pooled(mesh, mat))
++    }
++
++    // 換圈／完賽浮字（spec §8 #14、§8.1）：字卡 plane 3.2×1.4 billboard，各自 UV 對到圖集一格
++    const atlas = createFloatAtlas(scene)
++    this.textures.push(atlas)
++    for (let i = 0; i < CARD_POOL; i++) {
++      const mesh = MeshBuilder.CreatePlane(`race-card-${i}`, { width: 3.2, height: 1.4, updatable: true }, scene)
++      mesh.billboardMode = Mesh.BILLBOARDMODE_ALL
++      const mat = this.mat(`race-card-${i}`, (m) => {
++        m.diffuseTexture = atlas
++        m.useAlphaFromDiffuseTexture = true
++        m.emissiveColor = Color3.White()
++        m.disableLighting = true
++        m.backFaceCulling = false
++        m.fogEnabled = false
++      })
++      this.cards.push({ ...this.pooled(mesh, mat), follow: null })
++    }
++
++    // 加速菇（spec §4.2）：車頂彈出、描邊
++    const mushMat = this.mat('race-mushroom', (m) => {
++      m.diffuseColor = Color3.White()
++      m.specularColor = new Color3(0.06, 0.06, 0.06)
++    })
++    look.toon(mushMat)
++    for (let i = 0; i < MUSH_POOL; i++) {
++      const mesh = toMesh(`race-mushroom-${i}`, mushroomData(), scene)
++      mesh.material = mushMat
++      mesh.isPickable = false
++      mesh.setEnabled(false)
++      look.outline(mesh)
++      this.meshes.push(mesh)
++      this.mushPool.push(mesh)
++    }
++
++    // 胎痕（spec §8 #6）：深紫 25%
++    this.skids = new ThinGroup<number>(toMesh('race-skids', flatStrip(0.22, 0.5), scene), opts.skidCap)
++    this.skids.mesh.material = this.mat('race-skid', (m) => {
++      m.emissiveColor = Color3.FromHexString(SKID_COLOR)
++      m.diffuseColor = Color3.Black()
++      m.disableLighting = true
++      m.alpha = 0.25
++      m.zOffset = -1
++    })
++    this.meshes.push(this.skids.mesh)
++
++    // 尾流風線（spec §8 #3）：細長平面，alpha 依蓄積／生效
++    this.slips = new ThinGroup<number>(toMesh('race-slips', flatStrip(0.06, 2.4), scene), SLIP_LINES)
++    this.slipMat = this.mat('race-slip', (m) => {
++      m.emissiveColor = Color3.FromHexString(RACE.slip)
++      m.diffuseColor = Color3.Black()
++      m.disableLighting = true
++      m.backFaceCulling = false
++    })
++    this.slips.mesh.material = this.slipMat
++    this.meshes.push(this.slips.mesh)
++
++    // 打滑頭頂暈眩星（spec §6）：3 顆繞圈，面向相機
++    const head = MeshBuilder.CreatePlane('race-head-stars', { size: 0.42 }, scene)
++    head.material = this.mat('race-head-star', (m) => {
++      m.diffuseTexture = this.starTex
++      m.useAlphaFromDiffuseTexture = true
++      m.emissiveColor = Color3.FromHexString(RACE.spark)
++      m.disableLighting = true
++      m.backFaceCulling = false
++    })
++    this.heads = new ThinGroup<string>(head, STAR_POOL)
++    this.meshes.push(head)
++
++    // 速度線（spec §8 #4）：UI 相機上一片全螢幕 plane（相機在原點看 +z）
++    const speedTex = createSpeedLineTexture(scene)
++    this.textures.push(speedTex)
++    this.speedPlane = MeshBuilder.CreatePlane('race-speedlines', { size: 1 }, scene)
++    this.speedPlane.layerMask = UI_LAYER
++    this.speedPlane.isPickable = false
++    this.speedMat = this.mat('race-speedlines', (m) => {
++      m.diffuseTexture = speedTex
++      m.useAlphaFromDiffuseTexture = true
++      m.emissiveColor = Color3.White()
++      m.disableLighting = true
++      m.fogEnabled = false
++      m.backFaceCulling = false
++    })
++    this.speedPlane.material = this.speedMat
++    this.speedPlane.position.set(0, 0, 9)
++    this.speedPlane.setEnabled(false)
++    this.meshes.push(this.speedPlane)
++  }
++
++  private mat(name: string, init: (m: StandardMaterial) => void): StandardMaterial {
++    const m = new StandardMaterial(name, this.scene)
++    init(m)
++    this.mats.push(m)
++    return m
++  }
++
++  private pooled(mesh: Mesh, mat: StandardMaterial): Pooled {
++    mesh.material = mat
++    mesh.isPickable = false
++    mesh.setEnabled(false)
++    this.meshes.push(mesh)
++    return { mesh, mat, start: -Infinity, x: 0, y: 0, z: 0, size: 1 }
++  }
++
++  private stateOf(id: string): CarState {
++    let s = this.cars.get(id)
++    if (!s) {
++      s = {
++        sparkAcc: 0,
++        flameAcc: 0,
++        dustAcc: 0,
++        skidAcc: 0,
++        px: 0,
++        pz: 0,
++        seen: false,
++        lastTier: 0,
++        lastTierAt: -Infinity,
++        boosting: false,
++        boostAt: -Infinity,
++        boostColor: FLAME_C[1].clone(),
++        boostHex: FLAME[1],
++        boostFlame: true,
++        flames: [],
++        wasAir: false,
++        landAt: -Infinity,
++        shieldOn: false,
++        shieldOffAt: -Infinity,
++        brokeAt: -Infinity,
++        spinAt: -Infinity,
++        spinMs: 0,
++        spinShell: false,
++        respawnAt: -Infinity,
++        mushAt: -Infinity,
++        mush: null,
++      }
++      this.cars.set(id, s)
++    }
++    return s
++  }
++
++  /** 場上正在畫的數量（給 qa 判讀） */
++  liveCounts(): { skids: number; flames: number; rings: number; particles: number } {
++    return {
++      skids: this.skidList.length,
++      flames: this.flamePool.filter((f) => f.mesh.isEnabled()).length,
++      rings: this.rings.filter((r) => r.mesh.isEnabled()).length,
++      particles: this.emitters.reduce((n, e) => n + e.ps.getActiveCount(), 0),
++    }
++  }
++
++  // ---- 每台車每幀 ----
++
++  /** 連續特效（火花、噴焰、揚塵、胎痕、暈眩星、加速菇位置）並回傳姿態修正；hidden 的車只算姿態 */
++  car(c: CarFxInput, now: number, dtMs: number, camX: number, camZ: number): CarFxPose {
++    const s = this.stateOf(c.id)
++    const moved = s.seen ? Math.hypot(c.x - s.px, c.z - s.pz) : 0
++    const px0 = s.seen ? s.px : c.x
++    const pz0 = s.seen ? s.pz : c.z
++    s.px = c.x
++    s.pz = c.z
++    s.seen = true
++    const ryT = c.ry + c.yaw
++    // 揚塵／胎痕依移動距離出：單幀位移上限隨幀長放寬（低 fps 時一幀正常就超過 1.5，不能當成瞬移）
++    const maxStep = Math.max(1.5, (MAX_STEP_SPEED * dtMs * 1.5) / 1000)
++    const respawnMs = now - s.respawnAt
++    const dropY = respawnDropY(respawnMs)
++    const y = c.y + dropY
++
++    // 打滑（§6）：ms 內轉 2 圈；龜殼命中另彈起
++    const spin = spinPose(now - s.spinAt, s.spinMs, s.spinShell)
++    const spinning = now - s.spinAt < s.spinMs
++
++    // 落地（§8 #12）：騰空 → 著地
++    if (s.wasAir && !c.airborne) {
++      s.landAt = now
++      this.ring(c.x, c.z, 2.6, now)
++      this.smoke.emit(c.x, 0.15, c.z, 0.9, 8, DUST_RING)
++    }
++    s.wasAir = c.airborne
++    const sq = landSquash(now - s.landAt)
++
++    // 甩尾火花（§8 #1）：兩後輪外下緣往後外側噴
++    if (c.drifting && !c.airborne && !spinning) {
++      const look = driftSparkLook(c.drift)
++      const r = emitCount(s.sparkAcc, look.rate, dtMs)
++      s.sparkAcc = r.acc
++      for (let i = 0; i < r.count; i++) {
++        const side = i % 2 === 0 ? 1 : -1
++        const [wx, wz] = local(c.x, c.z, ryT, REAR.x * side, REAR.z)
++        const [ax, az] = local(0, 0, ryT, side * 0.55, -1)
++        this.spark.emit(wx, y + REAR.y, wz, 0.05, 1, sparkStyle(c.drift, look.size, ax, az))
++      }
++    } else s.sparkAcc = 0
++    if (c.drift > 0) {
++      s.lastTier = c.drift
++      s.lastTierAt = now
++    }
++
++    // 噴焰（§8 #2）：加速剛開始時決定色（mini-turbo 段位色或 flame 三層）
++    if (c.boost && !s.boosting) {
++      const prev: DriftTier = now - s.lastTierAt <= TURBO_WINDOW_MS ? s.lastTier : 0
++      const bc = boostColor(prev)
++      s.boostAt = now
++      s.boostHex = bc.color
++      s.boostColor.copyFrom(Color3.FromHexString(bc.color))
++      s.boostFlame = bc.kind === 'flame'
++      s.flames = this.takeFlames(2)
++    }
++    if (!c.boost && s.boosting) this.releaseFlames(s)
++    s.boosting = c.boost
++    if (c.boost) this.flames(c, s, y, ryT, now, dtMs)
++
++    // 揚塵（§8 #5）：路面外且速度 > 3
++    if (c.offTrack && !c.airborne && c.speed > 3) {
++      const st = distanceSteps(s.dustAcc, moved, DUST_SPACING, maxStep)
++      s.dustAcc = st.acc
++      if (st.count > 0) {
++        const [bx, bz] = local(c.x, c.z, ryT, 0, -1)
++        this.smoke.emit(bx, 0.2, bz, 0.3, 2 * st.count, DUST)
++      }
++    }
++
++    // 胎痕（§8 #6）：甩尾中或急煞
++    if (!c.airborne && (c.drifting || (c.braking && c.speed > 8))) {
++      const st = distanceSteps(s.skidAcc, moved, SKID_SPACING, maxStep)
++      s.skidAcc = st.acc
++      for (let i = 0; i < st.count; i++) {
++        // 一幀出多筆時沿這一幀的路徑等距擺
++        const k = (i + 1) / st.count
++        const cx = px0 + (c.x - px0) * k
++        const cz = pz0 + (c.z - pz0) * k
++        for (const side of [1, -1]) {
++          const [wx, wz] = local(cx, cz, ryT, REAR.x * 0.86 * side, REAR.z)
++          this.addSkid(wx, wz, ryT, now)
++        }
++      }
++    }
++
++    // 暈眩星（§6）：頭上 3 顆繞圈（y 2.0、半徑 0.5、2 圈/秒）
++    for (let i = 0; i < 3; i++) {
++      const key = `${c.id}:${i}`
++      if (!spinning) {
++        this.heads.remove(key)
++        continue
++      }
++      const a = (now / 1000) * Math.PI * 4 + (i * Math.PI * 2) / 3
++      const sx = c.x + Math.cos(a) * 0.5
++      const sz = c.z + Math.sin(a) * 0.5
++      this.heads.put(key, { x: sx, y: y + spin.lift + 2.0, z: sz, yaw: Math.atan2(camX - sx, camZ - sz) })
++    }
++
++    // 加速菇（§8 #18）：車頂彈出後縮進車身
++    if (s.mush) {
++      const mp = mushroomPose(now - s.mushAt)
++      if (!mp) {
++        s.mush.setEnabled(false)
++        s.mush = null
++      } else {
++        const k = Math.max(0.001, mp.scale)
++        s.mush.position.set(c.x, y + MUSH_Y - mp.sink * 1.2, c.z)
++        s.mush.rotation.y = c.ry
++        s.mush.scaling.setAll(k)
++      }
++    }
++
++    // 換圈字卡跟著車
++    for (const card of this.cards) {
++      if (card.follow !== c.id) continue
++      card.x = c.x
++      card.y = y
++      card.z = c.z
++    }
++
++    // 護盾（§6、§8 #11）
++    if (s.shieldOn && !c.shield) s.shieldOffAt = now
++    s.shieldOn = c.shield
++    const shield = shieldPose({
++      on: c.shield,
++      leftMs: c.shieldLeftMs,
++      offMs: now - s.shieldOffAt,
++      broke: s.shieldOffAt - s.brokeAt >= 0 && s.shieldOffAt - s.brokeAt < SHIELD_BREAK_MS + 200,
++    })
++
++    return {
++      dropY,
++      spinYaw: spin.yaw,
++      lift: spin.lift,
++      sy: sq.sy,
++      sxz: sq.sxz,
++      visibility: ghostVisibility(now, s.respawnAt + this.opts.ghostMs),
++      shield,
++    }
++  }
++
++  private flames(c: CarFxInput, s: CarState, y: number, ryT: number, now: number, dtMs: number): void {
++    const age = now - s.boostAt
++    const pop = age < FLAME_POP_MS ? 1.4 - 0.4 * (age / FLAME_POP_MS) : 1
++    const flick = 0.9 + 0.2 * fxRandom()
++    s.flames.forEach((f, i) => {
++      const side = i === 0 ? 1 : -1
++      const [wx, wz] = local(c.x, c.z, ryT, EXHAUST.x * side, EXHAUST.z)
++      f.mesh.position.set(wx, y + EXHAUST.y + 0.25, wz)
++      f.mesh.scaling.setAll(pop * flick)
++      f.mat.emissiveColor.copyFrom(s.boostFlame ? FLAME_C[Math.floor(fxRandom() * 3)] : s.boostColor)
++    })
++    const r = emitCount(s.flameAcc, 50, dtMs)
++    s.flameAcc = r.acc
++    if (r.count > 0) {
++      const [bx, bz] = local(c.x, c.z, ryT, 0, EXHAUST.z - 0.2)
++      this.circle.emit(bx, y + EXHAUST.y, bz, 0.2, r.count, exhaustStyle(s.boostFlame ? FLAME[0] : s.boostHex, s.boostFlame ? FLAME[2] : s.boostHex))
++    }
++  }
++
++  private takeFlames(n: number): Pooled[] {
++    const out: Pooled[] = []
++    for (const f of this.flamePool) {
++      if (out.length >= n) break
++      if (f.mesh.isEnabled()) continue
++      f.mesh.setEnabled(true)
++      out.push(f)
++    }
++    return out
++  }
++
++  private releaseFlames(s: CarState): void {
++    for (const f of s.flames) f.mesh.setEnabled(false)
++    s.flames = []
++  }
++
++  private addSkid(x: number, z: number, yaw: number, now: number): void {
++    if (this.skidList.length >= this.opts.skidCap) this.skids.remove(this.skidList.shift()!.key)
++    const key = this.skidSeq++
++    this.skidList.push({ key, x, z, yaw, born: now })
++    this.skids.put(key, { x, y: 0.025, z, yaw })
++  }
++
++  /** 車從畫面上消失（離線、重開局）：收掉它的噴焰、菇、星 */
++  dropCar(id: string): void {
++    const s = this.cars.get(id)
++    if (!s) return
++    this.releaseFlames(s)
++    s.mush?.setEnabled(false)
++    for (let i = 0; i < 3; i++) this.heads.remove(`${id}:${i}`)
++    for (const card of this.cards) if (card.follow === id) card.follow = null
++    this.cars.delete(id)
++  }
++
++  // ---- 事件 ----
++
++  /** 重生（§8 #13）：落下＋閃爍、落點白環與星 */
++  respawn(id: string, x: number, z: number, now: number): void {
++    const s = this.stateOf(id)
++    if (now - s.respawnAt < DROP_MS) return
++    s.respawnAt = now
++    s.wasAir = false
++    // 打滑中出界重生：落下後不再把剩下的圈轉完（頭頂星在下一幀 car() 收掉）
++    s.spinAt = -Infinity
++    this.ring(x, z, 3.0, now)
++    this.star.emit(x, 0.6, z, 0.6, 4, RESPAWN_STAR)
++  }
++
++  /** 打滑（§8 #9／#10）：ms 為這次打滑時長；shell 時另加彈起 */
++  spin(id: string, ms: number, shell: boolean, now: number): void {
++    const s = this.stateOf(id)
++    s.spinAt = now
++    s.spinMs = ms
++    s.spinShell = shell
++  }
++
++  /** 龜殼命中爆炸（§8 #10） */
++  shellBoom(x: number, z: number): void {
++    this.star.emit(x, 0.9, z, 0.1, 1, BOOM_STAR)
++    this.spark.emit(x, 0.6, z, 0.3, 18, BOOM_SPARK)
++    this.smoke.emit(x, 0.5, z, 0.5, 6, BOOM_SMOKE)
++  }
++
++  /** 龜殼拖尾（§8 #10）：存活期間每秒 45 顆 */
++  shellTrail(id: string, x: number, z: number, dtMs: number): void {
++    const r = emitCount(this.trailAcc.get(id) ?? 0, 45, dtMs)
++    this.trailAcc.set(id, r.acc)
++    if (r.count > 0) this.circle.emit(x, 0.35, z, 0.15, r.count, SHELL_TRAIL)
++  }
++
++  forgetTrail(id: string): void {
++    this.trailAcc.delete(id)
++  }
++
++  /** 護盾擋下（§6、§8 #11）：泡泡膨脹碎掉、12 顆 shieldFill 往外射、接觸點小煙 */
++  shieldBlock(id: string, x: number, z: number, now: number): void {
++    this.stateOf(id).brokeAt = now
++    this.circle.emit(x, 0.8, z, 1.4, 12, SHIELD_SHARD)
++    this.smoke.emit(x, 0.6, z, 0.4, 4, BOOM_SMOKE)
++  }
++
++  /** 碰撞火花（§8 #7） */
++  clash(x: number, y: number, z: number): void {
++    this.spark.emit(x, y + 0.5, z, 0.2, 10, CLASH_SPARK)
++    this.star.emit(x, y + 0.6, z, 0.1, 1, CLASH_STAR)
++  }
++
++  /** 撿道具箱（§8 #8）：星往上、白環（碎塊在 world） */
++  boxBreak(x: number, z: number, now: number): void {
++    this.star.emit(x, 1.1, z, 0.4, 6, BOX_STAR)
++    this.ring(x, z, 1.8, now)
++  }
++
++  /** 加速帶觸發（§8 #17）：8 顆 boostArrow 往前噴 */
++  padBurst(x: number, z: number, ry: number): void {
++    this.spark.emit(x, 0.3, z, 0.4, 8, padStyle(Math.sin(ry), Math.cos(ry)))
++  }
++
++  /** 加速菇彈出（§8 #18）；池用完就不播 */
++  mushroom(id: string, now: number): void {
++    const s = this.stateOf(id)
++    if (!s.mush) {
++      const free = this.mushPool.find((m) => !m.isEnabled())
++      if (!free) return
++      s.mush = free
++      free.setEnabled(true)
++    }
++    s.mushAt = now
++  }
++
++  /** 換圈／完賽字卡（§8 #14），跟著 id 的車 */
++  card(text: FloatText, id: string, now: number): void {
++    const card = this.cards.find((c) => c.follow === null || now - c.start >= LAP_CARD_MS) ?? this.cards[0]
++    card.follow = id
++    card.start = now
++    card.mesh.setVerticesData('uv', quadUV(floatCellUV(FLOAT_TEXTS.indexOf(text))), true)
++    card.mesh.setEnabled(true)
++  }
++
++  /** 衝線彩帶（§8 #15）：拱門橫樑兩端噴，自己 60 顆、他人 20 顆 */
++  finish(self: boolean): void {
++    const n = finishConfetti(self)
++    const per = Math.max(1, Math.round(n / this.opts.confettiAt.length / CONFETTI_STYLES.length))
++    for (const [x, y, z] of this.opts.confettiAt) for (const st of CONFETTI_STYLES) this.star.emit(x, y, z, 0.4, per, st)
++  }
++
++  /** 尾流風線（§8 #3，只畫自己）：count 條繞車身半徑 1.2、往後流 */
++  slip(count: number, alpha: number, x: number, y: number, z: number, ry: number, now: number): void {
++    for (let i = 0; i < SLIP_LINES; i++) {
++      if (i >= count) {
++        this.slips.remove(i)
++        continue
++      }
++      // 每條 0.3s 一個循環，從車頭往車尾流；角度固定在上半圈
++      const phase = (now / 300 + i * 0.37) % 1
++      const a = Math.PI * (0.1 + (0.8 * ((i * 5) % SLIP_LINES)) / (SLIP_LINES - 1))
++      const lx = Math.cos(a) * 1.2
++      const ly = 0.4 + Math.sin(a) * 0.9
++      const lz = 1.2 - phase * 3.6
++      const [wx, wz] = local(x, z, ry, lx, lz)
++      const k = Math.sin(Math.PI * phase)
++      this.slips.put(i, { x: wx, y: y + ly, z: wz, yaw: ry, sx: 1, sy: 1, sz: Math.max(0.05, k) })
++    }
++    this.slipMat.alpha = alpha
++  }
++
++  /** 速度線（§8 #4）：alpha 0 收起；每 60ms 隨機轉 0–10° 製造閃動 */
++  speedLines(alpha: number, now: number, fov: number, aspect: number): void {
++    const on = alpha > 0.01
++    this.speedPlane.setEnabled(on)
++    if (!on) return
++    this.speedMat.alpha = alpha
++    const h = 2 * this.speedPlane.position.z * Math.tan(fov / 2) * 1.1
++    this.speedPlane.scaling.set(h * Math.max(1, aspect), h * Math.max(1, aspect), 1)
++    if (now - this.speedSpinAt >= 60) {
++      this.speedSpinAt = now
++      this.speedPlane.rotation.z = fxRandom() * ((10 * Math.PI) / 180)
++    }
++  }
++
++  private ring(x: number, z: number, d: number, now: number): void {
++    const r = this.rings.find((p) => !p.mesh.isEnabled()) ?? this.rings.reduce((a, b) => (a.start < b.start ? a : b))
++    r.start = now
++    r.x = x
++    r.z = z
++    r.size = d
++    r.mesh.setEnabled(true)
++  }
++
++  // ---- 每幀收尾 ----
++
++  update(now: number): void {
++    for (const r of this.rings) {
++      if (!r.mesh.isEnabled()) continue
++      const t = (now - r.start) / RING_MS
++      if (t >= 1) {
++        r.mesh.setEnabled(false)
++        continue
++      }
++      const p = ringPose(t)
++      r.mesh.position.set(r.x, RING_Y, r.z)
++      r.mesh.scaling.setAll(r.size * p.scale)
++      r.mat.alpha = p.alpha
++    }
++    for (const c of this.cards) {
++      if (!c.mesh.isEnabled()) continue
++      const p = lapCardPose(now - c.start)
++      if (!p) {
++        c.mesh.setEnabled(false)
++        c.follow = null
++        continue
++      }
++      c.mesh.position.set(c.x, c.y + CARD_Y + p.rise, c.z)
++      c.mesh.scaling.setAll(Math.max(0.001, p.scale))
++      c.mat.alpha = p.alpha
++    }
++    // 胎痕：最後 0.6 秒縮小，到期拿掉
++    while (this.skidList.length && skidScale(now - this.skidList[0].born) === null) this.skids.remove(this.skidList.shift()!.key)
++    for (const m of this.skidList) {
++      const k = skidScale(now - m.born)
++      if (k !== null && k < 1) this.skids.put(m.key, { x: m.x, y: 0.025, z: m.z, yaw: m.yaw, sx: k, sz: k })
++    }
++    for (const g of [this.skids, this.slips, this.heads]) g.sync()
++  }
++
++  /** 重開局：清掉場上所有特效 */
++  reset(): void {
++    for (const e of this.emitters) e.clear()
++    for (const id of [...this.cars.keys()]) this.dropCar(id)
++    for (const p of [...this.rings, ...this.cards]) p.mesh.setEnabled(false)
++    this.skids.clear()
++    this.skidList = []
++    this.slips.clear()
++    this.heads.clear()
++    this.trailAcc.clear()
++    this.speedPlane.setEnabled(false)
++  }
++
++  dispose(): void {
++    for (const e of this.emitters) e.dispose()
++    for (const m of this.meshes) m.dispose()
++    for (const m of this.mats) m.dispose()
++    for (const t of this.textures) t.dispose()
++    this.meshes.length = 0
++    this.mats.length = 0
++    this.textures.length = 0
++    this.cars.clear()
++  }
++}
++
++const RING_MS = 380
++
++const quadUV = ([u0, v0, u1, v1]: [number, number, number, number]): number[] => [u0, v0, u1, v0, u1, v1, u0, v1]
++
++// ---- 粒子樣式（色票 spec §3.2；顏色 c1 → c2 → 透明） ----
++
++const sparkStyles = new Map<string, FxStyle>()
++/** 甩尾火花：aim 每幀不同，依 8 方位量化快取，免得每顆都新建樣式 */
++function sparkStyle(tier: DriftTier, size: number, ax: number, az: number): FxStyle {
++  const oct = Math.round((Math.atan2(ax, az) / (Math.PI * 2)) * 16) & 15
++  const key = `${tier}:${oct}`
++  let st = sparkStyles.get(key)
++  if (!st) {
++    const a = (oct / 16) * Math.PI * 2
++    const col = driftSparkLook(tier).color
++    // 亮芯（段位色往白拉）→ 段位色 → 透明：ADD 混色在深紫路面上才看得出段位
++    st = style(sparkHot(col), col, col, {
++      size: [SPARK_SIZE * size, SPARK_SIZE * 1.3 * size],
++      life: [0.2, 0.32],
++      power: [2, 3.5],
++      dir: 'aim',
++      aim: [Math.sin(a), 0.45, Math.cos(a)],
++      cone: (35 * Math.PI) / 180,
++    })
++    sparkStyles.set(key, st)
++  }
++  return st
++}
++
++const exhaustStyles = new Map<string, FxStyle>()
++function exhaustStyle(c1: string, c2: string): FxStyle {
++  const key = `${c1}|${c2}`
++  let st = exhaustStyles.get(key)
++  if (!st) {
++    st = style(c1, c2, c2, { size: [0.3, 0.45], life: [0.1, 0.14], power: [0.4, 0.9], dir: 'up' })
++    exhaustStyles.set(key, st)
++  }
++  return st
++}
++
++const padStyles = new Map<string, FxStyle>()
++function padStyle(dx: number, dz: number): FxStyle {
++  const key = `${Math.round(dx * 8)}:${Math.round(dz * 8)}`
++  let st = padStyles.get(key)
++  if (!st) {
++    st = style(RACE.boostArrow, RACE.boostPad, RACE.boostPad, {
++      size: [0.2, 0.3],
++      life: [0.2, 0.3],
++      power: [5, 8],
++      dir: 'aim',
++      aim: [dx, 0.3, dz],
++      cone: 0.3,
++    })
++    padStyles.set(key, st)
++  }
++  return st
++}
++
++const DUST = style(RACE.dust, RACE.dust, RACE.dust, { size: [0.4, 0.9], life: [0.45, 0.55], power: [0.4, 1], dir: 'up' }, 0.6)
++const DUST_RING = style(RACE.dust, RACE.dust, RACE.dust, { size: [0.5, 0.9], life: [0.35, 0.5], power: [2, 3], dir: 'radial' }, 0.7)
++const RESPAWN_STAR = style('#FFFFFF', RACE.spark, RACE.spark, { size: [0.5, 0.7], life: [0.3, 0.45], power: [1.5, 2.5], dir: 'up' })
++const BOOM_STAR = style('#FFFFFF', '#FFC53A', '#FFC53A', { size: [2, 2], life: [0.2, 0.25], power: [0, 0], dir: 'up' })
++const BOOM_SPARK = style('#FFFFFF', '#FFC53A', '#FFC53A', { size: [0.2, 0.3], life: [0.25, 0.4], power: [4, 7], dir: 'burst' })
++const BOOM_SMOKE = style('#FFF6E3', '#FFF6E3', '#FFF6E3', { size: [0.6, 1], life: [0.35, 0.4], power: [0.5, 1.2], dir: 'up' }, 0.8)
++const SHELL_TRAIL = style('#FF8A80', '#FFFFFF', '#FFFFFF', { size: [0.3, 0.35], life: [0.22, 0.25], power: [0, 0.2], dir: 'up' })
++const SHIELD_SHARD = style(RACE.shieldFill, RACE.shield, RACE.shield, { size: [0.25, 0.35], life: [0.2, 0.25], power: [5, 7], dir: 'radial' })
++const CLASH_SPARK = style('#FFFFFF', RACE.spark, RACE.spark, { size: [0.14, 0.22], life: [0.12, 0.16], power: [3, 5], dir: 'burst' })
++const CLASH_STAR = style('#FFFFFF', RACE.spark, RACE.spark, { size: [0.6, 0.6], life: [0.14, 0.16], power: [0, 0], dir: 'up' })
++const BOX_STAR = style('#FFFFFF', '#FFF6C8', '#FFF6C8', { size: [0.35, 0.5], life: [0.35, 0.45], power: [3, 5], dir: 'up' })
++const CONFETTI_STYLES = CONFETTI.map((c) => style(c, c, c, { size: [0.3, 0.45], life: [1.2, 1.6], power: [5, 9], dir: 'fountain' }))
+diff --git a/src/babylon/games/raceFx/fxModel.test.ts b/src/babylon/games/raceFx/fxModel.test.ts
+new file mode 100644
+index 0000000..92bda3e
+--- /dev/null
++++ b/src/babylon/games/raceFx/fxModel.test.ts
+@@ -0,0 +1,276 @@
++import { describe, it, expect } from 'vitest'
++import {
++  BOX_POP_MS,
++  CLASH_COOLDOWN_MS,
++  CLASH_SPEED,
++  DROP_H,
++  DROP_MS,
++  GHOST_DIM,
++  LAND_MS,
++  SHAKE_AMP,
++  SHAKE_MS,
++  boostColor,
++  boxPopScale,
++  chunkPose,
++  clashKey,
++  clashReady,
++  driftSparkLook,
++  SPARK_SIZE,
++  sparkHot,
++  finishConfetti,
++  finishEdges,
++  ghostVisibility,
++  lapCardPose,
++  landSquash,
++  relSpeed,
++  respawnDropY,
++  shakeAmp,
++  shakeAllowed,
++  shieldPose,
++  skidScale,
++  slipLook,
++  speedLineAlpha,
++  speedLineCap,
++  spinPose,
++  mushroomPose,
++  dyingBananaPose,
++} from '@/babylon/games/raceFx/fxModel'
++import { DRIFT_COLORS } from '@/babylon/games/raceFx/palette'
++
++describe('raceFx/fxModel — 重生（spec §6、§8 #13）', () => {
++  it('閃爍：visibility 1↔0.3 方波 10Hz，到期後恆為 1', () => {
++    const until = 1500
++    const seen = new Set<number>()
++    for (let t = 0; t < until; t += 25) seen.add(ghostVisibility(t, until))
++    expect([...seen].sort()).toEqual([GHOST_DIM, 1])
++    expect(GHOST_DIM).toBe(0.3)
++    expect(ghostVisibility(until, until)).toBe(1)
++    expect(ghostVisibility(until + 10, until)).toBe(1)
++    // 10Hz：每 50ms 換一次相位
++    expect(ghostVisibility(1000, 1500)).not.toBe(ghostVisibility(1050, 1500))
++    expect(ghostVisibility(1000, 1500)).toBe(ghostVisibility(1100, 1500))
++  })
++
++  it('落下：y 3 → 0（easeIn 280ms），範圍外為 0', () => {
++    expect(respawnDropY(0)).toBe(DROP_H)
++    expect(DROP_H).toBe(3)
++    expect(DROP_MS).toBe(280)
++    expect(respawnDropY(140)).toBeGreaterThan(DROP_H / 2) // easeIn：前半段落得慢
++    expect(respawnDropY(DROP_MS)).toBe(0)
++    expect(respawnDropY(-1)).toBe(0)
++  })
++})
++
++describe('raceFx/fxModel — 甩尾火花（§8 #1）與噴焰色（§8 #2）', () => {
++  it('段位 0..3：顏色白→藍→橘→紫、emitRate 20/40/55/70、size ×1/×1/×1.15/×1.3', () => {
++    expect([0, 1, 2, 3].map((t) => driftSparkLook(t as 0 | 1 | 2 | 3).color)).toEqual([...DRIFT_COLORS])
++    expect([0, 1, 2, 3].map((t) => driftSparkLook(t as 0 | 1 | 2 | 3).rate)).toEqual([20, 40, 55, 70])
++    expect([0, 1, 2, 3].map((t) => driftSparkLook(t as 0 | 1 | 2 | 3).size)).toEqual([1, 1, 1.15, 1.3])
++  })
++
++  it('加速開始前剛有甩尾段位 → mini-turbo 段位色；否則（加速帶、加速菇）flame', () => {
++    expect(boostColor(2)).toEqual({ kind: 'turbo', color: DRIFT_COLORS[2] })
++    expect(boostColor(3)).toEqual({ kind: 'turbo', color: DRIFT_COLORS[3] })
++    expect(boostColor(0).kind).toBe('flame')
++  })
++})
++
++describe('raceFx/fxModel — 尾流風線（§8 #3）與速度線（§8 #4）', () => {
++  it('蓄積中 2 條 alpha 0.35；生效 6 條 alpha 0.7；都沒有 0 條', () => {
++    expect(slipLook(false, false)).toEqual({ count: 0, alpha: 0 })
++    expect(slipLook(true, false)).toEqual({ count: 2, alpha: 0.35 })
++    expect(slipLook(true, true)).toEqual({ count: 6, alpha: 0.7 })
++    expect(slipLook(false, true)).toEqual({ count: 6, alpha: 0.7 })
++  })
++
++  it('速度線：90% 以下 0、滿速 0.6、加速中 0.6；上限依 reduced-motion 0.25／手機 0.35', () => {
++    expect(speedLineAlpha(0.8, false, 1)).toBe(0)
++    expect(speedLineAlpha(0.95, false, 1)).toBeCloseTo(0.3)
++    expect(speedLineAlpha(1, false, 1)).toBeCloseTo(0.6)
++    expect(speedLineAlpha(0.2, true, 1)).toBeCloseTo(0.6)
++    expect(speedLineAlpha(1, true, speedLineCap({ reducedMotion: true, mobile: false }))).toBeCloseTo(0.25)
++    expect(speedLineCap({ reducedMotion: false, mobile: true })).toBe(0.35)
++    expect(speedLineCap({ reducedMotion: true, mobile: true })).toBe(0.25)
++  })
++})
++
++describe('raceFx/fxModel — 胎痕（§8 #6）、碰撞火花（§8 #7）', () => {
++  it('胎痕 2.5s：前段原尺寸、最後 0.6s 縮小、到期 null', () => {
++    expect(skidScale(0)).toBe(1)
++    expect(skidScale(1800)).toBe(1)
++    expect(skidScale(2200)).toBeGreaterThan(0)
++    expect(skidScale(2200)).toBeLessThan(1)
++    expect(skidScale(2500)).toBeNull()
++  })
++
++  it('相對速度：同向同速 0、對撞相加', () => {
++    expect(relSpeed({ speed: 10, ry: 0 }, { speed: 10, ry: 0 })).toBeCloseTo(0)
++    expect(relSpeed({ speed: 5, ry: 0 }, { speed: 5, ry: Math.PI })).toBeCloseTo(10)
++  })
++
++  it('同一對 300ms 內不重播；pair key 與順序無關', () => {
++    expect(CLASH_SPEED).toBe(4)
++    expect(clashKey('b', 'a')).toBe(clashKey('a', 'b'))
++    const last = new Map<string, number>()
++    expect(clashReady(last, 'a|b', 1000)).toBe(true)
++    expect(clashReady(last, 'a|b', 1000 + CLASH_COOLDOWN_MS - 1)).toBe(false)
++    expect(clashReady(last, 'a|c', 1100)).toBe(true)
++    expect(clashReady(last, 'a|b', 1000 + CLASH_COOLDOWN_MS)).toBe(true)
++  })
++})
++
++describe('raceFx/fxModel — 道具箱碎裂與重生（§8 #8）', () => {
++  it('碎塊：拋物線、縮小，450ms 後 null', () => {
++    const a = chunkPose(0, 2, 5, 0)
++    expect(a).toEqual({ x: 0, y: 0, z: 0, scale: 1 })
++    const b = chunkPose(200, 2, 5, 0)!
++    expect(b.x).toBeCloseTo(0.4)
++    expect(b.y).toBeGreaterThan(0)
++    expect(b.scale).toBeLessThan(1)
++    expect(chunkPose(450, 2, 5, 0)).toBeNull()
++  })
++
++  it('重生：scale 0 → 1.1 → 1（backOut 300ms），之後 1', () => {
++    expect(boxPopScale(0)).toBeCloseTo(0)
++    let peak = 0
++    for (let t = 0; t <= BOX_POP_MS; t += 10) peak = Math.max(peak, boxPopScale(t))
++    expect(peak).toBeGreaterThan(1.05)
++    expect(boxPopScale(BOX_POP_MS)).toBe(1)
++    expect(boxPopScale(5000)).toBe(1)
++  })
++})
++
++describe('raceFx/fxModel — 打滑（§6、§8 #9／#10）', () => {
++  it('ms 內轉 2 圈（easeOut），結束為 0', () => {
++    expect(spinPose(0, 800, false).yaw).toBe(0)
++    expect(spinPose(400, 800, false).yaw).toBeGreaterThan(Math.PI * 2) // easeOut：一半時間轉過一半以上
++    expect(spinPose(799, 800, false).yaw).toBeLessThan(Math.PI * 4)
++    expect(spinPose(800, 800, false)).toEqual({ yaw: 0, lift: 0 })
++  })
++
++  it('龜殼命中另加前 400ms 彈起 0.8（sin），香蕉不彈', () => {
++    expect(spinPose(200, 1200, true).lift).toBeCloseTo(0.8)
++    expect(spinPose(500, 1200, true).lift).toBe(0)
++    expect(spinPose(200, 800, false).lift).toBe(0)
++  })
++
++  it('被踩到的香蕉：原地彈起 0.6、轉 2 圈、300ms 縮小消失', () => {
++    const mid = dyingBananaPose(150)!
++    expect(mid.lift).toBeCloseTo(0.6)
++    expect(mid.scale).toBeGreaterThan(0)
++    expect(mid.scale).toBeLessThan(1)
++    expect(dyingBananaPose(300)).toBeNull()
++  })
++})
++
++describe('raceFx/fxModel — 護盾（§6、§8 #11）', () => {
++  it('開著：scale 1；最後 2 秒 6Hz 閃（alpha 1／0.35）', () => {
++    expect(shieldPose({ on: true, leftMs: 5000, offMs: 0, broke: false })).toEqual({ scale: 1, alpha: 1 })
++    const alphas = new Set<number>()
++    for (let left = 1999; left > 0; left -= 20) alphas.add(shieldPose({ on: true, leftMs: left, offMs: 0, broke: false })!.alpha)
++    expect(alphas.size).toBe(2)
++  })
++
++  it('擋下：220ms scale 1→1.25、alpha→0；到期：300ms 淡出', () => {
++    const b = shieldPose({ on: false, leftMs: null, offMs: 110, broke: true })!
++    expect(b.scale).toBeCloseTo(1.125)
++    expect(b.alpha).toBeCloseTo(0.5)
++    expect(shieldPose({ on: false, leftMs: null, offMs: 220, broke: true })).toBeNull()
++    const f = shieldPose({ on: false, leftMs: null, offMs: 150, broke: false })!
++    expect(f.scale).toBe(1)
++    expect(f.alpha).toBeCloseTo(0.5)
++    expect(shieldPose({ on: false, leftMs: null, offMs: 300, broke: false })).toBeNull()
++  })
++})
++
++describe('raceFx/fxModel — 落地、浮字、彩帶、鏡頭微震、加速菇', () => {
++  it('落地擠壓 220ms（振幅 0.2）', () => {
++    expect(LAND_MS).toBe(220)
++    expect(landSquash(-1)).toEqual({ sy: 1, sxz: 1 })
++    expect(landSquash(40).sy).toBeLessThan(1)
++    expect(landSquash(LAND_MS)).toEqual({ sy: 1, sxz: 1 })
++  })
++
++  it('換圈字卡：彈出 220ms（0→1.15→1）、停 700ms、上飄淡出 300ms', () => {
++    expect(lapCardPose(0)!.scale).toBeCloseTo(0)
++    let peak = 0
++    for (let t = 0; t <= 220; t += 5) peak = Math.max(peak, lapCardPose(t)!.scale)
++    expect(peak).toBeGreaterThan(1.05)
++    expect(lapCardPose(500)).toEqual({ scale: 1, rise: 0, alpha: 1 })
++    const leave = lapCardPose(1070)!
++    expect(leave.alpha).toBeCloseTo(0.5)
++    expect(leave.rise).toBeGreaterThan(0)
++    expect(lapCardPose(1220)).toBeNull()
++  })
++
++  it('衝線彩帶：自己 60 顆、他人 20 顆', () => {
++    expect(finishConfetti(true)).toBe(60)
++    expect(finishConfetti(false)).toBe(20)
++  })
++
++  it('鏡頭微震 220ms ±0.18 線性衰減；reduced-motion 或手機不震', () => {
++    expect(SHAKE_MS).toBe(220)
++    expect(SHAKE_AMP).toBe(0.18)
++    expect(shakeAmp(0)).toBeCloseTo(0.18)
++    expect(shakeAmp(110)).toBeCloseTo(0.09)
++    expect(shakeAmp(220)).toBe(0)
++    expect(shakeAmp(-5)).toBe(0)
++    expect(shakeAllowed({ reducedMotion: false, mobile: false })).toBe(true)
++    expect(shakeAllowed({ reducedMotion: true, mobile: false })).toBe(false)
++    expect(shakeAllowed({ reducedMotion: false, mobile: true })).toBe(false)
++  })
++
++  it('加速菇：backOut 160ms 彈出、停 80ms、縮進 100ms，340ms 後 null', () => {
++    expect(mushroomPose(0)!.scale).toBeCloseTo(0)
++    expect(mushroomPose(200)).toEqual({ scale: 1, sink: 0 })
++    const s = mushroomPose(290)!
++    expect(s.sink).toBeGreaterThan(0)
++    expect(mushroomPose(340)).toBeNull()
++  })
++})
++
++describe('raceFx/fxModel — 衝線彩帶觸發（波 4 review I1）', () => {
++  it('只在比賽中、fin 由 null 變數值時觸發', () => {
++    const prev = new Map<string, number | null>()
++    expect(finishEdges(prev, [{ id: 'a', fin: null }], true)).toEqual([])
++    expect(finishEdges(prev, [{ id: 'a', fin: 90000 }], true)).toEqual(['a'])
++    expect(finishEdges(prev, [{ id: 'a', fin: 90000 }], true)).toEqual([])
++  })
++
++  it('重開局：倒數期間讀到上一局的舊 fin 不觸發，進比賽後舊值仍在也不觸發', () => {
++    const prev = new Map<string, number | null>() // resetRace 清空
++    expect(finishEdges(prev, [{ id: 'g', fin: 95000 }], false)).toEqual([])
++    expect(finishEdges(prev, [{ id: 'g', fin: 95000 }], true)).toEqual([])
++    expect(finishEdges(prev, [{ id: 'g', fin: null }], true)).toEqual([])
++    expect(finishEdges(prev, [{ id: 'g', fin: 70000 }], true)).toEqual(['g'])
++  })
++
++  it('比賽外過線不觸發，但記住狀態', () => {
++    const prev = new Map<string, number | null>([['a', null]])
++    expect(finishEdges(prev, [{ id: 'a', fin: 1000 }], false)).toEqual([])
++    expect(finishEdges(prev, [{ id: 'a', fin: 1000 }], true)).toEqual([])
++  })
++})
++
++describe('raceFx/fxModel — 甩尾火花可見度（波 4 qa BUG：紫段在深紫路面看不見）', () => {
++  const lum = (hex: string) => {
++    const n = parseInt(hex.slice(1), 16)
++    return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)
++  }
++  it('出生色是段位色往白拉的亮芯（比段位色亮、仍保留色相：最大通道不變）', () => {
++    for (const t of [1, 2, 3] as const) {
++      const base = driftSparkLook(t).color
++      const hot = sparkHot(base)
++      expect(lum(hot)).toBeGreaterThan(lum(base) + 40)
++      const ch = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
++      const b = ch(base)
++      const k = ch(hot)
++      expect(k.indexOf(Math.max(...k))).toBe(b.indexOf(Math.max(...b)))
++    }
++    expect(sparkHot('#FFFFFF')).toBe('#FFFFFF')
++  })
++
++  it('火花基準尺寸放大到 0.45 以上（fx_spark 只有約 11% 面積不透明，ADD 混色在深色路面上才看得到）', () => {
++    expect(SPARK_SIZE).toBeGreaterThanOrEqual(0.45)
++  })
++})
+diff --git a/src/babylon/games/raceFx/fxModel.ts b/src/babylon/games/raceFx/fxModel.ts
+new file mode 100644
+index 0000000..f50a94d
+--- /dev/null
++++ b/src/babylon/games/raceFx/fxModel.ts
+@@ -0,0 +1,246 @@
++/**
++ * 賽車特效的時間曲線與小規則（spec §6／§8，純函式）：只算「現在該長什麼樣」，畫在 effects.ts／world.ts／race.ts。
++ * 時間一律傳毫秒（經過時間或剩餘時間），超出範圍回「沒在播」（null 或原狀）。
++ */
++import { backOut, clamp01, easeOut } from '@/babylon/fx/curves'
++import { squashPose } from '@/babylon/games/tankFx/juice'
++import type { DriftTier } from '@/babylon/games/raceFx/raceNet'
++import { DRIFT_COLORS } from '@/babylon/games/raceFx/palette'
++
++// ---- 重生（§6、§8 #13）：從 y 3 落下 280ms，visibility 1↔0.3 方波 10Hz ----
++
++export const GHOST_BLINK_HZ = 10
++export const GHOST_DIM = 0.3
++export const DROP_H = 3
++export const DROP_MS = 280
++
++/** 以剩餘時間算相位（各端一致）；到期後恆為 1 */
++export function ghostVisibility(now: number, until: number): number {
++  const left = until - now
++  if (left <= 0) return 1
++  return Math.ceil((left / 1000) * GHOST_BLINK_HZ * 2) % 2 === 0 ? 1 : GHOST_DIM
++}
++
++/** 落下高度（easeIn）；範圍外 0 */
++export function respawnDropY(ms: number): number {
++  if (!(ms >= 0 && ms < DROP_MS)) return 0
++  const u = ms / DROP_MS
++  return DROP_H * (1 - u * u)
++}
++
++// ---- 甩尾火花（§6、§8 #1）與加速噴焰（§8 #2） ----
++
++const SPARK_RATE = [20, 40, 55, 70] as const
++const SPARK_TIER_SCALE = [1, 1, 1.15, 1.3] as const
++
++export function driftSparkLook(tier: DriftTier): { color: string; rate: number; size: number } {
++  return { color: DRIFT_COLORS[tier], rate: SPARK_RATE[tier], size: SPARK_TIER_SCALE[tier] }
++}
++
++/**
++ * 火花基準尺寸：spec 寫 0.18，但 ADD 混色的小火花在深紫路面上幾乎加不出亮度（波 4 qa BUG）；fx_spark.webp 只有約 11% 面積不透明，放大到 0.5（可見芯約 0.17）。
++ * 段位倍率（×1／×1.15／×1.3）照舊乘在上面。
++ */
++export const SPARK_SIZE = 0.5
++const HOT_MIX = 0.55
++
++/** 火花出生色：段位色往白拉 55%（亮芯），之後淡回段位色；色相（最大通道）不變 */
++export function sparkHot(hex: string): string {
++  const n = parseInt(hex.slice(1), 16)
++  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.round(c + (255 - c) * HOT_MIX))
++  return `#${ch.map((c) => c.toString(16).padStart(2, '0').toUpperCase()).join('')}`
++}
++
++/** flame 三層（加速帶、加速菇；spec §3.2） */
++export const FLAME = ['#FFF6C8', '#FFC53A', '#FF7A1A'] as const
++
++/** 加速剛開始時：前一刻有甩尾段位 → mini-turbo 段位色；否則 flame */
++export function boostColor(prevTier: DriftTier): { kind: 'turbo' | 'flame'; color: string } {
++  return prevTier > 0 ? { kind: 'turbo', color: DRIFT_COLORS[prevTier] } : { kind: 'flame', color: FLAME[1] }
++}
++
++// ---- 尾流風線（§8 #3）、速度線（§8 #4） ----
++
++export function slipLook(charging: boolean, active: boolean): { count: number; alpha: number } {
++  if (active) return { count: 6, alpha: 0.7 }
++  if (charging) return { count: 2, alpha: 0.35 }
++  return { count: 0, alpha: 0 }
++}
++
++/** speedRatio = |speed| / MAX_SPEED；cap 見 speedLineCap */
++export function speedLineAlpha(speedRatio: number, boosting: boolean, cap: number): number {
++  const a = boosting ? 0.6 : 0.6 * clamp01((speedRatio - 0.9) / 0.1)
++  return Math.min(a, cap)
++}
++
++/** prefers-reduced-motion 0.25、手機 0.35（spec §10）、其餘不限 */
++export const speedLineCap = (o: { reducedMotion: boolean; mobile: boolean }): number =>
++  o.reducedMotion ? 0.25 : o.mobile ? 0.35 : 1
++
++// ---- 揚塵（§8 #5）、胎痕（§8 #6） ----
++
++export const DUST_SPACING = 0.4
++export const SKID_SPACING = 0.35
++export const SKID_MS = 2500
++const SKID_SHRINK_MS = 600
++
++/** 胎痕：最後 0.6s 縮小代替淡出（thin instance 沒有逐筆 alpha）；到期 null */
++export function skidScale(ageMs: number): number | null {
++  if (!(ageMs >= 0 && ageMs < SKID_MS)) return null
++  const left = SKID_MS - ageMs
++  return left >= SKID_SHRINK_MS ? 1 : left / SKID_SHRINK_MS
++}
++
++// ---- 碰撞火花（§8 #7） ----
++
++export const CLASH_SPEED = 4
++export const CLASH_COOLDOWN_MS = 300
++
++/** 兩車速度向量差的大小（ry 為移動方向） */
++export function relSpeed(a: { speed: number; ry: number }, b: { speed: number; ry: number }): number {
++  const dx = a.speed * Math.sin(a.ry) - b.speed * Math.sin(b.ry)
++  const dz = a.speed * Math.cos(a.ry) - b.speed * Math.cos(b.ry)
++  return Math.hypot(dx, dz)
++}
++
++export const clashKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`)
++
++/** 同一對 300ms 內不重播；可以播時記下這次時間 */
++export function clashReady(last: Map<string, number>, key: string, now: number): boolean {
++  const prev = last.get(key)
++  if (prev !== undefined && now - prev < CLASH_COOLDOWN_MS) return false
++  last.set(key, now)
++  return true
++}
++
++// ---- 道具箱碎裂與重生（§8 #8） ----
++
++export const BREAK_MS = 450
++export const BOX_POP_MS = 300
++const CHUNK_G = 14
++
++/** 碎塊相對箱子中心的位移（初速 vx/vy/vz）與縮放；到期 null */
++export function chunkPose(ms: number, vx: number, vy: number, vz: number): { x: number; y: number; z: number; scale: number } | null {
++  if (!(ms >= 0 && ms < BREAK_MS)) return null
++  const t = ms / 1000
++  return { x: vx * t, y: t * (vy - 0.5 * CHUNK_G * t), z: vz * t, scale: 1 - ms / BREAK_MS }
++}
++
++/** 重生彈出 0 → 1.1 → 1（backOut）；之後 1 */
++export function boxPopScale(ms: number): number {
++  if (!(ms < BOX_POP_MS)) return 1
++  return ms <= 0 ? 0 : backOut(ms / BOX_POP_MS)
++}
++
++// ---- 打滑（§6、§8 #9／#10） ----
++
++const SPIN_TURNS = 2
++const SHELL_LIFT = 0.8
++const SHELL_LIFT_MS = 400
++
++/** ms 內轉 2 圈（easeOut）；龜殼命中另加前 400ms 彈起 */
++export function spinPose(ms: number, dur: number, shell: boolean): { yaw: number; lift: number } {
++  if (!(ms >= 0 && ms < dur)) return { yaw: 0, lift: 0 }
++  const yaw = Math.PI * 2 * SPIN_TURNS * easeOut(ms / dur)
++  const lift = shell && ms < SHELL_LIFT_MS ? SHELL_LIFT * Math.sin((Math.PI * ms) / SHELL_LIFT_MS) : 0
++  return { yaw, lift }
++}
++
++export const BANANA_DIE_MS = 300
++
++/** 被踩到的香蕉：原地彈起 0.6、轉 2 圈後縮小消失 */
++export function dyingBananaPose(ms: number): { lift: number; spin: number; scale: number } | null {
++  if (!(ms >= 0 && ms < BANANA_DIE_MS)) return null
++  const u = ms / BANANA_DIE_MS
++  return { lift: 0.6 * Math.sin(Math.PI * u), spin: Math.PI * 4 * easeOut(u), scale: 1 - u }
++}
++
++// ---- 護盾（§6、§8 #11） ----
++
++export const SHIELD_BREAK_MS = 220
++export const SHIELD_FADE_MS = 300
++const SHIELD_WARN_MS = 2000
++const SHIELD_BLINK_HZ = 6
++
++/**
++ * on：開著（leftMs 已知時最後 2 秒 6Hz 閃）；off：offMs 為關掉後經過時間，broke＝被擋下（膨脹碎掉）否則到期淡出。
++ * 回傳 null 表示不畫。
++ */
++export function shieldPose(o: { on: boolean; leftMs: number | null; offMs: number; broke: boolean }): { scale: number; alpha: number } | null {
++  if (o.on) {
++    const blink = o.leftMs !== null && o.leftMs < SHIELD_WARN_MS
++    const dim = blink && Math.floor((o.leftMs! / 1000) * SHIELD_BLINK_HZ * 2) % 2 === 1
++    return { scale: 1, alpha: dim ? 0.35 : 1 }
++  }
++  const ms = Math.max(0, o.offMs)
++  if (o.broke) {
++    const t = ms / SHIELD_BREAK_MS
++    return t >= 1 ? null : { scale: 1 + 0.25 * t, alpha: 1 - t }
++  }
++  const t = ms / SHIELD_FADE_MS
++  return t >= 1 ? null : { scale: 1, alpha: 1 - t }
++}
++
++// ---- 落地（§8 #12）、換圈浮字（§8 #14）、彩帶（§8 #15）、鏡頭微震（§8 #16）、加速菇（§8 #18） ----
++
++export const LAND_MS = 220
++
++export const landSquash = (ms: number): { sy: number; sxz: number } => squashPose(ms / LAND_MS, 0.2)
++
++/** 0 → peak → 1：前 70% easeOut 衝到 peak，後 30% 線性回 1 */
++function overshoot(u: number, peak: number): number {
++  return u < 0.7 ? peak * easeOut(u / 0.7) : peak - (peak - 1) * ((u - 0.7) / 0.3)
++}
++
++const CARD_POP_MS = 220
++const CARD_HOLD_MS = 700
++const CARD_LEAVE_MS = 300
++export const LAP_CARD_MS = CARD_POP_MS + CARD_HOLD_MS + CARD_LEAVE_MS
++
++export function lapCardPose(ms: number): { scale: number; rise: number; alpha: number } | null {
++  if (!(ms >= 0 && ms < LAP_CARD_MS)) return null
++  if (ms < CARD_POP_MS) return { scale: overshoot(ms / CARD_POP_MS, 1.15), rise: 0, alpha: 1 }
++  if (ms < CARD_POP_MS + CARD_HOLD_MS) return { scale: 1, rise: 0, alpha: 1 }
++  const u = (ms - CARD_POP_MS - CARD_HOLD_MS) / CARD_LEAVE_MS
++  return { scale: 1, rise: 0.6 * u, alpha: 1 - u }
++}
++
++export const finishConfetti = (self: boolean): number => (self ? 60 : 20)
++export const FINISH_FX_MS = 1600
++
++export const SHAKE_MS = 220
++export const SHAKE_AMP = 0.18
++
++/** 線性衰減的振幅；不在 0..SHAKE_MS 內為 0 */
++export function shakeAmp(ms: number): number {
++  return ms >= 0 && ms < SHAKE_MS ? SHAKE_AMP * (1 - ms / SHAKE_MS) : 0
++}
++
++export const shakeAllowed = (o: { reducedMotion: boolean; mobile: boolean }): boolean => !o.reducedMotion && !o.mobile
++
++const MUSH_POP_MS = 160
++const MUSH_HOLD_MS = 80
++const MUSH_SINK_MS = 100
++export const MUSHROOM_MS = MUSH_POP_MS + MUSH_HOLD_MS + MUSH_SINK_MS
++
++/** 加速菇：車頂彈出 0 → 1.2 → 1、停一下、往下縮進車身（sink 0..1） */
++export function mushroomPose(ms: number): { scale: number; sink: number } | null {
++  if (!(ms >= 0 && ms < MUSHROOM_MS)) return null
++  if (ms < MUSH_POP_MS) return { scale: overshoot(ms / MUSH_POP_MS, 1.2), sink: 0 }
++  if (ms < MUSH_POP_MS + MUSH_HOLD_MS) return { scale: 1, sink: 0 }
++  const u = (ms - MUSH_POP_MS - MUSH_HOLD_MS) / MUSH_SINK_MS
++  return { scale: 1 - u, sink: u }
++}
++
++/**
++ * 衝線彩帶觸發（§8 #15）：每幀都記下各車 fin，只在比賽中、且上一筆明確是 null 時才算剛過線。
++ * 重開局時他車快照還留著上一局的 fin（ownership 快照不會清），倒數期間先記下舊值，進比賽也不會誤播。
++ */
++export function finishEdges(prev: Map<string, number | null>, cars: readonly { id: string; fin: number | null }[], live: boolean): string[] {
++  const out: string[] = []
++  for (const c of cars) {
++    if (live && prev.has(c.id) && prev.get(c.id) === null && c.fin !== null) out.push(c.id)
++    prev.set(c.id, c.fin)
++  }
++  return out
++}
+diff --git a/src/babylon/games/raceFx/hudModel.test.ts b/src/babylon/games/raceFx/hudModel.test.ts
+new file mode 100644
+index 0000000..ba7f56a
+--- /dev/null
++++ b/src/babylon/games/raceFx/hudModel.test.ts
+@@ -0,0 +1,101 @@
++import { describe, it, expect } from 'vitest'
++import { ROLL_MS, buildRaceHud, mapOutline, q01, q10ms, type RaceHudInput } from '@/babylon/games/raceFx/hudModel'
++
++const base = (o: Partial<RaceHudInput> = {}): RaceHudInput => ({
++  selfId: 'me',
++  order: ['bot-0', 'me', 'bot-1', 'bot-2'],
++  laps: 3,
++  ownLap: 0,
++  lapMs: 12345.678,
++  bestLapMs: null,
++  item: null,
++  rollingUntil: 0,
++  now: 1000,
++  wrongWay: false,
++  fin: null,
++  pts: [[0, 0]],
++  cars: [
++    { id: 'me', colorIndex: 0, x: 1.234, z: -5.678, fin: null, name: '我', bestLapMs: null },
++    { id: 'bot-0', colorIndex: 1, x: 10.05, z: 3.04, fin: null, name: '電腦1', bestLapMs: 30123.4 },
++  ],
++  ...o,
++})
++
++describe('raceFx/hudModel — 量化（共用契約 RaceHud）', () => {
++  it('車點 0.1、時間 10ms（捨去）', () => {
++    expect(q01(1.234)).toBe(1.2)
++    expect(q01(-5.678)).toBe(-5.7)
++    expect(q10ms(12345.678)).toBe(12340)
++    expect(q10ms(null)).toBeNull()
++  })
++
++  it('小地圖輪廓：首尾不重複、量化 0.1、最多 maxPts 點', () => {
++    const pts: [number, number][] = Array.from({ length: 500 }, (_, i) => [Math.cos(i / 80) * 50.123, Math.sin(i / 80) * 40.456])
++    const out = mapOutline(pts, 120)
++    expect(out.length).toBeLessThanOrEqual(120)
++    expect(out.length).toBeGreaterThan(60)
++    expect(out[0]).toEqual([50.1, 0])
++    for (const [x, z] of out) {
++      expect(Math.round(x * 10) / 10).toBe(x)
++      expect(Math.round(z * 10) / 10).toBe(z)
++    }
++  })
++})
++
++describe('raceFx/hudModel — buildRaceHud', () => {
++  it('名次、總數、lap = min(own.lap + 1, laps)、時間量化、map.pts 原參照', () => {
++    const inp = base()
++    const h = buildRaceHud(inp)
++    expect(h.kind).toBe('race')
++    expect(h.rank).toBe(2)
++    expect(h.total).toBe(4)
++    expect(h.lap).toBe(1)
++    expect(h.laps).toBe(3)
++    expect(h.lapMs).toBe(12340)
++    expect(h.map.pts).toBe(inp.pts)
++    expect(h.map.cars).toEqual([
++      { id: 'me', colorIndex: 0, x: 1.2, z: -5.7, isSelf: true },
++      { id: 'bot-0', colorIndex: 1, x: 10.1, z: 3, isSelf: false },
++    ])
++    expect(buildRaceHud(base({ ownLap: 2 })).lap).toBe(3)
++    expect(buildRaceHud(base({ ownLap: 3 })).lap).toBe(3)
++  })
++
++  it('最後一圈：own.lap = laps − 1 且未完賽', () => {
++    expect(buildRaceHud(base({ ownLap: 1 })).finalLap).toBe(false)
++    expect(buildRaceHud(base({ ownLap: 2 })).finalLap).toBe(true)
++    expect(buildRaceHud(base({ ownLap: 3, fin: 90000 })).finalLap).toBe(false)
++  })
++
++  it('道具轉盤：撿到後 ROLL_MS 內 rolling（手上已空則不轉）', () => {
++    expect(ROLL_MS).toBe(900)
++    expect(buildRaceHud(base({ item: 'shell', rollingUntil: 1500, now: 1000 })).rolling).toBe(true)
++    expect(buildRaceHud(base({ item: 'shell', rollingUntil: 1500, now: 1500 })).rolling).toBe(false)
++    expect(buildRaceHud(base({ item: null, rollingUntil: 1500, now: 1000 })).rolling).toBe(false)
++  })
++
++  it('未完賽：results 空；完賽：每台一列，名次依 order，totalMs 量化，未過線 null', () => {
++    expect(buildRaceHud(base()).results).toEqual([])
++    const h = buildRaceHud(
++      base({
++        fin: 95432.1,
++        order: ['me', 'bot-0'],
++        cars: [
++          { id: 'me', colorIndex: 0, x: 0, z: 0, fin: 95432.1, name: '我', bestLapMs: 30001.9 },
++          { id: 'bot-0', colorIndex: 1, x: 0, z: 0, fin: null, name: '電腦1', bestLapMs: null },
++        ],
++      })
++    )
++    expect(h.finished).toBe(true)
++    expect(h.results).toEqual([
++      { id: 'me', name: '我', colorIndex: 0, rank: 1, totalMs: 95430, bestLapMs: 30000 },
++      { id: 'bot-0', name: '電腦1', colorIndex: 1, rank: 2, totalMs: null, bestLapMs: null },
++    ])
++  })
++
++  it('自己不在 order（尚未有快照）→ rank 1、total 至少 1', () => {
++    const h = buildRaceHud(base({ order: [] }))
++    expect(h.rank).toBe(1)
++    expect(h.total).toBe(1)
++  })
++})
+diff --git a/src/babylon/games/raceFx/hudModel.ts b/src/babylon/games/raceFx/hudModel.ts
+new file mode 100644
+index 0000000..0a47d94
+--- /dev/null
++++ b/src/babylon/games/raceFx/hudModel.ts
+@@ -0,0 +1,81 @@
++/**
++ * 賽車 React HUD 的資料（共用契約 RaceHud，純函式）：名次、圈數、時間、道具欄、小地圖、衝線名次表。
++ * 量化規則照契約：車點 0.1、時間 10ms；map.pts 由呼叫端開局算一次後原參照傳入（React 以參照比對不重算）。
++ */
++import type { RaceHud, RaceHudCar, RaceHudResult } from '@/babylon/types'
++import type { ItemKind } from '@/babylon/games/raceRules/items'
++
++/** 道具欄轉盤時長（spec §9.2 建議 900ms） */
++export const ROLL_MS = 900
++
++export const q01 = (v: number): number => Math.round(v * 10) / 10 || 0
++export const q10ms = (ms: number | null): number | null => (ms === null ? null : Math.floor(ms / 10) * 10)
++
++/** 小地圖輪廓：等距抽樣到 ≤ maxPts 點並量化 0.1（首尾不重複） */
++export function mapOutline(pts: readonly [number, number][], maxPts: number): [number, number][] {
++  const step = Math.max(1, Math.ceil(pts.length / maxPts))
++  const out: [number, number][] = []
++  for (let i = 0; i < pts.length; i += step) out.push([q01(pts[i][0]), q01(pts[i][1])])
++  return out
++}
++
++export interface RaceHudCarInput {
++  id: string
++  colorIndex: 0 | 1 | 2 | 3
++  x: number
++  z: number
++  fin: number | null
++  name: string
++  bestLapMs: number | null
++}
++
++export interface RaceHudInput {
++  selfId: string
++  /** 名次順序（liveOrder） */
++  order: readonly string[]
++  laps: number
++  /** 自己已完成的圈數（own.lap，0..laps） */
++  ownLap: number
++  lapMs: number
++  bestLapMs: number | null
++  item: ItemKind | null
++  /** 撿到道具時 now + ROLL_MS */
++  rollingUntil: number
++  now: number
++  wrongWay: boolean
++  fin: number | null
++  pts: [number, number][]
++  cars: readonly RaceHudCarInput[]
++}
++
++export function buildRaceHud(i: RaceHudInput): RaceHud {
++  const idx = i.order.indexOf(i.selfId)
++  const finished = i.fin !== null
++  const cars: RaceHudCar[] = i.cars.map((c) => ({ id: c.id, colorIndex: c.colorIndex, x: q01(c.x), z: q01(c.z), isSelf: c.id === i.selfId }))
++  let results: RaceHudResult[] = []
++  if (finished) {
++    const rankOf = (id: string) => {
++      const k = i.order.indexOf(id)
++      return k < 0 ? i.order.length + 1 : k + 1
++    }
++    results = i.cars
++      .map((c) => ({ id: c.id, name: c.name, colorIndex: c.colorIndex, rank: rankOf(c.id), totalMs: q10ms(c.fin), bestLapMs: q10ms(c.bestLapMs) }))
++      .sort((a, b) => a.rank - b.rank)
++  }
++  return {
++    kind: 'race',
++    rank: idx < 0 ? 1 : idx + 1,
++    total: Math.max(1, i.order.length),
++    lap: Math.min(i.ownLap + 1, i.laps),
++    laps: i.laps,
++    lapMs: q10ms(Math.max(0, i.lapMs)) ?? 0,
++    bestLapMs: q10ms(i.bestLapMs),
++    item: i.item,
++    rolling: i.item !== null && i.now < i.rollingUntil,
++    wrongWay: i.wrongWay,
++    finalLap: i.ownLap === i.laps - 1 && !finished,
++    finished,
++    map: { pts: i.pts, cars },
++    results,
++  }
++}
+diff --git a/src/babylon/games/raceFx/models.test.ts b/src/babylon/games/raceFx/models.test.ts
+index fd96139..9b9b2e3 100644
+--- a/src/babylon/games/raceFx/models.test.ts
++++ b/src/babylon/games/raceFx/models.test.ts
+@@ -5,20 +5,21 @@ import {
+   WHEELS,
+   archData,
+   bananaData,
+   blockData,
+   boxData,
+   carBodyData,
+   coneData,
+   crowdData,
+   curbData,
+   flagData,
++  mushroomData,
+   rampData,
+   shellData,
+   standData,
+   treeData,
+   wheelData,
+ } from '@/babylon/games/raceFx/models'
+ 
+ function expectWellFormed(d: MeshData): void {
+   const n = d.positions.length / 3
+   expect(Number.isInteger(n)).toBe(true)
+@@ -146,10 +147,23 @@ describe('raceFx/models — 場景物件（spec §4.3）', () => {
+     const b = bounds(d)
+     expect(b.max[2] - b.min[2]).toBeGreaterThanOrEqual(6)
+     expect(b.max[0] - b.min[0]).toBeGreaterThanOrEqual(8)
+     expect(b.max[1]).toBeGreaterThanOrEqual(1.1)
+     // 前緣（z 最小）的頂點都很低
+     for (let i = 0; i < d.positions.length; i += 3) {
+       if (d.positions[i + 2] < b.min[2] + 0.01) expect(d.positions[i + 1]).toBeLessThan(0.1)
+     }
+   })
+ })
++
++describe('raceFx/models — 加速菇（spec §4.2）', () => {
++  it('合法 mesh、原點在柄底、傘寬約 0.7、總高約 0.6', () => {
++    const d = mushroomData()
++    expectWellFormed(d)
++    const b = bounds(d)
++    expect(b.min[1]).toBeGreaterThanOrEqual(-0.01)
++    expect(b.max[0] - b.min[0]).toBeGreaterThan(0.65)
++    expect(b.max[0] - b.min[0]).toBeLessThan(0.8)
++    expect(b.max[1]).toBeGreaterThan(0.5)
++    expect(b.max[1]).toBeLessThan(0.75)
++  })
++})
+diff --git a/src/babylon/games/raceFx/models.ts b/src/babylon/games/raceFx/models.ts
+index 7c351e3..4c8a4c4 100644
+--- a/src/babylon/games/raceFx/models.ts
++++ b/src/babylon/games/raceFx/models.ts
+@@ -159,20 +159,37 @@ export function shellData(): MeshData {
+     at(radial(sphere(0.9, 14), accent, main, dark), { x: 0, y: 0, z: 0, sy: 0.62 }),
+     at(solid(torus(0.92, 0.16, 20), rgba(RACE.roadEdge)), { x: 0, y: -0.06, z: 0 }),
+   ]
+   for (let i = 0; i < 3; i++) {
+     const a = (i * 2 * Math.PI) / 3
+     parts.push(at(solid(sphere(0.18, 6), rgba(accent)), { x: Math.sin(a) * 0.2, y: 0.22, z: Math.cos(a) * 0.2 }))
+   }
+   return mergeData(parts)
+ }
+ 
++/** 加速菇（使用瞬間在車頂彈出）：橘傘＋5 白點、奶白柄、2 顆眼睛；原點在柄底 */
++export function mushroomData(): MeshData {
++  const { main, dark, accent } = ITEM_COLORS.mushroom
++  const CAP_Y = 0.34
++  const parts: MeshData[] = [
++    at(solid(cylinder(0.32, 0.36, 12), rgba(RACE.face)), { x: 0, y: 0.16, z: 0 }),
++    at(radial(sphere(0.7, 14), accent, main, dark), { x: 0, y: CAP_Y, z: 0, sy: 0.7 }),
++  ]
++  for (let i = 0; i < 5; i++) {
++    const a = (i * 2 * Math.PI) / 5
++    const r = i === 0 ? 0 : 0.24
++    parts.push(at(solid(sphere(0.14, 6), rgba(accent)), { x: Math.sin(a) * r, y: CAP_Y + (i === 0 ? 0.24 : 0.17), z: Math.cos(a) * r }))
++  }
++  for (const x of [-0.07, 0.07]) parts.push(at(solid(sphere(0.06, 6), rgba(OUTLINE)), { x, y: 0.17, z: 0.17 }))
++  return mergeData(parts)
++}
++
+ // ---- 場景（§4.3） ----
+ 
+ /** 凸點積木（2×2 或 2×4），原點在底面中心、高 1.2；頂點色只有明暗，顏色走 instance color */
+ export function blockData(kind: '2x2' | '2x4'): MeshData {
+   const w = kind === '2x2' ? 2 : 4
+   const parts: MeshData[] = [shade(at(rb(w, 1.2, 2, 0.12), { x: 0, y: 0.6, z: 0 }))]
+   for (let i = 0; i < w; i++) {
+     for (const z of [-0.5, 0.5]) parts.push(shade(at(cylinder(0.2, 0.5, 10), { x: -w / 2 + 0.5 + i, y: 1.3, z }), 0.85))
+   }
+   return mergeData(parts)
+diff --git a/src/babylon/games/raceFx/textures.ts b/src/babylon/games/raceFx/textures.ts
+index 4deeb21..e6ce043 100644
+--- a/src/babylon/games/raceFx/textures.ts
++++ b/src/babylon/games/raceFx/textures.ts
+@@ -265,10 +265,81 @@ export function createBlobTexture(scene: Scene): DynamicTexture {
+   g.clearRect(0, 0, S, S)
+   const gr = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2)
+   gr.addColorStop(0, 'rgba(43,36,64,0.42)')
+   gr.addColorStop(0.6, 'rgba(43,36,64,0.28)')
+   gr.addColorStop(1, 'rgba(43,36,64,0)')
+   g.fillStyle = gr
+   g.fillRect(0, 0, S, S)
+   tex.update()
+   return tex
+ }
++
++/** 浮字圖集（spec §8.1）：4×2 格、每格 128×128，白字＋OUTLINE 描邊；英數 Fredoka 700、中文站內字型 900 */
++export const FLOAT_TEXTS = ['LAP 2', 'LAP 3', 'GO!', '+1', '完賽', '1st', '2nd', '3rd'] as const
++export type FloatText = (typeof FLOAT_TEXTS)[number]
++const FLOAT_CELL = 128
++/** 字卡 plane 的長寬比（3.2×1.4）：格內只取中間這段高度 */
++export const FLOAT_ASPECT = 1.4 / 3.2
++
++/** 格 i 的 UV（u0, v0, u1, v1；v 往上），只取中間 FLOAT_ASPECT 高的一條 */
++export function floatCellUV(i: number): [number, number, number, number] {
++  const col = i % 4
++  const row = Math.floor(i / 4)
++  const u0 = col / 4
++  const band = FLOAT_ASPECT / 2
++  const vMid = 1 - (row + 0.5) / 2
++  return [u0, vMid - band / 2, u0 + 1 / 4, vMid + band / 2]
++}
++
++export function createFloatAtlas(scene: Scene): DynamicTexture {
++  const S = FLOAT_CELL
++  const tex = dyn(scene, 'race-float-atlas', S * 4, S * 2, true)
++  const draw = (): void => {
++    const g: Ctx = ctxOf(tex)
++    g.clearRect(0, 0, S * 4, S * 2)
++    FLOAT_TEXTS.forEach((text, i) => {
++      const cx = (i % 4) * S + S / 2
++      const cy = Math.floor(i / 4) * S + S / 2 + 2
++      const cjk = /[^\x20-\x7E]/.test(text)
++      g.font = cjk ? '900 40px "Noto Sans TC", sans-serif' : `700 ${text.length > 3 ? 36 : 44}px Fredoka, sans-serif`
++      g.textAlign = 'center'
++      g.textBaseline = 'middle'
++      g.lineJoin = 'round'
++      g.lineWidth = 6
++      g.strokeStyle = OUTLINE
++      g.strokeText(text, cx, cy)
++      g.fillStyle = '#FFFFFF'
++      g.fillText(text, cx, cy)
++    })
++    tex.update()
++  }
++  whenFontReady('700 44px Fredoka', tex, draw)
++  return tex
++}
++
++/** 速度線 512²（spec §8 #4）：放射狀細白線 36 條、中心 55% 鏤空、由外往內 alpha 0.45 → 0 */
++export function createSpeedLineTexture(scene: Scene): DynamicTexture {
++  const S = 512
++  const tex = dyn(scene, 'race-speedline-tex', S, S, true)
++  const g: Ctx = ctxOf(tex)
++  g.clearRect(0, 0, S, S)
++  const c = S / 2
++  const outer = Math.hypot(c, c)
++  const inner = c * 0.55
++  const gr = g.createRadialGradient(c, c, inner, c, c, outer)
++  gr.addColorStop(0, 'rgba(255,255,255,0)')
++  gr.addColorStop(1, 'rgba(255,255,255,0.45)')
++  g.strokeStyle = gr
++  g.lineCap = 'round'
++  for (let i = 0; i < 36; i++) {
++    // 角度與粗細微抖（固定值，不吃亂數）
++    const a = (i / 36) * Math.PI * 2 + ((i * 7) % 5) * 0.02
++    g.lineWidth = 2 + ((i * 11) % 3)
++    const r0 = inner + ((i * 13) % 4) * 12
++    g.beginPath()
++    g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0)
++    g.lineTo(c + Math.cos(a) * outer, c + Math.sin(a) * outer)
++    g.stroke()
++  }
++  tex.update()
++  return tex
++}
+diff --git a/src/babylon/games/raceFx/world.ts b/src/babylon/games/raceFx/world.ts
+index 9390e63..9d2e5b7 100644
+--- a/src/babylon/games/raceFx/world.ts
++++ b/src/babylon/games/raceFx/world.ts
+@@ -1,40 +1,42 @@
+ /**
+  * A「Toy Racer」場景（spec §4.2／§4.3）：桌墊＋木桌、路面、起跑線＋拱門、紅白路緣、看台與觀眾、旗子、積木、樹、錐、
+- * 跳台、固定加速帶、道具箱（浮動旋轉、問號圖集）、香蕉／龜殼、blob 影、暫用甩尾火花。
++ * 跳台、固定加速帶、道具箱（浮動旋轉、問號圖集）、香蕉／龜殼、blob 影；
++ * 跟場景物件綁在一起的特效也在這裡：道具箱碎塊與重生彈出、被踩香蕉、觀眾歡呼、加速帶閃光（spec §8 #8／#9／#15／#17）。
+  * 同形狀的東西一律 thin instance（1 個 draw call），遊戲邏輯留在 race.ts，這裡只管畫。
+  */
+ import { Color3, Mesh, MeshBuilder, StandardMaterial, type DynamicTexture, type Material, type Scene } from '@/babylon/babylonCore'
++import { fxRandom } from '@/babylon/fx/emitter'
+ import { composeMatrix, type MeshData, type Trs } from '@/babylon/fx/geometry'
+ import { rgba, toMesh, type Rgba } from '@/babylon/fx/models'
+ import { ThinGroup } from '@/babylon/fx/thin'
+-import { ThinSlots } from '@/babylon/fx/thinSlots'
+ import { PLAYER_PALETTE } from '@/babylon/fx/palette'
+ import type { Course } from '@/babylon/games/raceRules/track'
+ import type { ItemBox } from '@/babylon/games/raceRules/items'
+ import { JUMP_H, PAD_HALF_LEN, PAD_HALF_W, RAMP_HALF_W } from '@/babylon/games/raceRules/drive'
+ import {
+   archData,
+   bananaData,
+   bannerData,
+   blockData,
+   boxData,
+   coneData,
+   crowdData,
+   curbData,
+   flagData,
+   rampData,
+   shellData,
+   standData,
+   treeData,
+ } from '@/babylon/games/raceFx/models'
+ import { RACE } from '@/babylon/games/raceFx/palette'
++import { BOX_POP_MS, boxPopScale, chunkPose, dyingBananaPose } from '@/babylon/games/raceFx/fxModel'
+ import { roadStrip } from '@/babylon/games/raceFx/raceGeom'
+ import {
+   archPose,
+   blockSpots,
+   boxPose,
+   coneSpots,
+   crowdSpots,
+   curbSpots,
+   flagSpots,
+   rampPose,
+@@ -69,27 +71,32 @@ export interface WorldItem {
+   kind: 'banana' | 'shell'
+   x: number
+   z: number
+ }
+ 
+ export interface WorldOptions {
+   /** 桌墊貼圖邊長（手機可降 512） */
+   matSize: number
+   /** 觀眾彈跳（手機關） */
+   crowdHop: boolean
+-  /** 暫用火花池上限 */
+-  sparkCap: number
+ }
+ 
+ const ROAD_Y = 0.02
+ const BLOB_Y = 0.045
+-const SPARK_LIFE = 0.3
++/** 碎塊：每個箱子 8 片、池 24（spec §8 #8） */
++const CHUNKS_PER_BOX = 8
++const CHUNK_POOL = 24
++const CHUNK_SCALE = 0.27
++/** 觀眾歡呼：600ms 內全體跳 2 下 */
++const CHEER_MS = 600
++/** 加速帶閃光：emissive 1 → 1.8 → 1（200ms） */
++const PAD_FLASH_MS = 200
+ const CROWD_COLORS = [...PLAYER_PALETTE.map((p) => p.base), RACE.roadEdge]
+ 
+ /** 平貼地面的四邊形（法線朝上），x 寬 w、z 長 d，uv 從 (0,0) 到 (1,1) */
+ function flatQuad(w: number, d: number): MeshData {
+   const x = w / 2
+   const z = d / 2
+   return {
+     positions: [-x, 0, -z, x, 0, -z, x, 0, z, -x, 0, z],
+     normals: [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0],
+     uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+@@ -110,25 +117,30 @@ function setThin(mesh: Mesh, trs: Trs[], colors?: Rgba[], dynamic = false): Floa
+   mesh.thinInstanceRefreshBoundingInfo(false)
+   if (dynamic) mesh.alwaysSelectAsActiveMesh = true
+   return m
+ }
+ 
+ export class RaceWorld {
+   readonly boxes: ThinGroup<number>
+   readonly blobs: ThinGroup<string>
+   readonly bananas: ThinGroup<string>
+   readonly shells: ThinGroup<string>
+-  private readonly sparks: ThinGroup<number>
+-  private readonly sparkColors: ThinSlots<number>
+-  private sparkColorVersion = -1
+-  private sparkList: { key: number; x: number; y: number; z: number; vy: number; life: number }[] = []
+-  private sparkSeq = 0
++  private readonly chunks: ThinGroup<number>
++  private chunkList: { key: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; born: number }[] = []
++  private chunkSeq = 0
++  /** 道具箱回到場上的時刻（重生彈出） */
++  private readonly popAt = new Map<number, number>()
++  private prevTaken = new Set<number>()
++  private dying: { key: string; x: number; z: number; yaw: number; born: number }[] = []
++  private dyingSeq = 0
++  private cheerAt = -Infinity
++  private padFlashAt = -Infinity
+   private readonly scene: Scene
+   private readonly opts: WorldOptions
+   private readonly meshes: Mesh[] = []
+   private readonly mats: StandardMaterial[] = []
+   private readonly lit: StandardMaterial[] = []
+   private readonly fx: WorldFxTargets = { toon: [], receivers: [], casters: [], outlined: [], glow: [], glowOwn: [] }
+   private readonly boxList: ItemBox[]
+   private padTex!: DynamicTexture
+   private flagMesh!: Mesh
+   private flagBuf!: Float32Array
+@@ -305,28 +317,25 @@ export class RaceWorld {
+     this.meshes.push(this.blobs.mesh)
+ 
+     // 香蕉、龜殼（host 生成，各端畫）
+     this.bananas = new ThinGroup<string>(toMesh('race-bananas', bananaData(), scene), 8)
+     this.bananas.mesh.material = this.mat('banana', {})
+     this.add(this.bananas.mesh, { cast: true, outline: true })
+     this.shells = new ThinGroup<string>(toMesh('race-shells', shellData(), scene), 4)
+     this.shells.mesh.material = this.mat('shell', {})
+     this.add(this.shells.mesh, { cast: true, outline: true, glow: { color: '#E8413A', strength: 0.45 } })
+ 
+-    // 暫用甩尾火花（波 4 換 spec 特效表的粒子）：小方塊 thin instance＋實例色
+-    this.sparks = new ThinGroup<number>(MeshBuilder.CreateBox('race-sparks', { size: 0.14 }, scene), opts.sparkCap)
+-    // disableLighting 下 diffuseBase = 0：輸出 = clamp(emissive) × 實例色，emissive 要白才看得到實例色（留黑會全黑）
+-    const skm = this.mat('spark', { lit: false })
+-    skm.emissiveColor = Color3.White()
+-    this.sparks.mesh.material = skm
+-    this.sparkColors = new ThinSlots<number>(opts.sparkCap, 4)
+-    this.meshes.push(this.sparks.mesh)
++    // 道具箱碎塊：縮小的道具箱（4 種面色本來就在圖集上），跟箱子共用材質；不描邊、不投影
++    this.chunks = new ThinGroup<number>(toMesh('race-box-chunks', boxData(), scene), CHUNK_POOL)
++    this.chunks.mesh.material = this.boxes.mesh.material
++    this.chunks.mesh.isPickable = false
++    this.meshes.push(this.chunks.mesh)
+   }
+ 
+   private mat(name: string, o: { tex?: DynamicTexture; emissiveTex?: DynamicTexture; lit?: boolean }): StandardMaterial {
+     const m = new StandardMaterial(`race-${name}`, this.scene)
+     m.diffuseColor = Color3.White()
+     m.specularColor = new Color3(0.06, 0.06, 0.06)
+     if (o.tex) m.diffuseTexture = o.tex
+     if (o.emissiveTex) m.emissiveTexture = o.emissiveTex
+     if (o.lit === false) m.disableLighting = true
+     else this.lit.push(m)
+@@ -346,117 +355,143 @@ export class RaceWorld {
+     if (o.glow) this.fx.glow.push({ mesh, ...o.glow })
+   }
+ 
+   fxTargets(): WorldFxTargets {
+     return { ...this.fx, toon: [...this.lit] }
+   }
+ 
+   /** 每幀：道具箱浮動與被撿走、香蕉／龜殼、加速帶箭頭、旗子、觀眾、火花，最後上傳所有 thin instance */
+   update(now: number, dt: number, taken: readonly number[], items: Iterable<WorldItem>): void {
+     const tSec = now / 1000
++    const takenSet = new Set(taken)
+     for (const b of this.boxList) {
+-      if (taken.includes(b.id)) {
++      if (takenSet.has(b.id)) {
+         this.boxes.remove(b.id)
+         this.blobs.remove(`box-${b.id}`)
+         continue
+       }
++      // 剛從 taken 拿掉＝重生：0 → 1.1 → 1 彈出（開局第一次不彈）
++      if (this.prevTaken.has(b.id)) this.popAt.set(b.id, now)
++      const k = boxPopScale(now - (this.popAt.get(b.id) ?? -Infinity))
+       const p = boxPose(b.id, tSec)
+-      this.boxes.put(b.id, { x: b.x, y: p.y, z: b.z, yaw: p.yaw, pitch: p.pitch })
+-      this.blobs.put(`box-${b.id}`, { x: b.x, y: BLOB_Y, z: b.z, sx: 1.4, sz: 1.4 })
++      this.boxes.put(b.id, { x: b.x, y: p.y, z: b.z, yaw: p.yaw, pitch: p.pitch, sx: k, sy: k, sz: k })
++      this.blobs.put(`box-${b.id}`, { x: b.x, y: BLOB_Y, z: b.z, sx: 1.4 * k, sz: 1.4 * k })
+     }
++    this.prevTaken = takenSet
++    for (const [id, at] of this.popAt) if (now - at >= BOX_POP_MS) this.popAt.delete(id)
+ 
+     const live = new Set<string>()
+     for (const it of items) {
+       live.add(it.id)
+       if (it.kind === 'banana') this.bananas.put(it.id, { x: it.x, y: 0, z: it.z, yaw: hashYaw(it.id) })
+       else this.shells.put(it.id, { x: it.x, y: 0.3, z: it.z, yaw: tSec * 10 })
+     }
++    // 被踩到的香蕉：原地彈起、轉 2 圈、縮小消失
++    this.dying = this.dying.filter((d) => {
++      const pose = dyingBananaPose(now - d.born)
++      if (!pose) return false
++      live.add(d.key)
++      const s = Math.max(0.001, pose.scale)
++      this.bananas.put(d.key, { x: d.x, y: pose.lift, z: d.z, yaw: d.yaw + pose.spin, sx: s, sy: s, sz: s })
++      return true
++    })
+     for (const g of [this.bananas, this.shells]) for (const k of g.keys()) if (!live.has(k)) g.remove(k)
+ 
+     this.padTex.vOffset -= dt * 2.2
++    const flash = (now - this.padFlashAt) / PAD_FLASH_MS
++    this.padTex.level = flash >= 0 && flash < 1 ? 1 + 0.8 * Math.sin(Math.PI * flash) : 1
+ 
+     // 旗面擺動
+     this.flagTrs.forEach((f, i) => composeMatrix(this.flagBuf, i * 16, { ...f, yaw: (f.yaw ?? 0) + 0.25 * Math.sin(tSec * 3 + i) }))
+     this.flagMesh.thinInstanceBufferUpdated('matrix')
+ 
+     // 觀眾：每 0.6 s 隨機 20% 的人彈一下（手機檔靜止）
+     if (this.opts.crowdHop) {
+       if (now >= this.nextHop) {
+         this.nextHop = now + 600
+         for (let i = 0; i < this.crowdHopUntil.length; i++) if (this.rand() < 0.2) this.crowdHopUntil[i] = now + 300
+       }
++      // 衝線歡呼（spec §8 #15）：全體跳 2 下
++      const cheer = (now - this.cheerAt) / CHEER_MS
++      const cheerLift = cheer >= 0 && cheer < 1 ? 0.3 * Math.abs(Math.sin(Math.PI * 2 * cheer)) : 0
+       this.crowdTrs.forEach((c, i) => {
+         const left = this.crowdHopUntil[i] - now
+         const lift = left > 0 ? 0.2 * Math.sin((Math.PI * left) / 300) : 0
+-        composeMatrix(this.crowdBuf, i * 16, { ...c, y: c.y + lift })
++        composeMatrix(this.crowdBuf, i * 16, { ...c, y: c.y + Math.max(lift, cheerLift) })
+       })
+       this.crowdMesh.thinInstanceBufferUpdated('matrix')
+     }
+ 
+-    this.updateSparks(dt)
+-    for (const g of [this.boxes, this.blobs, this.bananas, this.shells]) g.sync()
++    this.updateChunks(now)
++    for (const g of [this.boxes, this.blobs, this.bananas, this.shells, this.chunks]) g.sync()
+   }
+ 
+   /** 車的 blob 影（陰影被降級關掉、或 ghost 時拿掉） */
+   setCarBlob(id: string, x: number, z: number, on: boolean): void {
+     if (on) this.blobs.put(`car-${id}`, { x, y: BLOB_Y, z, sx: 1.9, sz: 2.4 })
+     else this.blobs.remove(`car-${id}`)
+   }
+ 
+-  /** 暫用甩尾火花 */
+-  spark(x: number, y: number, z: number, hex: string): void {
+-    if (this.sparkList.length >= this.opts.sparkCap) return
+-    const key = this.sparkSeq++
+-    this.sparkList.push({ key, x, y, z, vy: 1.5, life: SPARK_LIFE })
+-    this.sparkColors.add(key)
+-    const c = rgba(hex)
+-    this.sparkColors.write(key, (buf, o) => buf.set(c, o))
++  /** 撿道具箱碎裂（spec §8 #8）：8 片縮小的箱子往外上拋；池滿換最舊 */
++  breakBox(boxId: number, now: number): void {
++    const b = this.boxList.find((x) => x.id === boxId)
++    if (!b) return
++    for (let i = 0; i < CHUNKS_PER_BOX; i++) {
++      if (this.chunkList.length >= CHUNK_POOL) this.chunks.remove(this.chunkList.shift()!.key)
++      const a = (i / CHUNKS_PER_BOX) * Math.PI * 2 + fxRandom() * 0.5
++      const sp = 2.5 + fxRandom() * 2
++      this.chunkList.push({ key: this.chunkSeq++, x: b.x, y: 1.1, z: b.z, vx: Math.cos(a) * sp, vy: 3 + fxRandom() * 3, vz: Math.sin(a) * sp, born: now })
++    }
++  }
++
++  /** 被踩到的香蕉留一個消失動畫（原香蕉已由 itemGone 拿掉） */
++  killBanana(x: number, z: number, now: number): void {
++    this.dying.push({ key: `die-${this.dyingSeq++}`, x, z, yaw: fxRandom() * Math.PI * 2, born: now })
+   }
+ 
+-  private updateSparks(dt: number): void {
+-    this.sparkList = this.sparkList.filter((s) => {
+-      s.life -= dt
+-      if (s.life <= 0) {
+-        this.sparks.remove(s.key)
+-        this.sparkColors.remove(s.key)
++  /** 衝線：看台觀眾全體跳 2 下（手機檔觀眾靜止） */
++  cheer(now: number): void {
++    this.cheerAt = now
++  }
++
++  /** 壓到加速帶：加速帶 emissive 閃一下（所有加速帶共用材質，一起閃） */
++  flashPads(now: number): void {
++    this.padFlashAt = now
++  }
++
++  private updateChunks(now: number): void {
++    this.chunkList = this.chunkList.filter((c) => {
++      const p = chunkPose(now - c.born, c.vx, c.vy, c.vz)
++      if (!p) {
++        this.chunks.remove(c.key)
+         return false
+       }
+-      s.y += s.vy * dt
+-      const k = s.life / SPARK_LIFE
+-      this.sparks.put(s.key, { x: s.x, y: s.y, z: s.z, sx: k, sy: k, sz: k })
++      const k = CHUNK_SCALE * Math.max(0.001, p.scale)
++      this.chunks.put(c.key, { x: c.x + p.x, y: Math.max(0.1, c.y + p.y), z: c.z + p.z, yaw: (now - c.born) * 0.01, pitch: (now - c.born) * 0.013, sx: k, sy: k, sz: k })
+       return true
+     })
+-    this.sparks.sync()
+-    const cs = this.sparkColors
+-    if (!cs.dirty) return
+-    if (this.sparkColorVersion !== cs.bufferVersion) {
+-      this.sparks.mesh.thinInstanceSetBuffer('color', cs.buffer, 4, false)
+-      this.sparkColorVersion = cs.bufferVersion
+-    } else {
+-      this.sparks.mesh.thinInstanceBufferUpdated('color')
+-    }
+-    cs.dirty = false
+   }
+ 
+   private rand(): number {
+     let s = this.hopSeed
+     s ^= s << 13
+     s ^= s >>> 17
+     s ^= s << 5
+     this.hopSeed = s
+     return ((s >>> 0) % 10000) / 10000
+   }
+ 
+   dispose(): void {
+     for (const m of this.meshes) m.dispose()
+     this.meshes.length = 0
+     for (const m of this.mats) m.dispose(true, true)
+     this.mats.length = 0
+-    this.sparkList = []
++    this.chunkList = []
++    this.dying = []
+   }
+ }
+ 
+ const hashYaw = (id: string): number => {
+   let h = 0
+   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+   return ((h >>> 0) % 628) / 100
+ }
+
