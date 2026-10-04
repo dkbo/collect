@@ -1,0 +1,253 @@
+/* ═══════════════════════════════════════════════════════
+   DKBO TOYBOX 共用元件（toybox-ds components/bundle.css 的 Tailwind 版）
+   由 src/index.css @import；只用 toybox token 對應的 utility。
+   ═══════════════════════════════════════════════════════ */
+
+@keyframes tb-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@layer components {
+  /* ── 版面容器：左右邊距與內容寬只透過它 ── */
+  .tb-container {
+    @apply mx-auto w-full max-w-site px-6 max-sm:px-4;
+  }
+
+  /* ── 共用互動狀態（01-foundations §6）：每個可點物件只掛其中一組 ── */
+  .tb-focus {
+    @apply focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus;
+  }
+  .tb-lift {
+    @apply cursor-pointer transition-[translate,box-shadow] duration-120 ease-out
+      hover:-translate-x-[3px] hover:-translate-y-[3px] hover:shadow-hard-l
+      active:translate-x-[5px] active:translate-y-[5px] active:shadow-none
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
+      disabled:translate-none disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted disabled:shadow-none
+      aria-disabled:translate-none aria-disabled:cursor-not-allowed aria-disabled:border-ink-muted aria-disabled:bg-surface-sunken aria-disabled:text-ink-muted aria-disabled:shadow-none
+      motion-reduce:transition-none;
+  }
+  .tb-lift-s {
+    @apply cursor-pointer transition-[translate,box-shadow] duration-120 ease-out
+      hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-hard-m
+      active:translate-x-[3px] active:translate-y-[3px] active:shadow-none
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
+      disabled:translate-none disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted disabled:shadow-none
+      aria-disabled:translate-none aria-disabled:cursor-not-allowed aria-disabled:border-ink-muted aria-disabled:bg-surface-sunken aria-disabled:text-ink-muted aria-disabled:shadow-none
+      motion-reduce:transition-none;
+  }
+
+  /* ── 傾斜（tilt-1／2／3／band） ── */
+  .tb-tilt-1 { @apply -rotate-3; }
+  .tb-tilt-2 { @apply rotate-3; }
+  .tb-tilt-3 { @apply -rotate-7; }
+  .tb-tilt-band { @apply -rotate-1; }
+
+  /* ── Button ── */
+  .tb-btn {
+    @apply inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-toy-md border-3 border-line
+      bg-surface-raised font-display text-button text-ink no-underline shadow-hard-m select-none
+      [&_svg]:size-5 [&_svg]:shrink-0;
+  }
+  .tb-btn--l { @apply h-13 px-6; }
+  .tb-btn--s { @apply h-11 px-4 text-button-s shadow-hard-s; }
+  .tb-btn--secondary { @apply bg-surface-raised text-ink; }
+  .tb-btn--primary { @apply bg-action text-on-fill; }
+  .tb-btn--pop { @apply bg-pop text-on-fill; }
+  .tb-btn--ink { @apply bg-inverse text-pop; }
+  /* 反白區內的按鈕：框與底同色、陰影改 on-inverse */
+  .tb-on-inverse .tb-btn { @apply border-inverse shadow-on-inverse; }
+
+  /* ── IconButton ── */
+  .tb-iconbtn {
+    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-toy-md border-3 border-line
+      bg-surface-raised p-0 text-ink shadow-hard-s [&_svg]:size-5 [&_svg]:shrink-0;
+  }
+
+  /* ── NavLink ── */
+  .tb-nav {
+    @apply inline-flex h-11 items-center gap-1 whitespace-nowrap rounded-toy-pill border-3 border-transparent px-4
+      font-body text-label text-ink no-underline transition-colors duration-120 ease-out
+      not-aria-[current=page]:hover:bg-surface-sunken
+      aria-[current=page]:border-line aria-[current=page]:bg-pop aria-[current=page]:text-on-fill
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
+      motion-reduce:transition-none [&_svg]:size-4 [&_svg]:shrink-0;
+  }
+
+  /* ── StatusPill ── */
+  .tb-status {
+    @apply inline-flex items-center gap-2 rounded-toy-pill border-3 border-line bg-surface-raised px-4 py-2
+      font-body text-label text-ink;
+  }
+  .tb-status__dot { @apply size-3 shrink-0 rounded-full border-2 border-line bg-success; }
+  .tb-status--pop .tb-status__dot { @apply bg-pop; }
+  .tb-status--action .tb-status__dot { @apply bg-action; }
+
+  /* ── Tag ── */
+  .tb-tag {
+    @apply inline-flex items-center whitespace-nowrap rounded-toy-sm border-2 border-line bg-sky px-3 py-1
+      font-body text-caption text-on-fill;
+  }
+  .tb-tag--l { @apply border-3 px-4 py-2 text-label shadow-hard-s; }
+  .tb-tag--pop { @apply bg-pop; }
+  .tb-tag--sky { @apply bg-sky; }
+  .tb-tag--mint { @apply bg-mint; }
+  .tb-tag--pink { @apply bg-pink; }
+  .tb-tag--plain { @apply bg-surface-raised text-ink; }
+  .tb-tags { @apply flex flex-wrap gap-2; }
+
+  /* ── StatTile ── */
+  .tb-stat {
+    @apply flex min-w-0 flex-col gap-1 rounded-toy-md border-3 border-line bg-surface-raised px-4 py-3 text-left;
+  }
+  .tb-stat__num { @apply font-pixel text-pixel-xl text-ink; }
+  .tb-stat__label { @apply font-body text-caption text-ink-muted; }
+
+  /* ── IconBox ── */
+  .tb-iconbox {
+    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-toy-md border-3 border-line bg-sky
+      text-on-fill [&_svg]:size-5 [&_svg]:shrink-0;
+  }
+  .tb-iconbox--sky { @apply bg-sky; }
+  .tb-iconbox--pop { @apply bg-pop; }
+  .tb-iconbox--mint { @apply bg-mint; }
+  .tb-iconbox--pink { @apply bg-pink; }
+
+  /* ── SegmentedControl ── */
+  .tb-seg {
+    @apply inline-flex max-w-full overflow-hidden rounded-toy-md border-3 border-line bg-surface-raised shadow-hard-s;
+  }
+  .tb-seg__opt {
+    @apply h-11 min-w-19 cursor-pointer border-0 border-line bg-surface-raised px-5 font-display text-button-s text-ink
+      transition-colors duration-120 ease-out not-first:border-l-3
+      not-aria-pressed:hover:bg-surface-sunken
+      aria-pressed:bg-inverse aria-pressed:text-pop
+      focus-visible:outline-3 focus-visible:-outline-offset-6 focus-visible:outline-focus
+      aria-pressed:focus-visible:outline-pop motion-reduce:transition-none;
+  }
+
+  /* ── CartridgeCard ── */
+  .tb-card {
+    @apply flex min-w-0 flex-col overflow-hidden rounded-toy-lg border-3 border-line bg-surface-raised text-left
+      text-ink no-underline shadow-hard-m;
+  }
+  .tb-card__strip {
+    @apply flex justify-between gap-3 border-b-3 border-line bg-pop px-4 py-1 font-pixel text-pixel-m text-on-fill;
+  }
+  .tb-card--tool .tb-card__strip { @apply bg-surface-sunken text-ink; }
+  .tb-card__media { @apply block aspect-video w-full border-b-3 border-line bg-inverse object-cover; }
+  .tb-card__body { @apply flex grow flex-col gap-3 p-5; }
+  .tb-card__head { @apply flex items-center gap-3; }
+  .tb-card__title { @apply m-0 font-display text-heading-m text-ink; }
+  .tb-card__desc { @apply m-0 font-body text-body-s text-ink-muted; }
+  .tb-card__body .tb-tags { @apply mt-auto pt-1; }
+
+  /* ── FeatureCard：≥1024 截圖 7／面板 5 左右分置，以下上下堆疊 ── */
+  .tb-feature {
+    @apply flex flex-col overflow-hidden rounded-toy-xl border-4 border-line bg-surface-raised text-left text-ink
+      no-underline shadow-hard-l lg:flex-row hover:shadow-hard-xl active:shadow-none;
+  }
+  .tb-feature__media { @apply relative aspect-video min-w-0 bg-inverse lg:aspect-auto lg:min-h-75 lg:flex-7; }
+  .tb-feature__img { @apply absolute inset-0 block size-full object-cover; }
+  .tb-feature__badge {
+    @apply absolute top-4 left-4 rounded-toy-sm border-3 border-line bg-action px-3 py-1 font-pixel text-pixel-m
+      text-on-fill;
+  }
+  .tb-feature__panel {
+    @apply flex min-w-0 flex-col gap-4 border-t-4 border-line bg-pop p-8 text-on-fill
+      lg:flex-5 lg:border-t-0 lg:border-l-4 max-sm:p-6;
+  }
+  .tb-feature__meta { @apply font-pixel text-pixel-m; }
+  .tb-feature__title { @apply m-0 font-display text-heading-l text-on-fill; }
+  .tb-feature__desc { @apply m-0 font-body text-body; }
+  .tb-feature__panel .tb-tag { @apply bg-surface-raised text-ink; }
+  .tb-feature__cta {
+    @apply mt-auto inline-flex h-11 items-center gap-2 self-start rounded-toy-md border-3 border-line bg-inverse px-5
+      font-display text-button text-pop [&_svg]:size-4;
+  }
+
+  /* ── SectionHeader ── */
+  .tb-sechead { @apply flex flex-wrap items-end justify-between gap-5 text-left; }
+  .tb-sechead__text { @apply flex min-w-0 flex-col gap-2; }
+  .tb-sechead__eyebrow { @apply font-pixel text-pixel-m text-ink-muted; }
+  .tb-sechead__title { @apply m-0 font-display text-display-l text-balance text-ink; }
+
+  /* ── Marquee：外層裁掉左右外推，內層傾斜 ── */
+  .tb-marquee { @apply overflow-x-clip py-2; }
+  .tb-marquee__band { @apply -mx-5 overflow-hidden border-y-3 border-line bg-inverse -rotate-1; }
+  .tb-marquee__track {
+    @apply flex w-max py-3 font-pixel text-pixel-l tracking-wider whitespace-nowrap text-pop
+      animate-[tb-marquee_40s_linear_infinite] motion-reduce:animate-none;
+  }
+  .tb-marquee__seg { @apply pr-6; }
+
+  /* ── CtaPanel ── */
+  .tb-cta {
+    @apply flex flex-wrap items-center justify-between gap-8 rounded-toy-xl border-4 border-line bg-inverse px-10 py-12
+      text-left shadow-hard-action max-sm:px-6 max-sm:py-8;
+  }
+  .tb-cta__text { @apply flex min-w-0 grow basis-105 flex-col gap-3; }
+  .tb-cta__eyebrow { @apply font-pixel text-pixel-m text-pop; }
+  .tb-cta__title { @apply m-0 font-display text-heading-l text-on-inverse; }
+  .tb-cta__body { @apply m-0 max-w-140 font-body text-body text-on-inverse-muted; }
+  .tb-cta__actions { @apply flex flex-wrap gap-4 max-sm:w-full max-sm:flex-col max-sm:*:w-full; }
+
+  /* ── Handheld ── */
+  .tb-hand {
+    @apply flex w-full max-w-95 flex-col gap-5 rounded-toy-xl rounded-br-toy-console border-4 border-line bg-pop px-6 pt-6
+      pb-8 text-left text-on-fill shadow-hard-l rotate-3;
+  }
+  .tb-hand__screen {
+    @apply flex flex-col gap-2 rounded-toy-md border-4 border-on-fill bg-inverse px-3 pt-3 pb-2;
+  }
+  .tb-hand__img { @apply block aspect-16/10 w-full rounded-toy-sm bg-inverse object-cover; }
+  .tb-hand__caption {
+    @apply flex min-w-0 justify-between gap-2 font-pixel text-pixel-m text-pop [&>span]:truncate;
+  }
+  .tb-hand__pad { @apply flex items-center justify-between px-2; }
+  .tb-hand__dpad { @apply relative size-22; }
+  .tb-hand__dpad-v { @apply absolute top-0 left-7.5 h-22 w-7 rounded-toy-sm bg-on-fill; }
+  .tb-hand__dpad-h { @apply absolute top-7.5 left-0 h-7 w-22 rounded-toy-sm bg-on-fill; }
+  .tb-hand__ab { @apply flex gap-3 -rotate-20; }
+  .tb-hand__key {
+    @apply size-13 cursor-pointer rounded-full border-3 border-on-fill bg-action font-pixel text-pixel-l text-on-fill
+      shadow-hard-s shadow-on-fill transition-[translate,box-shadow] duration-120 ease-out first:mt-5
+      active:translate-x-[3px] active:translate-y-[3px] active:shadow-none
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-on-fill
+      motion-reduce:transition-none;
+  }
+  .tb-hand__pills { @apply flex justify-center gap-4; }
+  .tb-hand__pill { @apply h-3 w-13.5 rounded-toy-pill bg-on-fill opacity-80; }
+  .tb-hand__model { @apply text-right font-pixel text-pixel-m tracking-widest; }
+
+  /* ── ScreenFrame（pages-spec §1）：外框不得加 transform／filter／contain（全螢幕 fallback 用 fixed） ── */
+  .tb-screen {
+    @apply flex min-w-0 flex-col gap-2 rounded-toy-md border-4 border-line bg-inverse p-3 text-left shadow-hard-l max-sm:p-2;
+  }
+  .tb-screen__bar {
+    @apply flex min-h-6 items-center justify-between gap-3 px-1 font-pixel text-pixel-m;
+  }
+  .tb-screen__title { @apply truncate text-pop; }
+  .tb-screen__meta { @apply shrink-0 text-on-inverse-muted; }
+  .tb-screen__view { @apply relative overflow-hidden rounded-toy-sm bg-inverse; }
+
+  /* ── 表單控制項（pages-spec §2）：凹槽不是按鍵，無陰影；invalid 不變色，由頁面顯示提示條 ── */
+  .tb-input {
+    @apply h-11 w-full min-w-0 rounded-toy-md border-3 border-line bg-surface-raised px-4 font-body text-body text-ink
+      placeholder:text-ink-muted
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
+      disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted;
+  }
+  .tb-select {
+    @apply h-11 w-full min-w-0 cursor-pointer appearance-none rounded-toy-md border-3 border-line bg-surface-raised pr-10 pl-4
+      font-body text-body text-ink
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
+      disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted;
+  }
+  .tb-textarea {
+    @apply h-auto min-h-28 w-full min-w-0 resize-y rounded-toy-md border-3 border-line bg-surface-raised px-4 py-3 font-body
+      text-body text-ink placeholder:text-ink-muted
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
+      disabled:cursor-not-allowed disabled:border-ink-muted disabled:bg-surface-sunken disabled:text-ink-muted;
+  }
+}

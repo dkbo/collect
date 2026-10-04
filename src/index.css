@@ -5,28 +5,80 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ═══════════════════════════════════════════════════════
+   DKBO TOYBOX TOKENS（toybox-ds tokens.json；淺色 :root、深色 .dark）
+   ═══════════════════════════════════════════════════════ */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: oklch(0.922 0 0);
-  --code-bg: #f4f3ec;
-  --accent: oklch(0.97 0 0);
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --surface: #fffbf2;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9e2d6;
+  --ink: #17140f;
+  --ink-muted: #4a4339;
+  --line: var(--ink);
+  --focus: var(--ink);
+  --pop: #ffce2e;
+  --action: #ff6b3d;
+  --on-fill: #17140f;
+  --sky: #8fd6ff;
+  --mint: #9be3b0;
+  --pink: #ffb3d1;
+  --success: #2bb673;
+  --inverse: #17140f;
+  --on-inverse: #ffffff;
+  --on-inverse-muted: #e9e2d6;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* 會隨斷點變的字級（手機值見下方 @media） */
+  --tb-display-l: 48px;
+  --tb-display-l-lh: 53px;
+  --tb-heading-l: 36px;
+  --tb-heading-l-lh: 44px;
+  --tb-body-l: 17px;
+  --tb-body-l-lh: 30px;
+  --tb-pixel-xl: 46px;
+  --tb-pixel-xl-lh: 42px;
+  --tb-pixel-l: 30px;
+  --tb-pixel-l-lh: 32px;
 
-  font: 18px/145% var(--sans);
+  /* shadcn 變數對應到 toybox（toybox-ds 04 §4；--radius 維持 shadcn 原值） */
+  --background: var(--surface);
+  --foreground: var(--ink);
+  --card: var(--surface-raised);
+  --card-foreground: var(--ink);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--ink);
+  --primary: var(--action);
+  --primary-foreground: var(--on-fill);
+  --secondary: var(--surface-raised);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-sunken);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-sunken);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--focus);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: var(--surface-raised);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--action);
+  --sidebar-primary-foreground: var(--on-fill);
+  --sidebar-accent: var(--surface-sunken);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--focus);
+
+  font-size: 18px;
+  line-height: 145%;
   letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  color-scheme: light;
+  color: var(--ink);
+  background: var(--surface);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -36,85 +88,35 @@
     font-size: 16px;
   }
 
-  --background: oklch(1 0 0);
-
-  --foreground: oklch(0.145 0 0);
-
-  --card: oklch(1 0 0);
-
-  --card-foreground: oklch(0.145 0 0);
-
-  --popover: oklch(1 0 0);
-
-  --popover-foreground: oklch(0.145 0 0);
-
-  --primary: oklch(0.205 0 0);
-
-  --primary-foreground: oklch(0.985 0 0);
-
-  --secondary: oklch(0.97 0 0);
-
-  --secondary-foreground: oklch(0.205 0 0);
-
-  --muted: oklch(0.97 0 0);
-
-  --muted-foreground: oklch(0.556 0 0);
-
-  --accent-foreground: oklch(0.205 0 0);
-
-  --destructive: oklch(0.577 0.245 27.325);
-
-  --input: oklch(0.922 0 0);
-
-  --ring: oklch(0.708 0 0);
-
-  --chart-1: oklch(0.87 0 0);
-
-  --chart-2: oklch(0.556 0 0);
-
-  --chart-3: oklch(0.439 0 0);
-
-  --chart-4: oklch(0.371 0 0);
-
-  --chart-5: oklch(0.269 0 0);
-
-  --radius: 0.625rem;
-
-  --sidebar: oklch(0.985 0 0);
-
-  --sidebar-foreground: oklch(0.145 0 0);
-
-  --sidebar-primary: oklch(0.205 0 0);
-
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-
-  --sidebar-accent: oklch(0.97 0 0);
-
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-
-  --sidebar-border: oklch(0.922 0 0);
-
-  --sidebar-ring: oklch(0.708 0 0)
+  @media (max-width: 639px) {
+    --tb-display-l: 34px;
+    --tb-display-l-lh: 40px;
+    --tb-heading-l: 26px;
+    --tb-heading-l-lh: 34px;
+    --tb-body-l: 16px;
+    --tb-body-l-lh: 28px;
+    --tb-pixel-xl: 40px;
+    --tb-pixel-xl-lh: 38px;
+    --tb-pixel-l: 24px;
+    --tb-pixel-l-lh: 28px;
+  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+.dark {
+  --surface: #17140f;
+  --surface-raised: #241f18;
+  --surface-sunken: #332c23;
+  --ink: #fff8ec;
+  --ink-muted: #cfc5b5;
+  --action: #ff7a4f;
+  --success: #3fd18a;
+  --inverse: #0b0907;
+  --on-inverse: #fff8ec;
+  --on-inverse-muted: #cfc5b5;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  --destructive: oklch(0.704 0.191 22.216);
+
+  color-scheme: dark;
 }
 
 #root {
@@ -131,8 +133,6 @@
 html {
   scroll-behavior: smooth;
 }
-
-
 
 @theme inline {
   --font-heading: var(--font-sans);
@@ -175,48 +175,92 @@ html {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* ── Toybox：色彩 ── */
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-focus: var(--focus);
+  --color-pop: var(--pop);
+  --color-action: var(--action);
+  --color-on-fill: var(--on-fill);
+  --color-sky: var(--sky);
+  --color-mint: var(--mint);
+  --color-pink: var(--pink);
+  --color-success: var(--success);
+  --color-inverse: var(--inverse);
+  --color-on-inverse: var(--on-inverse);
+  --color-on-inverse-muted: var(--on-inverse-muted);
 
-  /* Custom variables overrides for dark mode readability */
-  --text: oklch(0.82 0.015 280);
-  --text-h: oklch(0.985 0 0);
-  --code-bg: oklch(0.28 0.02 280);
-  --accent-bg: rgba(170, 59, 255, 0.15);
-  --accent-border: rgba(170, 59, 255, 0.4);
-  --social-bg: rgba(255, 255, 255, 0.05);
+  /* ── Toybox：字族（--font-sans 留給凍結的遊戲 HUD） ── */
+  --font-display: "Rubik", "Noto Sans TC", system-ui, sans-serif;
+  --font-body: "Noto Sans TC", "Rubik", system-ui, sans-serif;
+  --font-pixel: "VT323", ui-monospace, monospace;
+
+  /* ── Toybox：字級（手機值由 :root 的 --tb-* 切換；display-xl 以 clamp 縮放） ── */
+  --text-display-xl: clamp(44px, 6vw, 76px);
+  --text-display-xl--line-height: 1.08;
+  --text-display-xl--font-weight: 900;
+  --text-display-xl--letter-spacing: -0.01em;
+  --text-display-l: var(--tb-display-l);
+  --text-display-l--line-height: var(--tb-display-l-lh);
+  --text-display-l--font-weight: 900;
+  --text-heading-l: var(--tb-heading-l);
+  --text-heading-l--line-height: var(--tb-heading-l-lh);
+  --text-heading-l--font-weight: 900;
+  --text-heading-m: 22px;
+  --text-heading-m--line-height: 30px;
+  --text-heading-m--font-weight: 900;
+  --text-button: 16px;
+  --text-button--line-height: 20px;
+  --text-button--font-weight: 900;
+  --text-button-s: 15px;
+  --text-button-s--line-height: 20px;
+  --text-button-s--font-weight: 900;
+  --text-body-l: var(--tb-body-l);
+  --text-body-l--line-height: var(--tb-body-l-lh);
+  --text-body-l--font-weight: 500;
+  --text-body: 16px;
+  --text-body--line-height: 28px;
+  --text-body--font-weight: 500;
+  --text-body-s: 14px;
+  --text-body-s--line-height: 24px;
+  --text-body-s--font-weight: 500;
+  --text-label: 15px;
+  --text-label--line-height: 20px;
+  --text-label--font-weight: 700;
+  --text-caption: 13px;
+  --text-caption--line-height: 18px;
+  --text-caption--font-weight: 700;
+  --text-pixel-xl: var(--tb-pixel-xl);
+  --text-pixel-xl--line-height: var(--tb-pixel-xl-lh);
+  --text-pixel-xl--font-weight: 400;
+  --text-pixel-l: var(--tb-pixel-l);
+  --text-pixel-l--line-height: var(--tb-pixel-l-lh);
+  --text-pixel-l--font-weight: 400;
+  --text-pixel-m: 22px;
+  --text-pixel-m--line-height: 24px;
+  --text-pixel-m--font-weight: 400;
+
+  /* ── Toybox：圓角（不覆寫 shadcn 的 --radius-sm|md|lg|xl） ── */
+  --radius-toy-sm: 8px;
+  --radius-toy-md: 14px;
+  --radius-toy-lg: 18px;
+  --radius-toy-xl: 26px;
+  --radius-toy-console: 64px;
+  --radius-toy-pill: 9999px;
+
+  /* ── Toybox：硬陰影（0 模糊、往右下、顏色 ink） ── */
+  --shadow-hard-s: 3px 3px 0 var(--ink);
+  --shadow-hard-m: 5px 5px 0 var(--ink);
+  --shadow-hard-l: 8px 8px 0 var(--ink);
+  --shadow-hard-xl: 11px 11px 0 var(--ink);
+  --shadow-hard-action: 8px 8px 0 var(--action);
+
+  --container-site: 1200px;
 }
 
 @layer base {
@@ -225,17 +269,18 @@ html {
   }
   body {
     margin: 0;
-    @apply bg-background text-foreground;
+    @apply bg-surface text-ink font-body;
   }
   html {
     scroll-behavior: smooth;
     @apply font-sans;
   }
+  ::selection {
+    @apply bg-pop text-on-fill;
+  }
   h1,
   h2 {
-    font-family: var(--heading);
-    font-weight: 500;
-    color: var(--text-h);
+    @apply font-display font-black text-ink;
   }
   h1 {
     font-size: 56px;
@@ -260,21 +305,19 @@ html {
   }
   code:not(pre code),
   .counter {
-    font-family: var(--mono);
-    display: inline;
+    @apply inline font-mono text-ink;
     border-radius: 4px;
-    color: var(--text-h);
   }
   code:not(pre code) {
+    @apply bg-surface-sunken;
     font-size: 15px;
     line-height: 135%;
     padding: 4px 8px;
-    background: var(--code-bg);
   }
   pre code {
     display: block;
     white-space: pre-wrap !important;
-    font-family: var(--mono);
+    @apply font-mono;
     background: transparent;
     padding: 0;
     border-radius: 0;
@@ -285,6 +328,8 @@ html {
     overflow-x: auto;
   }
 }
+
+@import "./styles/toybox.css";
 
 /* ═══════════════════════════════════════════════════════
    SCROLL-TRIGGERED ANIMATIONS (Motion-Driven Design)
@@ -334,19 +379,9 @@ html {
   }
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
 @keyframes floatSlow {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-12px); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.15); }
-  50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.3); }
 }
 
 /* Scroll-triggered animation base */
@@ -988,42 +1023,17 @@ html {
 
 /* ═══════════════════════════════════════════════════════
    UTILITY CLASSES
+   漸層文字、毛玻璃、光暈、shimmer 已刪（toybox 禁用）；仍被引用的保留同名、改 toybox 寫法
    ═══════════════════════════════════════════════════════ */
-
-/* Gradient text utility */
-.gradient-text-purple {
-  @apply bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 dark:from-purple-400 dark:via-indigo-400 dark:to-purple-400 bg-clip-text text-transparent;
-}
-
-/* Glassmorphism card variant */
-.glass-card {
-  @apply bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/60 backdrop-blur-xl rounded-2xl shadow-lg transition-all duration-300;
-}
-
-.glass-card:hover {
-  @apply bg-white/70 dark:bg-slate-900/50 border-slate-300/60 dark:border-slate-700/60 shadow-xl;
-}
 
 /* Floating animation */
 .float-slow {
   animation: floatSlow 6s ease-in-out infinite;
 }
 
-/* Pulse glow */
-.pulse-glow {
-  animation: pulse-glow 3s ease-in-out infinite;
-}
-
-/* Shimmer loading effect */
-.shimmer {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
-}
-
-/* Section divider gradient */
+/* Section divider：墨線分隔 */
 .section-divider {
-  @apply h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent;
+  @apply h-0 border-t-3 border-line;
 }
 /* ═══════════════════════════════════════════════════════
    CANDY CRUSH（方向稿 A · Glossy Classic）
