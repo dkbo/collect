@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# dk-review [--kinds "k1 k2"] [--tier M|L] [N | --task] — spawn 1–3 isolated reviewers for wave N's (or the whole task's) diff pack.
+# dk-review [--kinds "k1 k2"] [--tier M|L] [--effort E] [N | --task] — spawn 1–3 isolated reviewers for wave N's (or the whole task's) diff pack.
+# --effort 只換 effort、檔位照實記（同 dk-spawn）；整枝評議用 --tier L --effort high（L 檔上限是 opus/medium）。
 # 檔位預設取 settings.env 的 DK_REVIEW_TIER；--tier 逐次覆寫。刻意不做成「把 roles/reviewer.md 的 M
 # 改成 opus/high」——那會讓 --tier 的 M 與 L 解析到同一組旗標（靜默的 no-op）、讓結案評議的 --tier L
 # 失去加碼的意義，也讓 tier 這個字在 reviewer 身上跟其他角色不同義。
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"; . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/brief.sh"; . "$DK_ROOT/lib/review.sh"
 dir=$(dk_task_dir); DK_TASK_DIR="$dir"; export DK_TASK_DIR; dk_task_env; dk_settings
-kinds=""; tier=""; n=""; task=0
+kinds=""; tier=""; effort=""; n=""; task=0
 while [ $# -gt 0 ]; do case "$1" in
-  --kinds) kinds="$2"; shift 2;; --tier) tier="$2"; shift 2;; --task) task=1; shift;; --*) dk_die "unknown flag $1";; *) n="$1"; shift;; esac; done
+  --kinds) kinds="$2"; shift 2;; --tier) tier="$2"; shift 2;; --effort) [ -n "${2:-}" ] || dk_die "--effort needs a value"; effort="$2"; shift 2;; --task) task=1; shift;; --*) dk_die "unknown flag $1";; *) n="$1"; shift;; esac; done
 tier=$(dk_review_tier "$tier")
 if [ "$task" = 1 ]; then
   n=task; diff="$dir/waves/task.diff"; [ -f "$diff" ] || dk_die "no $diff; run dk-review-pack --task first"
 else
-  n="${n:-${DK_WAVE:-}}"; [[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-review [--kinds \"a b\"] [--tier M|L] [N | --task]  (no wave is open)"
+  n="${n:-${DK_WAVE:-}}"; [[ "$n" =~ ^[0-9]+$ ]] || dk_die "usage: dk-review [--kinds \"a b\"] [--tier M|L] [--effort E] [N | --task]  (no wave is open)"
   diff="$dir/waves/$n.diff"; [ -f "$diff" ] || dk_die "no $diff; run dk-review-pack $n first"
 fi
 if [ -z "$kinds" ] && [ "$task" = 1 ]; then kinds="$DK_REVIEW_KINDS"; fi
@@ -41,4 +42,4 @@ for a in $aliases; do
   dk_render "$DK_ROOT/templates/brief-reviewer.md" "DISPLAY=$DK_DISPLAY" "WAVE=$n" "DIFF=$diff" "BRIEF=$dir/brief.md" \
     "MEMBERS=$members" "CONSTRAINTS=$constraints" "MINORS=$minors" "REPORT=$dir/state/$sname.report.md" > "$dir/briefs/$sname.md"
 done
-dk_review_spawn "$use" "$aliases" "$tier" dk-review "review $n"
+dk_review_spawn "$use" "$aliases" "$tier" dk-review "review $n" "$effort"

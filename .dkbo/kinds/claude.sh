@@ -10,10 +10,12 @@ KIND_MODEL_EFFORTS="opus:low,medium,high,xhigh,max sonnet:low,medium,high,xhigh,
 #        （舊的 sonnet/low 24 分已作廢，新 sonnet/low 尚無分數）
 #   M 段  opus/medium 51 $1.34 31s 仍優於 sonnet/high 47 $1.08、sonnet/xhigh 52 $2.74
 #   L 段  opus/high 54 $1.82 42s；opus/xhigh 56 $3.46 137s、opus/max 58 $5.98 691s 邊際太差
-# AA 指數不是寫碼專測、Terminal-Bench 是更新前的數字，所以 S 檔先不換：用
-# `dk-spawn … --tier S --model sonnet --effort medium` 實跑，照 run SKILL 記 trial: 行，累積兩三筆再改。
+# 2026-10-04 S 檔改 sonnet/medium、M 檔改 sonnet/high、L 檔降到 opus/medium（未等實跑的 trial: 數據，
+# 使用者直接拍板）。opus/high 不再是任何檔位的預設，只在兩處用 --effort high 拉上去：整枝評議
+# （dk-review --task --tier L --effort high）與已是 L 檔的第二輪換腦袋（dk-spawn --handoff --tier L --effort high）。
+# 品質出問題就退回 S=opus/low／M=opus/medium／L=opus/high，並照 run SKILL 記 trial: 行留證據。
 # sonnet 留在 KIND_MODEL_EFFORTS 供 dk-spawn／dk-leader 的 --model 手動指定。
-KIND_DEFAULT_TIERS="S=opus/low M=opus/medium L=opus/high"
+KIND_DEFAULT_TIERS="S=sonnet/medium M=sonnet/high L=opus/medium"
 KIND_PROMPT_QUEUES=unknown   # layer-3 smoke updates this: does a prompt sent while working queue?
 # auto 而非 acceptEdits：員工的 cwd 是 worktree，但切片、state、report 都在主樹的 .dkbo/ 下，
 # acceptEdits 不放行工作區外的讀寫，也不放行任何 shell —— 實跑時每位員工都卡在第一個動作。

@@ -59,9 +59,9 @@ dk_review_aliases() { # ALL_ALIASES KINDS [LABEL] → 前 N 個別名（N = kind
 # 派工本身（逐位 spawn、rc 與空輸出的三種下場、spawned 累積、全滅才死）完全一樣。
 # 切法是兩段：呼叫端自己跑 render 迴圈把切片產齊，這一支只管派 —— 它假設
 # briefs/reviewer-<別名>.md 已經在那裡。沒有回呼、沒有 eval，bash 3.2 相容。
-dk_review_spawn() { # KINDS ALIASES TIER CMD LABEL — ALIASES 與 KINDS 一一對應（見 dk_review_aliases）；
-  # 切片須已產在 briefs/reviewer-<別名>.md
-  local kinds="$1" tier="$3" cmd="$4" label="$5"
+dk_review_spawn() { # KINDS ALIASES TIER CMD LABEL [EFFORT] — ALIASES 與 KINDS 一一對應（見 dk_review_aliases）；
+  # 切片須已產在 briefs/reviewer-<別名>.md。EFFORT 非空就照傳 dk-spawn --effort（檔位照實記）
+  local kinds="$1" tier="$3" cmd="$4" label="$5" effort="${6:-}"
   local k al out rc spawned="" failed=""
   # 用位置參數走訪別名：函式的 $@ 在上面五個值存進 local 之後就沒人要了，而 bash 3.2
   # 沒有好用的「取陣列第 n 個」寫法。
@@ -69,7 +69,7 @@ dk_review_spawn() { # KINDS ALIASES TIER CMD LABEL — ALIASES 與 KINDS 一一�
   set -- $2
   for k in $kinds; do
     al="$1"; shift
-    if out=$("$DK_ROOT/bin/dk-spawn" reviewer "$al" --isolated --kind "$k" --tier "$tier"); then rc=0; else rc=$?; fi
+    if out=$("$DK_ROOT/bin/dk-spawn" reviewer "$al" --isolated --kind "$k" --tier "$tier" ${effort:+--effort "$effort"}); then rc=0; else rc=$?; fi
     if [ -n "$out" ] && [ "$rc" = 0 ]; then
       spawned="$spawned ${out%% *}($k)"
     elif [ -n "$out" ]; then

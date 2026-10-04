@@ -26,7 +26,7 @@
 
 ## 規則
 - 同一波員工可以互相傳訊。`DK_ISOLATED=1` 的員工（reviewer）只能對 leader 傳訊。
-- 修復迴圈上限兩輪，以同一個 bug 計：BUG → FIXED → 再驗仍失敗 → **領導換一個腦袋**（`dk-spawn <角色> <別名> --handoff "<原因>"`，換 kind 或升檔位；腳本自己落 ruling）→ 再驗仍失敗 → qa（或領導）ESCALATE，不再回 dev。同一個人再試一次跟換一個腦袋試一次不是同一件事，第二輪要換人。
+- 修復迴圈上限兩輪，以同一個 bug 計：BUG → FIXED → 再驗仍失敗 → **領導換一個腦袋**（`dk-spawn <角色> <別名> --handoff "<原因>"`，換 kind 或升檔位，已是 L 檔就加 `--effort high`；腳本自己落 ruling）→ 再驗仍失敗 → qa（或領導）ESCALATE，不再回 dev。同一個人再試一次跟換一個腦袋試一次不是同一件事，第二輪要換人。
 - QUESTION 若 brief 沒有答案，被問的人不得自己決定；提問者 ESCALATE。同一波同一對員工 QUESTION 最多兩則。
 - 任何「選 A 或 B」、任何共用契約的變更，一律 ESCALATE。
 - 只能修改切片所有權劃給你的檔案。要動別人的檔 → 用 QUESTION 請擁有者改，或 ESCALATE。
