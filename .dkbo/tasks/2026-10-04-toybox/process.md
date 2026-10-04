@@ -116,3 +116,4 @@
 2026-10-04T12:25 wave 4 耗時 4m（dev 2m、審查 1m）
 2026-10-04T12:25 commit 0a372c0 wave 4
 2026-10-04T12:29 gate3 approved (人：合併)
+2026-10-04T12:29 task-close merged 8b83e87

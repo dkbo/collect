@@ -1,5 +1,5 @@
 # 全站改版（DKBO Toybox 玩具機風） 結案
-結果：merged   分支：dk/toybox   波數：4
+結果：merged 8b83e87   分支：dk/toybox   波數：4
 ## 完成
 - AC1 designer：`design/pages-spec.md` 17 節＋15 張 `page-*.webp`。
 - AC2–AC4 react-theme：toybox token（17 色淺／深、13 字級、`rounded-toy-*`、`shadow-hard-*`、三字族）、Google Fonts、`src/styles/toybox.css` 15 個 `tb-` 元件 class、`@/components/toybox` 15 個 React 元件、`ui/button` 改 variant、`tbCn`；波 3 刪除 `index.css` 舊頁面區段（−631 行，86 個 class 逐一 rg 零引用）、`lib/utils` 的 `cn` 統一走 `tbCn`、`vitest.config.ts` 納入 `src/components/**`。
@@ -65,10 +65,10 @@
 任務 2026-10-04-toybox
 | 階段 | 開始 | 結束 | 時長 | dev | 審查 |
 |---|---|---|---|---|---|
-| 任務 | 2026-10-04T09:54 | 2026-10-04T12:29 | 155m（進行中） | — | — |
+| 任務 | 2026-10-04T09:54 | 2026-10-04T12:29 | 155m | — | — |
 | 計畫 | 2026-10-04T09:54 | 2026-10-04T10:05 | 11m | — | — |
 | 波 1 | 2026-10-04T10:06 | 2026-10-04T10:43 | 37m | 37m | 6m |
 | 波 2 | 2026-10-04T10:43 | 2026-10-04T11:33 | 50m | 38m | 16m |
 | 波 3 | 2026-10-04T11:33 | 2026-10-04T12:16 | 43m | 8m | 2m |
 | 波 4 | 2026-10-04T12:21 | 2026-10-04T12:25 | 4m | 2m | 1m |
-| 結案 | 2026-10-04T12:25 | — | — | — | — |
+| 結案 | 2026-10-04T12:25 | 2026-10-04T12:29 | 4m | — | — |

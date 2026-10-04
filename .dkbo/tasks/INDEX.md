@@ -9,4 +9,4 @@
 | 2026-09-26 | 廚房快手美術優化（A Toy Kitchen） | task | done | merged 1329443 |
 | 2026-10-03 | 坦克美術＋可玩度（A Toy Army） | task | done | merged ef92063 |
 | 2026-10-03 | 賽車美術＋可玩度（A Toy Racer） | task | done | merged 871beb1 |
-| 2026-10-04 | 全站改版（DKBO Toybox 玩具機風） | task | running | — |
+| 2026-10-04 | 全站改版（DKBO Toybox 玩具機風） | task | done | merged 8b83e87 |
