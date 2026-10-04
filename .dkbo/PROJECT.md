@@ -9,6 +9,6 @@
 - 瀏覽器驗證：本機沒 Chrome、Playwright MCP 已移除，一律 `node .claude/skills/verify-web/scripts/shot.mjs`（`--contexts N` 多人、`--messages godot-rpg|godot-candy` 收 bridge）。截圖與臨時檔只寫 scratchpad。
 - /battle：Firebase 專案 test-73ce3，Firestore `(default)` 資料庫（2026-10 commit bb5b7db 起；`dkbo-collect` 不存在）（worktree 內 hook 會自動 symlink `.env.local` 與 `node_modules`）。
 - Hooks（`.claude/settings.json`）：PreToolUse 擋 `pkill -f`／手動 godot export／jpg/png 進 `src/`；PostToolUse 單檔 eslint --fix、`godot --check-only`、地圖 JSON 驗證；Stop 在改過 `src/` 時跑 lint+typecheck+vitest、改糖果跑 board_test。完成定義以 hooks 為準。
-- 獨佔資源（同波不可重疊）：`dev:5173`、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`。
+- 獨佔資源（同波不可重疊）：`dev:5173`、`port:5175`（babylon 自查）、`port:5176`／`port:5177`（qa 基準／worktree preview）、`export:godot`、`export:candy`、`maps`、`build:docs`、`firebase:battle`。
 - 專案領域知識：各領域架構重點在 `.claude/agents/<name>.md`（babylon-game-dev、react-ui-dev、godot-dev、rpg-map-builder、web-verifier、build-runner、arch-security-reviewer），角色檔會指定要讀哪一份。
 - 已知坑：`godot --check-only` 不註冊 autoload，autoload 後的編譯錯會被吞；bridge 協定四檔（React 側與 Godot 側）改一邊要同步另一邊；`export_presets.cfg` Threads 必須 OFF；fullPage 截圖在 `#root` 置中版面會有假象。
