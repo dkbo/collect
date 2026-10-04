@@ -15,13 +15,13 @@ export interface Work {
   shot?: string
   /** variant 為 icon 時必填 */
   icon?: LucideIcon
-  /** Hero 右欄漂浮預覽卡 */
+  /** Hero 掌機螢幕輪播 */
   heroTile?: boolean
 }
 
 const shotUrl = (id: string) => `${import.meta.env.BASE_URL}works/${id}.webp`
 
-/** 首頁作品清單（單一來源：Bento、Hero 漂浮卡、統計數字共用） */
+/** 首頁作品清單（單一來源：作品卡帶、Hero 掌機、統計數字共用） */
 export const WORKS: readonly Work[] = [
   {
     id: 'battle',

@@ -1,0 +1,27 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   CANDY CRUSH 頁面外框（pages-spec §15）— 前綴 candy-page-
+   遊戲 HUD／浮層／載入畫面在 index.css 凍結區段，這裡不碰
+   ═══════════════════════════════════════════════════════ */
+/* 包在 components layer：className 上的 utility 一律蓋得過頁面 class；要蓋 toybox 元件 class 的規則用複合選擇器提高權重 */
+@layer components {
+  /* 頁面骨架（§0）：上下留白；遊戲欄寬 896 置中 */
+  .candy-page-shell {
+    @apply pt-12 pb-18 max-sm:pt-8 max-sm:pb-12;
+  }
+
+  .candy-page-col {
+    @apply mx-auto flex w-full max-w-4xl flex-col gap-6;
+  }
+
+  /* 導言中的英數詞（取代凍結區段的 candy-num） */
+  .candy-page-num {
+    @apply font-pixel text-pixel-m text-ink;
+  }
+
+  /* 畫面區：沿用舊 rpg-screen 的 450／550 高 */
+  .candy-page-view {
+    @apply h-[450px] w-full select-none md:h-[550px];
+  }
+}

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArcRotateCamera, Engine, Scene } from '@/babylon/babylonCore'
 import { RotateCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/toybox'
 import type { NetTransport } from '@/core/webrtc'
 import type { AnyGameHud, GameOverlay, GamePlayer, KitchenHud, KitchenHudOrder, TankHud } from '@/babylon/types'
 import { getGameFactory } from '@/babylon/games'
 import type { GameType } from '@/core/room'
-import { TouchControls, type TouchAction } from './TouchControls'
+import { TouchControls, type TouchAction } from '@/pages/Battle/TouchControls'
 import { BomberHud } from '@/pages/Battle/BomberHud'
 import { sameHud } from '@/pages/Battle/bomberHud'
 import { KitchenHud as KitchenHudPanel } from '@/pages/Battle/KitchenHud'
@@ -227,7 +227,7 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
       <canvas
         ref={canvasRef}
         data-testid="battle-canvas"
-        className="block size-full bg-slate-950 outline-none touch-none"
+        className="battle-canvas"
         tabIndex={0}
       />
       {hud &&
@@ -242,35 +242,24 @@ export function BabylonCanvas({ gameType, net, selfId, role, hostId, players }: 
         ))}
       {isTouch && !portrait && <TouchControls actions={TOUCH_ACTIONS[gameType]} {...TOUCH_LAYOUT[gameType]} />}
       {isTouch && portrait && (
-        <div
-          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/95 p-6 text-center"
-          data-testid="rotate-prompt"
-        >
-          <RotateCw className="size-14 animate-pulse text-indigo-400" aria-hidden="true" />
-          <p className="text-lg font-bold text-slate-100">請將手機轉為橫向</p>
-          <p className="text-sm text-slate-400">本遊戲需橫向遊玩</p>
+        <div className="battle-rotate" data-testid="rotate-prompt">
+          <RotateCw className="battle-rotate__icon" strokeWidth={2.5} aria-hidden="true" />
+          <p className="battle-rotate__title">請將手機轉為橫向</p>
+          <p className="battle-rotate__sub">本遊戲需橫向遊玩</p>
         </div>
       )}
       {overlay && (
-        <div
-          className="absolute inset-0 z-20 flex items-center justify-center p-4 pointer-events-none"
-          data-testid="battle-overlay"
-        >
-          <div className="pointer-events-auto w-full max-w-xs rounded-2xl border border-slate-700 bg-slate-900/95 p-5 text-center shadow-2xl backdrop-blur-sm space-y-3">
-            <h3 className="whitespace-pre-line text-lg font-bold text-slate-100">{overlay.title}</h3>
-            {overlay.subtitle && (
-              <p className="whitespace-pre-line text-sm text-slate-300">{overlay.subtitle}</p>
-            )}
-            <div className="flex flex-col gap-2 pt-1">
+        <div className="battle-overlay" data-testid="battle-overlay">
+          <div className="battle-overlay__card">
+            <h3 className="battle-overlay__title">{overlay.title}</h3>
+            {overlay.subtitle && <p className="battle-overlay__sub">{overlay.subtitle}</p>}
+            <div className="battle-overlay__actions">
               {overlay.actions.map((a) => (
                 <Button
                   key={a.label}
+                  variant={a.variant === 'secondary' ? 'secondary' : 'primary'}
                   onClick={a.onClick}
-                  className={
-                    a.variant === 'secondary'
-                      ? 'h-11 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer'
-                      : 'h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold hover:from-indigo-700 hover:to-purple-700 cursor-pointer'
-                  }
+                  className="w-full"
                   data-testid="battle-overlay-action"
                 >
                   {a.label}

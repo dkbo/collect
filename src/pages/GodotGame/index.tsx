@@ -1,19 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import {
-  Compass,
-  Gamepad2,
-  HelpCircle,
-  Info,
-  Maximize2,
-  MessageSquare,
-  Minimize2,
-  X,
-} from 'lucide-react'
+import { clsx } from 'clsx'
+import { HelpCircle, Info, Lightbulb, Maximize2, Minimize2 } from 'lucide-react'
+import { Button } from '@/components/toybox'
 import { useGodotStore } from '@/store/useGodotStore'
 import { onGodotMessage, registerGodotWindow } from '@/lib/godotBridge'
 import { useFullscreen } from '@/lib/useFullscreen'
 import { renderMessage } from '@/pages/RpgRoom/lib/messageRenderer'
+import {
+  ChatBox,
+  GameDialog,
+  GamePageHead,
+  KeyRow,
+  LoadingOverlay,
+  PauseOverlay,
+  ScreenIconButton,
+  ScreenInfoTag,
+  TipBar,
+} from '@/pages/RpgRoom/lib/gameUi'
+import '@/pages/GodotGame/GodotGame.css'
 
 export function GodotGame() {
   const {
@@ -104,7 +108,7 @@ export function GodotGame() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  // 全螢幕（包 rpg-screen 容器，iframe 跟著撐滿）：
+  // 全螢幕（包畫面區容器，iframe 跟著撐滿）：
   // 原生 API 不可用（iPhone Safari）時自動 fallback 成 CSS 偽全螢幕
   const { isFullscreen, toggleFullscreen } = useFullscreen(screenRef, focusGame)
 
@@ -117,109 +121,61 @@ export function GodotGame() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-12" data-testid="page-godot-game">
-      {/* Title Header */}
-      <header className="text-center mb-8">
-        <h1 className="text-3xl md:text-5xl font-extrabold bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent leading-tight">
-          Godot 遊戲
-        </h1>
-        <p className="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
-          以 Godot 4 遊戲引擎重構的 RPG 遊戲室。引擎於 iframe 內運行，與 React 透過 postMessage 雙向通訊。
-        </p>
-      </header>
+    <div className="tb-container godot-page" data-testid="page-godot-game">
+      <div className="godot-col">
+        <GamePageHead
+          eyebrow="— GODOT 4 —"
+          title="Godot 遊戲"
+          intro="以 Godot 4 遊戲引擎重構的 RPG 遊戲室。引擎於 iframe 內運行，與 React 透過 postMessage 雙向通訊。"
+        />
 
-      {/* Game Menu Actions */}
-      <div className="flex flex-wrap items-center gap-2 mb-4 justify-between select-none">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => toggleInstructions(true)}
-          className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
-        >
-          <HelpCircle className="size-3.5" aria-hidden="true" />
-          遊戲說明
-        </Button>
-      </div>
+        {/* 工具列 */}
+        <div className="flex flex-wrap items-center justify-between gap-3 select-none">
+          <Button size="s" icon={<HelpCircle strokeWidth={2.5} aria-hidden="true" />} onClick={() => toggleInstructions(true)}>
+            遊戲說明
+          </Button>
+        </div>
 
-      {/* Arcade cabinet wrapper */}
-      <div className="rpg-cabinet">
-        {/* Game console screen: Godot Web Export iframe */}
-        <div
-          ref={screenRef}
-          className={
-            isFullscreen
-              ? 'fixed inset-0 w-screen h-dvh bg-black z-50 border-0 rounded-none select-none'
-              : 'rpg-screen'
-          }
-        >
-          <iframe
-            ref={iframeRef}
-            src={import.meta.env.BASE_URL + 'godot/index.html'}
-            title="Godot RPG 遊戲"
-            className="absolute inset-0 size-full border-0 bg-slate-950"
-            tabIndex={0}
-            onLoad={handleFrameLoad}
-            allow="fullscreen"
-            data-testid="godot-iframe"
-          />
+        {/* 遊戲畫面外框（ScreenFrame 結構；畫面區要掛 ref 給全螢幕，故直接寫 tb-screen） */}
+        <div className="tb-screen">
+          <div className="tb-screen__bar">
+            <span className="tb-screen__title">GODOT GAME</span>
+            <span className="tb-screen__meta">GODOT 4</span>
+          </div>
+          <div
+            ref={screenRef}
+            className={clsx('tb-screen__view', isFullscreen ? 'godot-screen__view--full' : 'godot-screen__view')}
+          >
+            <iframe
+              ref={iframeRef}
+              src={import.meta.env.BASE_URL + 'godot/index.html'}
+              title="Godot RPG 遊戲"
+              className="absolute inset-0 size-full border-0 bg-inverse"
+              tabIndex={0}
+              onLoad={handleFrameLoad}
+              allow="fullscreen"
+              data-testid="godot-iframe"
+            />
 
-          {/* 載入中黑幕（Godot 引擎送出 READY 前顯示） */}
-          {!isReady && (
-            <div className="absolute inset-0 bg-black flex flex-col justify-center items-center z-50 animate-fade-in">
-              <Compass className="size-12 text-purple-500 animate-spin mb-4" />
-              <div className="text-white text-base tracking-widest animate-pulse font-mono font-bold select-none">
-                Godot 引擎載入中...
-              </div>
-            </div>
-          )}
+            {/* 載入中（Godot 引擎送出 READY 前顯示） */}
+            {!isReady && <LoadingOverlay text="Godot 引擎載入中..." />}
 
-          {/* Dialogue Box：Godot 送 NPC_CHAT 觸發，沿用 RpgRoom messageRenderer 與樣式 */}
-          {isChat && (
-            <div className="rpg-chat-box select-text cursor-default" data-testid="rpg-dialogue-box">
-              <div className="font-extrabold text-amber-300 dark:text-amber-400 mb-1 flex items-center gap-1.5 border-b border-white/20 pb-1 text-base select-none">
-                <MessageSquare className="size-4 shrink-0" />
-                <span>{npcName}</span>
-              </div>
-              <div className="font-medium pr-6 min-h-[3.5em]">{renderMessage(npcText)}</div>
-              <div className="absolute bottom-2.5 right-4 flex items-center text-[10px] text-white/50 tracking-wider font-semibold animate-pulse select-none">
-                <span>{isTouchDevice ? '點 A 鈕繼續' : '按 SPACE 繼續'}</span>
-                <span className="ml-1">▼</span>
-              </div>
-            </div>
-          )}
+            {/* Dialogue Box：Godot 送 NPC_CHAT 觸發，沿用 RpgRoom messageRenderer */}
+            {isChat && (
+              <ChatBox name={npcName} hint={isTouchDevice ? '點 A 鈕繼續' : '按 SPACE 繼續'}>
+                {renderMessage(npcText)}
+              </ChatBox>
+            )}
 
-          {/* 暫停遮罩（P 鍵切換，點擊恢復） */}
-          {isPaused && !showInstructions && (
-            <div
-              className="absolute inset-0 bg-slate-950/60 z-30 flex flex-col justify-center items-center gap-3 cursor-pointer animate-fade-in"
-              onClick={togglePause}
-              data-testid="godot-pause-overlay"
-            >
-              <span className="text-2xl font-extrabold text-amber-500 select-none">遊戲暫停中</span>
-              <span className="text-sm text-slate-300 select-none">點擊畫面或按 P 鍵恢復</span>
-            </div>
-          )}
+            {/* 暫停遮罩（P 鍵切換，點擊恢復） */}
+            {isPaused && !showInstructions && (
+              <PauseOverlay hint="點擊畫面或按 P 鍵恢復" onResume={togglePause} testId="godot-pause-overlay" />
+            )}
 
-          {/* Instruction Panel overlay（開啟時 Godot 暫停） */}
-          {showInstructions && (
-            <div className="absolute inset-0 bg-slate-950/90 z-40 flex flex-col justify-center items-center p-6 text-slate-100 animate-fade-in">
-              <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl relative shadow-2xl">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-3 right-3 text-slate-400 hover:text-white rounded-lg cursor-pointer"
-                  onClick={() => toggleInstructions(false)}
-                  aria-label="關閉說明"
-                >
-                  <X className="size-5" />
-                </Button>
-
-                <h3 className="text-xl font-bold text-center border-b border-slate-800 pb-3 mb-4 flex items-center justify-center gap-2">
-                  <Gamepad2 className="size-6 text-purple-500" />
-                  操作說明指南
-                </h3>
-
-                <div className="space-y-4 text-sm leading-relaxed">
+            {/* 說明對話框（開啟時 Godot 暫停） */}
+            {showInstructions && (
+              <GameDialog title="操作說明指南" primaryLabel="開始遊戲" onClose={() => toggleInstructions(false)}>
+                <div className="flex flex-col">
                   {(isTouchDevice
                     ? [
                         ['移動角色', '按住畫面拖曳（虛擬搖桿）'],
@@ -233,69 +189,45 @@ export function GodotGame() {
                         ['開啟本選單', 'ESC 鍵'],
                       ]
                   ).map(([label, keys]) => (
-                    <div
-                      key={label}
-                      className="flex justify-between items-center bg-slate-950/50 p-2.5 rounded-lg border border-slate-800/50"
-                    >
-                      <span className="font-semibold text-slate-300">{label}</span>
-                      <span className="text-right text-xs bg-slate-800 px-2 py-1 rounded shadow-sm text-purple-400 font-mono">
-                        {keys}
-                      </span>
-                    </div>
+                    <KeyRow key={label} label={label} keys={keys} />
                   ))}
-                  <div className="bg-purple-950/30 text-purple-200 p-3 rounded-lg border border-purple-900/30 text-xs mt-4 leading-normal">
-                    <span className="font-bold block mb-1">💡 小訣竅</span>
-                    走到特定的門口、樓梯或地圖邊界會自動切換地圖。面向告示牌、稻草人或NPC按對話鍵即可觸發交談。
-                  </div>
                 </div>
-
-                <Button
-                  className="w-full mt-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl cursor-pointer"
-                  onClick={() => toggleInstructions(false)}
-                >
-                  開始遊戲
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* 浮動按鈕列（safe-area 感知，避開瀏海/圓角） */}
-          <div className="absolute z-30 flex gap-2 top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))]">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
-              onClick={toggleFullscreen}
-              aria-label="切換全螢幕"
-              data-testid="godot-fullscreen-btn"
-            >
-              {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-            </Button>
-
-            {!isFullscreen && (
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm"
-                onClick={() => toggleInstructions(true)}
-                aria-label="打開操作說明"
-              >
-                <HelpCircle className="size-4" />
-              </Button>
+                <TipBar icon={<Lightbulb strokeWidth={2.5} aria-hidden="true" />}>
+                  <span className="block font-bold">小訣竅</span>
+                  走到特定的門口、樓梯或地圖邊界會自動切換地圖。面向告示牌、稻草人或NPC按對話鍵即可觸發交談。
+                </TipBar>
+              </GameDialog>
             )}
-          </div>
 
-          {/* Info HUD display on upper-left screen showing map/coords */}
-          <div className="absolute top-4 left-4 z-30 flex flex-col gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-300 font-mono text-xs select-none backdrop-blur-sm pointer-events-none">
-            <div className="flex items-center gap-1.5">
-              <Info className="size-3.5 text-purple-400" />
-              <span>{isReady ? `地圖: ${mapName || '加載中'}` : '引擎未連線'}</span>
+            {/* 浮動按鈕列（safe-area 感知，避開瀏海/圓角） */}
+            <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-30 flex gap-2">
+              <ScreenIconButton
+                icon={isFullscreen ? <Minimize2 strokeWidth={2.5} /> : <Maximize2 strokeWidth={2.5} />}
+                label="切換全螢幕"
+                onClick={toggleFullscreen}
+                data-testid="godot-fullscreen-btn"
+              />
+              {!isFullscreen && (
+                <ScreenIconButton
+                  icon={<HelpCircle strokeWidth={2.5} />}
+                  label="打開操作說明"
+                  onClick={() => toggleInstructions(true)}
+                />
+              )}
             </div>
-            {isReady && (
-              <div className="text-[10px] text-slate-400 border-t border-slate-800/60 pt-1">
-                座標: X: {playerX}, Y: {playerY}
+
+            {/* 左上資訊籤：地圖與座標 */}
+            <ScreenInfoTag>
+              <div className="flex items-center gap-2 font-body text-caption">
+                <Info className="size-4 shrink-0 text-pop" strokeWidth={2.5} />
+                <span>{isReady ? `地圖: ${mapName || '加載中'}` : '引擎未連線'}</span>
               </div>
-            )}
+              {isReady && (
+                <div className="text-on-inverse-muted">
+                  <span className="font-body text-caption">座標</span> X:{playerX} Y:{playerY}
+                </div>
+              )}
+            </ScreenInfoTag>
           </div>
         </div>
       </div>

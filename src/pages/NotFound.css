@@ -1,0 +1,18 @@
+@reference "../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   NOT FOUND（404）— 前綴 notfound-；pages-spec §16
+   ═══════════════════════════════════════════════════════ */
+
+@layer components {
+  .notfound-page {
+    @apply grid min-h-[60vh] place-items-center py-18;
+  }
+  .notfound-body {
+    @apply flex flex-col items-center gap-6 text-center;
+  }
+  /* 迷你掌機螢幕（tilt-2，全頁唯一傾斜） */
+  .notfound-screen {
+    @apply flex flex-col items-center gap-2 rounded-toy-xl border-4 border-line bg-inverse px-10 py-8 shadow-hard-l;
+  }
+}

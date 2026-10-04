@@ -1,8 +1,16 @@
 import { useParams, NavLink } from 'react-router-dom'
-import { ListTodo, Trash, CheckSquare } from 'lucide-react'
+import { Trash, CheckSquare } from 'lucide-react'
+import { Button } from '@/components/toybox'
 import { useTodoStore } from '@/store/useTodoStore'
-import TodoInput from './TodoInput'
-import TodoItem from './TodoItem'
+import TodoInput from '@/pages/Todos/TodoInput'
+import TodoItem from '@/pages/Todos/TodoItem'
+import '@/pages/Todos/Todos.css'
+
+const FILTERS = [
+  { to: '/todos', label: 'All', testId: 'todo-filter-all' },
+  { to: '/todos/active', label: 'Active', testId: 'todo-filter-active' },
+  { to: '/todos/completed', label: 'Completed', testId: 'todo-filter-completed' },
+]
 
 export function TodoList() {
   const { keyword } = useParams<{ keyword?: string }>()
@@ -35,88 +43,62 @@ export function TodoList() {
   }
 
   return (
-    <div id="todos" className="todo-container">
-      <div id="todoBox" className="todo-box">
-        {/* Title & Stats */}
-        <div className="todo-header">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-gradient-to-tr from-purple-500 to-indigo-500 p-2 rounded-xl shadow-md text-white">
-              <ListTodo className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <h1 className="todo-title">
-              Todos ({todos.length})
-            </h1>
-          </div>
-
-          {/* Action Buttons */}
-          <div id="todoControl" className="todo-controls">
-            {completedCount > 0 && (
-              <button
-                onClick={handleClearCompleted}
-                className="todo-btn-control flex items-center gap-1 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/30"
-                aria-label="清除所有已完成事項"
-                data-testid="todo-clear-completed"
-              >
-                <CheckSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                Clear Completed
-              </button>
-            )}
-            {todos.length > 0 && (
-              <button
-                onClick={handleClearAll}
-                className="todo-btn-control flex items-center gap-1 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-500/30"
-                aria-label="清除所有事項"
-                data-testid="todo-clear-all"
-              >
-                <Trash className="h-3.5 w-3.5" aria-hidden="true" />
-                Clear All
-              </button>
-            )}
-          </div>
+    <div id="todos" className="tb-container todos-page" data-testid="page-todos">
+      <header className="tb-sechead">
+        <div className="tb-sechead__text">
+          <span className="tb-sechead__eyebrow">— TO DO LIST —</span>
+          <h1 className="tb-sechead__title">Todos ({todos.length})</h1>
         </div>
 
-        {/* Input */}
+        {/* Action Buttons */}
+        <div id="todoControl" className="todos-actions">
+          {completedCount > 0 && (
+            <Button
+              size="s"
+              onClick={handleClearCompleted}
+              icon={<CheckSquare strokeWidth={2.5} aria-hidden="true" />}
+              aria-label="清除所有已完成事項"
+              data-testid="todo-clear-completed"
+            >
+              Clear Completed
+            </Button>
+          )}
+          {todos.length > 0 && (
+            <Button
+              size="s"
+              onClick={handleClearAll}
+              icon={<Trash strokeWidth={2.5} aria-hidden="true" />}
+              aria-label="清除所有事項"
+              data-testid="todo-clear-all"
+            >
+              Clear All
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <div id="todoBox" className="todos-box">
         <TodoInput todoAdded={addTodo} />
 
         {/* Filter Navigation Options */}
-        <div id="todoOption" className="todo-options">
-          <NavLink
-            to="/todos"
-            end
-            className={({ isActive }) =>
-              `todo-option-link ${isActive ? 'active' : ''}`
-            }
-            data-testid="todo-filter-all"
-          >
-            All
-          </NavLink>
-          <NavLink
-            to="/todos/active"
-            className={({ isActive }) =>
-              `todo-option-link ${isActive ? 'active' : ''}`
-            }
-            data-testid="todo-filter-active"
-          >
-            Active
-          </NavLink>
-          <NavLink
-            to="/todos/completed"
-            className={({ isActive }) =>
-              `todo-option-link ${isActive ? 'active' : ''}`
-            }
-            data-testid="todo-filter-completed"
-          >
-            Completed
-          </NavLink>
-        </div>
+        <nav id="todoOption" className="tb-seg todos-filter" aria-label="篩選待辦事項">
+          {FILTERS.map((f) => (
+            <NavLink key={f.to} to={f.to} end className="tb-seg__opt" data-testid={f.testId}>
+              {f.label}
+            </NavLink>
+          ))}
+        </nav>
 
         {/* Todo Items List */}
         {todos.length === 0 ? (
-          <div className="text-center py-8 text-sm text-slate-400 dark:text-slate-500">
+          <div className="todos-empty">
+            <span className="todos-empty__mark" aria-hidden="true">
+              EMPTY
+            </span>
             No tasks yet. Prefill a task above to get started!
           </div>
         ) : (
-          <ul className="todo-list">
+          <ul className="todos-list">
             {todos.map((todo, index) => (
               <TodoItem
                 key={todo.timestamp}

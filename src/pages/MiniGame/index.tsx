@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Gamepad2, RotateCcw, Shield, Coins, Sparkles, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Maximize2, Minimize2, HelpCircle } from 'lucide-react'
+import { clsx } from 'clsx'
+import { AlertTriangle, HelpCircle, Maximize2, Minimize2, Pause, Play, RotateCcw } from 'lucide-react'
+import { Button, StatTile } from '@/components/toybox'
+import { ControllerPad, GameDialog, GamePageHead, KeyRow, ScreenIconButton, TipBar } from '@/pages/RpgRoom/lib/gameUi'
+import '@/pages/MiniGame/MiniGame.css'
 import { useThemeStore } from '@/store/useThemeStore'
 
 const GAME_WIDTH = 800
@@ -356,263 +359,131 @@ export function MiniGame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const togglePause = () => {
+    const s = stateRef.current
+    if (hp > 0) {
+      setIsPaused((prev) => {
+        const val = !prev
+        s.isPaused = val
+        return val
+      })
+    }
+  }
+
+  // D-pad：按住移動、放開停止（滑鼠與觸控）
+  const dirProps = (dir: 'up' | 'down' | 'left' | 'right') => ({
+    onMouseDown: () => { stateRef.current.key[dir] = true },
+    onMouseUp: () => { stateRef.current.key[dir] = false },
+    onTouchStart: (e: React.TouchEvent) => { e.preventDefault(); stateRef.current.key[dir] = true },
+    onTouchEnd: (e: React.TouchEvent) => { e.preventDefault(); stateRef.current.key[dir] = false },
+  })
+
   return (
-    <div className="max-w-4xl mx-auto pb-12" data-testid="page-minigame">
-      {/* Title Header */}
-      <header className="text-center mb-8">
-        <h1 className="text-3xl md:text-5xl font-extrabold bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent leading-tight">
-          復古射擊小遊戲
-        </h1>
-        <p className="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
-          使用方向鍵控制戰機，空白鍵發射光子束消滅紅色障礙。躲避或擊毀它們，別讓障礙突破防線！
-        </p>
-      </header>
+    <div className="tb-container mini-page" data-testid="page-minigame">
+      <div className="mini-col">
+        <GamePageHead
+          eyebrow="— MINI GAME —"
+          title="復古射擊小遊戲"
+          intro="使用方向鍵控制戰機，空白鍵發射光子束消滅紅色障礙。躲避或擊毀它們，別讓障礙突破防線！"
+        />
 
-      {/* Arcade cabinet wrapper */}
-      <div 
-        className="relative border-4 border-slate-800 dark:border-slate-700 rounded-3xl bg-slate-900 shadow-2xl p-4 md:p-6 overflow-hidden max-w-3xl mx-auto transition-all duration-300"
-      >
-        
-        {/* Game Menu Actions */}
-        <div className="flex flex-wrap items-center gap-2 mb-4 justify-between border-b border-slate-800/60 pb-3 select-none">
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowInstructions(true)}
-              className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-950/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
-            >
-              <HelpCircle className="size-3.5" aria-hidden="true" />
-              遊戲說明
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const s = stateRef.current
-                if (hp > 0) {
-                  setIsPaused((prev) => {
-                    const val = !prev
-                    s.isPaused = val
-                    return val
-                  })
-                }
-              }}
-              className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-950/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl"
-            >
-              {isPaused ? "繼續遊戲" : "暫停遊戲"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={startGame}
-              className="h-8 text-xs border-slate-700 text-slate-300 bg-slate-950/80 hover:bg-slate-800 hover:text-white cursor-pointer rounded-xl flex items-center gap-1"
-            >
-              <RotateCcw className="size-3.5" aria-hidden="true" />
-              重新開始
-            </Button>
-          </div>
-        </div>
-
-        {/* Score and Stats header inside console */}
-        <div className="flex justify-between items-center bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 mb-4 select-none">
-          <div className="flex items-center gap-2 text-rose-500 font-bold text-xs sm:text-sm">
-            <Shield className="size-4 animate-pulse" aria-hidden="true" />
-            <span>生命值: {hp}</span>
-          </div>
-          <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs sm:text-sm">
-            <Coins className="size-4" aria-hidden="true" />
-            <span>得分: {score}</span>
-          </div>
-          <div className="flex items-center gap-2 text-amber-500 font-bold text-xs sm:text-sm">
-            <Sparkles className="size-4" aria-hidden="true" />
-            <span>最高紀錄: {highScore}</span>
-          </div>
-        </div>
-
-        {/* Screen canvas wrapper */}
-        <div 
-          ref={canvasContainerRef}
-          className={
-            isFullscreen
-              ? "fixed inset-0 w-screen h-screen bg-black flex items-center justify-center z-50 border-0 rounded-none select-none"
-              : "relative aspect-[16/9] w-full bg-slate-950 rounded-2xl border border-slate-800/80 overflow-hidden flex items-center justify-center shadow-inner"
-          }
-        >
-          {/* Floating Fullscreen button inside game screen */}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleFullscreen}
-            className="absolute top-4 right-4 z-30 size-9 rounded-xl border-slate-700 text-slate-400 bg-slate-900/80 hover:bg-slate-800 hover:text-white cursor-pointer backdrop-blur-sm shadow-md"
-            aria-label="切換全螢幕"
-          >
-            {isFullscreen ? <Minimize2 className="size-4" aria-hidden="true" /> : <Maximize2 className="size-4" aria-hidden="true" />}
+        {/* 工具列 */}
+        <div className="flex flex-wrap items-center gap-3 select-none">
+          <Button size="s" icon={<HelpCircle strokeWidth={2.5} aria-hidden="true" />} onClick={() => setShowInstructions(true)}>
+            遊戲說明
           </Button>
-          {hp > 0 ? (
-            <canvas 
-              ref={canvasEl} 
-              width={GAME_WIDTH} 
-              height={GAME_HEIGHT}
-              className="w-full h-full block cursor-crosshair"
-              data-testid="game-canvas"
+          <Button size="s" icon={isPaused ? <Play strokeWidth={2.5} aria-hidden="true" /> : <Pause strokeWidth={2.5} aria-hidden="true" />} onClick={togglePause}>
+            {isPaused ? '繼續遊戲' : '暫停遊戲'}
+          </Button>
+          <Button size="s" icon={<RotateCcw strokeWidth={2.5} aria-hidden="true" />} onClick={startGame}>
+            重新開始
+          </Button>
+        </div>
+
+        {/* 計分列 */}
+        <div className="mini-stats">
+          <StatTile value={hp} label="生命值" />
+          <StatTile value={score} label="得分" />
+          <StatTile value={highScore} label="最高紀錄" />
+        </div>
+
+        {/* 遊戲畫面外框（ScreenFrame 結構；畫面區要掛 ref 給全螢幕，故直接寫 tb-screen） */}
+        <div className="tb-screen">
+          <div className="tb-screen__bar">
+            <span className="tb-screen__title">MINI GAME</span>
+            <span className="tb-screen__meta">CANVAS 2D</span>
+          </div>
+          <div
+            ref={canvasContainerRef}
+            className={clsx('tb-screen__view', isFullscreen ? 'mini-screen__view--full' : 'mini-screen__view')}
+          >
+            <ScreenIconButton
+              icon={isFullscreen ? <Minimize2 strokeWidth={2.5} aria-hidden="true" /> : <Maximize2 strokeWidth={2.5} aria-hidden="true" />}
+              label="切換全螢幕"
+              onClick={toggleFullscreen}
+              className="absolute top-4 right-4 z-30"
             />
-          ) : (
-            <div 
-              className="absolute inset-0 flex flex-col justify-center items-center bg-black/80 z-20 cursor-pointer animate-fade-in group"
-              onClick={startGame}
-              data-testid="gameover-screen"
-            >
-              <Gamepad2 className="size-16 text-rose-500 mb-4 animate-bounce group-hover:scale-110 transition-transform" aria-hidden="true" />
-              <div className="text-4xl sm:text-5xl font-black text-rose-600 uppercase tracking-widest select-none">
-                Game Over
+            {hp > 0 ? (
+              <canvas
+                ref={canvasEl}
+                width={GAME_WIDTH}
+                height={GAME_HEIGHT}
+                className="block h-full w-full cursor-crosshair"
+                data-testid="game-canvas"
+              />
+            ) : (
+              <div
+                className="absolute inset-0 z-20 flex cursor-pointer flex-col items-center justify-center gap-4 bg-inverse/85 select-none tb-on-inverse"
+                onClick={startGame}
+                data-testid="gameover-screen"
+              >
+                <div className="font-pixel text-pixel-xl text-pop">GAME OVER</div>
+                <p className="text-body-s text-on-inverse-muted">點擊任意處重新挑戰</p>
+                <Button
+                  variant="pop"
+                  icon={<RotateCcw strokeWidth={2.5} aria-hidden="true" />}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    startGame()
+                  }}
+                >
+                  重新開始
+                </Button>
               </div>
-              <p className="text-slate-400 text-xs sm:text-sm mt-3 animate-pulse">
-                點擊任意處重新挑戰
-              </p>
-              <Button 
-                variant="outline"
-                className="mt-6 border-rose-500/50 hover:bg-rose-500/20 text-rose-400 font-bold rounded-xl cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  startGame()
-                }}
-              >
-                <RotateCcw className="mr-2 size-4" aria-hidden="true" />
-                重新開始
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Controller Overlay for touchscreens */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mt-6 p-4 rounded-2xl bg-slate-950 border border-slate-800 shadow-inner">
-          {/* Mobile D-pad */}
-          <div className="flex items-center gap-4">
-            <div className="grid grid-cols-3 gap-1.5 size-36 shrink-0 select-none">
-              <div />
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { stateRef.current.key.up = true }}
-                onMouseUp={() => { stateRef.current.key.up = false }}
-                onTouchStart={(e) => { e.preventDefault(); stateRef.current.key.up = true }}
-                onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.up = false }}
-                aria-label="戰機向上移動"
-              >
-                <ArrowUp className="size-5" aria-hidden="true" />
-              </Button>
-              <div />
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { stateRef.current.key.left = true }}
-                onMouseUp={() => { stateRef.current.key.left = false }}
-                onTouchStart={(e) => { e.preventDefault(); stateRef.current.key.left = true }}
-                onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.left = false }}
-                aria-label="戰機向左移動"
-              >
-                <ArrowLeft className="size-5" aria-hidden="true" />
-              </Button>
-              <div className="flex items-center justify-center text-[11px] text-slate-500 font-extrabold uppercase select-none">
-                D-Pad
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { stateRef.current.key.right = true }}
-                onMouseUp={() => { stateRef.current.key.right = false }}
-                onTouchStart={(e) => { e.preventDefault(); stateRef.current.key.right = true }}
-                onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.right = false }}
-                aria-label="戰機向右移動"
-              >
-                <ArrowRight className="size-5" aria-hidden="true" />
-              </Button>
-              <div />
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-11 rounded-xl border-purple-500/50 dark:border-purple-400/50 text-slate-100 dark:text-slate-100 hover:text-white bg-slate-900/90 hover:bg-purple-600/30 cursor-pointer shadow-md shadow-purple-500/10 active:scale-95 transition-all"
-                onMouseDown={() => { stateRef.current.key.down = true }}
-                onMouseUp={() => { stateRef.current.key.down = false }}
-                onTouchStart={(e) => { e.preventDefault(); stateRef.current.key.down = true }}
-                onTouchEnd={(e) => { e.preventDefault(); stateRef.current.key.down = false }}
-                aria-label="戰機向下移動"
-              >
-                <ArrowDown className="size-5" aria-hidden="true" />
-              </Button>
-              <div />
-            </div>
-            
-            <div className="text-left text-xs text-slate-500 max-w-[200px] select-none hidden sm:block">
-              <h5 className="font-bold text-slate-400 mb-1">鍵盤控制指南</h5>
-              <p>移動：W A S D / 方向鍵</p>
-              <p>開火：空白鍵 (Space)</p>
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <div className="flex flex-col items-center gap-2">
-            <Button
-              variant="default"
-              className="w-28 h-12 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-600 hover:via-purple-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold shadow-lg shadow-purple-500/30 border border-purple-400/20 shrink-0 cursor-pointer"
-              onClick={() => {
-                const s = stateRef.current
-                s.bow.push({ x: 15 + s.x, y: s.y + s.w / 2 })
-              }}
-              aria-label="發射鐳射"
-            >
-              FIRE (A)
-            </Button>
-            <span className="text-[10px] text-slate-500 font-medium select-none">點擊按鈕或按空白鍵發射</span>
+            )}
           </div>
         </div>
+
+        {/* 控制器面板 */}
+        <ControllerPad
+          dirProps={dirProps}
+          dirLabel={(d) => `戰機向${d}移動`}
+          keyboardTitle="鍵盤控制指南"
+          keyboardLines={['移動：W A S D / 方向鍵', '開火：空白鍵 (Space)']}
+          actionText="FIRE (A)"
+          actionLabel="發射鐳射"
+          actionHint="點擊按鈕或按空白鍵發射"
+          onAction={() => {
+            const s = stateRef.current
+            s.bow.push({ x: 15 + s.x, y: s.y + s.w / 2 })
+          }}
+        />
       </div>
 
-      {/* Help Modal */}
+      {/* 說明對話框 */}
       {showInstructions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-scale-in text-slate-100">
-            <div className="flex items-center gap-3 mb-4">
-              <Gamepad2 className="h-6 w-6 text-purple-400" aria-hidden="true" />
-              <h3 className="text-lg font-bold text-white">復古射擊 遊戲說明</h3>
-            </div>
-            
-            <div className="space-y-3.5 text-xs text-slate-300">
-              <p className="leading-relaxed">
-                這是一款復古風格的太空射擊小遊戲，考驗您的反應能力。
-              </p>
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <span>移動戰機</span>
-                <kbd className="px-2 py-0.5 rounded bg-slate-950 text-purple-400 border border-slate-800 font-mono">W A S D / ↑ ↓ ← →</kbd>
-              </div>
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <span>開火發射</span>
-                <kbd className="px-2 py-0.5 rounded bg-slate-950 text-purple-400 border border-slate-800 font-mono">空白鍵 (Space)</kbd>
-              </div>
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <span>暫停 / 繼續</span>
-                <kbd className="px-2 py-0.5 rounded bg-slate-950 text-purple-400 border border-slate-800 font-mono">Esc 或 P 鍵</kbd>
-              </div>
-              <div className="text-[11px] text-slate-400 bg-slate-950/40 p-3 rounded-lg border border-slate-800/40 leading-normal">
-                <span className="font-bold text-rose-500 block mb-1">⚠️ 遊戲規則</span>
-                避開或擊碎迎面而來的紅色障礙物。若紅色障礙物突破最左側防線，生命值將會扣減 1 點。生命值歸零則遊戲結束。
-              </div>
-            </div>
-            
-            <div className="mt-6 flex justify-end">
-              <Button 
-                onClick={() => setShowInstructions(false)}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold cursor-pointer"
-              >
-                開始遊戲
-              </Button>
-            </div>
+        <GameDialog fixed title="復古射擊 遊戲說明" primaryLabel="開始遊戲" onClose={() => setShowInstructions(false)}>
+          <p className="text-body text-ink">這是一款復古風格的太空射擊小遊戲，考驗您的反應能力。</p>
+          <div className="flex flex-col">
+            <KeyRow label="移動戰機" keys="W A S D / ↑ ↓ ← →" />
+            <KeyRow label="開火發射" keys="空白鍵 (Space)" />
+            <KeyRow label="暫停 / 繼續" keys="Esc 或 P 鍵" />
           </div>
-        </div>
+          <TipBar icon={<AlertTriangle strokeWidth={2.5} aria-hidden="true" />}>
+            <span className="block font-bold">遊戲規則</span>
+            避開或擊碎迎面而來的紅色障礙物。若紅色障礙物突破最左側防線，生命值將會扣減 1 點。生命值歸零則遊戲結束。
+          </TipBar>
+        </GameDialog>
       )}
     </div>
   )

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
+import { Button } from '@/components/toybox'
 
 interface TodoInputProps {
   todoAdded: (value: string) => void
@@ -25,10 +25,10 @@ export function TodoInput({ todoAdded }: TodoInputProps) {
   const isInvalid = !input.trim()
 
   return (
-    <div className="todo-input-wrapper">
+    <div className="todos-input-row">
       <input
         id="listBoxInput"
-        className="todo-input-field flex-1"
+        className="tb-input flex-1"
         type="text"
         value={input}
         onChange={(e) => setInput(e.target.value)}
@@ -39,12 +39,13 @@ export function TodoInput({ todoAdded }: TodoInputProps) {
         aria-label="新增待辦事項"
       />
       <Button
+        variant="primary"
+        size="s"
         onClick={handleAdd}
         disabled={isInvalid}
-        className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white rounded-xl font-semibold shadow-md px-4 shrink-0 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+        icon={<Plus strokeWidth={2.5} aria-hidden="true" />}
         aria-label="確認新增待辦事項"
       >
-        <Plus className="h-4 w-4" aria-hidden="true" />
         新增
       </Button>
     </div>

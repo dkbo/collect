@@ -1,18 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { 
-  Search, 
-  BookOpen, 
-  Star, 
-  GitFork, 
-  CornerDownRight, 
-  Sparkles, 
-  X,
-  Globe,
-  AlertTriangle
-} from 'lucide-react'
+import { Search, BookOpen, Star, GitFork, X, Globe, AlertTriangle } from 'lucide-react'
+import { IconBox, IconButton, Tag } from '@/components/toybox'
 import { useSearchStore } from '@/store/useSearchStore'
+import '@/pages/Search/Search.css'
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -102,60 +93,49 @@ export function SearchApi() {
   const hasWikiResults = wikiTitles.length > 0
 
   return (
-    <div className="max-w-6xl mx-auto pb-12" data-testid="page-search">
-      {/* Title Header */}
-      <header className="text-center mb-8">
-        <h1 className="text-3xl md:text-5xl font-extrabold bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent leading-tight">
-          外部查詢 (External Search)
-        </h1>
-        <p className="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
-          輸入關鍵字，即可透過 API 同步檢索 GitHub 熱門開源倉庫與 Wikipedia 中文維基百科條目。
-        </p>
+    <div className="tb-container search-page" data-testid="page-search">
+      <header className="tb-sechead">
+        <div className="tb-sechead__text">
+          <span className="tb-sechead__eyebrow">— SEARCH —</span>
+          <h1 className="tb-sechead__title">外部查詢 (External Search)</h1>
+          <p className="search-lead">輸入關鍵字，即可透過 API 同步檢索 GitHub 熱門開源倉庫與 Wikipedia 中文維基百科條目。</p>
+        </div>
       </header>
 
       {/* Search Input Box */}
-      <div className="max-w-2xl mx-auto mb-10">
-        <div className="relative group/search bg-card/60 backdrop-blur-md rounded-2xl p-2 border border-border shadow-lg transition-all duration-300 focus-within:ring-2 focus-within:ring-purple-500/50 focus-within:border-purple-500/50">
-            <div className="flex items-center gap-2">
-            <div className="pl-3 text-slate-400">
-              <Search className="size-5" aria-hidden="true" />
-            </div>
-            <input
-              type="text"
-              id="search-input"
-              value={inputValue}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
-              autoComplete="off"
-              placeholder="請輸入關鍵字搜尋，例如：React..."
-              className="flex-1 border-0 bg-transparent py-3 px-3 text-base text-foreground placeholder:text-slate-500 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
-              data-testid="search-input-field"
-              aria-label="搜尋關鍵字"
+      <div className="search-box">
+        <div className="search-field">
+          <Search className="search-field__icon" strokeWidth={2.5} aria-hidden="true" />
+          <input
+            type="text"
+            id="search-input"
+            value={inputValue}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
+            autoComplete="off"
+            placeholder="請輸入關鍵字搜尋，例如：React..."
+            className="tb-input search-input"
+            data-testid="search-input-field"
+            aria-label="搜尋關鍵字"
+          />
+          {inputValue && (
+            <IconButton
+              onClick={handleClear}
+              className="search-clear"
+              label="清除搜尋字詞"
+              icon={<X strokeWidth={2.5} aria-hidden="true" />}
             />
-            {inputValue && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleClear}
-                className="size-9 text-slate-400 hover:text-foreground rounded-xl cursor-pointer"
-                aria-label="清除搜尋字詞"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </Button>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Suggestion tags */}
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs select-none">
-          <span className="text-slate-500 font-medium flex items-center gap-1">
-            <Sparkles className="size-3 text-purple-400" aria-hidden="true" />
-            推薦探索:
-          </span>
+        <div className="search-suggest select-none">
+          <span className="search-suggest__lead">推薦探索:</span>
           {SUGGESTED_KEYWORDS.map((word) => (
             <button
               key={word}
+              type="button"
               onClick={() => handleSuggestClick(word)}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg cursor-pointer transition-colors duration-200 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 font-medium focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+              className="tb-tag tb-tag--plain tb-lift-s search-chip"
               aria-label={`搜尋 ${word}`}
             >
               {word}
@@ -166,53 +146,42 @@ export function SearchApi() {
 
       {/* Main Results Panel */}
       {showWelcome ? (
-        /* Welcome Placeholder Screen */
-        <div className="max-w-md mx-auto text-center p-8 bg-card/40 border border-border/80 rounded-2xl backdrop-blur-sm shadow-md animate-fade-in">
-          <div className="bg-gradient-to-tr from-purple-500 to-indigo-500 w-12 h-12 rounded-xl shadow-lg flex items-center justify-center text-white mx-auto mb-4">
-            <Globe className="size-6 animate-pulse" aria-hidden="true" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">等待搜尋中</h3>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            請在上方搜尋欄輸入任何感興趣的單字，或是點選推薦探索的標籤。
-          </p>
+        <div className="search-welcome">
+          <IconBox icon={<Globe strokeWidth={2.5} />} tone="sky" />
+          <h3 className="search-welcome__title">等待搜尋中</h3>
+          <p className="search-note">請在上方搜尋欄輸入任何感興趣的單字，或是點選推薦探索的標籤。</p>
         </div>
       ) : (
-        /* Dual column grid layout */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          
+        <div className="search-results">
           {/* GitHub List Column */}
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 border-b border-border pb-3">
-              <div className="bg-slate-900 dark:bg-slate-800 text-white p-2 rounded-xl shadow-sm">
-                <GithubIcon className="size-5" />
-              </div>
+          <div className="search-col">
+            <div className="search-col__head">
+              <IconBox icon={<GithubIcon />} tone="pop" />
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">GitHub 開源倉庫</h2>
-                <p className="text-xs text-slate-500">按星數 (Stars) 排序的前 10 項專案</p>
+                <h2 className="search-col__title">GitHub 開源倉庫</h2>
+                <p className="search-col__desc">按星數 (Stars) 排序的前 10 項專案</p>
               </div>
             </div>
 
-            {/* GitHub Loading State */}
             {isLoadingGithub && (
-              <div className="space-y-4">
+              <div className="search-list">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="p-4 border border-border/60 rounded-xl bg-slate-50/20 dark:bg-slate-900/10 space-y-2 animate-pulse">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-full" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-5/6" />
+                  <div key={i} className="search-card search-pulse">
+                    <div className="search-skeleton h-4 w-1/3" />
+                    <div className="search-skeleton h-3 w-full" />
+                    <div className="search-skeleton h-3 w-5/6" />
                     <div className="flex gap-4 pt-1">
-                      <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-12" />
-                      <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-12" />
+                      <div className="search-skeleton h-3 w-12" />
+                      <div className="search-skeleton h-3 w-12" />
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* GitHub Error State */}
             {errorGithub && (
-              <div className="p-4 border border-rose-500/20 bg-rose-500/5 text-rose-500 dark:text-rose-400 rounded-xl text-sm flex items-start gap-2">
-                <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="search-alert" role="alert">
+                <AlertTriangle className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                 <div>
                   <span className="font-bold">檢索失敗：</span>
                   <span>{errorGithub} (可能是觸發了 GitHub API 每分鐘請求上限，請稍候重試)</span>
@@ -220,87 +189,66 @@ export function SearchApi() {
               </div>
             )}
 
-            {/* GitHub Result Cards */}
             {!isLoadingGithub && !errorGithub && (
               hasGithubResults ? (
-                <ul className="space-y-4" data-testid="github-results-list">
+                <ul className="search-list" data-testid="github-results-list">
                   {githubResults.map((repo) => (
-                    <li 
-                      key={repo.full_name}
-                      className="p-4 rounded-xl border border-border/80 bg-card hover:bg-slate-50/40 dark:hover:bg-slate-900/30 shadow-sm transition-all hover:-translate-y-0.5 duration-200 group"
-                    >
-                      <div className="flex justify-between items-start gap-2">
-                        <a 
-                          href={repo.html_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="font-bold text-slate-800 dark:text-slate-100 hover:text-purple-500 dark:hover:text-purple-400 text-base underline-offset-4 hover:underline break-all"
-                        >
+                    <li key={repo.full_name} className="search-card">
+                      <div className="search-card__top">
+                        <a href={repo.html_url} target="_blank" rel="noopener noreferrer" className="search-card__link">
                           {repo.name}
                         </a>
-                        {repo.language && (
-                          <span className="text-[10px] px-2 py-0.5 bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-semibold rounded-md border border-purple-200/40">
-                            {repo.language}
-                          </span>
-                        )}
+                        {repo.language && <Tag tone="sky" className="shrink-0">{repo.language}</Tag>}
                       </div>
-                      
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                        {repo.description || '無專案說明。'}
-                      </p>
 
-                      <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 select-none">
-                        <div className="flex items-center gap-1 hover:text-amber-500 transition-colors">
-                          <Star className="size-3.5" aria-hidden="true" />
+                      <p className="search-card__desc">{repo.description || '無專案說明。'}</p>
+
+                      <div className="search-card__meta">
+                        <span className="flex items-center gap-1">
+                          <Star className="size-4" strokeWidth={2.5} aria-hidden="true" />
                           <span>{repo.stargazers_count.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center gap-1 hover:text-blue-500 transition-colors">
-                          <GitFork className="size-3.5" aria-hidden="true" />
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <GitFork className="size-4" strokeWidth={2.5} aria-hidden="true" />
                           <span>{repo.forks_count.toLocaleString()}</span>
-                        </div>
+                        </span>
                       </div>
                     </li>
                   ))}
                 </ul>
               ) : (
                 keyword && !isLoadingGithub && (
-                  <div className="text-center py-10 text-slate-500 text-sm">
-                    未找到相關的 GitHub 開源倉庫專案。
-                  </div>
+                  <div className="search-empty">未找到相關的 GitHub 開源倉庫專案。</div>
                 )
               )
             )}
           </div>
 
           {/* Wikipedia List Column */}
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 border-b border-border pb-3">
-              <div className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 p-2 rounded-xl shadow-sm border border-border/40">
-                <BookOpen className="size-5" aria-hidden="true" />
-              </div>
+          <div className="search-col">
+            <div className="search-col__head">
+              <IconBox icon={<BookOpen strokeWidth={2.5} />} tone="sky" />
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">維基百科條目</h2>
-                <p className="text-xs text-slate-500">Wikipedia 中文百科前 10 項開放資料</p>
+                <h2 className="search-col__title">維基百科條目</h2>
+                <p className="search-col__desc">Wikipedia 中文百科前 10 項開放資料</p>
               </div>
             </div>
 
-            {/* Wikipedia Loading State */}
             {isLoadingWiki && (
-              <div className="space-y-4">
+              <div className="search-list">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="p-4 border border-border/60 rounded-xl bg-slate-50/20 dark:bg-slate-900/10 space-y-2 animate-pulse">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/2" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-full" />
-                    <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-2/3" />
+                  <div key={i} className="search-card search-pulse">
+                    <div className="search-skeleton h-4 w-1/2" />
+                    <div className="search-skeleton h-3 w-full" />
+                    <div className="search-skeleton h-3 w-2/3" />
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Wikipedia Error State */}
             {errorWiki && (
-              <div className="p-4 border border-rose-500/20 bg-rose-500/5 text-rose-500 dark:text-rose-400 rounded-xl text-sm flex items-start gap-2">
-                <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="search-alert" role="alert">
+                <AlertTriangle className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                 <div>
                   <span className="font-bold">檢索失敗：</span>
                   <span>{errorWiki}</span>
@@ -308,29 +256,20 @@ export function SearchApi() {
               </div>
             )}
 
-            {/* Wikipedia Result Cards */}
             {!isLoadingWiki && !errorWiki && (
               hasWikiResults ? (
-                <ul className="space-y-4" data-testid="wiki-results-list">
+                <ul className="search-list" data-testid="wiki-results-list">
                   {wikiTitles.map((title, i) => (
-                    <li 
-                      key={title}
-                      className="p-4 rounded-xl border border-border/80 bg-card hover:bg-slate-50/40 dark:hover:bg-slate-900/30 shadow-sm transition-all hover:-translate-y-0.5 duration-200 group"
-                    >
-                      <div className="flex items-start gap-2">
-                        <CornerDownRight className="size-4 text-purple-500 mt-1 shrink-0 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
-                        <div className="space-y-1.5 flex-1">
-                          <a 
-                            href={wikiLinks[i]} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="font-bold text-slate-800 dark:text-slate-100 hover:text-purple-500 dark:hover:text-purple-400 text-base underline-offset-4 hover:underline"
-                          >
+                    <li key={title} className="search-card">
+                      <div className="flex items-start gap-3">
+                        <span className="search-card__num" aria-hidden="true">
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <div className="flex min-w-0 flex-1 flex-col gap-2">
+                          <a href={wikiLinks[i]} target="_blank" rel="noopener noreferrer" className="search-card__link">
                             {title}
                           </a>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                            {wikiTexts[i] || '無摘要說明。'}
-                          </p>
+                          <p className="search-card__desc">{wikiTexts[i] || '無摘要說明。'}</p>
                         </div>
                       </div>
                     </li>
@@ -338,9 +277,7 @@ export function SearchApi() {
                 </ul>
               ) : (
                 keyword && !isLoadingWiki && (
-                  <div className="text-center py-10 text-slate-500 text-sm">
-                    未找到相關的維基百科中文條目。
-                  </div>
+                  <div className="search-empty">未找到相關的維基百科中文條目。</div>
                 )
               )
             )}

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react'
-import { Edit, Trash2, CheckCircle2, Circle } from 'lucide-react'
+import { clsx } from 'clsx'
+import { Pencil, Trash2, Check } from 'lucide-react'
+import { IconButton } from '@/components/toybox'
 import type { TodoItem as TodoItemType } from '@/store/useTodoStore'
 
 interface TodoItemProps {
@@ -64,39 +66,29 @@ export function TodoItem({
     updateTodo(e.target.value, object.timestamp)
   }
 
-  // Calculate classes
-  let itemClasses = 'todo-item'
-  if (object.completed) {
-    itemClasses += ' completed'
-  }
-  if (object.isLeave) {
-    itemClasses += ' leaved'
-  }
-
   return (
-    <li className={itemClasses} data-testid={`todo-item-${index}`}>
-      {/* Complete Checkbox & Text */}
-      <div 
-        className="flex items-center gap-3 flex-1 select-none py-1 focus-visible:ring-2 focus-visible:ring-purple-500 rounded-md outline-none"
+    <li
+      className={clsx('todos-item', object.completed && 'todos-item--done', object.isLeave && 'todos-item--leave')}
+      data-testid={`todo-item-${index}`}
+    >
+      {/* 勾選＋文字 */}
+      <div
+        className="todos-toggle"
         onMouseDown={handleCompleted}
         onKeyDown={handleKeyDown}
         tabIndex={0}
         role="button"
         aria-label={object.completed ? `標記 "${object.value}" 為未完成` : `標記 "${object.value}" 為已完成`}
       >
-        <div className="flex-shrink-0 cursor-pointer text-slate-400 dark:text-slate-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors duration-200">
-          {object.completed ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-500 dark:text-emerald-400 fill-emerald-500/10" aria-hidden="true" />
-          ) : (
-            <Circle className="h-5 w-5" aria-hidden="true" />
-          )}
-        </div>
-        
-        <div className="flex-1 min-w-0 pr-4">
+        <span className="todos-check" aria-hidden="true">
+          {object.completed && <Check className="size-4" strokeWidth={2.5} />}
+        </span>
+
+        <div className="min-w-0 flex-1 pr-4">
           {object.isEdit ? (
             <input
               ref={editRef}
-              className="todo-item-edit-input"
+              className="tb-input todos-edit"
               type="text"
               defaultValue={object.value}
               onBlur={handleBlur}
@@ -106,9 +98,9 @@ export function TodoItem({
               aria-label="編輯待辦事項內容"
             />
           ) : (
-            <span 
-              className={`text-slate-700 dark:text-slate-300 break-words block text-base font-medium transition-all duration-300 cursor-text ${object.completed ? 'line-through opacity-60' : ''}`}
-              title={object.completed ? undefined : "雙擊以編輯"}
+            <span
+              className="todos-text"
+              title={object.completed ? undefined : '雙擊以編輯'}
               onDoubleClick={(e) => {
                 e.stopPropagation()
                 if (!object.completed) {
@@ -126,27 +118,24 @@ export function TodoItem({
         </div>
       </div>
 
-      {/* Buttons */}
-      <div className="flex items-center gap-1.5 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+      {/* 編輯／刪除 */}
+      <div className="todos-item-actions" onMouseDown={(e) => e.stopPropagation()}>
         {!object.completed && (
-          <button
+          <IconButton
             onClick={() => toggleEdit(object.timestamp)}
-            className="p-2 text-slate-400 dark:text-slate-500 hover:text-purple-500 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-            aria-label="編輯待辦事項"
+            className="todos-iconbtn"
+            label="編輯待辦事項"
+            icon={<Pencil strokeWidth={2.5} aria-hidden="true" />}
             data-testid={`todo-edit-btn-${index}`}
-          >
-            <Edit className="h-4.5 w-4.5" aria-hidden="true" />
-          </button>
+          />
         )}
-        
-        <button
+        <IconButton
           onClick={() => deleteTodoAsync(object.timestamp)}
-          className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-          aria-label="刪除待辦事項"
+          className="todos-iconbtn"
+          label="刪除待辦事項"
+          icon={<Trash2 strokeWidth={2.5} aria-hidden="true" />}
           data-testid={`todo-delete-btn-${index}`}
-        >
-          <Trash2 className="h-4.5 w-4.5" aria-hidden="true" />
-        </button>
+        />
       </div>
     </li>
   )

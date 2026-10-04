@@ -26,7 +26,7 @@ export function renderMessage(text: string): React.ReactNode {
       nodes.push(
         <kbd
           key={key++}
-          className="bg-slate-700 text-slate-100 dark:bg-slate-200 dark:text-slate-900 px-2 py-0.5 rounded text-xs font-mono shadow-sm font-semibold"
+          className="rounded-toy-sm border-2 border-line bg-surface-raised px-1.5 font-pixel text-pixel-m text-ink"
         >
           {payload}
         </kbd>
@@ -39,7 +39,7 @@ export function renderMessage(text: string): React.ReactNode {
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="text-purple-500 hover:text-purple-400 font-semibold underline underline-offset-4"
+          className="text-pop underline underline-offset-4"
         >
           {label || url}
         </a>
@@ -48,7 +48,7 @@ export function renderMessage(text: string): React.ReactNode {
       nodes.push(
         <mark
           key={key++}
-          className="bg-purple-200 text-purple-950 dark:bg-purple-900/60 dark:text-purple-100 px-1 rounded font-bold"
+          className="rounded-toy-sm bg-pop px-1 text-on-fill"
         >
           {payload}
         </mark>

@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { Code2, Sun, Moon, Menu, X, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Sun, Moon, Menu, X, ChevronDown } from 'lucide-react'
 import { useThemeStore } from '@/store/useThemeStore'
-import { Button } from '@/components/ui/button'
+import { IconButton, NavLink, tbCn } from '@/components/toybox'
+import '@/components/Layout.css'
 
 type NavLinkItem = { to: string; label: string; end: boolean; testId: string }
 type NavEntry =
   | ({ type: 'link' } & NavLinkItem)
-  | { type: 'group'; label: string; testId: string; items: NavLinkItem[] }
+  | { type: 'group'; label: string; eyebrow: string; testId: string; items: NavLinkItem[] }
 
 const NAV_ENTRIES: NavEntry[] = [
   { type: 'link', to: '/', label: '首頁', end: true, testId: 'nav-home' },
@@ -15,6 +16,7 @@ const NAV_ENTRIES: NavEntry[] = [
   {
     type: 'group',
     label: '遊戲',
+    eyebrow: 'GAMES',
     testId: 'nav-games',
     items: [
       { to: '/miniGame', label: '小遊戲', end: false, testId: 'nav-minigame' },
@@ -27,6 +29,7 @@ const NAV_ENTRIES: NavEntry[] = [
   {
     type: 'group',
     label: '工具',
+    eyebrow: 'TOOLS',
     testId: 'nav-tools',
     items: [
       { to: '/search', label: '外部查詢', end: false, testId: 'nav-search' },
@@ -37,23 +40,34 @@ const NAV_ENTRIES: NavEntry[] = [
   },
 ]
 
+function LoadingScreen() {
+  return (
+    <div className="layout-loading">
+      <div className="layout-loading__screen">
+        <span className="layout-loading__title">LOADING</span>
+        <span className="layout-loading__sub">載入中...</span>
+      </div>
+    </div>
+  )
+}
+
 export function Layout() {
   const { theme, toggleTheme } = useThemeStore()
-  const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const navRef = useRef<HTMLElement>(null)
   const location = useLocation()
 
-  // Close dropdown on route change：在 render 期間比對上一次的 pathname 並重設，
+  // 換頁時收起下拉與手機選單：在 render 期間比對上一次的 pathname 並重設，
   // 而不是在 effect 裡 setState（react-hooks/set-state-in-effect 會多一次 cascading render）
-  const [dropdownPath, setDropdownPath] = useState(location.pathname)
-  if (dropdownPath !== location.pathname) {
-    setDropdownPath(location.pathname)
+  const [menuPath, setMenuPath] = useState(location.pathname)
+  if (menuPath !== location.pathname) {
+    setMenuPath(location.pathname)
     setOpenDropdown(null)
+    setIsMobileMenuOpen(false)
   }
 
-  // Close dropdown on outside click
+  // 下拉面板：點外面或按 Esc 收起
   useEffect(() => {
     if (!openDropdown) return
     const handleClickOutside = (e: MouseEvent) => {
@@ -61,8 +75,15 @@ export function Layout() {
         setOpenDropdown(null)
       }
     }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenDropdown(null)
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [openDropdown])
 
   useEffect(() => {
@@ -147,241 +168,130 @@ export function Layout() {
     updateMetaTag('twitter:description', description)
   }, [location.pathname])
 
-  const handleScroll = useCallback(() => {
-    setIsScrolled(window.scrollY > 20)
-  }, [])
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [handleScroll])
-
-  // Close mobile menu on route change by listening to clicks
-  const closeMobileMenu = useCallback(() => {
-    setIsMobileMenuOpen(false)
-  }, [])
-
-  // Lock body scroll when mobile menu is open
-  useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [isMobileMenuOpen])
+  const closeMobileMenu = () => setIsMobileMenuOpen(false)
+  const themeLabel = theme === 'dark' ? '切換至亮色模式' : '切換至暗色模式'
+  const themeIcon = theme === 'dark' ? <Sun strokeWidth={2.5} /> : <Moon strokeWidth={2.5} />
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-purple-500 selection:text-white flex flex-col justify-between transition-colors duration-300 relative overflow-x-hidden">
-      {/* Background gradients */}
-      <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-purple-500/5 via-indigo-500/5 to-transparent dark:from-purple-900/10 dark:via-indigo-950/10 pointer-events-none transition-all duration-300" />
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-purple-500/5 dark:bg-purple-500/10 blur-[120px] pointer-events-none transition-all duration-300" />
-      <div className="absolute bottom-[20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/5 dark:bg-indigo-500/10 blur-[120px] pointer-events-none transition-all duration-300" />
+    <div className="layout-root">
+      <header className="layout-header">
+        <div className="tb-container layout-header__row">
+          <Link to="/" className="layout-logo" onClick={closeMobileMenu} aria-label="DKBO's Collect 首頁">
+            <span className="layout-logo__box" aria-hidden="true">D</span>
+            <span className="layout-logo__word hidden min-[400px]:inline">DKBO&apos;s Collect</span>
+            <span className="layout-logo__word min-[400px]:hidden">DKBO</span>
+          </Link>
 
-      <div className="w-full relative z-10">
-        {/* Floating Header */}
-        <header
-          className={`floating-header ${isScrolled ? 'is-scrolled' : ''}`}
-        >
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            {/* Logo */}
-            <NavLink to="/" className="flex items-center gap-3 group cursor-pointer" onClick={closeMobileMenu}>
-              <div className="bg-gradient-to-tr from-purple-500 to-indigo-500 p-2 rounded-xl shadow-lg shadow-purple-500/20 transition-transform duration-300 group-hover:scale-105">
-                <Code2 className="h-5 w-5 text-white" />
-              </div>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 via-slate-700 to-slate-500 dark:from-white dark:via-slate-200 dark:to-slate-400 bg-clip-text text-transparent transition-all duration-300 m-0 leading-normal">
-                DKBO&apos;s Collect
-              </h1>
-            </NavLink>
-
-            {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center gap-1">
-              <nav ref={navRef} className="flex items-center gap-0.5 text-sm font-medium">
-                {NAV_ENTRIES.map((entry) =>
-                  entry.type === 'link' ? (
-                    <NavLink
-                      key={entry.to}
-                      to={entry.to}
-                      end={entry.end}
-                      className={({ isActive }) =>
-                        `nav-link-pill ${isActive ? 'active' : 'inactive'}`
-                      }
+          {/* Desktop Navigation */}
+          <div className="hidden lg:flex items-center gap-2">
+            <nav ref={navRef} className="flex items-center gap-2" aria-label="主選單">
+              {NAV_ENTRIES.map((entry) =>
+                entry.type === 'link' ? (
+                  <NavLink key={entry.to} to={entry.to} end={entry.end} data-testid={entry.testId}>
+                    {entry.label}
+                  </NavLink>
+                ) : (
+                  <div key={entry.label} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setOpenDropdown(openDropdown === entry.label ? null : entry.label)}
+                      className={tbCn(
+                        'tb-nav cursor-pointer',
+                        entry.items.some((item) => location.pathname.startsWith(item.to)) && 'border-line bg-pop text-on-fill hover:bg-pop',
+                      )}
+                      aria-expanded={openDropdown === entry.label}
                       data-testid={entry.testId}
                     >
                       {entry.label}
-                    </NavLink>
-                  ) : (
-                    <div key={entry.label} className="relative">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setOpenDropdown(openDropdown === entry.label ? null : entry.label)
-                        }
-                        className={`nav-link-pill flex items-center gap-1 cursor-pointer ${
-                          entry.items.some((item) => location.pathname.startsWith(item.to))
-                            ? 'active'
-                            : 'inactive'
-                        }`}
-                        aria-expanded={openDropdown === entry.label}
-                        data-testid={entry.testId}
-                      >
-                        {entry.label}
-                        <ChevronDown
-                          className={`h-3 w-3 transition-transform duration-200 ${
-                            openDropdown === entry.label ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                      {openDropdown === entry.label && (
-                        <div className="nav-dropdown-panel" data-testid={`${entry.testId}-dropdown`}>
-                          {entry.items.map((item) => (
-                            <NavLink
-                              key={item.to}
-                              to={item.to}
-                              end={item.end}
-                              className={({ isActive }) =>
-                                `nav-dropdown-item ${isActive ? 'active' : 'inactive'}`
-                              }
-                              data-testid={item.testId}
-                            >
-                              {item.label}
-                            </NavLink>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
-              </nav>
+                      <ChevronDown
+                        strokeWidth={2.5}
+                        aria-hidden="true"
+                        className={tbCn('transition-transform duration-120 motion-reduce:transition-none', openDropdown === entry.label && 'rotate-180')}
+                      />
+                    </button>
+                    {openDropdown === entry.label && (
+                      <div className="layout-dropdown" data-testid={`${entry.testId}-dropdown`}>
+                        {entry.items.map((item) => (
+                          <NavLink
+                            key={item.to}
+                            to={item.to}
+                            end={item.end}
+                            className="w-full justify-start rounded-toy-md"
+                            data-testid={item.testId}
+                          >
+                            {item.label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ),
+              )}
+            </nav>
 
-              <div className="w-px h-6 bg-slate-200 dark:bg-slate-800 mx-2" />
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleTheme}
-                className="w-9 h-9 rounded-xl border-border bg-background hover:bg-muted text-foreground transition-all duration-200 cursor-pointer shadow-sm flex items-center justify-center"
-                aria-label={theme === 'dark' ? '切換至亮色模式' : '切換至暗色模式'}
-                data-testid="theme-toggle"
-              >
-                {theme === 'dark' ? (
-                  <Sun className="h-4 w-4 text-amber-400 fill-amber-400 transition-transform duration-300 hover:rotate-12" />
-                ) : (
-                  <Moon className="h-4 w-4 text-indigo-600 fill-indigo-600 transition-transform duration-300 hover:-rotate-12" />
-                )}
-              </Button>
-            </div>
-
-            {/* Mobile Controls */}
-            <div className="flex lg:hidden items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleTheme}
-                className="w-9 h-9 rounded-xl border-border bg-background hover:bg-muted text-foreground transition-all duration-200 cursor-pointer shadow-sm flex items-center justify-center"
-                aria-label={theme === 'dark' ? '切換至亮色模式' : '切換至暗色模式'}
-                data-testid="theme-toggle-mobile"
-              >
-                {theme === 'dark' ? (
-                  <Sun className="h-4 w-4 text-amber-400 fill-amber-400" />
-                ) : (
-                  <Moon className="h-4 w-4 text-indigo-600 fill-indigo-600" />
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="w-9 h-9 rounded-xl border-border bg-background hover:bg-muted text-foreground transition-all duration-200 cursor-pointer shadow-sm flex items-center justify-center"
-                aria-label={isMobileMenuOpen ? '關閉選單' : '開啟選單'}
-                data-testid="mobile-menu-toggle"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <Menu className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            <IconButton icon={themeIcon} label={themeLabel} onClick={toggleTheme} className="ml-2" data-testid="theme-toggle" />
           </div>
-        </header>
 
-        {/* Mobile Menu Overlay */}
-        {isMobileMenuOpen && (
-          <>
-            <div
-              className="mobile-menu-overlay"
-              onClick={closeMobileMenu}
-              aria-hidden="true"
+          {/* Mobile Controls */}
+          <div className="flex lg:hidden items-center gap-2">
+            <IconButton icon={themeIcon} label={themeLabel} onClick={toggleTheme} data-testid="theme-toggle-mobile" />
+            <IconButton
+              icon={isMobileMenuOpen ? <X strokeWidth={2.5} /> : <Menu strokeWidth={2.5} />}
+              label={isMobileMenuOpen ? '關閉選單' : '開啟選單'}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="layout-mobile-menu"
+              data-testid="mobile-menu-toggle"
             />
-            <nav className="mobile-menu-panel" data-testid="mobile-menu">
-              <div className="flex flex-col gap-1">
-                {NAV_ENTRIES.map((entry) =>
-                  entry.type === 'link' ? (
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu：header 下方整寬面板，不加遮罩、不鎖捲動 */}
+      {isMobileMenuOpen && (
+        <div className="tb-container lg:hidden">
+          <nav id="layout-mobile-menu" className="layout-mobile-menu" aria-label="主選單" data-testid="mobile-menu">
+            {NAV_ENTRIES.map((entry) =>
+              entry.type === 'link' ? (
+                <NavLink
+                  key={entry.to}
+                  to={entry.to}
+                  end={entry.end}
+                  className="w-full justify-start rounded-toy-md"
+                  data-testid={`${entry.testId}-mobile`}
+                  onClick={closeMobileMenu}
+                >
+                  {entry.label}
+                </NavLink>
+              ) : (
+                <div key={entry.label} role="group" aria-label={entry.label} className="flex flex-col gap-1">
+                  <p className="layout-mobile-menu__group" aria-hidden="true">{entry.eyebrow}</p>
+                  {entry.items.map((item) => (
                     <NavLink
-                      key={entry.to}
-                      to={entry.to}
-                      end={entry.end}
-                      className={({ isActive }) =>
-                        `mobile-menu-link ${isActive ? 'active' : 'inactive'}`
-                      }
-                      data-testid={`${entry.testId}-mobile`}
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className="w-full justify-start rounded-toy-md"
+                      data-testid={`${item.testId}-mobile`}
                       onClick={closeMobileMenu}
                     >
-                      {entry.label}
+                      {item.label}
                     </NavLink>
-                  ) : (
-                    <div key={entry.label} className="flex flex-col gap-1">
-                      <p className="mobile-menu-group-label">{entry.label}</p>
-                      {entry.items.map((item) => (
-                        <NavLink
-                          key={item.to}
-                          to={item.to}
-                          end={item.end}
-                          className={({ isActive }) =>
-                            `mobile-menu-link pl-7 ${isActive ? 'active' : 'inactive'}`
-                          }
-                          data-testid={`${item.testId}-mobile`}
-                          onClick={closeMobileMenu}
-                        >
-                          {item.label}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )
-                )}
-              </div>
-            </nav>
-          </>
-        )}
+                  ))}
+                </div>
+              ),
+            )}
+          </nav>
+        </div>
+      )}
 
-        {/* Spacer for floating header */}
-        <div className="h-10" />
+      <main className="relative w-full grow">
+        <Suspense fallback={<LoadingScreen />}>
+          <Outlet />
+        </Suspense>
+      </main>
 
-        <main className="relative max-w-6xl mx-auto px-4 pt-6">
-          <Suspense fallback={
-            <div className="flex items-center justify-center min-h-[50vh]">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">載入中...</p>
-              </div>
-            </div>
-          }>
-            <Outlet />
-          </Suspense>
-        </main>
-      </div>
-
-      {/* Footer */}
-      <footer className="relative max-w-6xl mx-auto px-4 py-8 text-center w-full mt-16 transition-colors duration-300">
-        <div className="section-divider mb-6" />
-        <p className="text-xs text-slate-500 dark:text-slate-500">
-          © 2026 DKBO&apos;s Collect.
-        </p>
-      </footer>
+      <footer className="layout-footer">© 2026 DKBO&apos;s Collect · GAME OVER? PRESS START</footer>
     </div>
   )
 }

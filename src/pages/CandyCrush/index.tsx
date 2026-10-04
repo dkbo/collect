@@ -6,6 +6,9 @@ import { useFullscreen } from '@/lib/useFullscreen'
 import { HudButtons, SideHud, TopBar } from '@/pages/CandyCrush/CandyHud'
 import { InstructionsDialog, PauseOverlay, ResultDialog } from '@/pages/CandyCrush/CandyOverlays'
 import { hudLayout, isCompactTopBar, type HudLayout } from '@/pages/CandyCrush/candyHud'
+import { Button } from '@/components/toybox'
+import { GamePageHead } from '@/pages/RpgRoom/lib/gameUi'
+import '@/pages/CandyCrush/CandyCrush.css'
 
 /** 關卡總數（與 godot-candy-src/data/candy_levels.json 同步） */
 const MAX_LEVEL = 5
@@ -81,7 +84,7 @@ export function CandyCrush() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  // HUD 版面以 .rpg-screen 容器寬高比為準（含全螢幕），尺寸變化即重算；
+  // HUD 版面以畫面區（candy-page-view）容器寬高比為準（含全螢幕），尺寸變化即重算；
   // 用 layout effect 在首次繪製前量好，避免手機首幀閃一次兩側 HUD
   useLayoutEffect(() => {
     const el = screenRef.current
@@ -108,81 +111,89 @@ export function CandyCrush() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-12" data-testid="page-candy-crush">
-      <header className="text-center mb-8">
-        <h1 className="candy-title">糖果消消樂</h1>
-        <p className="candy-subtitle">
-          以 <span className="candy-num">Godot 4</span> 打造的 <span className="candy-num">match-3</span> 三消遊戲。引擎於 <span className="candy-num">iframe</span> 內運行，與 <span className="candy-num">React</span> 透過 <span className="candy-num">postMessage</span> 雙向通訊。
-        </p>
-      </header>
-
-      <div className="flex flex-wrap items-center gap-2 mb-4 justify-between select-none">
-        <button type="button" onClick={() => toggleInstructions(true)} className="candy-tool-btn">
-          <HelpCircle className="size-3.5" aria-hidden="true" />
-          遊戲說明
-        </button>
-      </div>
-
-      <div className="rpg-cabinet">
-        <div
-          ref={screenRef}
-          data-hud={layout.mode}
-          className={
-            isFullscreen
-              ? 'fixed inset-0 w-screen h-dvh bg-black z-50 border-0 rounded-none select-none'
-              : 'rpg-screen'
+    <div className="tb-container candy-page-shell" data-testid="page-candy-crush">
+      <div className="candy-page-col">
+        <GamePageHead
+          eyebrow="— MATCH 3 —"
+          title="糖果消消樂"
+          intro={
+            <>
+              以 <span className="candy-page-num">Godot 4</span> 打造的 <span className="candy-page-num">match-3</span> 三消遊戲。引擎於 <span className="candy-page-num">iframe</span> 內運行，與 <span className="candy-page-num">React</span> 透過 <span className="candy-page-num">postMessage</span> 雙向通訊。
+            </>
           }
-        >
-          <div className="absolute inset-0 flex flex-col">
-            {layout.mode === 'top' && <TopBar compact={compactBar} />}
-            {/* iframe 的 DOM 位置固定，切換版面不會重載遊戲 */}
-            <div className="relative min-h-0 flex-1">
-              <iframe
-                ref={iframeRef}
-                src={import.meta.env.BASE_URL + 'candy/index.html'}
-                title="糖果消消樂遊戲"
-                className="absolute inset-0 size-full border-0 bg-slate-950"
-                tabIndex={0}
-                onLoad={handleFrameLoad}
-                allow="fullscreen"
-                style={{ touchAction: 'none' }}
-                data-testid="candy-iframe"
-              />
-            </div>
+        />
+
+        <div className="flex flex-wrap items-center justify-between gap-3 select-none">
+          <Button size="s" icon={<HelpCircle strokeWidth={2.5} aria-hidden="true" />} onClick={() => toggleInstructions(true)}>
+            遊戲說明
+          </Button>
+        </div>
+
+        {/* 遊戲畫面外框（ScreenFrame 結構；畫面區掛 screenRef 量 HUD 版面與全螢幕，故直接寫 tb-screen） */}
+        <div className="tb-screen">
+          <div className="tb-screen__bar">
+            <span className="tb-screen__title">CANDY CRUSH</span>
           </div>
-
-          {layout.mode === 'side' && <SideHud scale={layout.scale} />}
-
-          {!isReady && (
-            <div className="candy-loading" data-testid="candy-loading">
-              <div className="candy-loading-icon">
-                <Candy className="size-10" aria-hidden="true" />
+          <div
+            ref={screenRef}
+            data-hud={layout.mode}
+            className={
+              isFullscreen
+                ? 'fixed inset-0 w-screen h-dvh bg-inverse z-50 border-0 rounded-none select-none'
+                : 'tb-screen__view candy-page-view'
+            }
+          >
+            <div className="absolute inset-0 flex flex-col">
+              {layout.mode === 'top' && <TopBar compact={compactBar} />}
+              {/* iframe 的 DOM 位置固定，切換版面不會重載遊戲 */}
+              <div className="relative min-h-0 flex-1">
+                <iframe
+                  ref={iframeRef}
+                  src={import.meta.env.BASE_URL + 'candy/index.html'}
+                  title="糖果消消樂遊戲"
+                  className="absolute inset-0 size-full border-0 bg-inverse"
+                  tabIndex={0}
+                  onLoad={handleFrameLoad}
+                  allow="fullscreen"
+                  style={{ touchAction: 'none' }}
+                  data-testid="candy-iframe"
+                />
               </div>
-              <div className="candy-loading-text">糖果消消樂載入中...</div>
             </div>
-          )}
 
-          {isPaused && !showInstructions && <PauseOverlay onResume={togglePause} />}
+            {layout.mode === 'side' && <SideHud scale={layout.scale} />}
 
-          {isLevelEnd && !showInstructions && (
-            <ResultDialog maxLevel={MAX_LEVEL} onStart={(lv) => { startLevel(lv); focusGame() }} />
-          )}
+            {!isReady && (
+              <div className="candy-loading" data-testid="candy-loading">
+                <div className="candy-loading-icon">
+                  <Candy className="size-10" strokeWidth={2.5} aria-hidden="true" />
+                </div>
+                <div className="candy-loading-text">糖果消消樂載入中...</div>
+              </div>
+            )}
 
-          {showInstructions && (
-            <InstructionsDialog isTouchDevice={isTouchDevice} onClose={() => toggleInstructions(false)} />
-          )}
+            {isPaused && !showInstructions && <PauseOverlay onResume={togglePause} />}
 
-          {/* 圓鈕疊在暫停／結算遮罩之上（safe-area 感知，避開瀏海/圓角） */}
-          <HudButtons
-            mode={layout.mode}
-            scale={layout.scale}
-            compact={compactBar}
-            isFullscreen={isFullscreen}
-            onMute={() => { setMuted(!isMuted); focusGame() }}
-            onPause={togglePause}
-            onFullscreen={toggleFullscreen}
-            onHelp={() => toggleInstructions(true)}
-          />
+            {isLevelEnd && !showInstructions && (
+              <ResultDialog maxLevel={MAX_LEVEL} onStart={(lv) => { startLevel(lv); focusGame() }} />
+            )}
+
+            {showInstructions && (
+              <InstructionsDialog isTouchDevice={isTouchDevice} onClose={() => toggleInstructions(false)} />
+            )}
+
+            {/* 圓鈕疊在暫停／結算遮罩之上（safe-area 感知，避開瀏海/圓角） */}
+            <HudButtons
+              mode={layout.mode}
+              scale={layout.scale}
+              compact={compactBar}
+              isFullscreen={isFullscreen}
+              onMute={() => { setMuted(!isMuted); focusGame() }}
+              onPause={togglePause}
+              onFullscreen={toggleFullscreen}
+              onHelp={() => toggleInstructions(true)}
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,67 @@
+@reference "../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   LAYOUT（SiteHeader／選單／頁尾）— 前綴 layout-
+   ═══════════════════════════════════════════════════════ */
+
+/* Header 高度：控制項 size-11 ＋ 上下 py-4（共 4.75rem，隨根字級縮放）＋ 底線 border-m 3px（不黏頂）。頁面要扣掉 Header 時讀這個變數 */
+:root {
+  --layout-header-h: calc(4.75rem + 3px);
+}
+
+@layer components {
+  .layout-root {
+    @apply flex min-h-screen flex-col bg-surface font-body text-ink;
+  }
+
+  /* ── SiteHeader ── */
+  .layout-header {
+    @apply relative z-50 border-b-3 border-line bg-surface text-left;
+  }
+  .layout-header__row {
+    @apply flex items-center justify-between gap-4 py-4;
+  }
+  .layout-logo {
+    @apply flex min-w-0 items-center gap-3 rounded-toy-md text-ink no-underline
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus;
+  }
+  .layout-logo__box {
+    @apply flex size-11 shrink-0 items-center justify-center rounded-toy-md border-3 border-line bg-pop font-pixel
+      text-pixel-l text-on-fill shadow-hard-s;
+  }
+  .layout-logo__word {
+    @apply font-display text-heading-m tracking-wide whitespace-nowrap text-ink;
+  }
+
+  .layout-dropdown {
+    @apply absolute top-full right-0 mt-2 flex min-w-56 text-left flex-col gap-1 rounded-toy-lg border-3 border-line
+      bg-surface-raised p-2 shadow-hard-m;
+  }
+
+  /* ── 手機選單（< 1024） ── */
+  .layout-mobile-menu {
+    @apply mt-3 mb-4 flex flex-col gap-1 text-left rounded-toy-lg border-3 border-line bg-surface-raised p-3 shadow-hard-m;
+  }
+  .layout-mobile-menu__group {
+    @apply m-0 px-4 pt-3 pb-1 font-pixel text-pixel-m text-ink-muted;
+  }
+
+  /* ── 載入中（Suspense fallback） ── */
+  .layout-loading {
+    @apply grid min-h-[50vh] place-items-center;
+  }
+  .layout-loading__screen {
+    @apply flex flex-col items-center gap-3 rounded-toy-md border-4 border-line bg-inverse p-6 shadow-hard-m;
+  }
+  .layout-loading__title {
+    @apply animate-pulse font-pixel text-pixel-l text-pop motion-reduce:animate-none;
+  }
+  .layout-loading__sub {
+    @apply text-caption text-on-inverse-muted;
+  }
+
+  /* ── 頁尾 ── */
+  .layout-footer {
+    @apply border-t-3 border-line px-4 py-6 text-center font-pixel text-pixel-m text-ink-muted;
+  }
+}

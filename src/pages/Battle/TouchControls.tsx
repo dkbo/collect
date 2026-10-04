@@ -108,21 +108,21 @@ export function TouchControls({
         onPointerMove={onJoyMove}
         onPointerUp={onJoyUp}
         onPointerCancel={onJoyUp}
-        className="pointer-events-auto absolute size-28 touch-none rounded-full border border-white/20 bg-white/10 backdrop-blur-sm bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))]"
+        className="battle-joy"
         aria-label="移動搖桿"
         data-testid="touch-joystick"
       >
         <div
           ref={thumbRef}
           style={{ transform: 'translate(-50%, -50%)' }}
-          className="absolute left-1/2 top-1/2 size-12 rounded-full bg-white/45 shadow-lg"
+          className="battle-joy__thumb"
         />
       </div>
 
       {/* 動作鈕（右下） */}
       {actions.length > 0 && (
         <div
-          className={`pointer-events-auto absolute ${grid ? 'grid grid-cols-2' : 'flex'} gap-3 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))]`}
+          className={`battle-acts ${grid ? 'grid grid-cols-2' : 'flex'}`}
           data-touch-layout={grid ? 'grid' : 'row'}
         >
           {actions.map((a) => (
@@ -132,7 +132,7 @@ export function TouchControls({
               onPointerUp={onActUp(a.key)}
               onPointerCancel={onActUp(a.key)}
               onPointerLeave={onActUp(a.key)}
-              className="size-16 touch-none rounded-full border border-white/20 bg-indigo-500/40 text-3xl text-white backdrop-blur-sm shadow-lg active:bg-indigo-500/70"
+              className="battle-act"
               aria-label={`動作 ${a.label}`}
               data-testid="touch-action"
             >

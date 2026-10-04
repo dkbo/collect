@@ -1,0 +1,26 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   GODOT GAME（pages-spec §13）— 前綴 godot-
+   ═══════════════════════════════════════════════════════ */
+/* 包在 components layer：className 上的 utility 一律蓋得過頁面 class；要蓋 toybox 元件 class 的規則用複合選擇器提高權重 */
+@layer components {
+  /* 頁面骨架（§0）：上下留白；遊戲欄寬 896 置中 */
+  .godot-page {
+    @apply text-left pt-12 pb-18 max-sm:pt-8 max-sm:pb-12;
+  }
+
+  .godot-col {
+    @apply mx-auto flex w-full max-w-4xl flex-col gap-6;
+  }
+
+  /* 畫面區：高度沿用舊 rpg-screen 的 450／550 */
+  .godot-screen__view {
+    @apply h-[450px] w-full select-none md:h-[550px];
+  }
+
+  /* 全螢幕（含 iOS CSS fallback）：畫面區自己 fixed 撐滿 */
+  .godot-screen__view--full.tb-screen__view {
+    @apply fixed inset-0 z-50 h-dvh w-screen rounded-none select-none;
+  }
+}

@@ -1,0 +1,176 @@
+@reference "../../index.css";
+
+/* ═══════════════════════════════════════════════════════
+   BATTLE 大廳（GameList／GameMenu／Room／SoloGame 外框）— 前綴 battle-
+   pages-spec §3；遊戲 HUD 樣式在 index.css 的凍結區段，這裡不碰
+   ═══════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ── 頁面骨架（§0）：tb-container 內直排 ── */
+  .battle-page {
+    @apply flex flex-col gap-8 pt-12 pb-18 text-left max-sm:pt-8 max-sm:pb-12;
+  }
+  .battle-head__intro {
+    @apply m-0 max-w-2xl font-body text-body text-ink-muted;
+  }
+
+  /* ── 共用：提示條、分隔線、欄位 ── */
+  .battle-alert {
+    @apply flex items-start gap-3 rounded-toy-md border-3 border-line px-4 py-3 font-body text-body-s text-on-fill
+      [&>svg]:mt-0.5 [&>svg]:size-5 [&>svg]:shrink-0;
+  }
+  .battle-alert--info { @apply bg-sky; }
+  .battle-alert--warn { @apply bg-pop; }
+  .battle-alert--error { @apply bg-pink; }
+  .battle-alert__text { @apply min-w-0 flex-1; }
+  .battle-divider {
+    @apply flex items-center gap-3 font-body text-caption text-ink-muted select-none
+      before:h-0 before:flex-1 before:border-t-3 before:border-line before:content-['']
+      after:h-0 after:flex-1 after:border-t-3 after:border-line after:content-[''];
+  }
+  .battle-field { @apply flex flex-col gap-2; }
+  .battle-label { @apply font-body text-label text-ink; }
+  .battle-inline { @apply flex gap-3; }
+  .battle-note { @apply m-0 font-body text-body-s text-ink-muted; }
+
+  /* 封面破圖：NO SIGNAL */
+  .battle-nosignal {
+    @apply grid aspect-video w-full place-items-center bg-inverse font-pixel text-pixel-m text-pop;
+  }
+
+  /* ── GameList（§3.2）：auto-fill 260 → 1440 四欄、768 兩欄、390 一欄 ── */
+  .battle-list {
+    @apply grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-6;
+  }
+  .battle-list__nosignal { @apply border-b-3 border-line; }
+
+  /* ── GameMenu（§3.3） ── */
+  .battle-menu { @apply flex flex-col gap-6; }
+  .battle-menu__grid { @apply flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start; }
+  .battle-cover {
+    @apply flex flex-col overflow-hidden rounded-toy-xl border-4 border-line bg-surface-raised shadow-hard-l lg:col-span-7;
+  }
+  .battle-cover__img { @apply block aspect-video w-full border-b-4 border-line bg-inverse object-cover; }
+  .battle-cover__nosignal { @apply border-b-4 border-line; }
+  .battle-cover__panel { @apply flex flex-col gap-3 bg-pop p-8 text-on-fill max-sm:p-6; }
+  .battle-cover__meta { @apply font-pixel text-pixel-m; }
+  .battle-cover__title { @apply m-0 font-display text-heading-l; }
+  .battle-cover__desc { @apply m-0 font-body text-body; }
+  .battle-menu__side { @apply flex flex-col gap-4 lg:col-span-5; }
+  .battle-panel {
+    @apply flex flex-col gap-5 rounded-toy-lg border-3 border-line bg-surface-raised p-6 shadow-hard-m max-sm:p-5;
+  }
+  .battle-menu__foot { @apply max-lg:text-center; }
+
+  /* ── Room（§3.4） ── */
+  .battle-room { @apply flex flex-col gap-6; }
+  .battle-room__grid { @apply flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start; }
+  .battle-room__left { @apply flex flex-col gap-6 lg:col-span-5; }
+  .battle-room__right { @apply flex flex-col gap-6 lg:col-span-7; }
+  /* 開局後的房號／玩家／遊戲三卡 */
+  .battle-room__cards { @apply flex flex-col gap-6 md:grid md:grid-cols-3 md:items-stretch; }
+
+  .battle-code {
+    @apply flex flex-col gap-2 rounded-toy-xl border-4 border-line bg-pop p-6 text-on-fill shadow-hard-l;
+  }
+  .battle-code--compact { @apply p-5; }
+  .battle-code__eyebrow { @apply font-pixel text-pixel-m; }
+  .battle-code__btn {
+    @apply inline-flex cursor-pointer items-center gap-4 self-start rounded-toy-md border-0 bg-transparent p-0 text-on-fill
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus;
+  }
+  .battle-code__num { @apply font-pixel text-pixel-xl tracking-widest; }
+  .battle-code--compact .battle-code__num { @apply text-pixel-l; }
+  .battle-code__hint { @apply m-0 font-body text-caption; }
+
+  .battle-card {
+    @apply flex min-w-0 flex-col gap-4 rounded-toy-lg border-3 border-line bg-surface-raised p-5 text-ink shadow-hard-m;
+  }
+  .battle-card__head {
+    @apply flex items-center gap-2 font-body text-label text-ink [&>svg]:size-5 [&>svg]:shrink-0;
+  }
+  .battle-card__count { @apply font-pixel text-pixel-m text-ink-muted; }
+
+  .battle-players { @apply m-0 flex list-none flex-col gap-2 p-0; }
+  .battle-player {
+    @apply flex h-13 min-w-0 items-center gap-3 rounded-toy-md border-3 border-line bg-surface px-3;
+  }
+  .battle-player__initial { @apply font-pixel text-pixel-l; }
+  .battle-player__name { @apply min-w-0 truncate font-body text-label text-ink; }
+  /* 開局後縮成一行名字 */
+  .battle-players--inline { @apply flex-row flex-wrap gap-x-2 gap-y-1 font-body text-body-s text-ink-muted; }
+  .battle-players--inline > li { @apply min-w-0 truncate not-last:after:content-['·'] not-last:after:ml-2; }
+
+  .battle-game { @apply flex min-w-0 items-center gap-3; }
+  .battle-game__text { @apply flex min-w-0 flex-col gap-1; }
+  .battle-game__name { @apply font-display text-heading-m text-ink; }
+  .battle-game__desc { @apply font-body text-body-s text-ink-muted; }
+
+  .battle-wait {
+    @apply grid min-h-40 place-items-center gap-3 rounded-toy-lg border-3 border-dashed border-line p-6;
+  }
+
+  /* 開局後：連線列、網路訊息 */
+  .battle-netbar { @apply flex flex-wrap items-center justify-between gap-3; }
+  .battle-netbar__status { @apply flex flex-wrap items-center gap-3; }
+  .battle-peers { @apply font-pixel text-pixel-m text-ink-muted; }
+  .battle-peers__unit { @apply font-body text-caption; }
+  .battle-alert--action { @apply items-center; }
+  .battle-log__summary {
+    @apply inline-flex h-11 cursor-pointer list-none items-center gap-2 font-body text-label text-ink
+      focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus
+      [&::-webkit-details-marker]:hidden [&>svg]:size-4 [&>svg]:transition-transform
+      in-open:[&>svg]:rotate-180 motion-reduce:[&>svg]:transition-none;
+  }
+  .battle-log__list {
+    @apply m-0 mt-2 flex max-h-32 list-none flex-col gap-1 overflow-y-auto rounded-toy-md border-3 border-line bg-inverse p-3
+      font-body text-caption text-on-inverse-muted;
+  }
+  .battle-log__item { @apply border-l-2 border-pop pl-2; }
+
+  /* ── 遊戲畫面（§1、§3.4、§3.5）：view 內一層承載全螢幕，外框不加 transform ── */
+  .battle-view { @apply h-[75dvh] sm:h-[80dvh]; }
+  /* 凍結 HUD 原本繼承 #root 的置中，這裡還原，避免頁面 text-left 漏進 HUD */
+  .battle-stage { @apply relative size-full text-center; }
+  .battle-stage--full { @apply fixed inset-0 z-50 h-dvh w-screen bg-inverse; }
+  /* 全螢幕鈕：§1 尺寸例外 size-9（凍結的炸彈超人 HUD 照它讓位） */
+  .battle-fsbtn {
+    @apply absolute top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] z-10;
+  }
+
+  /* ── SoloGame（§3.5） ── */
+  .battle-solo { @apply flex flex-col gap-6; }
+  .battle-solo__top { @apply flex items-center justify-between gap-3; }
+
+  /* ── BabylonCanvas／TouchControls 非 HUD 外觀（§3.6） ── */
+  .battle-canvas { @apply block size-full touch-none bg-inverse outline-none; }
+  .battle-rotate {
+    @apply absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-inverse p-6 text-center;
+  }
+  .battle-rotate__icon { @apply size-14 animate-pulse text-pop motion-reduce:animate-none; }
+  .battle-rotate__title { @apply m-0 font-display text-heading-m text-on-inverse; }
+  .battle-rotate__sub { @apply m-0 font-body text-body-s text-on-inverse-muted; }
+  .battle-overlay {
+    @apply pointer-events-none absolute inset-0 z-20 flex items-center justify-center p-4;
+  }
+  .battle-overlay__card {
+    @apply pointer-events-auto flex w-full max-w-xs flex-col gap-3 rounded-toy-lg border-4 border-line bg-surface-raised p-6
+      text-center shadow-hard-l;
+  }
+  .battle-overlay__title { @apply m-0 font-display text-heading-m whitespace-pre-line text-ink; }
+  .battle-overlay__sub { @apply m-0 font-body text-body-s whitespace-pre-line text-ink-muted; }
+  .battle-overlay__actions { @apply flex flex-col gap-3 pt-1; }
+
+  .battle-joy {
+    @apply pointer-events-auto absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))]
+      size-28 touch-none rounded-full border-3 border-on-inverse bg-inverse/40;
+  }
+  .battle-joy__thumb { @apply absolute top-1/2 left-1/2 size-12 rounded-full border-3 border-on-fill bg-pop; }
+  .battle-acts {
+    @apply pointer-events-auto absolute right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] gap-3;
+  }
+  .battle-act {
+    @apply size-16 touch-none rounded-full border-3 border-on-fill bg-action text-pixel-l text-on-fill shadow-hard-s
+      active:translate-x-[3px] active:translate-y-[3px] active:shadow-none;
+  }
+}

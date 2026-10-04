@@ -4,6 +4,8 @@ import { Compass, MapPin, Navigation, Info, X } from 'lucide-react'
 import { useDirectionsStore } from '@/store/useDirectionsStore'
 import type { LatLng } from '@/store/useDirectionsStore'
 import { useThemeStore } from '@/store/useThemeStore'
+import { IconButton } from '@/components/toybox'
+import '@/pages/Directions/Directions.css'
 
 
 // Dynamic Google Maps Script Loader
@@ -59,11 +61,11 @@ function getCustomOverlayClass(google: any) {
 
     onAdd() {
       const innerHTML = `
-        <div class="geoDialog bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-lg text-xs max-w-[180px] leading-relaxed absolute top-[-95px] left-1/2 -translate-x-1/2 opacity-0 pointer-events-none transition-all duration-300 z-50 whitespace-normal break-words">
+        <div class="geoDialog dir-bubble">
           ${this.message}
         </div>
-        <div class="geoImg cursor-pointer p-0.5 bg-white dark:bg-slate-800 rounded-full border border-slate-300 dark:border-slate-700 shadow-md w-11 h-11 flex items-center justify-center overflow-hidden hover:scale-115 transition-transform duration-200" role="button" tabindex="0" aria-label="查看玩家資訊">
-          <img src="${this.image}" class="w-full h-full rounded-full object-cover" alt="User" />
+        <div class="geoImg dir-marker" role="button" tabindex="0" aria-label="查看玩家資訊">
+          <img src="${this.image}" class="size-full rounded-full object-cover" alt="User" />
         </div>
       `
       const div = document.createElement('div')
@@ -155,7 +157,7 @@ const simulatedPlayers: SimulatedPlayer[] = [
     photoURL: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Alice',
     latOffset: 0.003,
     lngOffset: 0.003,
-    message: `<div class="font-bold text-indigo-500 mb-0.5">Alice</div><p>哈囉！我正在附近的星巴克喝咖啡！☕</p><div class="text-[10px] text-slate-400 mt-1">1 分鐘前</div>`,
+    message: `<div class="dir-bubble__name">Alice</div><p>哈囉！我正在附近的星巴克喝咖啡！☕</p><div class="dir-bubble__time">1 分鐘前</div>`,
     timeAgoText: '1 分鐘前',
   },
   {
@@ -164,7 +166,7 @@ const simulatedPlayers: SimulatedPlayer[] = [
     photoURL: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Bob',
     latOffset: -0.002,
     lngOffset: -0.004,
-    message: `<div class="font-bold text-amber-500 mb-0.5">Bob</div><p>中壢夜市今天有開，快來吃大腸包小腸！🌭</p><div class="text-[10px] text-slate-400 mt-1">3 分鐘前</div>`,
+    message: `<div class="dir-bubble__name">Bob</div><p>中壢夜市今天有開，快來吃大腸包小腸！🌭</p><div class="dir-bubble__time">3 分鐘前</div>`,
     timeAgoText: '3 分鐘前',
   },
   {
@@ -173,7 +175,7 @@ const simulatedPlayers: SimulatedPlayer[] = [
     photoURL: 'https://api.dicebear.com/7.x/bottts/svg?seed=dkbo',
     latOffset: 0.001,
     lngOffset: -0.002,
-    message: `<div class="font-bold text-purple-500 mb-0.5">DKBO (作者)</div><p>歡迎來到我的地圖導覽作品！這是用 React 19 與 Tailwind 重塑的頁面。🎨</p><div class="text-[10px] text-slate-400 mt-1">剛剛</div>`,
+    message: `<div class="dir-bubble__name">DKBO (作者)</div><p>歡迎來到我的地圖導覽作品！這是用 React 19 與 Tailwind 重塑的頁面。🎨</p><div class="dir-bubble__time">剛剛</div>`,
     timeAgoText: '剛剛',
   },
 ]
@@ -498,7 +500,7 @@ export function DirectionsPage() {
       markersRef.current.push(marker)
 
       const infoWindow = new google.maps.InfoWindow({
-        content: `<div class="p-2 font-medium text-slate-800 text-xs">${origin || '我的位置'}</div>`,
+        content: `<div class="dir-infowin">${origin || '我的位置'}</div>`,
       })
       infoWindow.open(map, marker)
 
@@ -578,101 +580,94 @@ export function DirectionsPage() {
   }
 
   return (
-    <div className="relative w-full h-[calc(100vh-140px)] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-2xl bg-slate-950">
-      {/* Map Rendering Div or Text-Only Fallback */}
-      {showTextFallback ? (
-        <div className="w-full h-full absolute inset-0 z-0 flex flex-col items-center justify-center p-8 bg-slate-900 text-slate-300 text-center select-text">
-          <Info className="h-10 w-10 text-amber-500 mb-4 animate-bounce" aria-hidden="true" />
-          <h3 className="text-lg font-bold text-white mb-2">地圖服務載入逾時</h3>
-          <p className="text-xs text-slate-400 max-w-sm mb-4">
-            由於無法正常載入 Google Maps API，已自動切換為「文字路線導覽模式」。您仍可於上方輸入起迄點進行模擬規劃。
-          </p>
-          {origin && destination && (
-            <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 max-w-md w-full text-left space-y-2">
-              <div className="text-xs text-purple-400 font-bold">預估路程：約 3.8 公里 (8 分鐘)</div>
-              <div className="text-xs font-semibold text-slate-200">文字行車指引（模擬）：</div>
-              <ul className="list-decimal list-inside text-[11px] space-y-1 text-slate-400">
-                {MOCK_ROUTE_STEPS.map((step, idx) => (
-                  <li key={idx}>{step}</li>
-                ))}
-              </ul>
+    <div className="tb-container dir-page" data-testid="page-directions">
+      <header className="tb-sechead">
+        <div className="tb-sechead__text">
+          <span className="tb-sechead__eyebrow">— ROUTE PLANNER —</span>
+          <h1 className="tb-sechead__title">地圖導覽</h1>
+        </div>
+      </header>
+
+      <div className="dir-map">
+        {/* Map Rendering Div or Text-Only Fallback */}
+        {showTextFallback ? (
+          <div className="dir-fallback">
+            <Info className="size-10 text-pop" strokeWidth={2.5} aria-hidden="true" />
+            <h3 className="dir-fallback__title">地圖服務載入逾時</h3>
+            <p className="dir-fallback__desc">
+              由於無法正常載入 Google Maps API，已自動切換為「文字路線導覽模式」。您仍可於上方輸入起迄點進行模擬規劃。
+            </p>
+            {origin && destination && (
+              <div className="dir-route">
+                <div className="dir-route__label">預估路程：約 3.8 公里 (8 分鐘)</div>
+                <div className="dir-route__label">文字行車指引（模擬）：</div>
+                <ul className="dir-route__steps">
+                  {MOCK_ROUTE_STEPS.map((step, idx) => (
+                    <li key={idx}>{step}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div id="map" ref={mapRef} className="absolute inset-0 z-0 size-full" />
+        )}
+
+        {/* Floating Control Box */}
+        <div id="mapControl" className="dir-control">
+          <div className="dir-field">
+            <Compass className="dir-field__icon" strokeWidth={2.5} aria-hidden="true" />
+            <input
+              ref={originInputRef}
+              className="tb-input dir-input"
+              type="text"
+              value={localOrigin}
+              onChange={(e) => setLocalOrigin(e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, true)}
+              placeholder="起點（可輸入位址，或使用當前定位）"
+              data-testid="directions-origin"
+              aria-label="起點"
+            />
+          </div>
+
+          <div className="dir-field">
+            <MapPin className="dir-field__icon" strokeWidth={2.5} aria-hidden="true" />
+            <input
+              ref={destInputRef}
+              className="tb-input dir-input"
+              type="text"
+              value={localDest}
+              onChange={(e) => setLocalDest(e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, false)}
+              placeholder="終點"
+              data-testid="directions-destination"
+              aria-label="終點"
+            />
+          </div>
+
+          {errorMessage && (
+            <div className="dir-alert" role="alert">
+              <Info className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+              <span>{errorMessage}</span>
             </div>
           )}
         </div>
-      ) : (
-        <div id="map" ref={mapRef} className="w-full h-full absolute inset-0 z-0" />
-      )}
 
-      {/* Floating Control Box */}
-      <div
-        id="mapControl"
-        className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] sm:w-[50%] md:w-[40%] max-w-[420px] bg-white/70 dark:bg-slate-900/70 backdrop-blur-lg border border-slate-200/60 dark:border-slate-800/80 rounded-2xl shadow-2xl p-4 z-10 flex flex-col gap-3 transition-all duration-300"
-      >
-        {/* Origin Input */}
-        <div className="relative flex items-center bg-white/90 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-inner">
-          <Compass className="h-5 w-5 text-indigo-500 mr-2.5 flex-shrink-0" aria-hidden="true" />
-          <input
-            ref={originInputRef}
-            className="w-full bg-transparent text-sm focus:outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
-            type="text"
-            value={localOrigin}
-            onChange={(e) => setLocalOrigin(e.target.value)}
-            onKeyDown={(e) => handleKeyDown(e, true)}
-            placeholder="起點（可輸入位址，或使用當前定位）"
-            data-testid="directions-origin"
-            aria-label="起點"
-          />
-        </div>
-
-        {/* Destination Input */}
-        <div className="relative flex items-center bg-white/90 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-inner">
-          <MapPin className="h-5 w-5 text-rose-500 mr-2.5 flex-shrink-0" aria-hidden="true" />
-          <input
-            ref={destInputRef}
-            className="w-full bg-transparent text-sm focus:outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
-            type="text"
-            value={localDest}
-            onChange={(e) => setLocalDest(e.target.value)}
-            onKeyDown={(e) => handleKeyDown(e, false)}
-            placeholder="終點"
-            data-testid="directions-destination"
-            aria-label="終點"
-          />
-        </div>
-
-        {/* Error message */}
-        {errorMessage && (
-          <div className="text-xs text-rose-500 flex items-center gap-1.5 px-1 animate-pulse">
-            <Info className="h-3.5 w-3.5" />
-            <span>{errorMessage}</span>
+        {/* Floating Directions Guide Panel（Google 會把指引塞進這個容器） */}
+        <div ref={panelRef} id="panel" className={`dir-panel ${showPanel ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="dir-panel__head">
+            <h2 className="dir-panel__title">
+              <Navigation className="size-5" strokeWidth={2.5} aria-hidden="true" />
+              導航指引
+            </h2>
+            <IconButton
+              onClick={() => setShowPanel(false)}
+              label="關閉導航面板"
+              icon={<X strokeWidth={2.5} aria-hidden="true" />}
+            />
           </div>
-        )}
-      </div>
-
-      {/* Floating Directions Guide Panel */}
-      <div
-        ref={panelRef}
-        id="panel"
-        className={`absolute top-0 right-0 h-full w-full sm:w-[350px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-l border-slate-200 dark:border-slate-800 shadow-2xl p-6 overflow-y-auto transition-transform duration-500 ease-in-out z-20 ${
-          showPanel ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm z-30">
-          <h2 className="text-base font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <Navigation className="h-5 w-5 text-purple-600 dark:text-purple-400 animate-pulse" aria-hidden="true" />
-            導航指引
-          </h2>
-          <button
-            onClick={() => setShowPanel(false)}
-            className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
-            aria-label="關閉導航面板"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
         </div>
-        <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-sans" />
       </div>
-
     </div>
   )
 }
