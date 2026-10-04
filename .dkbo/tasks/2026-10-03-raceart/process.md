@@ -193,3 +193,4 @@
 2026-10-04T02:55 minor 5: import 次序不一致 src/babylon/games/raceFx/effects.ts:28
 2026-10-04T02:55 gate3 ready: report.md 已寫，等人拍板合併
 2026-10-04T09:02 gate3 approved: 使用者拍板合併
+2026-10-04T09:02 task-close merged 871beb1
