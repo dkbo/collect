@@ -68,8 +68,6 @@ export function HeroSection() {
           index={tile}
           onIndexChange={setTile}
           onA={(i) => navigate(HERO_TILES[i]?.to ?? '/')}
-          // Handheld 以 onB?.(step()) 呼叫：不傳 onB 時 step 會被可選鏈短路而不換張，所以一定要給
-          onB={() => {}}
           aLabel={current ? `A 鍵：進入${current.title}` : 'A 鍵'}
           bLabel="B 鍵：下一張"
         />

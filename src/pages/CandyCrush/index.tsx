@@ -166,7 +166,7 @@ export function CandyCrush() {
             {!isReady && (
               <div className="candy-loading" data-testid="candy-loading">
                 <div className="candy-loading-icon">
-                  <Candy className="size-10" aria-hidden="true" />
+                  <Candy className="size-10" strokeWidth={2.5} aria-hidden="true" />
                 </div>
                 <div className="candy-loading-text">糖果消消樂載入中...</div>
               </div>
