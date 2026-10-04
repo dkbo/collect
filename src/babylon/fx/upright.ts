@@ -54,3 +54,14 @@ export function uprightAxis(pos: V3, cam: V3, camUp: V3, opts: UprightOptions = 
   const toward = (v: number[]) => v[0] * d[0] + v[1] * d[1] + v[2] * d[2]
   return toward(a) < toward(b) ? a : b
 }
+
+/**
+ * 前方（遠離相機那側）有牆時可用的後仰角：後仰會把頭心往前推 headHeight·sin t，
+ * 再加頭半徑不得超過到牆面的距離 gap，否則頭會穿進牆裡。gap 為 Infinity 表示前方空曠。
+ */
+export function wallSafeBackTilt(gap: number, maxTilt: number, headHeight: number, headRadius: number): number {
+  const room = (gap - headRadius) / headHeight
+  if (room <= 0) return 0
+  if (room >= Math.sin(maxTilt)) return maxTilt
+  return Math.asin(room)
+}

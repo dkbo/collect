@@ -49,7 +49,7 @@ import {
   type ItemKind,
   type PickupPayload,
 } from './bomberNet'
-import { AVATAR_SCALE, AvatarKit, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/fx/avatar'
+import { AVATAR_SCALE, AvatarKit, HEAD_Y as AVATAR_HEAD_Y, buildAvatar, disposeAvatar, poseAvatar, type ToyAvatar } from '@/babylon/fx/avatar'
 import { BOMBER_AVATAR } from '@/babylon/games/bomberFx/avatar'
 import { ToyBoard } from '@/babylon/games/bomberFx/board'
 import { ToyFx } from '@/babylon/games/bomberFx/effects'
@@ -60,7 +60,7 @@ import { perfLogLine } from '@/babylon/fx/perfLog'
 import { colorIndexOf, invincibleBlinkOn, PLAYER_PALETTE, TOY, type ColorIndex } from '@/babylon/games/bomberFx/palette'
 import { closeWarningActive, nextCloseCell } from '@/babylon/games/bomberFx/suddenDeath'
 import { ToyLook, UI_LAYER } from '@/babylon/fx/look'
-import { uprightAxis } from '@/babylon/fx/upright'
+import { uprightAxis, wallSafeBackTilt } from '@/babylon/fx/upright'
 
 /**
  * 炸彈超人（Phase C，計畫見 .prompts/babylon-multiplayer-games.md §3.2）。
@@ -148,6 +148,7 @@ interface Avatar {
   yaw: number // 面向角度
   prevX: number
   prevZ: number
+  tilt: number // 目前後仰角：靠近前方的牆時收小，免得頭穿進牆
 }
 
 const SIM_HZ = 30
@@ -169,6 +170,9 @@ const PLACE_POP_MS = 180 // 放炸彈彈跳＋地面 ring
 const DEATH_MS = 700 // 陣亡跳起旋轉縮小
 const FUSE_TIP = { x: 0.3, y: 0.84 } // 引信末端（炸彈模型座標，見 models.bombData）
 const HEAD_Y = 2.4 // 拾取代幣飛向的頭頂高度
+// 角色頭心高度與頭半徑（世界單位，fx/avatar 頭球直徑 0.92），算後仰時頭會往前伸多少
+const AVATAR_HEAD_H = AVATAR_HEAD_Y * AVATAR_SCALE
+const AVATAR_HEAD_R = 0.46 * AVATAR_SCALE
 const UPRIGHT_BACK_TILT = 0.35 // 角色往後仰（遠離相機）的弧度：高俯角下頭才不會整個蓋住身體（對照 variant-A-sheet 的正面）
 const PLUS_ONE_Y = 3.7 // 「+1」起飄高度：在「你」標記（約 3.3）之上，不被頭與標記擋住
 
@@ -329,7 +333,7 @@ class BomberScene implements GameModule {
     this.look.caster(toy.body)
     this.look.outline(toy.body)
     if (toy.antenna) this.look.glowMesh(toy.antenna, TOY.aiAntenna)
-    const av: Avatar = { root: toy.root, toy, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0 }
+    const av: Avatar = { root: toy.root, toy, walkPhase: 0, amp: 0, yaw: 0, prevX: 0, prevZ: 0, tilt: UPRIGHT_BACK_TILT }
     this.faceCamera(av)
     return av
   }
@@ -1039,10 +1043,12 @@ class BomberScene implements GameModule {
 
   /** 抵銷俯角透視：依角色所在位置微傾 root，讓身體在畫面上直立（近側出生角不再像橫躺；相機不動）。
    *  「你」與 AI 小章是 billboard，Babylon 不會把父節點的旋轉套到它們的位置上，這裡手動轉。 */
-  private leanUpright(av: Avatar, cam: Vector3, camUp: Vector3): void {
+  private leanUpright(av: Avatar, cam: Vector3, camUp: Vector3, deltaMs: number): void {
     const p = av.root.position
+    const target = wallSafeBackTilt(this.wallGapAhead(p.x, p.z), UPRIGHT_BACK_TILT, AVATAR_HEAD_H, AVATAR_HEAD_R)
+    av.tilt += (target - av.tilt) * Math.min(1, deltaMs * 0.012)
     const [x, y, z] = uprightAxis([p.x, 0, p.z], [cam.x, cam.y, cam.z], [camUp.x, camUp.y, camUp.z], {
-      backTilt: UPRIGHT_BACK_TILT,
+      backTilt: av.tilt,
     })
     const q = (av.root.rotationQuaternion ??= new Quaternion())
     Quaternion.FromUnitVectorsToRef(Vector3.UpReadOnly, new Vector3(x, y, z), q)
@@ -1057,6 +1063,17 @@ class BomberScene implements GameModule {
     }
   }
   private billboardBase = new WeakMap<Mesh, Vector3>()
+
+  /** 角色前方（+Z，遠離相機）那一列被頭寬蓋到的格若有阻擋，回傳到該格邊界的距離；空曠回 Infinity */
+  private wallGapAhead(px: number, pz: number): number {
+    const cy = worldToCell(pz, GRID_H) + 1
+    const c0 = worldToCell(px - AVATAR_HEAD_R, GRID_W)
+    const c1 = worldToCell(px + AVATAR_HEAD_R, GRID_W)
+    for (let cx = c0; cx <= c1; cx++) {
+      if (isBlocked(this.map, cx, cy)) return cellToWorld(cy, GRID_H) - CELL / 2 - pz
+    }
+    return Infinity
+  }
 
   private resetPose(av: Avatar): void {
     av.toy.body.position.y = 0
@@ -1515,7 +1532,7 @@ class BomberScene implements GameModule {
     const camPos = this.camera.position
     const camUp = this.camera.getDirection(Vector3.Up())
     for (const av of [this.selfAvatar, ...this.peerAvatars.values(), ...this.botAvatars.values()]) {
-      if (av?.root.isEnabled()) this.leanUpright(av, camPos, camUp)
+      if (av?.root.isEnabled()) this.leanUpright(av, camPos, camUp, deltaMs)
     }
 
     // 無敵視覺：身體外圈金色光殼閃爍（8Hz，最後 1.5 秒 16Hz）

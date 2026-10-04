@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { uprightAxis } from '@/babylon/fx/upright'
+import { uprightAxis, wallSafeBackTilt } from '@/babylon/fx/upright'
 
 // bomber 的相機：ArcRotateCamera(α −π/2, β 0.55, r 30) → 位置 (0, 30cosβ, −30sinβ)，畫面上方 = (0, sinβ, cosβ)
 const B = 0.55
@@ -54,5 +54,23 @@ describe('uprightAxis 的 backTilt（往後仰、多露出正面，仍保持畫�
     const b = uprightAxis([0, 0, -10], CAM, UP, { backTilt: 0.35 })
     expect(b[0]).toBeCloseTo(0)
     expect(b[2]).toBeCloseTo(Math.sin(0.35))
+  })
+})
+
+describe('wallSafeBackTilt（後仰不讓頭穿進前方的牆）', () => {
+  const H = 1.67
+  const R = 0.62
+  it('前方空曠（gap 無限大）照原本的後仰', () => {
+    expect(wallSafeBackTilt(Infinity, 0.35, H, R)).toBeCloseTo(0.35)
+  })
+  it('貼牆（gap 不到頭半徑）完全不後仰', () => {
+    expect(wallSafeBackTilt(0.55, 0.35, H, R)).toBe(0)
+  })
+  it('中間距離：頭的前緣剛好碰到牆面', () => {
+    const gap = 0.9
+    const t = wallSafeBackTilt(gap, 0.35, H, R)
+    expect(t).toBeGreaterThan(0)
+    expect(t).toBeLessThan(0.35)
+    expect(H * Math.sin(t) + R).toBeCloseTo(gap)
   })
 })
