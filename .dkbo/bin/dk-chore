@@ -4,6 +4,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 . "$DK_ROOT/lib/frontmatter.sh"; . "$DK_ROOT/lib/kinds.sh"
 dk_require_herdr
+dk_settings
 role="${1:-}"; instr="${2:-}"; shift 2 || true
 [ -n "$role" ] && [ -n "$instr" ] || dk_die "usage: dk-chore <role> \"<instruction>\" [--kind K] [--tier T] [--code] [--cwd PATH]"
 kind=""; tier=M; code=0; cwd="$DK_PROJECT_ROOT"
@@ -49,9 +50,14 @@ crec="$DK_ROOT/.sessions/chores/$agent"
 [ ! -e "$crec" ] || dk_die "$agent 的執行記錄 $crec 已存在（它還在跑？先 dk-chore-close $agent）"
 direction=$(dk_fm "$rf" split); direction="${direction:-right}"
 leader=$(herdr agent get "${HERDR_PANE_ID:?}" 2>/dev/null | dk_json '.result.agent.name // empty' || true); leader="${leader:-$HERDR_PANE_ID}"
-pane=$(herdr pane split "${split_from[@]}" --direction "$direction" --cwd "$cwd" --no-focus \
-  --env "DK_ROOT=$DK_ROOT" --env "DK_ROLE=$role" --env "DK_AGENT=$agent" --env "DK_CHORE_FILE=$cf" \
-  --env "DK_LEADER=$leader" --env "DK_CHORE_CODE=$code" --env "HERDR_ENV=1" | dk_json '.result.pane.pane_id')
+env_args=(--env "DK_ROOT=$DK_ROOT" --env "DK_ROLE=$role" --env "DK_AGENT=$agent" --env "DK_CHORE_FILE=$cf"
+  --env "DK_LEADER=$leader" --env "DK_CHORE_CODE=$code" --env "HERDR_ENV=1")
+if dk_tabs_mode; then   # 開在領導所在的 workspace；pane 關掉時 herdr 會自己收掉這個 tab，dk-chore-close 不用改
+  pane=$(herdr tab create --workspace "${HERDR_WORKSPACE_ID:-${HERDR_PANE_ID%%:*}}" --cwd "$cwd" --label "$agent" --no-focus \
+    "${env_args[@]}" | dk_json '.result.root_pane.pane_id // empty')
+else
+  pane=$(herdr pane split "${split_from[@]}" --direction "$direction" --cwd "$cwd" --no-focus "${env_args[@]}" | dk_json '.result.pane.pane_id')
+fi
 [ -n "$pane" ] || dk_die "pane split returned no pane_id"
 dk_render "$DK_ROOT/templates/chore.md" "SOURCE=$instr" "AGENT=$agent" "KIND=$kind" "TIER=$tier" > "$cf"
 # 執行狀態：機器的。.sessions 是 gitignored，這些欄位是 runtime handle，用完即丟。

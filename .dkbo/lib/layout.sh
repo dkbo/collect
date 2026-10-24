@@ -6,6 +6,8 @@
 # DK_RATIO_MEANS: what herdr's `pane split --ratio` denotes — "new" (the new pane's share) or "anchor" (default).
 # tests/integration/herdr-real.sh confirmed against real herdr 0.9.0 that --ratio is the ANCHOR's share
 # (see tests/integration/README.md "Last run"), so the default is "anchor".
+# DK_LAYOUT=tabs (dk_tabs_mode): every employee gets its own tab (tab_no 2, 3, …; tab 1 stays the leader's alone),
+# slot is always 1 and nothing is ever split or resized.
 DK_RATIO_MEANS="${DK_RATIO_MEANS:-anchor}"
 dk_layout_ratio_arg() { # ANCHOR_SHARE → value for --ratio
   if [ "$DK_RATIO_MEANS" = anchor ]; then awk -v r="$1" 'BEGIN{printf "%.3f", r}'; else awk -v r="$1" 'BEGIN{printf "%.3f", 1-r}'; fi
@@ -16,6 +18,7 @@ dk__layout_pane_at() { awk -v t="$1" -v s="$2" 'NF>=6 && $5==t && $6==s {print $
 dk_layout_slot() { # GROUP [PANES_FILE] → "<tab_no> <slot> <anchor> <direction> <anchor_share>" | "NEWTAB <tab_no> 1"
   local panes="${2:-$(dk_task_dir)/.panes}" tab max cap slot anchor_slot dir share anchor
   tab=$(awk 'NF>=6 && $5>0 {if ($5>t) t=$5} END{print t+0}' "$panes"); [ "$tab" -ge 1 ] || tab=1
+  if dk_tabs_mode; then echo "NEWTAB $((tab+1)) 1"; return 0; fi
   max=$(awk -v t="$tab" 'NF>=6 && $5==t {if ($6>m) m=$6} END{print m+0}' "$panes")
   cap=$(dk__layout_cap "$tab"); slot=$((max+1))
   if [ "$slot" -gt "$cap" ]; then tab=$((tab+1)); slot=1; cap=$(dk__layout_cap "$tab"); fi
@@ -52,6 +55,7 @@ dk_layout_even() { # TAB_NO [PANES_FILE] — equalise the tab's live employee ce
     fi
     return 0
   fi
+  dk_tabs_mode && return 0   # one pane per tab: nothing to equalise
   if [ "$tab" -eq 1 ]; then probe="${DK_ROOT_PANE:-}"; [ -n "$probe" ] || return 0; else probe=$(echo "$ids" | head -1); fi
   snap=$(dk_h_soft pane layout --pane "$probe") || return 0
   printf '%s\n' "$snap" | jq -r '.result.layout as $l | ($l.area | "AREA \(.x) \(.y) \(.width) \(.height)"), ($l.panes[] | "PANE \(.pane_id) \(.rect.x) \(.rect.y) \(.rect.width) \(.rect.height)")' 2>/dev/null \

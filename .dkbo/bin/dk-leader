@@ -186,7 +186,12 @@ if [ "$run" = 1 ]; then
   echo "leader-$short $DK_ROOT_PANE"; exit 0
 fi
 
-pane=$(herdr pane split --current --direction right --cwd "$DK_PROJECT_ROOT" --no-focus --env "DK_ROOT=$DK_ROOT" --env "HERDR_ENV=1" | dk_json '.result.pane.pane_id' || echo "")
+if dk_tabs_mode; then
+  pane=$(herdr tab create --workspace "${HERDR_WORKSPACE_ID:-${HERDR_PANE_ID%%:*}}" --cwd "$DK_PROJECT_ROOT" --label "plan/$short" --no-focus \
+           --env "DK_ROOT=$DK_ROOT" --env "HERDR_ENV=1" | dk_json '.result.root_pane.pane_id // empty' || echo "")
+else
+  pane=$(herdr pane split --current --direction right --cwd "$DK_PROJECT_ROOT" --no-focus --env "DK_ROOT=$DK_ROOT" --env "HERDR_ENV=1" | dk_json '.result.pane.pane_id' || echo "")
+fi
 [ -n "$pane" ] || dk_die "pane split returned no pane_id"
 # shellcheck disable=SC2086
 herdr agent start "leader-$short" --kind "$kind" --pane "$pane" -- $args $sess >/dev/null

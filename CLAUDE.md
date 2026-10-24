@@ -4,7 +4,7 @@ Read AGENTS.md first.
 
 # 團隊流程 = dkbo（2026-09-10 起）
 
-派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.20.0，herdr pane 為底）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`；印 `leader` **不代表你就是領導**（0.7.0 起領導不自動接管），照使用者原本的要求做事，要用團隊流程時請他叫其中一個 skill。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
+派工工具是 `.dkbo/`（[dkbo-team](https://github.com/dkbo/dkbo-team) v0.21.0，herdr 為底；`DK_LAYOUT="tabs"`：一人一個 tab，不切窗格）。**每個 session 開頭先跑 `.dkbo/bin/dk-whoami`**：印 `employee …` 就讀自己的角色檔與 `.dkbo/PROTOCOL.md`；印 `leader` **不代表你就是領導**（0.7.0 起領導不自動接管），照使用者原本的要求做事，要用團隊流程時請他叫其中一個 skill。規則本體只在 `.dkbo/`，這裡只寫本專案的對應與例外。
 
 - **領導拆成三個階段**（各自先讀 `.dkbo/LEADER.md` 共同規範）：`/dkbo-brain`（諮詢、分流、雜務 `dk-chore`、評議波）、`/dkbo-plan`（`dk-task-new`＋`request.md` 逐字落檔、寫 brief、`dk-brief-check` 機械閘、`dk-brief-review` 派 2–3 個不同 kind 審計畫並裁定、關卡①後停）、`/dkbo-run`（`dk-wave-open`／`dk-spawn`／`dk-review`／裁定／`dk-wave-close`／結案）。三者不互相自動跳轉，該換階段就告訴使用者叫哪一個並結束 turn。`dk-resume` 是唯讀看板，隨時可跑，看了不等於接管。
 
@@ -19,6 +19,7 @@ Read AGENTS.md first.
 - **Minor 要領導自己落盤才活得過這一波**：`dk-review` 收到 reviewer 的 `## Minor` 後，領導逐條 `dk-process "minor N: <一句> <file:line>"`；整枝評議（`dk-review --task`）的切片會帶上本任務累積的 Minor 請 reviewer triage，逐波審查不帶。`dk-task-close` 對「有 minor 但結案 report 沒提」只警告不擋。
 - **時間看得見**（0.9.2）：`dk-resume` 的「本波」段印 `任務已進行 Xh Ym`／`本波已進行 Ym`、每位在線員工附 `等了 N min`，用來判斷該不該催或熔斷，不再憑感覺；`dk-wave-close` 成功關波時記一行 `wave N 耗時 Mm（dev Am、審查 Rm）`；`dk-timeline [<任務>]` 只讀 `process.md` 印一張表（零 token、不寫檔），`dk-task-close` 會把它填進 report 的 `## 時間` 段。全部從既有時間戳算出來，員工與領導都不用多填欄位。
 - **任務改開 tab、交棒才實體化**（0.11.0）：`dk-task-new` 只建 `.dkbo/tasks/<t>/`，不切 worktree；叫 `/dkbo-run` 時 `dk-leader <short> --run` 才切 `dk/<short>` worktree、在原 workspace 開 label `dk/<short>` 的 tab 並交棒給那裡的執行領導，原 session 就可以空出來開下一個 `/dkbo-plan`。失敗整組 rollback，重跑冪等。**專案層熔斷**（0.12.0）：某 kind 撞額度後在 `dk-resume` 兩波之間也看得到，恢復用 `dk-kind up <kind>`；`dk-wave-open N --refresh` 只清逾時標記。`settings.env` 的 `DK_REPOS`／`DK_SETUP_CMD` 本專案留空（單 repo、hooks 已 symlink `node_modules`）。
+- **版面 = tabs 模式**（0.21.0，`settings.env` 的 `DK_LAYOUT="tabs"`）：tab 1 只留領導，dev／qa／reviewer 從 tab 2 起各開一個 tab（tab 名＝agent 名），pm 開在主樹的獨立 tab，雜務開 `chore-<角色>-N`、規劃領導開 `plan/<short>`；關 pane 時 tab 自己消失。此模式下 `dk-spawn --split`、角色檔 `split:`、`DK_TAB1_SLOTS` 都不起作用。上游註明尚未在真 herdr 整波實跑，版面異常就改回 `grid`。
 - **commit 政策**：任務分支 `dk/<short>`（worktree `.worktrees/<short>`）上每波 `wave N: <成員>` commit 由 `dk-wave-close` 四道閘全過後自動做（要自訂訊息用 `-m`），領導不手動 commit；結案時 `dk-task-close` 另把任務記憶（`.dkbo/tasks/<t>/`、`tasks/INDEX.md`、`decisions.md`）commit 進主樹，不碰其他改動。合併回 `master`（`dk-task-close`，關卡③）與任何 push 一律要使用者拍板。`build: 部屬`（`pnpm build` 寫 `docs/`）不在任務內做。
 - **Agent tool 只剩兩種用途**：領導寫 brief 前派內建 `Explore`（haiku／sonnet low，唯讀）把 `檔案:行號` 找齊；不在 herdr 內（`$HERDR_ENV` 不是 1）時退回 `.claude/skills/herdr-team` 的備援流程。員工端已由 PROTOCOL 禁 subagent。
 - 記憶：任務記憶在 `.dkbo/tasks/<日期-短名>/`（進版控）；`.claude/state/` 舊 brief／report 目錄退役；plans 仍放 `.claude/plans/`，`dk-task-new --from <plan>` 直接吃並把需求原文逐字複製成 `request.md`（計畫審查要拿它對 brief，沒填的空殼會被閘 1 擋在關卡①前）。

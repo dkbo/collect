@@ -127,6 +127,7 @@ dk_index_set() { # NAME STATUS NOTE  — rewrite the row whose name column match
 
 dk_settings() { # load .dkbo/settings.env over the defaults; warn once per process tree when the file is missing
   DK_TEST_CMD=""; DK_REVIEW_KINDS="claude"; DK_REVIEW_MIN="1"; DK_REVIEW_TIMEOUT_MIN="20"; DK_TAB1_SLOTS="4"; DK_LEADER_KIND="claude"; DK_WAVE_TIMEOUT_MIN="60"; DK_REVIEW_TIER="L"
+  DK_LAYOUT="grid"
   DK_REPOS=""; DK_SETUP_CMD=""
   if [ -f "$DK_ROOT/settings.env" ]; then
     # shellcheck disable=SC1091
@@ -134,13 +135,15 @@ dk_settings() { # load .dkbo/settings.env over the defaults; warn once per proce
   elif [ -z "${DK_SETTINGS_WARNED:-}" ]; then
     echo "dk: $DK_ROOT/settings.env missing; using defaults (run /dkbo-init)" >&2; DK_SETTINGS_WARNED=1
   fi
-  export DK_TEST_CMD DK_REVIEW_KINDS DK_REVIEW_MIN DK_REVIEW_TIMEOUT_MIN DK_TAB1_SLOTS DK_LEADER_KIND DK_WAVE_TIMEOUT_MIN DK_REVIEW_TIER DK_SETTINGS_WARNED
+  export DK_TEST_CMD DK_REVIEW_KINDS DK_REVIEW_MIN DK_REVIEW_TIMEOUT_MIN DK_TAB1_SLOTS DK_LEADER_KIND DK_WAVE_TIMEOUT_MIN DK_REVIEW_TIER DK_LAYOUT DK_SETTINGS_WARNED
   export DK_REPOS DK_SETUP_CMD
   # DK_TEST_CMD_<名> 與 DK_SETUP_CMD_<名> 是每個 repo 一條的動態鍵，沒辦法在預設區列舉；
   # source 完之後一起 export，子行程（dk-wave-close 起的 gate c、dk-leader 起的鉤子）才看得見。
   local v
   for v in ${!DK_TEST_CMD_@} ${!DK_SETUP_CMD_@}; do export "${v?}"; done
 }
+# DK_LAYOUT=tabs：每位員工、pm、雜務、規劃領導各開一個 herdr tab，不切窗格。其他值（含空、打錯）一律當 grid。
+dk_tabs_mode() { [ "${DK_LAYOUT:-grid}" = tabs ]; }
 dk_commit_memory() { # <message> <path…> — commit只有這幾條路徑（任務／雜務記憶）到主樹
   # 記憶是 markdown、可 grep、進 git —— 但在這之前沒有任何一步真的把它們放進 git，
   # 結案後整個 tasks/<t>/ 還是 untracked，一個 git clean 就抹掉所有裁定理由。

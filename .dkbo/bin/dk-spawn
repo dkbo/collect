@@ -111,7 +111,11 @@ fi
 env_args=(--env "DK_ROOT=$DK_ROOT" --env "DK_TASK_DIR=$dir" --env "DK_ROLE=$role" --env "DK_AGENT=$agent"
   --env "DK_LEADER=$(dk_leader_name)" --env "DK_ISOLATED=$isolated" --env "HERDR_ENV=1")
 tab_no=0; slot=0; tab_id=""
-if [ "$(dk_fm "$rf" worktree)" = false ]; then   # e.g. pm: beside the leader in the main tree, outside the employee grid
+if [ "$(dk_fm "$rf" worktree)" = false ] && dk_tabs_mode; then
+  # tabs 模式的 pm：自己一個 tab，不記 DK_TABS —— tab 裡最後一個 pane 關掉時 herdr 會自己收掉 tab
+  out=$(herdr tab create --workspace "$DK_WORKSPACE" --cwd "$DK_PROJECT_ROOT" --label "$agent" --no-focus "${env_args[@]}") || dk_die "tab create failed"
+  pane=$(echo "$out" | dk_json '.result.root_pane.pane_id // empty')
+elif [ "$(dk_fm "$rf" worktree)" = false ]; then   # e.g. pm: beside the leader in the main tree, outside the employee grid
   pane=$(herdr pane split --pane "${HERDR_PANE_ID:?}" --direction "${split_override:-right}" --cwd "$DK_PROJECT_ROOT" --no-focus "${env_args[@]}" | dk_json '.result.pane.pane_id')
 else
   read -r tab_no slot anchor direction share <<< "$(dk_layout_slot "$group")"
@@ -125,7 +129,8 @@ else
       # shellcheck disable=SC2086  # DK_TABS is a space-separated list
       DK_TABS=$(printf '%s\n' ${DK_TABS:-} | grep -v "^$tab_no=" | tr '\n' ' ' | sed 's/ $//') || true
     fi
-    out=$(herdr tab create --workspace "$DK_WORKSPACE" --cwd "$mcwd" --label "$DK_SHORT-$tab_no" --no-focus "${env_args[@]}") || dk_die "tab create failed"
+    label="$DK_SHORT-$tab_no"; ! dk_tabs_mode || label="$agent"   # tabs 模式一人一 tab，tab 名就是人名
+    out=$(herdr tab create --workspace "$DK_WORKSPACE" --cwd "$mcwd" --label "$label" --no-focus "${env_args[@]}") || dk_die "tab create failed"
     tab_id=$(echo "$out" | dk_json '.result.tab.tab_id // empty'); pane=$(echo "$out" | dk_json '.result.root_pane.pane_id // empty')
     [ -n "$tab_id" ] && [ -n "$pane" ] || dk_die "tab create returned no tab_id/root pane"
     dk_env_set DK_TABS "${DK_TABS:+$DK_TABS }$tab_no=$tab_id"; dk_process "tab $tab_no $tab_id opened"
